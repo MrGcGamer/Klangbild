@@ -12,7 +12,8 @@ import kotlin.math.cos
 data class Lighting(val brightness: Float, val warmth: Float) {
 
     fun apply(lab: Lab): Lab {
-        val l = lab.l * brightness
+        // Highlights dim a little less than shadows, so text keeps its contrast at night.
+        val l = lab.l * (brightness + (1f - brightness) * 0.3f * lab.l)
         val w = warmth * l
         return Lab(
             l,

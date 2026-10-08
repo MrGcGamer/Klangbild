@@ -70,9 +70,9 @@ object CoverPalette {
         val highChroma = chromas[((chromas.size - 1) * 0.9f).toInt()]
         val clusters = kMeans(labs)
         val kind = when {
-            highChroma < NEUTRAL_CHROMA -> CoverKind.MONOCHROME
             meanL < 0.24f -> CoverKind.DARK
             meanL > 0.84f && meanChroma < 0.06f -> CoverKind.LIGHT
+            highChroma < NEUTRAL_CHROMA -> CoverKind.MONOCHROME
             highChroma > 0.2f -> CoverKind.VIVID
             else -> CoverKind.BALANCED
         }
@@ -176,9 +176,9 @@ object CoverPalette {
         val inkFaint = Lch(0.64f, neutralChroma * 1.2f, hue).toLab()
 
         val accent = if (lead == null) {
-            Lch(0.80f, 0.055f, WARM_HUE).toLab() // brass
+            Lch(0.82f, 0.055f, WARM_HUE).toLab() // brass
         } else {
-            Lch(0.80f, min(lead.lab.chroma * 0.8f, 0.105f).coerceAtLeast(0.05f), lead.lab.hue).toLab()
+            Lch(0.82f, min(lead.lab.chroma * 0.8f, 0.105f).coerceAtLeast(0.05f), lead.lab.hue).toLab()
         }
 
         val glowSources = if (chromatic.isEmpty()) {
