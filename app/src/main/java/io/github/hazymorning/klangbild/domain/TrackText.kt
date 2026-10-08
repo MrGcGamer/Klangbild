@@ -8,7 +8,9 @@ package io.github.hazymorning.klangbild.domain
  *    line ("Suite bergamasque, L. 75") above the movement ("III. Clair de lune").
  *  - "(feat. X)" moves from the title to the artists.
  *  - Version noise ("– 2011 Remaster", "(Live)") leaves the title and becomes a small note.
- *  - Long artist lists are shortened with "u. a." instead of running for three lines.
+ *  - Long artist lists end with "und weitere" instead of running for three lines.
+ *  - Spaced hyphens become en dashes that stay with the preceding word, so no line ever
+ *    starts with a dash ("Presto – / Allegro assai", not "Presto / – Allegro assai").
  */
 data class TrackText(
     val title: String,
@@ -65,15 +67,20 @@ data class TrackText(
 
             val album = track.album?.trim()?.takeIf { it.isNotEmpty() && !it.equals(title, ignoreCase = true) }
             return TrackText(
-                title = title.ifEmpty { track.title.trim() },
-                work = work,
+                title = dashes(title.ifEmpty { track.title.trim() }),
+                work = work?.let(::dashes),
                 artists = formatArtists(artists),
                 album = album?.takeUnless { work != null && it.equals(work, ignoreCase = true) },
                 version = version,
             )
         }
 
-        /** "A", "A & B", "A, B & C"; very long lists end with "u. a." */
+        private val spacedDash = Regex("""\s+[-–—]\s+""")
+
+        /** Spaced hyphen/dash → en dash glued to the word before it (no-break space). */
+        fun dashes(s: String): String = s.replace(spacedDash, "\u00A0– ")
+
+        /** "A", "A & B", "A, B & C"; very long lists end with "und weitere". */
         fun formatArtists(names: List<String>): String? {
             if (names.isEmpty()) return null
             if (names.size == 1) return names[0]
@@ -82,11 +89,11 @@ data class TrackText(
             val kept = ArrayList<String>()
             var length = 0
             for (n in names) {
-                if (kept.isNotEmpty() && length + n.length + 2 > MAX_ARTISTS_CHARS - 7) break
+                if (kept.isNotEmpty() && length + n.length + 2 > MAX_ARTISTS_CHARS - 12) break
                 kept += n
                 length += n.length + 2
             }
-            return kept.joinToString(", ") + " u. a."
+            return kept.joinToString(", ") + " und weitere"
         }
     }
 }

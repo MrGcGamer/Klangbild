@@ -15,7 +15,7 @@ class TrackTextTest {
 
         val y = t("Symphony No. 9 in D Minor, Op. 125 \"Choral\": IV. Presto - Allegro assai")
         assertThat(y.work).isEqualTo("Symphony No. 9 in D Minor, Op. 125 \"Choral\"")
-        assertThat(y.title).isEqualTo("IV. Presto - Allegro assai")
+        assertThat(y.title).isEqualTo("IV. Presto\u00A0– Allegro assai")
 
         val z = t("Goldberg-Variationen, BWV 988: Aria")
         assertThat(z.work).isEqualTo("Goldberg-Variationen, BWV 988")
@@ -60,7 +60,7 @@ class TrackTextTest {
             "Gundula Janowitz", "Hilde Rössel-Majdan", "Waldemar Kmentt", "Walter Berry",
         )
         val s = TrackText.formatArtists(orchestra)!!
-        assertThat(s).endsWith(" u. a.")
+        assertThat(s).endsWith(" und weitere")
         assertThat(s.length).isAtMost(TrackText.MAX_ARTISTS_CHARS)
         assertThat(s).startsWith("Berliner Philharmoniker, Herbert von Karajan")
     }

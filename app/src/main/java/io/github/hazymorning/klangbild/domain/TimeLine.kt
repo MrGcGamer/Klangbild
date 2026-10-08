@@ -22,7 +22,9 @@ object TimeLine {
         next: TrackText?,
         source: String?,
         showExact: Boolean,
+        linkDown: Boolean = false,
     ): Line? {
+        if (linkDown) return Line("Verbindung unterbrochen", "wird wiederhergestellt …")
         val nextText = next?.let { listOfNotNull(it.title, it.artists).joinToString(" · ") }
         if (showExact && positionMs != null) {
             val figures = if (durationMs != null) "${formatClock(positionMs)} / ${formatClock(durationMs)}" else formatClock(positionMs)

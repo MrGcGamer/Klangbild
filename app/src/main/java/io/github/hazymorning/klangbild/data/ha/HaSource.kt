@@ -80,6 +80,8 @@ class HaSource(
         runCatching { connection.callService("media_player", service, playerEntity) }
     }
 
+    /** Called from the status/entity collector and after queue refreshes – serialised. */
+    @Synchronized
     private fun publish(status: HaStatus, entities: Map<String, EntityState>) {
         val t = now()
         val link = when (status) {

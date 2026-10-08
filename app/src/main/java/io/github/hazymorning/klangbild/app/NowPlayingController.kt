@@ -297,7 +297,15 @@ class NowPlayingController(
         buildingKey = track.key
         sceneJob?.cancel()
         sceneJob = scope.launch {
-            val scene = buildScene(track, lighting)
+            val scene = try {
+                buildScene(track, lighting)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                buildingKey = null
+                throw e
+            } catch (e: Throwable) {
+                // Broken image, out of memory …: the generated figure always works.
+                withContext(sceneDispatcher) { buildScene(track, lighting, withCover = false) }
+            }
             buildingKey = null
             synchronized(prepared) { remember(track.key, scene) }
             val screen = _ui.value.screen
@@ -318,9 +326,9 @@ class NowPlayingController(
         }
     }
 
-    private suspend fun buildScene(track: TrackInfo, lighting: Lighting): ArtworkScene {
+    private suspend fun buildScene(track: TrackInfo, lighting: Lighting, withCover: Boolean = true): ArtworkScene {
         // Wait at most a few seconds for the cover; then the Chladni figure steps in.
-        val bitmap = withTimeoutOrNull(COVER_TIMEOUT_MS) { runCatching { artwork.load(track) }.getOrNull() }
+        val bitmap = if (!withCover) null else withTimeoutOrNull(COVER_TIMEOUT_MS) { runCatching { artwork.load(track) }.getOrNull() }
         return withContext(sceneDispatcher) {
             SceneBuilder.build(
                 key = track.key,

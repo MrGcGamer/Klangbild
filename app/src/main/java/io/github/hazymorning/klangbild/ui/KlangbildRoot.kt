@@ -79,20 +79,24 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 translationY = dy.toFloat()
             },
     ) {
+        // Animate between *kinds* of screens only (stage/rest/setup). The latest content
+        // per kind is kept, so a track change stays inside the stage (its own transition)
+        // and an outgoing screen keeps showing what it showed.
+        val latest = remember { HashMap<String, Content>() }
+        latest[content.key] = content
         AnimatedContent(
-            targetState = content,
+            targetState = content.key,
             transitionSpec = {
                 fadeIn(tween(1_300, delayMillis = 900, easing = Motion.Dimmer)) togetherWith
                     fadeOut(tween(900, easing = Motion.Dimmer))
             },
-            contentKey = { it.key },
             label = "screen",
-        ) { key ->
-            when (key) {
-                is Content.StageContent -> StageContentView(ui, key, screen, hooks, wall)
+        ) { k ->
+            when (val c = latest[k] ?: Content.Dark) {
+                is Content.StageContent -> StageContentView(ui, c, screen, hooks, wall)
                 is Content.RestContent -> RestScreen(
-                    reason = key.reason,
-                    speaker = key.speaker,
+                    reason = c.reason,
+                    speaker = c.speaker,
                     entityId = ui.entityId,
                     lighting = ui.lighting,
                     time = io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value),
@@ -100,7 +104,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 )
                 is Content.SetupContent -> {
                     val scene = remember(ui.setup, screen, ui.lighting) { SetupArt.scene(ui.setup, screen, ui.lighting) }
-                    SetupScreen(key.reason, ui.setup, scene)
+                    SetupScreen(c.reason, ui.setup, scene)
                 }
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
@@ -143,13 +147,16 @@ private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s 
 private fun StageContentView(ui: UiState, key: Content.StageContent, screen: ScreenSpec, hooks: RootHooks, wall: State<Long>) {
     val stageScreen = ui.screen as? Screen.Stage
     // While a new cover loads, the previous stage stays; status follows the live state.
+    // A lost connection (after the grace period) dims the stage like a pause.
+    val linkDown = stageScreen?.linkDown == true
     val status = stageScreen?.status ?: PlayerStatus.PAUSED
+    val shownStatus = if (linkDown) PlayerStatus.PAUSED else status
     val next = stageScreen?.next
     val clock = if (ui.showClock) io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value) else null
     val exact = hooks.exactUntil.value > hooks.now()
     val minuteBucket = wall.value / 15_000 // time line words change at most every 15 s
     val stage = key.stage
-    val modelFor: (StageData) -> StageModel = remember(stage, minuteBucket, exact, status, next, clock, ui.night) {
+    val modelFor: (StageData) -> StageModel = remember(stage, minuteBucket, exact, status, next, clock, ui.night, linkDown) {
         { s: StageData ->
             val position = if (s.track.key == stage.track.key) hooks.positionNow() else null
             StageModel(
@@ -165,6 +172,7 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
                     next = next?.let { TrackText.from(it) },
                     source = s.track.source,
                     showExact = exact,
+                    linkDown = linkDown,
                 ),
                 clock = clock,
                 night = ui.night,
@@ -173,7 +181,7 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
     }
     StageTheatre(
         stage = stage,
-        status = status,
+        status = shownStatus,
         modelFor = modelFor,
         progressFor = { s ->
             val d = s.track.durationMs

@@ -27,7 +27,10 @@ sealed interface Screen {
         val track: TrackInfo,
         val status: PlayerStatus,
         val next: TrackInfo?,
-        /** The connection is briefly gone; the stage keeps going for a grace period. */
+        /**
+         * The connection has been gone for longer than the grace period: the stage stays,
+         * dimmed like a pause, and the time line says so – until [Timing.linkGiveUpMs].
+         */
         val linkDown: Boolean = false,
     ) : Screen
 
@@ -42,8 +45,10 @@ data class Timing(
     val sleepAfterMs: Long = 10 * 60_000L,
     /** A paused stage gives way to the rest screen after this long. */
     val pauseToRestMs: Long = 3 * 60_000L,
-    /** Keep showing the stage this long after the connection dropped. */
+    /** Keep showing the stage unchanged this long after the connection dropped. */
     val linkGraceMs: Long = 20_000L,
+    /** After this long without connection the rest screen explains what is going on. */
+    val linkGiveUpMs: Long = 120_000L,
 )
 
 data class ScreenDecision(
@@ -104,8 +109,8 @@ class ScreenStateMachine(private val timing: Timing = Timing()) {
             if (player == null) return Screen.Rest(RestReason.CONNECTING)
             val downFor = s.linkDownSinceMs?.let { now - it } ?: 0L
             val track = player.track
-            return if (track != null && player.status in stagedStatuses && downFor < timing.linkGraceMs) {
-                Screen.Stage(track, player.status, s.next, linkDown = true)
+            return if (track != null && player.status in stagedStatuses && downFor < timing.linkGiveUpMs) {
+                Screen.Stage(track, player.status, s.next, linkDown = downFor >= timing.linkGraceMs)
             } else {
                 Screen.Rest(RestReason.OFFLINE, speaker)
             }

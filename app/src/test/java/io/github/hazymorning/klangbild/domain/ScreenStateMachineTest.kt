@@ -7,7 +7,7 @@ import org.junit.Test
 
 class ScreenStateMachineTest {
     private val song = TrackInfo("Song", listOf("A"), durationMs = 200_000)
-    private val timing = Timing(sleepAfterMs = 600_000, pauseToRestMs = 180_000, linkGraceMs = 20_000)
+    private val timing = Timing(sleepAfterMs = 600_000, pauseToRestMs = 180_000, linkGraceMs = 20_000, linkGiveUpMs = 120_000)
 
     private fun src(
         status: PlayerStatus? = PlayerStatus.PLAYING,
@@ -60,8 +60,10 @@ class ScreenStateMachineTest {
         val m = ScreenStateMachine(timing)
         m.decide(src(), 0)
         val short = m.decide(src(link = LinkState.RECONNECTING, downSince = 1_000), 5_000)
-        assertThat(short.screen).isEqualTo(Screen.Stage(song, PlayerStatus.PLAYING, null, linkDown = true))
-        val long = m.decide(src(link = LinkState.RECONNECTING, downSince = 1_000), 30_000)
+        assertThat(short.screen).isEqualTo(Screen.Stage(song, PlayerStatus.PLAYING, null, linkDown = false))
+        val longer = m.decide(src(link = LinkState.RECONNECTING, downSince = 1_000), 30_000)
+        assertThat(longer.screen).isEqualTo(Screen.Stage(song, PlayerStatus.PLAYING, null, linkDown = true))
+        val long = m.decide(src(link = LinkState.RECONNECTING, downSince = 1_000), 130_000)
         assertThat(long.screen).isEqualTo(Screen.Rest(RestReason.OFFLINE, "Wohnzimmer"))
         // first connect without any data yet
         assertThat(m.decide(src(status = null, link = LinkState.CONNECTING), 0).screen).isEqualTo(Screen.Rest(RestReason.CONNECTING))

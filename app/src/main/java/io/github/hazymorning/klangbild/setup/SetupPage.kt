@@ -44,7 +44,8 @@ object SetupPage {
   button:disabled { opacity: .45; }
   .speakers { display: grid; gap: 10px; }
   .speaker { display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line);
-    border-radius: 12px; padding: 12px 14px; }
+    border-radius: 12px; padding: 12px 14px; margin: 0; color: var(--ink); }
+  .speaker:has(input:checked) { border-color: var(--brass); }
   .speaker input { accent-color: var(--brass); width: 20px; height: 20px; }
   .speaker .name { font-family: Georgia, serif; font-size: 18px; }
   .speaker .meta { color: var(--faint); font-size: 13px; }

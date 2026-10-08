@@ -33,6 +33,12 @@ class TimeLineTest {
     }
 
     @Test
+    fun `connection trouble is said calmly`() {
+        assertThat(TimeLine.compute(PlayerStatus.PLAYING, 1_000, 200_000, next, null, showExact = false, linkDown = true))
+            .isEqualTo(TimeLine.Line("Verbindung unterbrochen", "wird wiederhergestellt …"))
+    }
+
+    @Test
     fun `exact figures on request`() {
         assertThat(line(97_000, 251_000, exact = true)).isEqualTo(TimeLine.Line("1:37 / 4:11", figures = true))
         assertThat(line(3_725_000, null, exact = true)).isEqualTo(TimeLine.Line("1:02:05", figures = true))
