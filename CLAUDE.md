@@ -35,8 +35,9 @@ data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader, Backoff
 domain/         TrackInfo, PlayerSnapshot, TrackText (typographic cleanup), Progress +
                 SmoothedPosition, TimeLine (time in words), ScreenStateMachine (Screen + keep-on/sleep)
 color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette), Lighting (time of day)
-render/         HaloLayout (grid), HaloLight (wall glow + sundial sun), SceneBuilder (per-track
-                precompute: Lanczos cover at exact px, backdrop, palette), ImageOps
+render/         HaloLayout (grid), HaloLight (light map, light colour/tint, sundial mask),
+                SceneBuilder (per-track precompute: Lanczos cover at exact px, light map, palette),
+                ImageOps
 art/            SyntheticCovers (test/demo covers), ChladniArt (missing-cover art), Noise
 app/            NowPlayingController (single source of truth → StateFlow<UiState>), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API), SetupPage (HTML), SetupServer (+ QR, discovery)
@@ -49,9 +50,15 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
 ## Design principles (do not regress)
 
 - **Object, not app.** No buttons, no bars, no icons for their own sake, no harsh white.
-  Progress is the wandering "sun" behind the cover plus a time line in words.
-- **One style: Halo.** Cover backlit by its own leading colour on a near-black wall; glow
-  never reaches the screen edge; wall stays dark behind the cover.
+  Progress is the sundial (the brighter side of the halo wanders around the cover) plus a
+  time line in words.
+- **One style: Halo.** Cover backlit by its own leading colour (hue groups, area over
+  brightness; orange → red-amber, neutral → warm white). Halo-lit profile: 50 % at the
+  edge, peak 8–14 dp out, exponential fall-off. No light within 36 dp of the screen edges,
+  far wall pure black, wall dark behind the cover. Night ≤ 0.3× day, saturation ≤ 50 %.
+  `render/DesignRulesTest` guards these numbers.
+- **Light per frame:** greyscale light map × rotating sweep-gradient mask × tint colour
+  filter – one rectangle. Never add per-frame image processing.
 - **Grid** (960 × 540 dp): cover slot 320 dp at 108 dp margin; text column 360 dp; clock cap
   on the cover top, title grows upward from 44 dp above the artist baseline (350 dp), time
   line on the cover bottom. Layout mirrors per album (burn-in), whole stage drifts ±12 dp.
@@ -59,10 +66,17 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
 - **Per frame only cheap work:** blur/palette/resampling happen once per track in
   `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
 - **Typography:** Newsreader (titles, italics), Jost (spaced caps, figures). No caps, tracking
-  or italics for CJK/Arabic (`isSpacingFriendly`). Emoji smaller and glued to words.
-  No mid-word line breaks (`breaksInsideWord`).
-- **Calm motion:** track change 3.6 s (filament: old light cools to amber), pause dims the
-  lamp over 2.4 s, screens switch by fading through dark.
+  or italics for CJK/Arabic (`isSpacingFriendly`); there the artist outranks the album.
+  Titles ≤ 3 lines, prefer breaks after section dashes; artists on one line ("u. a." in
+  italics); no mid-word breaks (`breaksInsideWord`); edge emoji dropped (`Emoji.trimEdges`),
+  inner ones dimmed; one separator `TimeLine.SEPARATOR`; `TrackText.typeset` for dashes and
+  narrow no-break spaces after abbreviations.
+- **Calm motion:** track change 2.6 s in sequence (old print out 700 ms → dark wall while the
+  lamp dips and morphs colour in OKLCH → new print in 1200 ms → text); the clock stays. Same
+  picture (album) → only text. Pause dims lamp, cover and text over 2.4 s; time line
+  cross-fades 600 ms. Screens switch by fading through dark.
+- **Rest screen:** serif clock on a dim lamp-lit wall that follows the sun; re-hung every
+  15 min; night shows only the time.
 - **German UI texts**, 24 h clock, numbers up to twelve in words in the time line.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,
   dream on Google TV) – mark it as unverified.

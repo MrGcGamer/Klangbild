@@ -12,7 +12,7 @@ dem Cover und eine Zeile in Worten: *„In drei Minuten · Spiegel im Spiegel ·
 > *Klangbild* (das): in der Hi-Fi-Sprache der Charakter eines Klangs – und wörtlich das Bild
 > des Klangs.
 
-![Klangbild spielt](docs/screens/01-spielt.png)
+![Klangbild spielt](docs/screens/01-spielt.jpg)
 
 ## Inhalt
 
@@ -35,19 +35,20 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 
 | | |
 |---|---|
-| ![Klassik mit Werk und Satz](docs/screens/02-klassik.png) | ![Japanisch, fast schwarzes Cover](docs/screens/03-japanisch.png) |
-| *Klassik: Werk über dem Satz, viele Mitwirkende mit „u. a.“* | *Japanisch, fast schwarzes Cover mit warmem Randlicht* |
-| ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.png) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.png) |
-| *Radio ohne Cover: eine Chladni-Figur, buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, statt groß und matschig* |
-| ![Pausiert](docs/screens/06-pausiert.png) | ![Abends](docs/screens/07-abends.png) |
+| ![Klassik mit Werk und Satz](docs/screens/02-klassik.jpg) | ![Japanisch, fast schwarzes Cover](docs/screens/03-japanisch.jpg) |
+| *Klassik: Werk über dem Satz, viele Mitwirkende auf einer Zeile mit „u. a.“* | *Japanisch, fast schwarzes Cover im warmweißen Lampenlicht* |
+| ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.jpg) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.jpg) |
+| *Radio ohne Cover: Sand auf einer schwingenden Platte (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, statt groß und matschig* |
+| ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
 | *Pausiert: das Licht wird gedimmt wie eine Lampe* | *Abends wärmer und dunkler* |
-| ![Nachts](docs/screens/08-nachts.png) | ![Nichts läuft](docs/screens/09-ruhe.png) |
-| *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr* |
-| ![Verbindung weg](docs/screens/10-verbindung.png) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.png) |
+| ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
+| *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer Wand im Lampenlicht* |
+| ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 
-**Titelwechsel** – das alte Licht kühlt wie ein Glühfaden zu Bernstein ab und erlischt,
-das neue erwärmt sich; das Cover blendet über, der Text geht und kommt:
+**Titelwechsel** – das alte Bild wird dunkel, die Lampe dimmt und wechselt in der leeren
+Wand ihre Farbe, dann kommt das neue Bild; der Text folgt, die Uhr bleibt stehen. Beim
+nächsten Titel desselben Albums wechselt nur der Text:
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
@@ -57,25 +58,33 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 
 ## Was Klangbild kann
 
-- **Farbe aus der Musik.** Die Farbwelt kommt aus dem Cover (Analyse im Farbraum Oklab),
-  gezähmt: Neon wird harmonisch, fast schwarze Cover bekommen ein warmes Randlicht, fast
-  weiße Cover blenden nicht, graue bekommen das Licht einer warmen Lampe (≈ 2700 K).
-- **Das Licht als Sonnenuhr.** Eine weiche Lichtquelle hinter dem Cover wandert im Lauf
-  des Titels von links unten über oben nach rechts unten – unmerklich langsam, nach ein
-  paar Minuten deutlich. Bei Radio pendelt sie langsam mit der Uhrzeit.
+- **Licht aus dem Bild.** Eine Lampe hinter dem Cover beleuchtet die Wand in der
+  Leitfarbe des Covers (Farbanalyse im Farbraum Oklab): der violette Himmel eines
+  Synthwave-Covers, nicht seine kleine orange Sonne. Orange wird zu Bernsteinrot statt zu
+  Braun, graue und weiße Cover bekommen warmweißes Lampenlicht (≈ 2700 K), weiße Cover
+  blenden nie. Direkt am Bild ist das Licht etwas schwächer, ein Stück weiter am hellsten –
+  wie bei hinterleuchteten Buchstaben. Weit weg vom Bild ist die Wand schwarz.
+- **Das Licht als Sonnenuhr.** Eine Seite des Lichtsaums ist deutlich heller, und diese
+  Seite wandert im Lauf des Titels von links unten über oben nach rechts unten –
+  unmerklich langsam, nach ein paar Minuten deutlich. Bei Radio pendelt sie langsam mit
+  der Uhrzeit. Ein feines Streiflicht liegt über dem Cover, die beleuchtete Kante glänzt.
 - **Zeit in Worten.** „In drei Minuten · nächster Titel“, „Gleich“, „Letzte Takte“,
   „Pausiert“. Genaue Zeiten erscheinen nur kurz nach einem Tastendruck.
 - **Typografie mit Haltung.** Newsreader für Titel, Jost für Kapitälchen und Ziffern.
-  Klassische Titel werden in Werk und Satz geteilt, „(feat. …)“ wandert zu den Künstlern,
-  „– 2011 Remaster“ wird zur kleinen Notiz. Japanisch, Arabisch (rechts nach links) und
-  Emoji werden korrekt gesetzt – ohne Versalien, Sperrung oder falsche Kursive.
+  Klassische Titel werden in Werk und Satz geteilt und brechen bevorzugt nach den
+  Gedankenstrichen um (höchstens drei Zeilen), „(feat. …)“ wandert zu den Künstlern,
+  „– 2011 Remaster“ wird zur kleinen Notiz hinter dem Titel, „Nr. 9“ und „op. 125“ trennen
+  nie. Künstler stehen auf einer Zeile („… u. a.“). Japanisch, Arabisch (rechts nach links)
+  und Emoji werden korrekt gesetzt – ohne Versalien, Sperrung oder falsche Kursive; Emoji
+  am Rand eines Titels fallen weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
   (Music Assistant, Spotify, Deezer, Apple Music, Tidal, Qobuz, YouTube Music) und zeigt sie
   nie größer, als sie es verträgt.
 - **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
   noch Cover, Titel und Künstler. Ohne Home Assistant (Demo) nach der Uhrzeit.
 - **OLED-Schutz.** Die ganze Komposition wandert langsam um ein paar Pixel, das Layout
-  spiegelt sich je Album, die Lichtquelle bewegt sich, nichts steht stundenlang still.
+  spiegelt sich je Album, das Licht bewegt sich, die Uhr im Ruhebildschirm wird jede
+  Viertelstunde umgehängt, nichts steht stundenlang still. Am Bildrand ist es immer schwarz.
 - **Jeder Zustand ist gestaltet:** spielt, pausiert, puffert, Titelwechsel, nichts läuft,
   Verbindung weg, Lautsprecher nicht erreichbar oder unbekannt, Token abgelehnt, Einrichtung.
 - **Als Nächstes** kommt aus der Music-Assistant-Warteschlange (`music_assistant.get_queue`);
@@ -274,10 +283,10 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | Was du siehst | Ursache und Abhilfe |
 |---|---|
 | QR-Code, „Einrichten mit dem Handy“ | Noch nicht eingerichtet. QR-Code scannen oder per ADB-Extras einrichten. |
-| „Home Assistant hat den Zugangsschlüssel abgelehnt.“ | Token gelöscht oder falsch kopiert. Neuen langlebigen Token erstellen und über den QR-Code eintragen. |
+| „Der Zugangsschlüssel wurde abgelehnt.“ | Token gelöscht oder falsch kopiert. Neuen langlebigen Token erstellen und über den QR-Code eintragen. |
 | „Verbindung wird hergestellt …“ bleibt stehen | Adresse prüfen (mit `http://` und Port `:8123`). Hostnamen wie `homeassistant.local` löst nicht jedes Gerät auf – im Zweifel die IP-Adresse nehmen. |
-| „Die Verbindung ist unterbrochen …“ | WLAN weg oder Home Assistant startet neu. Klangbild versucht es von selbst wieder (mit wachsendem Abstand, höchstens jede Minute) und sofort, sobald das Netz zurück ist. |
-| „Diesen Lautsprecher kennt Home Assistant nicht.“ | Entität falsch geschrieben oder umbenannt. In den Einstellungen neu wählen. |
+| „Verbindung unterbrochen.“ | WLAN weg oder Home Assistant startet neu. Klangbild versucht es von selbst wieder (mit wachsendem Abstand, höchstens jede Minute) und sofort, sobald das Netz zurück ist. In den ersten zwei Minuten bleibt das Bild stehen und wird nur gedimmt. |
+| „„media_player.…“ kennt Home Assistant nicht.“ | Entität falsch geschrieben oder umbenannt. In den Einstellungen neu wählen. |
 | „Gerade nicht erreichbar.“ | Der Lautsprecher meldet `unavailable` (z. B. Music Assistant läuft nicht). |
 | Kein „In … Minuten · nächster Titel“ | Der nächste Titel kommt aus Music Assistant. Bei anderen Playern oder Radio zeigt Klangbild nur die Restzeit bzw. den Sender. |
 | Unverschlüsseltes `http://` wird abgelehnt | Klartext ist nur im Heimnetz erlaubt (private Adressen, `.local`, `.lan`, Namen ohne Punkt). Von außen bitte `https://` (z. B. Nabu Casa). |

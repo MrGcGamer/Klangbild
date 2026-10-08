@@ -126,10 +126,14 @@ object RestLight {
         for (y in 0 until MAP_H) for (x in 0 until MAP_W) {
             val px = (x + 0.5f) * sx
             val py = (y + 0.5f) * sy
-            // An oval of light that has faded out long before the screen edges.
-            val u = (px - cx) / 280f
-            val v = (py - cy) / 175f
-            val value = exp(-(u * u + v * v) * 2.2f) * HaloLight.edgeWindow(px, py, screen)
+            // An oval of light, held inside an oval vignette that reaches black before the
+            // screen edges – round all the way, so no rectangle ever shows.
+            val u = (px - cx) / 320f
+            val v = (py - cy) / 200f
+            val ex = (px - screen.widthDp / 2f) / (screen.widthDp / 2f - HaloLight.EDGE_CLEAR_DP)
+            val ey = (py - screen.heightDp / 2f) / (screen.heightDp / 2f - HaloLight.EDGE_CLEAR_DP)
+            val vignette = HaloLight.smoothstep(1f, 0.1f, ex * ex + ey * ey)
+            val value = exp(-(u * u + v * v) * 1.8f) * vignette
             val o = y * MAP_W + x
             img.r[o] = value; img.g[o] = value; img.b[o] = value
         }
@@ -139,7 +143,7 @@ object RestLight {
     /** Brightest point of the light (relative luminance): a breath by day, almost nothing at night. */
     fun peak(lighting: Lighting): Float {
         val k = ((lighting.brightness - 0.55f) / 0.45f).coerceIn(0f, 1f)
-        return (0.016f * Math.pow(k.toDouble(), 1.6).toFloat()).coerceAtLeast(0.003f)
+        return (0.013f * Math.pow(k.toDouble(), 1.6).toFloat()).coerceAtLeast(0.0025f)
     }
 
     /** Offsets (dp) of the clock block, one per quarter hour. */

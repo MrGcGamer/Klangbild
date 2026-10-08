@@ -90,6 +90,13 @@ schwingenden Platte bildet. Buchstäblich ein Bild des Klangs. Jede Station bzw.
 bekommt eine eigene, stabile Figur und eines von sechs kuratierten Farbpaaren. Die Figur
 wird in exakter Bildschirmauflösung erzeugt, ist also nie hochskaliert.
 
+Die erste Fassung (quadratische Platte, Kosinus-Moden) sah aus wie Tic-Tac-Toe-Tapete. Jetzt
+liegt eine **runde Platte** von oben gesehen auf dunklem Grund, mittig eingespannt: zwei fast
+gleich hohe Schwingungsmoden (Besselfunktion im Radius, Kosinus im Winkel) überlagern sich –
+das ergibt die geschwungenen, blütenartigen Figuren echter Sandfotos. Die Linien sind über
+|f| / |∇f| überall gleich breit und aus einzelnen Sandkörnern gestippelt. Rechenzeit:
+etwa 40 ms für 400 × 400 px auf dem Entwicklungsrechner.
+
 ## 7. Ehrliche Auflösung
 
 Ein Cover wird höchstens mit 1,1 Quellpixeln pro 1080p-Pixel gezeigt (bei 4K also maximal
@@ -103,15 +110,19 @@ gefragt; die Original-URL bleibt Rückfall.
 
 Der Streamer rendert in 4K mit einer PowerVR GE9215. Deshalb:
 - **Vorberechnung pro Titel** (CPU, Hintergrund-Thread, nacheinander): Cover per Lanczos-3 auf
-  die exakte Pixelgröße, Farbanalyse, die Wand mit dem Leuchten (analytisch aus dem Abstand
-  zum Cover, in linearem Licht, mit Dithering gegen Banding) in 960 × 540, gestreckt gezeichnet.
+  die exakte Pixelgröße, Farbanalyse, eine **Graustufen-Lichtkarte** (analytisch aus dem
+  Abstand zum Cover, in linearem Licht, mit Dithering gegen Banding) in 960 × 540, gestreckt
+  gezeichnet.
+- **Licht pro Frame:** ein einziges Rechteck mit `ComposeShader(Lichtkarte × SweepGradient)`
+  und einem Farbfilter. Der Sweep-Gradient ist die Sonnenuhr-Maske (wird nur gedreht), der
+  Farbfilter die Lichtfarbe (kann beim Titelwechsel durch OKLCH wandern). Das Dithering der
+  Karte ist so stark gewählt, dass nach dem Einfärben noch etwa ein Ausgabe-Level Rauschen
+  übrig bleibt.
 - **Pro Frame** nur Transparenz, Transformationen und Farbmatrizen; animierte Werte werden in
   Draw-/Layer-Lambdas gelesen, sodass Animationen nie neu komponieren.
-- **Nichts animiert dauerhaft.** Wenn nichts passiert, wird nichts gezeichnet. Sonne und
+- **Nichts animiert dauerhaft.** Wenn nichts passiert, wird nichts gezeichnet. Sonnenuhr und
   OLED-Drift ticken alle fünf Sekunden (wenige Pixel), die Zeitzeile ändert sich höchstens
-  alle 15 Sekunden. Nur Übergänge (3,6 s) laufen mit voller Bildrate.
-- **Die Sonne** ist ein 384-px-Graustufen-Sprite, eingefärbt per Farbfilter und additiv
-  gezeichnet – ein einziges transformiertes Rechteck.
+  alle 15 Sekunden. Nur Übergänge (2,6 s) laufen mit voller Bildrate.
 - Kein AGSL, kein `RenderEffect`: nicht nötig, und so sehen Tests und Gerät gleich aus.
 - Ob es auf dem echten Gerät durchgehend 60 fps sind, ist **nicht geprüft** (kein Gerät
   verfügbar). Dafür gibt es `--ez debug true` (Bilder/s, langsamster Frame, verspätete Frames).
@@ -180,3 +191,44 @@ Einrichtungsaufwand – siehe Ideen in der Abschlussnotiz.
 
 OK = Pause/Weiter, ◀/▶ = Titel zurück/vor über `media_player.*`-Aktionen in HA. Unsichtbar,
 bis man sie braucht; als einzige Rückmeldung erscheinen kurz die genauen Zeiten. Abschaltbar.
+
+## 17. Dritte Runde: Licht wie Licht, Wechsel im Dunkeln
+
+Die zweite unabhängige Kritik fand das Leuchten zu sehr „Box-Shadow/Ambilight“, nachts zu
+orange, die Glows oft braun, den Ruhebildschirm konzeptlos und den Titelwechsel als
+Doppelbelichtung. Umgesetzt:
+
+- **Lichtprofil wie bei hinterleuchteten Buchstaben:** direkt an der Kante 50 % (das Bild
+  verschattet sein eigenes Licht), Maximum 8–14 dp außerhalb, dann exponentieller Abfall mit
+  weichem Beginn (in sRGB ein gleichmäßiges Ausklingen statt eines flachen Bandes). Ein
+  schwaches, breites Licht neigt sich zur offenen Wand. **36 dp vor jedem Bildschirmrand ist
+  kein Licht mehr**, weit weg vom Bild ist die Wand **reines Schwarz** (OLED: kein graues
+  Fast-Schwarz mit Mura oder Treppen).
+- **Sonnenuhr als Maske:** die beleuchtete Seite ist in 8-Bit-Werten etwa 2,5-mal heller als
+  die abgewandte (linear ~7×), mit einer schmalen Keule – man sieht, woher das Licht kommt.
+- **Lichtfarbe:** Cluster ähnlicher Farbtöne zählen zusammen, Fläche zählt mehr als
+  Helligkeit (der violette Himmel statt der kleinen orangen Sonne). Orange und Gelb werden
+  zu gesättigtem Bernsteinrot gezogen – dunkles, mattes Orange liest sich als Braun. Neutrale
+  Cover bekommen warmweißes Lampenlicht statt eines orangen Rahmens. Wärmer wird es erst nach
+  Sonnenuntergang; nachts höchstens 0,3 × Tageshelligkeit und höchstens 50 % Sättigung.
+- **Das Bild als Objekt:** ein ±4-%-Streiflicht über dem Cover aus Richtung der Sonnenuhr,
+  eine Haarlinie Licht an den beleuchteten Kanten, Schatten an den abgewandten.
+- **Titelwechsel nacheinander statt übereinander:** altes Bild 700 ms ins Dunkel, die leere
+  Wand hält, während die Lampe auf 30 % dimmt und ihre Farbe durch OKLCH wechselt, neues Bild
+  1200 ms herauf, der Text folgt. Die Uhr bleibt stehen. Folgt ein Titel desselben Albums
+  (gleiches Bild), wechselt nur der Text.
+- **Pause:** Die Zeitzeile blendet über (600 ms) statt zu springen, der Text dimmt mit.
+- **Typografie:** Titel höchstens drei Zeilen, Umbruch bevorzugt nach den Gedankenstrichen
+  eines Satzes; Künstler auf einer Zeile („… u. a.“, kursiv statt in Versalien, die wie
+  Initialen aussähen); Countdown kleiner und leiser als die Künstlerzeile; ein einziges
+  Trennzeichen „ · “; schmale geschützte Leerzeichen in „Nr. 9“, „op. 125“; Versionsnotiz
+  klein hinter dem Titel; Emoji am Titelrand weg, im Titel gedämpft; japanische Titel
+  0,86-mal so groß, in Schriften ohne Versalien ist der Künstler größer als das Album.
+- **Ruhebildschirm:** Uhr in der Serifenschrift auf einer schwach lampenbeleuchteten Wand,
+  deren hellste Stelle mit der Sonne wandert; der Block wird jede Viertelstunde umgehängt;
+  nachts nur die Uhr.
+
+Nicht übernommen (bewusst): monochrome Emoji-Schrift (Größe, Lizenzpflege – Rand-Emoji
+entfallen ohnehin), Mincho/Naskh-Schriften für Japanisch und Arabisch (mehrere MB; die
+Systemschriften bleiben), animierte Sandfiguren beim Titelwechsel (schön, aber erst nach
+einer Messung auf dem echten Gerät).
