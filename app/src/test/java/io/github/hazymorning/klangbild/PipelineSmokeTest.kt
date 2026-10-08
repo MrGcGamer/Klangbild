@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 class PipelineSmokeTest {
     @Test
     fun rendersAt1080p() {
-        captureRoboImage("src/test/screenshots/smoke_1080p.png") {
+        captureRoboImage("build/screenshots/smoke_1080p.png") {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.radialGradient(listOf(Color(0xFF6B3A1F), Color.Black)),

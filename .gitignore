@@ -20,3 +20,6 @@ captures/
 # see docs/DECISIONS.md; anything else that looks like a credential stays local)
 *.env
 secrets.properties
+
+# Screenshot test output (renderings are produced by the tests, curated ones live in docs/)
+app/src/test/screenshots/
