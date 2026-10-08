@@ -13,7 +13,6 @@ import io.github.hazymorning.klangbild.R
  *    cut carries titles; the text cut keeps small italics sturdy at TV distance.
  *  - Jost (indestructible type*): a Futura-like geometric sans – the voice of good hi-fi
  *    equipment – for letter-spaced labels, figures and the clock.
- *  - Instrument Serif: condensed display serif, used by the editorial style.
  */
 object Fonts {
     private fun newsreader(weight: Int, opsz: Float, italic: Boolean = false) = Font(
@@ -51,9 +50,4 @@ object Fonts {
 
     /** Labels, figures, clock. */
     val Sans = FontFamily(jost(300), jost(400), jost(500))
-
-    val Condensed = FontFamily(
-        Font(R.font.instrument_serif, FontWeight.Normal),
-        Font(R.font.instrument_serif_italic, FontWeight.Normal, FontStyle.Italic),
-    )
 }

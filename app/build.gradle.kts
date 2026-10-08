@@ -106,7 +106,7 @@ android {
 }
 
 roborazzi {
-    outputDir.set(file("src/test/screenshots"))
+    outputDir.set(layout.buildDirectory.dir("screenshots"))
 }
 
 dependencies {

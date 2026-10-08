@@ -171,8 +171,8 @@ object CoverPalette {
         val neutralChroma = if (tintHue == null) 0.012f else min(0.018f, lead.lab.chroma * 0.18f + 0.004f)
 
         val base = Lch(0.115f, min(neutralChroma * 1.1f, 0.016f), hue).toLab()
-        val ink = Lch(0.935f, min(neutralChroma, 0.014f), hue).toLab()
-        val inkMuted = Lch(0.80f, neutralChroma * 1.2f, hue).toLab()
+        val ink = Lch(0.91f, min(neutralChroma * 1.2f, 0.018f), hue).toLab()
+        val inkMuted = Lch(0.79f, neutralChroma * 1.3f, hue).toLab()
         val inkFaint = Lch(0.64f, neutralChroma * 1.2f, hue).toLab()
 
         val accent = if (lead == null) {
