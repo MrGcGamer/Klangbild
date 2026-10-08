@@ -1,0 +1,22 @@
+# Gradle / Android
+.gradle/
+.kotlin/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+!docs/**/*.apk
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Secrets that must never be committed (the release keystore is committed on purpose,
+# see docs/DECISIONS.md; anything else that looks like a credential stays local)
+*.env
+secrets.properties
