@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -62,17 +63,24 @@ object SetupArt {
     }
 
     fun scene(info: SetupInfo?, screen: ScreenSpec, lighting: Lighting): ArtworkScene {
-        // Text first (left), then the code on the wall (right).
+        // Text first (left), then the code on the wall (right). Setup asks for action, so
+        // it takes only a little of the evening's dimming.
         val layout = HaloLayout(screen, mirrored = true)
         val px = (layout.slot * screen.density).toInt()
         val card = card(info?.qr, px)
-        return SceneBuilder.build("setup|${info?.url}|${info?.code}", card, "setup", screen, lighting, mirrored = true)
+        return SceneBuilder.build(
+            "setup|${info?.url}|${info?.code}", card, "setup", screen, Lighting.DAY.lerp(lighting, 0.35f), mirrored = true,
+        )
     }
+
+    /** "http://192.168.1.23:8765" → "192.168.1.23:8765" (what people actually type). */
+    fun shortUrl(url: String): String = url.removePrefix("http://").removePrefix("https://").trimEnd('/')
 }
 
 /**
  * Setup: the QR code hangs on the wall like a cover; the column explains in two sentences
- * what to do. The six-digit code is printed large for typing the address by hand.
+ * what to do. The six-digit code is printed large for typing the address by hand. Few
+ * voices: the name, one italic sentence, one plain paragraph, labels, the code.
  */
 @Composable
 fun SetupScreen(
@@ -83,19 +91,22 @@ fun SetupScreen(
 ) {
     val p = scene.palette
     val layout = scene.layout
+    val balanced = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)
+    val label = TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 10.sp, color = p.inkFaint.asColor())
+    val body = TextStyle(fontFamily = Fonts.Text, fontSize = 16.sp, lineHeight = 23.sp, color = p.inkMuted.asColor(), lineBreak = balanced)
     Box(modifier.fillMaxSize()) {
-        BaseWall(scene)
+        BaseWall()
         HaloLightLayer(scene, sunAngle = { HaloLight.sunAngle(0.5f, 0L) })
-        HaloCoverLayer(scene)
+        HaloCoverLayer(scene, sunAngle = { HaloLight.sunAngle(0.5f, 0L) })
 
         val lead = when (reason) {
             SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
-            SetupReason.AUTH_FAILED -> "Home Assistant hat den Zugangsschlüssel abgelehnt."
+            SetupReason.AUTH_FAILED -> "Der Zugangsschlüssel wurde abgelehnt."
             SetupReason.REQUESTED -> "Einstellungen"
         }
-        val body = when (reason) {
+        val text = when (reason) {
             SetupReason.AUTH_FAILED ->
-                "Scanne den Code und füge einen neuen langlebigen Zugangsschlüssel ein."
+                "Scanne den Code und füge in Home Assistant einen neuen langlebigen Zugangsschlüssel ein."
             else ->
                 "Scanne den Code mit der Kamera. Auf der Seite verbindest du Home Assistant und wählst den Lautsprecher."
         }
@@ -121,44 +132,38 @@ fun SetupScreen(
                     fontStyle = FontStyle.Italic,
                     fontSize = 20.sp,
                     lineHeight = 26.sp,
-                    color = p.inkMuted.asColor(),
+                    color = p.ink.asColor(),
+                    lineBreak = balanced,
                 ),
             )
-            Spacer(Modifier.height(18.dp))
-            BasicText(
-                body,
-                style = TextStyle(fontFamily = Fonts.Text, fontSize = 16.sp, lineHeight = 23.sp, color = p.inkFaint.asColor()),
-            )
+            Spacer(Modifier.height(16.dp))
+            BasicText(text, style = body)
             Spacer(Modifier.height(30.dp))
-            SpacedLabel(
-                "Code",
-                TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 12.sp, color = p.inkFaint.asColor()),
-                tracking = 0.22.em,
-            )
-            Spacer(Modifier.height(4.dp))
+            SpacedLabel("Code", label, tracking = 0.22.em)
+            Spacer(Modifier.height(6.dp))
             BasicText(
-                info?.code?.chunked(3)?.joinToString(" ") ?: "—",
+                info?.code?.chunked(3)?.joinToString("\u2009") ?: "—",
                 style = TextStyle(
                     fontFamily = Fonts.Sans,
                     fontWeight = FontWeight(300),
                     fontSize = 34.sp,
-                    letterSpacing = 0.12.em,
+                    letterSpacing = 0.08.em,
                     color = p.ink.asColor(),
                     fontFeatureSettings = "tnum",
                 ),
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             BasicText(
-                info?.url?.let { "oder im Browser: $it" } ?: "Keine Netzwerkverbindung",
-                style = TextStyle(fontFamily = Fonts.Sans, fontSize = 13.sp, letterSpacing = 0.04.em, color = p.inkFaint.asColor()),
+                info?.url?.let { "oder im Browser: ${SetupArt.shortUrl(it)}" } ?: "Keine Netzwerkverbindung",
+                style = body,
             )
         }
         if (hint != null) {
             SpacedLabel(
                 hint,
-                TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 12.sp, color = p.inkFaint.asColor()),
-                tracking = 0.2.em,
-                modifier = Modifier.offset(layout.columnLeft.dp, (layout.timeLineBaseline - 12f).dp),
+                label,
+                tracking = 0.22.em,
+                modifier = Modifier.offset(layout.columnLeft.dp, (layout.timeLineBaseline - 10f).dp),
             )
         }
     }

@@ -2,118 +2,325 @@ package io.github.hazymorning.klangbild.render
 
 import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverKind
-import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
-import io.github.hazymorning.klangbild.color.ScenePalette
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * The light of a Halo scene, precomputed once per track (and when the time of day changes).
+ * The light of a Halo scene: a lamp hidden behind the print, like halo-lit lettering.
  *
- * Two parts:
- *  - the **wall**: a dark, faintly tinted wall with a tight glow hugging the cover, as if
- *    a lamp were hidden behind a picture. Computed analytically from the distance to the
- *    cover edge (no blur needed), in linear light, dithered → [backdrop].
- *  - the **sun**: a soft directional light behind the cover that wanders over the course of
- *    the track like the sun over a sundial ([sunAngle]). It is a small greyscale sprite,
- *    tinted and positioned at draw time – moving it costs one transformed quad.
+ *  - The **light map** is greyscale intensity, precomputed once per track at 960 × 540:
+ *    the light is a little weaker right at the print's edge (the print shades it), peaks
+ *    12–16 dp out and is gone long before the screen edge; a faint, wide layer leans
+ *    towards the open wall. Far from the print the wall is pure black (OLED: no grey
+ *    mura, no posterised near-black).
+ *  - The **colour** ([lightTint]) is applied when drawing, so a track change can morph it.
+ *  - The **sundial** is an angular mask ([maskStops]) rotated around the print at draw
+ *    time: one side of the halo is lit about three times brighter than the other, and that
+ *    side wanders around the print over the course of the track ([sunAngle]).
+ *
+ * Per frame this costs one textured rectangle with a sweep gradient – no image processing.
  */
 object HaloLight {
-    const val BACKDROP_W = 960
-    const val BACKDROP_H = 540
-    const val SPRITE = 384
+    const val MAP_W = 960
+    const val MAP_H = 540
 
-    /** Distance (dp) over which the glow falls off; it is gone after ~3σ. */
-    const val GLOW_SIGMA_DP = 44f
+    /** No light at all within this distance of the screen edges (dp)… */
+    const val EDGE_CLEAR_DP = 36f
 
-    /** The colour of the light: the cover's leading colour, tamed; amber for neutral covers. */
-    fun lightColor(analysis: CoverAnalysis, palette: ScenePalette): Int {
-        val hue = palette.tintHue
-        if (hue == null || analysis.kind == CoverKind.MONOCHROME) {
-            return Lch(0.74f, 0.075f, CoverPalette.WARM_HUE).toArgb() // ~2700 K lamp light
-        }
-        val lead = analysis.clusters
-            .filter { it.lab.chroma >= 0.035f && it.weight >= 0.02f }
-            .maxByOrNull { it.weight.toDouble().pow(0.55) * it.lab.chroma }
-        val c = (lead?.lab?.chroma ?: 0.08f).coerceIn(0.05f, 0.13f)
-        return Lch(0.72f, c, hue).toArgb()
+    /** …and full light only from here on; in between it fades out. */
+    const val EDGE_FADE_DP = 48f
+
+    /**
+     * Brightness of the unlit side relative to the lit side (sundial mask, linear light):
+     * in 8-bit values the lit side is about 2.5 × brighter, clearly a light from one side.
+     */
+    const val UNLIT = 0.14f
+
+    /** Narrowness of the lit side: the light clearly comes from one direction. */
+    private const val LOBE = 2.5
+
+    /** The halo's shape for a cover of [coverDp]: where it peaks and how fast it fades. */
+    data class Profile(val peakDp: Float, val decayDp: Float, val wide: Float)
+
+    fun profile(coverDp: Float, night: Float): Profile = Profile(
+        peakDp = (0.045f * coverDp).coerceIn(8f, 14f),
+        decayDp = (0.05f * coverDp).coerceIn(8f, 16f) * (1f - 0.5f * night),
+        wide = 0.32f * (1f - night),
+    )
+
+    /** Share of the peak right at the print's edge (the print shades its own light). */
+    const val EDGE_SHADE = 0.5f
+
+    /**
+     * Halo intensity at [d] dp from the print's edge, 0..1: half strength at the edge,
+     * rising to the peak, then an exponential fall-off with a rounded start – in sRGB that
+     * fades steadily instead of looking like a flat band with a soft rim.
+     */
+    fun halo(d: Float, p: Profile): Float {
+        if (d <= 0f) return EDGE_SHADE
+        if (d <= p.peakDp) return EDGE_SHADE + (1f - EDGE_SHADE) * smoothstep(0f, p.peakDp, d)
+        val x = d - p.peakDp
+        val soft = 6f
+        return exp(-(sqrt(x * x + soft * soft) - soft) / p.decayDp)
     }
 
-    /**
-     * Peak brightness of the glow at the cover edge as relative luminance. Brighter covers
-     * already throw light themselves and get less; dark covers still get a visible rim.
-     */
-    fun glowPeak(analysis: CoverAnalysis): Float =
-        (0.072f - 0.032f * analysis.meanL).coerceIn(0.03f, 0.072f)
+    /** 0 within [EDGE_CLEAR_DP] of any screen edge, 1 from [EDGE_CLEAR_DP] + [EDGE_FADE_DP] on. */
+    fun edgeWindow(xDp: Float, yDp: Float, screen: ScreenSpec): Float {
+        val e = min(min(xDp, screen.widthDp - xDp), min(yDp, screen.heightDp - yDp))
+        return smoothstep(EDGE_CLEAR_DP, EDGE_CLEAR_DP + EDGE_FADE_DP, e)
+    }
+
+    /** Light map plus the factor it was normalised by (its brightest value before scaling). */
+    class LightMap(val pixels: IntArray, val gain: Float)
 
     /**
-     * Renders the wall with the glow around [cover] (dp), for a screen of [screen].
+     * Greyscale intensity around [cover], normalised to 0..1 and sRGB-encoded (so that
+     * multiplying by an sRGB tint on the GPU gives the right result). [ditherLsb] maps the
+     * normalisation gain to the dither amplitude in grey levels: the tint scales the map
+     * down, so the dither must be proportionally stronger to still break up bands in the
+     * final 8-bit output.
      */
-    fun backdrop(
-        palette: ScenePalette,
-        light: Int,
-        peak: Float,
+    fun lightMap(
         cover: RectDp,
         screen: ScreenSpec,
-        lighting: Lighting,
+        openToRight: Boolean,
+        night: Float,
         seed: Int,
-        outW: Int = BACKDROP_W,
-        outH: Int = BACKDROP_H,
-    ): IntArray {
-        val base = Oklab.toLinear(Oklab.fromArgb(palette.base))
-        val lit = Oklab.toLinear(lighting.apply(Oklab.fromArgb(light)))
-        val lum = 0.2126f * lit[0] + 0.7152f * lit[1] + 0.0722f * lit[2]
-        val k = if (lum > 0f) peak / lum else 0f
-        val night = (1f - lighting.brightness).coerceIn(0f, 1f) // dims the light more than the text
-        val gain = k * (1f - 1.4f * night).coerceAtLeast(0.25f)
-        val img = LinearImage(outW, outH)
+        ditherLsb: (gain: Float) -> Float = { 1f },
+        outW: Int = MAP_W,
+        outH: Int = MAP_H,
+    ): LightMap {
+        val p = profile(cover.width, night)
         val sx = screen.widthDp / outW
         val sy = screen.heightDp / outH
+        // The wide layer leans towards the open wall (the side of the text column).
+        val wideCx = cover.centerX + (if (openToRight) 1f else -1f) * 0.15f * cover.width
+        val wideCy = cover.centerY
+        val wideR = 0.4f * cover.width
+        val values = FloatArray(outW * outH)
+        var maxV = 0f
         for (y in 0 until outH) {
             val py = (y + 0.5f) * sy
             val dy = max(max(cover.top - py, py - cover.bottom), 0f)
             for (x in 0 until outW) {
                 val px = (x + 0.5f) * sx
                 val dx = max(max(cover.left - px, px - cover.right), 0f)
-                val d = sqrt(dx * dx + dy * dy)
-                // Behind the cover the wall stays dark: when a cover fades during a
-                // transition it dims to the wall instead of revealing a glowing patch.
-                val inside = px > cover.left + 1f && px < cover.right - 1f && py > cover.top + 1f && py < cover.bottom - 1f
-                val g = if (inside) 0f else exp(-(d / GLOW_SIGMA_DP).toDouble().pow(1.35)).toFloat() * gain
-                val o = y * outW + x
-                img.r[o] = base[0] + lit[0] * g
-                img.g[o] = base[1] + lit[1] * g
-                img.b[o] = base[2] + lit[2] * g
+                // Behind the print the wall stays dark, so a fading print never reveals a
+                // glowing patch.
+                val inside = px > cover.left + 0.5f && px < cover.right - 0.5f && py > cover.top + 0.5f && py < cover.bottom - 0.5f
+                val v = if (inside) {
+                    0f
+                } else {
+                    val d = sqrt(dx * dx + dy * dy)
+                    val wx = (px - wideCx) / wideR
+                    val wy = (py - wideCy) / wideR
+                    (halo(d, p) + p.wide * exp(-(wx * wx + wy * wy))) * edgeWindow(px, py, screen)
+                }
+                values[y * outW + x] = v
+                if (v > maxV) maxV = v
             }
         }
-        return ImageOps.toArgbDithered(img, seed)
+        val gain = if (maxV > 0f) maxV else 1f
+        val amplitude = ditherLsb(gain)
+        val out = IntArray(values.size)
+        var state = seed * 0x9E3779B9.toInt() or 1
+        fun rnd(): Float {
+            state = state xor (state shl 13)
+            state = state xor (state ushr 17)
+            state = state xor (state shl 5)
+            return (state ushr 8) / 16777216f
+        }
+        for (i in values.indices) {
+            val v = values[i] / gain
+            val g = if (v < 0.0005f) {
+                0 // the far wall is pure black – no dither noise out there
+            } else {
+                (Oklab.linearToSrgb(v) * 255f + (rnd() - rnd()) * amplitude).roundToInt().coerceIn(0, 255)
+            }
+            out[i] = (0xFF shl 24) or (g shl 16) or (g shl 8) or g
+        }
+        return LightMap(out, gain)
     }
 
     /**
-     * A soft round light (greyscale, white = full intensity) with a Gaussian-like core and a
-     * long shoulder. Drawn tinted, additively, under the cover.
+     * The hue of the light: the cover's own leading colour. Clusters of similar hue count
+     * together (a sky in two shades of violet is one colour), and area counts more than
+     * brightness – the deep violet sky of a synthwave cover, not its small orange sun.
+     * Null for neutral covers (they get warm lamp light).
      */
-    fun sunSprite(size: Int = SPRITE, seed: Int = 7): IntArray {
-        val img = LinearImage(size, size)
-        val alpha = FloatArray(size * size)
-        val c = (size - 1) / 2f
-        for (y in 0 until size) for (x in 0 until size) {
-            val r = sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c // 0..1 at the edge
-            val v = if (r >= 1f) 0f else exp(-(r / 0.42f) * (r / 0.42f)) * (1f - r * r)
-            val o = y * size + x
-            img.r[o] = v; img.g[o] = v; img.b[o] = v
-            alpha[o] = 1f
+    fun lightHue(analysis: CoverAnalysis): Float? = leadGroup(analysis)?.hue
+
+    private class HueGroup(val hue: Float, val chroma: Float)
+
+    private fun leadGroup(analysis: CoverAnalysis): HueGroup? {
+        if (analysis.kind == CoverKind.MONOCHROME) return null
+        val chromatic = analysis.clusters.filter { it.lab.chroma >= 0.035f && it.weight >= 0.02f && it.lab.l > 0.12f }
+        if (chromatic.isEmpty()) return null
+        val groups = ArrayList<MutableList<io.github.hazymorning.klangbild.color.ColorCluster>>()
+        for (c in chromatic.sortedByDescending { it.weight * it.lab.chroma }) {
+            val g = groups.firstOrNull { hueDistance(it[0].lab.hue, c.lab.hue) <= 35f }
+            if (g != null) g += c else groups += mutableListOf(c)
         }
-        return ImageOps.toArgbDithered(img, seed, alpha)
+        val best = groups.maxBy { g ->
+            val w = g.sumOf { it.weight.toDouble() }.toFloat()
+            val chroma = g.sumOf { (it.weight * it.lab.chroma).toDouble() }.toFloat() / w
+            val l = g.sumOf { (it.weight * it.lab.l).toDouble() }.toFloat() / w
+            w * chroma * (0.6f + 0.4f * lightnessFactor(l))
+        }
+        var x = 0.0
+        var y = 0.0
+        for (c in best) {
+            val k = (c.weight * c.lab.chroma).toDouble()
+            val r = Math.toRadians(c.lab.hue.toDouble())
+            x += k * cos(r)
+            y += k * sin(r)
+        }
+        val hue = ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
+        val w = best.sumOf { it.weight.toDouble() }.toFloat()
+        return HueGroup(hue, best.sumOf { (it.weight * it.lab.chroma).toDouble() }.toFloat() / w)
     }
+
+    private fun hueDistance(a: Float, b: Float): Float {
+        val d = kotlin.math.abs(a - b) % 360f
+        return if (d > 180f) 360f - d else d
+    }
+
+    private fun lightnessFactor(l: Float) = (1f - (2f * l - 1.1f).pow(2)).coerceIn(0f, 1f)
+
+    /**
+     * Daylight colour of the light (reference lightness; only its chromaticity matters, the
+     * brightness comes from [glowPeak]). Coloured light reads as light only when it is
+     * fairly saturated – a dull dark orange reads as brown paint. Orange and yellow hues are
+     * pulled towards a saturated red-amber; everything else keeps the cover's hue.
+     */
+    fun lightColor(analysis: CoverAnalysis): Lch {
+        val lead = leadGroup(analysis) ?: return LAMP
+        val hue = lead.hue
+        return if (hue in 25f..105f) {
+            Lch(0.64f, (lead.chroma * 1.3f).coerceIn(0.06f, 0.14f), LAMP_HUE + (hue - LAMP_HUE) * 0.45f)
+        } else {
+            Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.05f, 0.13f), hue)
+        }
+    }
+
+    /** Light for neutral covers (black and white, greys): warm white, like a 2700 K bulb. */
+    val LAMP = Lch(0.70f, 0.05f, 70f)
+
+    /** Hue of plain lamp light (~2700 K on a dark wall: amber, never brown). */
+    const val LAMP_HUE = 52f
+
+    /**
+     * Peak brightness (relative luminance) of the halo by day. Bright covers throw light
+     * themselves and get less; small covers get less, so they don't become light bulbs.
+     */
+    fun glowPeak(analysis: CoverAnalysis, coverDp: Float, slotDp: Float): Float {
+        val byCover = (0.052f - 0.024f * analysis.meanL).coerceIn(0.024f, 0.052f)
+        return byCover * (0.7f + 0.3f * (coverDp / slotDp).coerceIn(0f, 1f))
+    }
+
+    /**
+     * The sRGB tint for the light map: [color] at [peak] luminance, adjusted for the time
+     * of day. The lamp gets warmer only after sunset; at night it is turned right down
+     * (≤ 0.3 × daylight) and loses saturation (≤ 50 %), so a grey picture never gets an
+     * orange neon frame.
+     */
+    fun lightTint(color: Lch, peak: Float, gain: Float, lighting: Lighting): Int {
+        val night = nightOf(lighting)
+        val warm = lighting.warmth.coerceIn(0f, 1f)
+        val hue = mixHue(color.h, LAMP_HUE, 0.35f * warm)
+        var chroma = color.c * (1f - 1.25f * night)
+        val luminance = peak * gain * (1f - 1.75f * night).coerceAtLeast(0.3f)
+        val maxSaturation = 1f - 1.25f * night
+        var argb = scaledTo(Lch(color.l, chroma, hue), luminance)
+        repeat(12) {
+            if (hsvSaturation(argb) <= maxSaturation + 1e-3f) return argb
+            chroma *= 0.85f
+            argb = scaledTo(Lch(color.l, chroma, hue), luminance)
+        }
+        return argb
+    }
+
+    /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
+    fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
+
+    /** [c] scaled in linear light to the given relative luminance (keeps its chromaticity). */
+    private fun scaledTo(c: Lch, luminance: Float): Int {
+        val lin = Oklab.toLinear(Oklab.gamutMap(c.toLab()))
+        val y = 0.2126f * lin[0] + 0.7152f * lin[1] + 0.0722f * lin[2]
+        val k = if (y > 0f) luminance / y else 0f
+        fun ch(v: Float) = (Oklab.linearToSrgb((v * k).coerceIn(0f, 1f)) * 255f).roundToInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (ch(lin[0]) shl 16) or (ch(lin[1]) shl 8) or ch(lin[2])
+    }
+
+    fun hsvSaturation(argb: Int): Float {
+        val r = (argb shr 16) and 0xFF
+        val g = (argb shr 8) and 0xFF
+        val b = argb and 0xFF
+        val mx = maxOf(r, g, b)
+        val mn = minOf(r, g, b)
+        return if (mx == 0) 0f else (mx - mn).toFloat() / mx
+    }
+
+    /** Interpolates two sRGB colours through OKLCH (hue along the shorter arc). */
+    fun mixOklch(a: Int, b: Int, t: Float): Int {
+        if (t <= 0f) return a
+        if (t >= 1f) return b
+        val la = Oklab.fromArgb(a)
+        val lb = Oklab.fromArgb(b)
+        val ca = la.chroma
+        val cb = lb.chroma
+        val l = la.l + (lb.l - la.l) * t
+        val c = ca + (cb - ca) * t
+        // A grey end has no hue: keep the other one's.
+        val h = when {
+            ca < 0.01f -> lb.hue
+            cb < 0.01f -> la.hue
+            else -> mixHue(la.hue, lb.hue, t)
+        }
+        return Lch(l, c, h).toArgb()
+    }
+
+    private fun mixHue(a: Float, b: Float, t: Float): Float {
+        var d = (b - a) % 360f
+        if (d > 180f) d -= 360f
+        if (d < -180f) d += 360f
+        return ((a + d * t) % 360f + 360f) % 360f
+    }
+
+    /**
+     * The sundial mask as sweep-gradient stops (sRGB grey, opaque), lit side at angle 0
+     * (pointing right). Multiplying the light map by it leaves the lit side at full
+     * strength and the opposite side at [UNLIT].
+     */
+    fun maskStops(steps: Int = 36): IntArray = IntArray(steps + 1) { i ->
+        val a = 2.0 * PI * i / steps
+        val lobe = ((1.0 + cos(a)) / 2.0).pow(LOBE).toFloat()
+        val m = UNLIT + (1f - UNLIT) * lobe
+        val g = (Oklab.linearToSrgb(m) * 255f).roundToInt().coerceIn(0, 255)
+        (0xFF shl 24) or (g shl 16) or (g shl 8) or g
+    }
+
+    /** The mask value (linear light) for a point at maths angle [pointDeg] with the sun at [sunDeg]. */
+    fun maskAt(pointDeg: Float, sunDeg: Float): Float {
+        val a = Math.toRadians((pointDeg - sunDeg).toDouble())
+        val lobe = ((1.0 + cos(a)) / 2.0).pow(LOBE).toFloat()
+        return UNLIT + (1f - UNLIT) * lobe
+    }
+
+    /** Maths angle (degrees, 0 = right, 90 = up) of a point relative to [cover]'s centre. */
+    fun angleOf(cover: RectDp, xDp: Float, yDp: Float): Float =
+        Math.toDegrees(atan2((cover.centerY - yDp).toDouble(), (xDp - cover.centerX).toDouble())).toFloat()
 
     /**
      * Sundial: the angle (degrees, maths convention, 0° = right, 90° = up) of the light for a
@@ -130,16 +337,15 @@ object HaloLight {
 
     private const val RADIO_PERIOD_MS = 20 * 60 * 1000L
 
-    /** Centre of the sun (dp) for [angleDeg] around [cover]. */
-    fun sunCenter(cover: RectDp, angleDeg: Float): Pair<Float, Float> {
-        val rad = Math.toRadians(angleDeg.toDouble())
-        val reach = cover.width * 0.36f
-        return (cover.centerX + (cos(rad) * reach).toFloat()) to (cover.centerY - (sin(rad) * reach).toFloat())
+    internal fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+        val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
     }
 
-    /** Diameter of the sun sprite on screen (dp). */
-    fun sunDiameter(cover: RectDp) = cover.width * 1.6f
-
-    /** sRGB lift at the centre of the sun (0..1 of full scale) by day. */
-    const val SUN_LIFT = 0.11f
+    /** Distance (dp) of a point from [cover]'s edge; 0 inside. */
+    fun distanceTo(cover: RectDp, xDp: Float, yDp: Float): Float {
+        val dx = max(max(cover.left - xDp, xDp - cover.right), 0f)
+        val dy = max(max(cover.top - yDp, yDp - cover.bottom), 0f)
+        return sqrt(dx * dx + dy * dy)
+    }
 }

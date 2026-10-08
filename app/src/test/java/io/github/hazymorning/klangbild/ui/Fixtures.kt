@@ -20,6 +20,12 @@ import androidx.compose.runtime.Composable
 object Fixtures {
     val tracks = DemoSource.TRACKS
 
+    /** Renders use Berlin time on 8 October 2026. */
+    val zone: java.time.ZoneId = java.time.ZoneId.of("Europe/Berlin")
+
+    fun at(hour: Int, minute: Int, day: Int = 8): Long =
+        java.time.ZonedDateTime.of(2026, 10, day, hour, minute, 0, 0, zone).toInstant().toEpochMilli()
+
     fun track(cover: SyntheticCover): TrackInfo = tracks.first { it.artworkUrl == DemoSource.SCHEME + cover.name }
 
     val radio: TrackInfo get() = tracks.first { it.artworkUrl == null }

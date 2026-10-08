@@ -77,11 +77,11 @@ class ReadmeShotsTest {
     }
 
     @Test fun s09() = captureRoboImage(out("09-ruhe")) {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.EVENING, "22:14", "Mittwoch, 8. Oktober")
+        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.EVENING, Fixtures.at(19, 14), zone = Fixtures.zone)
     }
 
     @Test fun s10() = captureRoboImage(out("10-verbindung")) {
-        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Lighting.DAY, "21:47", "Mittwoch, 8. Oktober")
+        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(15, 47), zone = Fixtures.zone)
     }
 
     @Test fun s11() {

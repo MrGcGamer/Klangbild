@@ -11,16 +11,16 @@ class TimeLineTest {
 
     @Test
     fun `speaks in minutes, numbers up to twelve in words`() {
-        assertThat(line(60_000, 240_000)).isEqualTo(TimeLine.Line("In drei Minuten", "Spiegel im Spiegel · Arvo Pärt"))
-        assertThat(line(0, 70_000)).isEqualTo(TimeLine.Line("In einer Minute", "Spiegel im Spiegel · Arvo Pärt"))
-        assertThat(line(0, 14 * 60_000)).isEqualTo(TimeLine.Line("In 14 Minuten", "Spiegel im Spiegel · Arvo Pärt"))
+        assertThat(line(60_000, 240_000)).isEqualTo(TimeLine.Line("In drei Minuten", "Spiegel im Spiegel\u00A0· Arvo Pärt"))
+        assertThat(line(0, 70_000)).isEqualTo(TimeLine.Line("In einer Minute", "Spiegel im Spiegel\u00A0· Arvo Pärt"))
+        assertThat(line(0, 14 * 60_000)).isEqualTo(TimeLine.Line("In 14 Minuten", "Spiegel im Spiegel\u00A0· Arvo Pärt"))
         assertThat(line(0, 5 * 60_000, next = null)).isEqualTo(TimeLine.Line("Noch fünf Minuten"))
         assertThat(line(0, 70_000, next = null)).isEqualTo(TimeLine.Line("Noch eine Minute"))
     }
 
     @Test
     fun `last seconds announce what comes next`() {
-        assertThat(line(200_000, 240_000)).isEqualTo(TimeLine.Line("Gleich", "Spiegel im Spiegel · Arvo Pärt"))
+        assertThat(line(200_000, 240_000)).isEqualTo(TimeLine.Line("Gleich", "Spiegel im Spiegel\u00A0· Arvo Pärt"))
         assertThat(line(200_000, 240_000, next = null)).isEqualTo(TimeLine.Line("Letzte Takte"))
     }
 

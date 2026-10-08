@@ -14,19 +14,34 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.ui.Motion
 
+/** How two consecutive stages differ, which decides the choreography. */
+enum class Change {
+    /** New track with a new picture: print out, wall, print in. */
+    FULL,
+
+    /** New track, same picture (the next song of an album): only the text changes. */
+    TEXT,
+
+    /** Same track, new scene (better cover, time-of-day light): a quiet cross-fade. */
+    SOFT,
+}
+
 /**
- * The stage with its transitions. On a track change the old light cools down to a dim
- * amber and goes out like a filament while the new one warms up; the cover cross-fades,
- * the old text leaves upwards and the new text settles in from below.
+ * The stage with its transitions. On a track change the old print goes dark, the empty
+ * wall holds for a moment while the light changes colour (through OKLCH, so it never
+ * passes through grey) and the sundial swings back to the morning, then the new print
+ * comes up and the new text settles in from below. The clock does not take part.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
@@ -44,29 +59,47 @@ fun StageTheatre(
 ) {
     var current by remember { mutableStateOf(stage) }
     var previous by remember { mutableStateOf<StageData?>(null) }
-    var soft by remember { mutableStateOf(false) }
+    var change by remember { mutableStateOf(Change.FULL) }
+    var fromAngle by remember { mutableFloatStateOf(Float.NaN) }
+    val lastAngle = remember { floatArrayOf(Float.NaN) }
     val t = remember { Animatable(1f) }
 
     LaunchedEffect(stage) {
         if (stage.scene !== current.scene || stage.track != current.track) {
-            soft = stage.track.key == current.track.key
+            change = when {
+                stage.track.key == current.track.key -> Change.SOFT
+                samePicture(current.scene, stage.scene) -> Change.TEXT
+                else -> Change.FULL
+            }
+            fromAngle = lastAngle[0]
             previous = current
             current = stage
             t.snapTo(0f)
-            t.animateTo(1f, tween(if (soft) Motion.SOFT_SWAP_MS else Motion.TRACK_CHANGE_MS, easing = LinearEasing))
+            val duration = when (change) {
+                Change.FULL -> Motion.TRACK_CHANGE_MS
+                Change.TEXT -> Motion.TEXT_CHANGE_MS
+                Change.SOFT -> Motion.SOFT_SWAP_MS
+            }
+            t.animateTo(1f, tween(duration, easing = LinearEasing))
             previous = null
         }
     }
 
+    val paused = status == PlayerStatus.PAUSED
     val pausedLevel by animateFloatAsState(
-        targetValue = if (status == PlayerStatus.PAUSED) Motion.PAUSED_LIGHT else 1f,
+        targetValue = if (paused) Motion.PAUSED_LIGHT else 1f,
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
         label = "pause-light",
     )
     val coverDim by animateFloatAsState(
-        targetValue = if (status == PlayerStatus.PAUSED) Motion.PAUSED_COVER else 1f,
+        targetValue = if (paused) Motion.PAUSED_COVER else 1f,
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
         label = "pause-cover",
+    )
+    val textDim by animateFloatAsState(
+        targetValue = if (paused) Motion.PAUSED_TEXT else 1f,
+        animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
+        label = "pause-text",
     )
     val breathing: State<Float> = if (status == PlayerStatus.BUFFERING) {
         rememberInfiniteTransition(label = "buffering").animateFloat(
@@ -76,57 +109,127 @@ fun StageTheatre(
             label = "breath",
         )
     } else {
-        remember { mutableStateOf(1f) }
+        remember { mutableFloatStateOf(1f) }
     }
 
     val cur = current
     val prev = previous
+    val kind = change
+    val total = when (kind) {
+        Change.FULL -> Motion.TRACK_CHANGE_MS
+        Change.TEXT -> Motion.TEXT_CHANGE_MS
+        Change.SOFT -> Motion.SOFT_SWAP_MS
+    }
+    fun p(startMs: Int, endMs: Int, easing: androidx.compose.animation.core.Easing = Motion.Dimmer) =
+        Motion.phaseMs(t.value, startMs, endMs, total, easing)
+
     val curModel = remember(cur, modelFor) { modelFor(cur) }
     val prevModel = remember(prev, modelFor) { prev?.let(modelFor) }
+    val curPlan = rememberTextPlan(curModel)
+    val prevPlan = prevModel?.let { rememberTextPlan(it) }
 
-    fun angle(s: StageData) = { HaloLight.sunAngle(progressFor(s), wallClock()) }
+    // The sundial: live angle of the current track; during a change it swings over from
+    // where the old track left it.
+    val angle: () -> Float = {
+        val live = HaloLight.sunAngle(progressFor(cur), wallClock())
+        val a = if (prev != null && kind != Change.SOFT && !fromAngle.isNaN()) {
+            Motion.mixAngle(fromAngle, live, p(200, total - 600))
+        } else {
+            live
+        }
+        lastAngle[0] = a
+        a
+    }
+    // The light's colour morphs from the old print's to the new one's.
+    val tint: () -> Int = {
+        if (prev == null || kind == Change.TEXT) cur.scene.lightTint
+        else HaloLight.mixOklch(prev.scene.lightTint, cur.scene.lightTint, if (kind == Change.FULL) p(250, 1_600) else p(0, total))
+    }
+    // The lamp goes down while the prints are swapped – a scene change in the dark.
+    val swapDip: () -> Float = {
+        if (prev == null || kind != Change.FULL) 1f
+        else 1f - 0.7f * (p(0, 900) - p(900, 2_100))
+    }
+    val level: () -> Float = { pausedLevel * breathing.value * swapDip() }
+
+    // Text and clock: the clock only moves along if its place changes.
+    val clockStays = prev != null && prevPlan != null && prevPlan.showClock && curPlan.showClock &&
+        prev.scene.layout.columnLeft == cur.scene.layout.columnLeft && kind != Change.SOFT
+    val prevTextAlpha: () -> Float = { 1f - p(0, 550) }
+    val curTextAlpha: () -> Float = {
+        when {
+            prev == null || kind == Change.SOFT -> 1f
+            kind == Change.TEXT -> p(700, 1_700)
+            else -> p(1_150, 2_350)
+        }
+    }
 
     Box(modifier.fillMaxSize()) {
-        BaseWall(cur.scene)
-        if (prev != null) {
+        BaseWall()
+        HaloLightLayer(cur.scene, sunAngle = angle, lightLevel = level, tint = tint)
+        if (prev != null && kind != Change.TEXT) {
+            // Old light on top, fading: a true cross-fade of the two light shapes.
             HaloLightLayer(
                 prev.scene,
-                sunAngle = angle(prev),
-                lightLevel = { pausedLevel * (1f - Motion.phase(t.value, 0f, 0.85f)) },
-                cooling = { if (soft) 0f else Motion.phase(t.value, 0f, 0.55f) },
+                sunAngle = angle,
+                alpha = { if (kind == Change.FULL) 1f - p(600, 1_300) else 1f - p(0, total) },
+                lightLevel = level,
+                tint = tint,
             )
         }
-        HaloLightLayer(
-            cur.scene,
-            sunAngle = angle(cur),
-            alpha = { if (prev == null) 1f else Motion.phase(t.value, if (soft) 0f else 0.12f, if (soft) 1f else 0.9f) },
-            lightLevel = { pausedLevel * breathing.value },
-            cooling = { if (prev == null || soft) 0f else 1f - Motion.phase(t.value, 0.3f, 0.95f) },
-        )
-        if (prev != null) {
+        if (prev != null && kind == Change.FULL) {
             HaloCoverLayer(
                 prev.scene,
-                alpha = { 1f - Motion.phase(t.value, if (soft) 0.3f else 0.18f, if (soft) 1f else 0.62f) },
+                sunAngle = angle,
+                alpha = { 1f - p(0, Motion.COVER_OUT_END_MS, Motion.Out) },
                 dim = { coverDim },
             )
         }
         HaloCoverLayer(
             cur.scene,
-            alpha = { if (prev == null) 1f else Motion.phase(t.value, if (soft) 0f else 0.32f, if (soft) 0.7f else 0.72f) },
+            sunAngle = angle,
+            alpha = {
+                if (prev == null || kind != Change.FULL) 1f
+                else p(Motion.COVER_IN_START_MS, Motion.COVER_IN_END_MS, Motion.In)
+            },
             dim = { coverDim },
-            scale = { if (prev == null || soft) 1f else 0.985f + 0.015f * Motion.phase(t.value, 0.3f, 1f) },
+            scale = {
+                if (prev == null || kind != Change.FULL) 1f
+                else 0.985f + 0.015f * p(Motion.COVER_IN_START_MS, total)
+            },
         )
-        if (prevModel != null && !soft) {
+        if (prev != null && kind == Change.SOFT) {
+            // Same track: the old print on top, fading into the new one.
+            HaloCoverLayer(prev.scene, sunAngle = angle, alpha = { 1f - p(0, total) }, dim = { coverDim })
+        }
+        if (prevModel != null && prevPlan != null && kind != Change.SOFT) {
             HaloTextLayer(
                 prevModel,
-                alpha = { 1f - Motion.phase(t.value, 0f, 0.22f) },
-                offsetY = { -6f * Motion.phase(t.value, 0f, 0.22f) },
+                plan = prevPlan,
+                alpha = prevTextAlpha,
+                dim = { textDim },
+                offsetY = { -6f * p(0, 550) },
             )
+            if (!clockStays) HaloClockLayer(prevModel, plan = prevPlan, alpha = prevTextAlpha)
         }
         HaloTextLayer(
             curModel,
-            alpha = { if (prev == null || soft) 1f else Motion.phase(t.value, 0.45f, 0.8f) },
-            offsetY = { if (prev == null || soft) 0f else 8f * (1f - Motion.phase(t.value, 0.45f, 0.85f)) },
+            plan = curPlan,
+            alpha = curTextAlpha,
+            dim = { textDim },
+            offsetY = {
+                when {
+                    prev == null || kind == Change.SOFT -> 0f
+                    kind == Change.TEXT -> 8f * (1f - p(700, 1_800))
+                    else -> 8f * (1f - p(1_150, 2_450))
+                }
+            },
         )
+        HaloClockLayer(curModel, plan = curPlan, alpha = if (clockStays || prev == null) ({ 1f }) else curTextAlpha)
     }
 }
+
+/** Same picture at the same place: consecutive songs of one album. */
+private fun samePicture(a: ArtworkScene, b: ArtworkScene): Boolean =
+    a.coverRect == b.coverRect && a.layout.mirrored == b.layout.mirrored &&
+        a.coverGenerated == b.coverGenerated && a.thumb.contentEquals(b.thumb)

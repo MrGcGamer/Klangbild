@@ -23,8 +23,6 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class StatesTest {
     private val pärt = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
-    private val time = "21:47"
-    private val date = "Mittwoch, 8. Oktober"
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) =
         captureRoboImage("build/screenshots/states/$name.png", content = content)
@@ -55,31 +53,31 @@ class StatesTest {
     }
 
     @Test fun restIdle() = shot("rest_idle") {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.DAY, time, date)
+        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(10, 12), zone = Fixtures.zone)
     }
 
     @Test fun restPaused() = shot("rest_paused") {
-        RestScreen(RestReason.PAUSED, "Wohnzimmer", null, Lighting.EVENING, time, date)
+        RestScreen(RestReason.PAUSED, "Wohnzimmer", null, Lighting.EVENING, Fixtures.at(18, 40), zone = Fixtures.zone)
     }
 
     @Test fun restNight() = shot("rest_night") {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.NIGHT, "02:13", "Donnerstag, 9. Oktober")
+        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.NIGHT, Fixtures.at(2, 13, day = 9), zone = Fixtures.zone)
     }
 
     @Test fun connecting() = shot("rest_connecting") {
-        RestScreen(RestReason.CONNECTING, null, null, Lighting.DAY, time, date)
+        RestScreen(RestReason.CONNECTING, null, null, Lighting.DAY, Fixtures.at(13, 5), zone = Fixtures.zone)
     }
 
     @Test fun offline() = shot("rest_offline") {
-        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Lighting.DAY, time, date)
+        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(16, 20), zone = Fixtures.zone)
     }
 
     @Test fun unavailable() = shot("rest_unavailable") {
-        RestScreen(RestReason.UNAVAILABLE, "Wohnzimmer", null, Lighting.DAY, time, date)
+        RestScreen(RestReason.UNAVAILABLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(11, 50), zone = Fixtures.zone)
     }
 
     @Test fun entityMissing() = shot("rest_entity_missing") {
-        RestScreen(RestReason.ENTITY_MISSING, null, "media_player.wohnzimer", Lighting.DAY, time, date)
+        RestScreen(RestReason.ENTITY_MISSING, null, "media_player.wohnzimer", Lighting.DAY, Fixtures.at(9, 30), zone = Fixtures.zone)
     }
 
     private val setupInfo = SetupInfo(

@@ -1,5 +1,7 @@
 package io.github.hazymorning.klangbild.ui.stage
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,13 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.ClipOp
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.LastBaseline
@@ -36,15 +34,13 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.HaloLight
-import io.github.hazymorning.klangbild.render.SceneBuilder
+import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import kotlin.math.roundToInt
 
@@ -54,25 +50,30 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun HaloStage(model: StageModel, modifier: Modifier = Modifier, wallClockMs: () -> Long = System::currentTimeMillis) {
+    val angle = { HaloLight.sunAngle(model.progress(), wallClockMs()) }
+    val plan = rememberTextPlan(model)
     Box(modifier.fillMaxSize()) {
-        BaseWall(model.scene)
-        HaloLightLayer(model.scene, sunAngle = { HaloLight.sunAngle(model.progress(), wallClockMs()) })
-        HaloCoverLayer(model.scene)
-        HaloTextLayer(model)
+        BaseWall()
+        HaloLightLayer(model.scene, sunAngle = angle)
+        HaloCoverLayer(model.scene, sunAngle = angle)
+        HaloTextLayer(model, plan = plan)
+        HaloClockLayer(model, plan = plan)
     }
 }
 
-/** The static wall colour under everything (also fills the edges while the stage drifts). */
+/**
+ * The wall under everything: black. Light only exists near the print; far away the OLED
+ * pixels are simply off (also fills the edges while the stage drifts).
+ */
 @Composable
-fun BaseWall(scene: ArtworkScene, modifier: Modifier = Modifier) {
-    val color = scene.palette.base.asColor()
-    Canvas(modifier.fillMaxSize()) { drawRect(color) }
+fun BaseWall(modifier: Modifier = Modifier) {
+    Canvas(modifier.fillMaxSize()) { drawRect(Color.Black) }
 }
 
 /**
- * The wall glow and the wandering sun. [lightLevel] dims the light (pause, rest),
- * [alpha] fades the whole layer during transitions, [cooling] 0..1 shifts the sun towards
- * a dim amber like a filament that is switched off.
+ * The light on the wall: the scene's greyscale light map, multiplied by the sundial mask
+ * (rotated to [sunAngle]) and tinted with [tint]. [alpha] fades the layer during
+ * transitions, [lightLevel] dims it (pause, link loss).
  */
 @Composable
 fun HaloLightLayer(
@@ -81,66 +82,58 @@ fun HaloLightLayer(
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
     lightLevel: () -> Float = { 1f },
-    cooling: () -> Float = { 0f },
+    tint: () -> Int = { scene.lightTint },
 ) {
-    val backdrop = remember(scene) { scene.backdrop.asImageBitmap() }
-    val sprite = remember { SceneBuilder.sunSprite.asImageBitmap() }
-    val sunColor = scene.sunTint.asColor()
-    val amber = Color(0xFF6E3410)
+    val mapShader = remember(scene) {
+        android.graphics.BitmapShader(scene.lightMap, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+    }
+    val rect = scene.coverRect
     Canvas(modifier.fillMaxSize()) {
-        val a = alpha().coerceIn(0f, 1f)
-        if (a <= 0f) return@Canvas
-        val level = lightLevel().coerceIn(0f, 1f)
-        drawImage(
-            backdrop,
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            alpha = a * level,
-            filterQuality = FilterQuality.Low,
+        val a = (alpha() * lightLevel()).coerceIn(0f, 1f)
+        if (a <= 0.002f) return@Canvas
+        mapShader.setLocalMatrix(
+            android.graphics.Matrix().apply { setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H) },
         )
-        // The sun: a tinted, additive sprite. Its position changes a few dp per minute.
-        val rect = scene.coverRect
-        val (cx, cy) = HaloLight.sunCenter(rect, sunAngle())
-        val d = HaloLight.sunDiameter(rect) * density
-        val tint = lerp(sunColor, amber.copy(alpha = 1f).let { scaleColor(it, 0.35f) }, cooling().coerceIn(0f, 1f))
-        // The sun lights the wall around the cover, never the area behind it.
-        clipRect(
-            left = rect.left * density,
-            top = rect.top * density,
-            right = rect.right * density,
-            bottom = rect.bottom * density,
-            clipOp = ClipOp.Difference,
-        ) {
-            drawImage(
-                sprite,
-                dstOffset = IntOffset((cx * density - d / 2).roundToInt(), (cy * density - d / 2).roundToInt()),
-                dstSize = IntSize(d.roundToInt(), d.roundToInt()),
-                alpha = a * level,
-                colorFilter = ColorFilter.tint(tint, BlendMode.Modulate),
-                blendMode = BlendMode.Plus,
-                filterQuality = FilterQuality.Low,
-            )
+        val cx = rect.centerX * density
+        val cy = rect.centerY * density
+        val sweep = android.graphics.SweepGradient(cx, cy, maskStops, null).apply {
+            // Sweep angles run clockwise on screen, the sun's angle counter-clockwise.
+            setLocalMatrix(android.graphics.Matrix().apply { setRotate(-sunAngle(), cx, cy) })
         }
+        val shader = android.graphics.ComposeShader(mapShader, sweep, android.graphics.BlendMode.MODULATE)
+        drawRect(
+            brush = ShaderBrush(shader),
+            alpha = a,
+            colorFilter = ColorFilter.tint(Color(tint()), BlendMode.Modulate),
+        )
     }
 }
 
+private val maskStops: IntArray by lazy { HaloLight.maskStops() }
+
 /**
  * The cover, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
- * size). A hairline inner edge gives it the presence of a print, also on a dark cover.
- * [dim] (pause) darkens it through the colour matrix rather than transparency, so the
- * light behind never shines through.
+ * size), like a print a few centimetres off the wall: a faint raking light across it from
+ * the sundial's side (±4 %), a hairline highlight on the lit edges and a darker hairline
+ * on the far ones. [dim] (pause) darkens it through the colour matrix rather than
+ * transparency, so the light behind never shines through.
  */
 @Composable
 fun HaloCoverLayer(
     scene: ArtworkScene,
     modifier: Modifier = Modifier,
+    sunAngle: () -> Float = { 90f },
     alpha: () -> Float = { 1f },
     dim: () -> Float = { 1f },
     scale: () -> Float = { 1f },
 ) {
-    val image = remember(scene) { scene.cover.asImageBitmap() }
+    val coverShader = remember(scene) {
+        android.graphics.BitmapShader(scene.cover, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+    }
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
-    val edge = scene.palette.ink.asColor().copy(alpha = if (scene.analysis.meanL < 0.25f) 0.10f else 0.06f)
+    val ink = scene.palette.ink.asColor()
+    val darkCover = scene.analysis.meanL < 0.25f
     Canvas(
         modifier
             .fillMaxSize()
@@ -155,55 +148,89 @@ fun HaloCoverLayer(
                 )
             },
     ) {
-        // Dimming is quantised so an animation reuses a handful of colour filters.
-        val step = (dim().coerceIn(0f, 1f) * 50f).roundToInt()
+        // Dimming is quantised so an animation reuses a handful of colour filters. The
+        // raking light multiplies by 0.92…1.0, the filter lifts by 1.04: ±4 % around neutral.
+        val step = (dim().coerceIn(0f, 1f) * RAKE_LIFT * 50f).roundToInt()
         val filter = filters.getOrPut(step) { coverFilter(scene.lighting, step / 50f) }
         val x = (rect.left * density).roundToInt()
         val y = (rect.top * density).roundToInt()
-        drawImage(
-            image,
-            dstOffset = IntOffset(x, y),
-            dstSize = IntSize(image.width, image.height),
-            colorFilter = filter,
-            filterQuality = FilterQuality.Low,
+        val w = scene.cover.width
+        val h = scene.cover.height
+        coverShader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(x.toFloat(), y.toFloat()) })
+
+        val theta = Math.toRadians(sunAngle().toDouble())
+        val ux = kotlin.math.cos(theta).toFloat()
+        val uy = -kotlin.math.sin(theta).toFloat()
+        val cx = x + w / 2f
+        val cy = y + h / 2f
+        val half = w / 2f
+        val rake = android.graphics.LinearGradient(
+            cx + ux * half, cy + uy * half, cx - ux * half, cy - uy * half,
+            android.graphics.Color.WHITE, RAKE_FAR, android.graphics.Shader.TileMode.CLAMP,
         )
         drawRect(
-            edge,
-            topLeft = Offset(x + 0.5f, y + 0.5f),
-            size = Size(image.width - 1f, image.height - 1f),
-            style = Stroke(width = 1f),
+            brush = ShaderBrush(android.graphics.ComposeShader(coverShader, rake, android.graphics.BlendMode.MODULATE)),
+            topLeft = Offset(x.toFloat(), y.toFloat()),
+            size = Size(w.toFloat(), h.toFloat()),
+            colorFilter = filter,
         )
+
+        // Edges: lit sides catch a hairline of light, far sides a hairline of shade.
+        val line = (density / 2f).coerceAtLeast(1f)
+        val sides = listOf(0f to Pair(Offset(x + w - line / 2, y.toFloat()), Offset(x + w - line / 2, (y + h).toFloat())),
+            90f to Pair(Offset(x.toFloat(), y + line / 2), Offset((x + w).toFloat(), y + line / 2)),
+            180f to Pair(Offset(x + line / 2, y.toFloat()), Offset(x + line / 2, (y + h).toFloat())),
+            270f to Pair(Offset(x.toFloat(), y + h - line / 2), Offset((x + w).toFloat(), y + h - line / 2)))
+        val sun = sunAngle()
+        for ((normal, ends) in sides) {
+            val c = kotlin.math.cos(Math.toRadians((sun - normal).toDouble())).toFloat()
+            val lit = (c.coerceAtLeast(0f)).let { it * it }
+            val shade = ((-c).coerceAtLeast(0f)).let { it * it }
+            val base = if (darkCover) 0.07f else 0.04f
+            drawLine(ink.copy(alpha = base + 0.20f * lit), ends.first, ends.second, strokeWidth = line)
+            if (shade > 0.01f) drawLine(Color.Black.copy(alpha = 0.22f * shade), ends.first, ends.second, strokeWidth = line)
+        }
     }
 }
 
+/** Raking light: the far side of the print is multiplied by this grey (sRGB ≈ 0.92). */
+private const val RAKE_FAR = 0xFFEBEBEB.toInt()
+
+/** …and the whole print lifted by this, so the lit side ends up a few percent brighter. */
+private const val RAKE_LIFT = 1.04f
+
+/** Title sizes from large to small, each with the most lines it may take. */
 private val titleLadder = listOf(
-    52.sp to 2, 42.sp to 3, 34.sp to 4, 29.sp to 4, 25.sp to 5,
+    52f to 2, 42f to 3, 34f to 3, 29f to 3, 25f to 4,
 )
 
-/**
- * The text column on its fixed baselines: clock at the top, title growing upwards from
- * its baseline, the artist line fixed, album below, time line on the cover's bottom edge.
- */
-@Composable
-fun HaloTextLayer(
-    model: StageModel,
-    modifier: Modifier = Modifier,
-    alpha: () -> Float = { 1f },
-    offsetY: () -> Float = { 0f },
-) {
-    val scene = model.scene
-    val p = scene.palette
-    val layout = scene.layout
-    val t = model.text
-    val night = model.night
-    val measurer = rememberTextMeasurer(cacheSize = 16)
+/** Distance from the clock's baseline to the top of the text block below it (dp). */
+private const val CLOCK_CLEARANCE_DP = 52f
 
+/**
+ * The measured decisions for one text column: title size and breaks, the artists fitted
+ * onto one line, and whether the clock still has room above the block.
+ */
+class TextPlan(
+    val title: AnnotatedString,
+    val titleStyle: TextStyle,
+    val titleLines: Int,
+    val artists: String?,
+    val artistLines: Int,
+    val showClock: Boolean,
+)
+
+/** Styles of the text column; colours come from the scene. */
+private class ColumnStyles(model: StageModel) {
+    private val p = model.scene.palette
+    private val t = model.text
     val ink = p.ink.asColor()
     val muted = p.inkMuted.asColor()
     val faint = p.inkFaint.asColor()
-    val latinTitle = isSpacingFriendly(t.title)
+    private val latinTitle = isSpacingFriendly(t.title)
+    val cjkTitle = isMostlyCjk(t.title)
 
-    val titleBase = TextStyle(
+    val title = TextStyle(
         fontFamily = Fonts.Display,
         fontWeight = FontWeight(340),
         color = ink,
@@ -212,7 +239,7 @@ fun HaloTextLayer(
         textDirection = TextDirection.Content,
         textAlign = TextAlign.Left,
     )
-    val workStyle = TextStyle(
+    val work = TextStyle(
         fontFamily = Fonts.Text,
         fontStyle = if (isSpacingFriendly(t.work.orEmpty())) FontStyle.Italic else FontStyle.Normal,
         fontWeight = FontWeight(380),
@@ -222,7 +249,41 @@ fun HaloTextLayer(
         textDirection = TextDirection.Content,
         textAlign = TextAlign.Left,
     )
-    val clockStyle = TextStyle(
+    private val latinArtists = isSpacingFriendly(t.artists.orEmpty())
+    val artistTracking = 0.16.em
+
+    /** Latin artists are a label in spaced capitals; scripts without case get size instead. */
+    val artist = TextStyle(
+        fontFamily = Fonts.Sans,
+        fontWeight = FontWeight(if (latinArtists) 400 else 500),
+        fontSize = if (latinArtists) 13.sp else 15.sp,
+        lineHeight = if (latinArtists) 19.sp else 21.sp,
+        color = muted,
+        textDirection = TextDirection.Content,
+        textAlign = TextAlign.Left,
+    )
+    private val latinAlbum = isSpacingFriendly(t.album.orEmpty())
+
+    /** The album never outweighs the artist: in scripts without italics it gets smaller. */
+    val album = TextStyle(
+        fontFamily = Fonts.Text,
+        fontStyle = if (latinAlbum) FontStyle.Italic else FontStyle.Normal,
+        fontWeight = FontWeight(380),
+        fontSize = if (latinAlbum) 16.sp else 13.sp,
+        lineHeight = 21.sp,
+        color = faint,
+        textDirection = TextDirection.Content,
+        textAlign = TextAlign.Left,
+    )
+    val version = SpanStyle(
+        fontFamily = Fonts.Text,
+        fontStyle = FontStyle.Italic,
+        fontWeight = FontWeight(380),
+        fontSize = 17.sp,
+        letterSpacing = 0.em,
+        color = muted,
+    )
+    val clock = TextStyle(
         fontFamily = Fonts.Sans,
         fontWeight = FontWeight(400),
         fontSize = 12.sp,
@@ -230,96 +291,173 @@ fun HaloTextLayer(
         color = faint,
         fontFeatureSettings = "tnum",
     )
-    val artistStyle = TextStyle(
-        fontFamily = Fonts.Sans,
-        fontWeight = FontWeight(400),
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
-        color = muted,
-        textDirection = TextDirection.Content,
-        textAlign = TextAlign.Left,
-    )
-    val albumStyle = TextStyle(
-        fontFamily = Fonts.Text,
-        fontStyle = if (isSpacingFriendly(t.album.orEmpty())) FontStyle.Italic else FontStyle.Normal,
-        fontWeight = FontWeight(380),
-        fontSize = 16.sp,
-        lineHeight = 21.sp,
-        color = faint,
-        textDirection = TextDirection.Content,
-        textAlign = TextAlign.Left,
-    )
 
+    fun titleAt(size: Float): TextStyle {
+        val s = if (cjkTitle) size * 0.86f else size
+        return title.merge(TextStyle(fontSize = s.sp, lineHeight = (s * 1.06f).sp))
+    }
+}
+
+/**
+ * The artist line: a label in spaced capitals (Latin scripts), with a trailing "u. a."
+ * set in lower-case italics – in capitals it would read like initials.
+ */
+private fun artistLine(text: String, styles: ColumnStyles): AnnotatedString {
+    if (!isSpacingFriendly(text)) return AnnotatedString(text)
+    val others = text.endsWith(TrackText.OTHERS)
+    val main = if (others) text.dropLast(TrackText.OTHERS.length) else text
+    return buildAnnotatedString {
+        withStyle(SpanStyle(letterSpacing = styles.artistTracking)) { append(main.uppercase()) }
+        if (others) {
+            append("\u00A0")
+            withStyle(SpanStyle(fontFamily = Fonts.Text, fontStyle = FontStyle.Italic, fontSize = 15.sp, letterSpacing = 0.em)) {
+                append(TrackText.OTHERS.trim())
+            }
+        }
+    }
+}
+
+/** Measures the column once per model (title size, artist fit, clock room). */
+@Composable
+fun rememberTextPlan(model: StageModel): TextPlan {
+    val measurer = rememberTextMeasurer(cacheSize = 24)
+    val localDensity = LocalDensity.current
+    return remember(model.text, model.scene.layout, model.night, model.clock, model.scene.palette, localDensity) {
+        planText(model, ColumnStyles(model), measurer, localDensity)
+    }
+}
+
+private fun planText(
+    model: StageModel,
+    styles: ColumnStyles,
+    measurer: androidx.compose.ui.text.TextMeasurer,
+    density: androidx.compose.ui.unit.Density,
+): TextPlan {
+    val t = model.text
+    val layout = model.scene.layout
+    val d = density.density
+    val colW = (layout.columnWidth * d).roundToInt()
+
+    val title = buildAnnotatedString {
+        append(EmojiText.annotate(t.title, dimTo = styles.ink.copy(alpha = 0.62f)))
+        // A version note ("Radio Edit") belongs to the title: small italic after it.
+        t.version?.let { v ->
+            append(" ")
+            withStyle(styles.version) { append(v.replace(' ', ' ')) }
+        }
+    }
+
+    val workH = t.work?.let {
+        measurer.measure(AnnotatedString(it), styles.work, constraints = Constraints(maxWidth = colW), maxLines = 2).size.height
+    } ?: 0
+    val workBlock = if (workH > 0) workH + 8 * d else 0f
+    val clockBaseline = layout.clockTop * d + with(density) { 12.sp.toPx() } * 0.70f
+    val withClock = clockBaseline + CLOCK_CLEARANCE_DP * d + workBlock
+    // Without the clock the block may rise to the cover's top edge.
+    val withoutClock = layout.slotTop * d + workBlock
+    fun maxH(ceiling: Float) = (layout.titleBaseline * d - ceiling + 16 * d).roundToInt().coerceAtLeast(1)
+
+    val wantsClock = model.clock != null && !model.night
+    val first = pickTitleSize(title, styles, measurer, colW, maxH(if (wantsClock) withClock else withoutClock))
+    val showClock = wantsClock && first != null
+    val choice = first ?: pickTitleSize(title, styles, measurer, colW, maxH(withoutClock))
+        ?: TitleChoice(titleLadder.last().first, titleLadder.last().second, title)
+
+    // Artists on one line: the most complete form that fits.
+    val options = t.artistOptions()
+    val fitted = options.firstOrNull { option ->
+        measurer.measure(artistLine(option, styles), styles.artist, maxLines = 1, softWrap = false).size.width <= colW
+    }
+    return TextPlan(
+        title = choice.text,
+        titleStyle = styles.titleAt(choice.size),
+        titleLines = choice.lines,
+        artists = fitted ?: options.lastOrNull(),
+        artistLines = if (fitted != null) 1 else 2,
+        showClock = showClock,
+    )
+}
+
+/**
+ * The text column on its fixed baselines: title growing upwards from its baseline (with
+ * the work line above it), the artist line fixed, album below, time line on the cover's
+ * bottom edge. [dim] darkens the text a little while paused. The clock is a layer of its
+ * own ([HaloClockLayer]) so it can stay put while the rest changes.
+ */
+@Composable
+fun HaloTextLayer(
+    model: StageModel,
+    modifier: Modifier = Modifier,
+    plan: TextPlan = rememberTextPlan(model),
+    alpha: () -> Float = { 1f },
+    dim: () -> Float = { 1f },
+    offsetY: () -> Float = { 0f },
+) {
+    val layout = model.scene.layout
+    val t = model.text
+    val night = model.night
+    val styles = remember(model.text, model.scene.palette) { ColumnStyles(model) }
     val localDensity = LocalDensity.current
     val colW = (layout.columnWidth * localDensity.density).roundToInt()
-    val titleText = remember(t.title) { EmojiText.annotate(t.title) }
-    val titleChoice = remember(t.title, t.work, colW, titleBase, localDensity) {
-        val workH = t.work?.let {
-            measurer.measure(AnnotatedString(it), workStyle, constraints = Constraints(maxWidth = colW), maxLines = 2).size.height
-        } ?: 0
-        val d = localDensity.density
-        val clockBaseline = layout.clockTop * d + with(localDensity) { 12.sp.toPx() } * 0.70f
-        val ceiling = clockBaseline + 34 * d + (if (workH > 0) workH + 8 * d else 0f)
-        val maxH = (layout.titleBaseline * d - ceiling + 16 * d).roundToInt().coerceAtLeast(1)
-        pickTitleSize(titleText, titleBase, measurer, colW, maxH)
-    }
-    val titleStyle = titleBase.merge(
-        TextStyle(fontSize = titleChoice.first, lineHeight = (titleChoice.first.value * 1.04f).sp),
-    )
 
     Layout(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer {
-                this.alpha = alpha().coerceIn(0f, 1f)
-                translationY = offsetY() * density
+                this.alpha = (alpha() * dim()).coerceIn(0f, 1f)
+                translationY = (offsetY() * density).roundToInt().toFloat()
             },
         content = {
-            // 0: clock
-            if (model.clock != null && !night) BasicText(model.clock, style = clockStyle) else Box(Modifier)
-            // 1: work line
+            // 0: work line
             if (t.work != null) {
-                BasicText(t.work, style = workStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                BasicText(t.work, style = styles.work, maxLines = 2, overflow = TextOverflow.Ellipsis)
             } else {
                 Box(Modifier)
             }
-            // 2: title
-            BasicText(titleText, style = titleStyle, maxLines = titleChoice.second, overflow = TextOverflow.Ellipsis)
-            // 3: artist
-            if (t.artists != null) SpacedLabel(t.artists, artistStyle, maxLines = 2) else Box(Modifier)
-            // 4: album / version
-            val album = listOfNotNull(t.album, t.version).joinToString("  ·  ")
-            if (album.isNotEmpty() && !night) {
-                BasicText(album, style = albumStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // 1: title
+            BasicText(plan.title, style = plan.titleStyle, maxLines = plan.titleLines, overflow = TextOverflow.Ellipsis)
+            // 2: artist
+            if (plan.artists != null) {
+                BasicText(
+                    artistLine(plan.artists, styles),
+                    style = styles.artist,
+                    maxLines = plan.artistLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
             } else {
                 Box(Modifier)
             }
-            // 5: time line
-            val line = model.timeLine
-            if (line != null && !night) TimeLineText(line, faint) else Box(Modifier)
+            // 3: album
+            if (t.album != null && !night) {
+                BasicText(t.album, style = styles.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                Box(Modifier)
+            }
+            // 4: time line – changes cross-fade instead of jumping
+            Crossfade(
+                targetState = if (night) null else model.timeLine,
+                animationSpec = tween(TIME_LINE_FADE_MS, easing = Motion.Dimmer),
+                label = "time-line",
+            ) { line ->
+                if (line != null) TimeLineText(line, styles.faint) else Box(Modifier)
+            }
         },
     ) { measurables, constraints ->
         val c = Constraints(maxWidth = colW)
         val x = (layout.columnLeft * density).roundToInt()
-        val clock = measurables[0].measure(c)
-        val work = measurables[1].measure(c)
-        val artist = measurables[3].measure(c)
-        val album = measurables[4].measure(c)
-        val timeLine = measurables[5].measure(c)
-
-        val clockTop = (layout.clockTop * density).roundToInt()
-        val clockCap = (12.sp.toPx() * 0.70f).roundToInt()
-        val clockBaseline = clockTop + clockCap
+        val work = measurables[0].measure(c)
+        val title = measurables[1].measure(c)
+        val artist = measurables[2].measure(c)
+        val album = measurables[3].measure(c)
+        val timeLine = measurables[4].measure(c)
         val workGap = (8 * density).roundToInt()
         val titleBaseline = (layout.titleBaseline * density).roundToInt()
-        val title = measurables[2].measure(c)
 
         layout(constraints.maxWidth, constraints.maxHeight) {
             fun Placeable.baseline(first: Boolean): Int {
                 val b = this[if (first) FirstBaseline else LastBaseline]
                 return if (b == androidx.compose.ui.layout.AlignmentLine.Unspecified) height else b
             }
-            if (clock.height > 0) clock.place(x, clockBaseline - clock.baseline(true))
             val titleTop = titleBaseline - title.baseline(false)
             title.place(x, titleTop)
             if (work.height > 0) work.place(x, titleTop - workGap - work.height)
@@ -338,29 +476,82 @@ fun HaloTextLayer(
     }
 }
 
+/** The clock at the top of the text column, its cap height on the cover's top edge. */
+@Composable
+fun HaloClockLayer(
+    model: StageModel,
+    modifier: Modifier = Modifier,
+    plan: TextPlan = rememberTextPlan(model),
+    alpha: () -> Float = { 1f },
+) {
+    val clock = model.clock
+    if (clock == null || !plan.showClock || model.night) return
+    val layout = model.scene.layout
+    val styles = remember(model.text, model.scene.palette) { ColumnStyles(model) }
+    Layout(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
+        content = { BasicText(clock, style = styles.clock) },
+    ) { measurables, constraints ->
+        val p = measurables[0].measure(Constraints())
+        val baseline = (layout.clockTop * density).roundToInt() + (12.sp.toPx() * 0.70f).roundToInt()
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            val b = p[FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: p.height
+            p.place((layout.columnLeft * density).roundToInt(), baseline - b)
+        }
+    }
+}
+
+const val TIME_LINE_FADE_MS = 600
+
+private class TitleChoice(val size: Float, val lines: Int, val text: AnnotatedString)
+
 /**
  * The title at the largest size of the ladder that fits its line limit and the height it
- * is given; balanced line breaks. Ellipsis only as the very last resort.
+ * is given; balanced line breaks. At each size, a version that may only break after the
+ * dashes between a movement's sections is tried first ("Presto – / Allegro assai", never
+ * "Allegro / assai"). Returns null if nothing fits.
  */
 private fun pickTitleSize(
     text: AnnotatedString,
-    base: TextStyle,
+    styles: ColumnStyles,
     measurer: androidx.compose.ui.text.TextMeasurer,
     maxW: Int,
     maxH: Int,
-): Pair<TextUnit, Int> {
+): TitleChoice? {
+    val glued = glueBetweenDashes(text)
     for ((size, lines) in titleLadder) {
-        val r = measurer.measure(
-            text,
-            style = base.merge(TextStyle(fontSize = size, lineHeight = (size.value * 1.04f).sp)),
-            constraints = Constraints(maxWidth = maxW),
-            maxLines = lines + 1,
-        )
-        if (r.lineCount <= lines && (maxH == Constraints.Infinity || r.size.height <= maxH) && !breaksInsideWord(r)) {
-            return size to lines
+        val style = styles.titleAt(size)
+        if (glued != null) {
+            val g = measurer.measure(glued, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
+            if (g.lineCount <= lines && g.size.height <= maxH && breaksOnlyAfterDashes(g)) return TitleChoice(size, lines, glued)
         }
+        val r = measurer.measure(text, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
+        if (r.lineCount <= lines && r.size.height <= maxH && !breaksInsideWord(r)) return TitleChoice(size, lines, text)
     }
-    return titleLadder.last()
+    return null
+}
+
+/** The title with every space that is not right after a dash made non-breaking; null without dashes. */
+private fun glueBetweenDashes(text: AnnotatedString): AnnotatedString? {
+    val s = text.text
+    if (!s.contains("\u00A0– ")) return null
+    val chars = s.toCharArray()
+    for (i in chars.indices) {
+        if (chars[i] == ' ' && !(i > 0 && chars[i - 1] == '–')) chars[i] = '\u00A0'
+    }
+    return AnnotatedString(String(chars), spanStyles = text.spanStyles, paragraphStyles = text.paragraphStyles)
+}
+
+/** True if every line but the last ends right after "– ". */
+private fun breaksOnlyAfterDashes(r: androidx.compose.ui.text.TextLayoutResult): Boolean {
+    val text = r.layoutInput.text.text
+    for (i in 0 until r.lineCount - 1) {
+        val end = r.getLineEnd(i)
+        if (end < 2 || text[end - 1] != ' ' || text[end - 2] != '–') return false
+    }
+    return true
 }
 
 /** True if a line ends in the middle of a word (the breaker had no better option). */
@@ -376,6 +567,19 @@ private fun breaksInsideWord(r: androidx.compose.ui.text.TextLayoutResult): Bool
     return false
 }
 
+/** True if most letters of [text] are Chinese, Japanese or Korean (no capitals, full-width). */
+fun isMostlyCjk(text: String): Boolean {
+    var cjk = 0
+    var letters = 0
+    for (ch in text) {
+        if (!ch.isLetter()) continue
+        letters++
+        val c = ch.code
+        if (c in 0x3040..0x30FF || c in 0x3400..0x4DBF || c in 0x4E00..0x9FFF || c in 0xAC00..0xD7AF || c in 0xF900..0xFAFF) cjk++
+    }
+    return letters > 0 && cjk * 2 >= letters
+}
+
 @Composable
 private fun TimeLineText(line: TimeLine.Line, color: Color) {
     val label = line.label
@@ -385,18 +589,18 @@ private fun TimeLineText(line: TimeLine.Line, color: Color) {
             SpanStyle(
                 fontFamily = Fonts.Sans,
                 fontWeight = FontWeight(500),
-                fontSize = 12.sp,
-                letterSpacing = if (line.figures) 0.12.em else if (friendly) 0.2.em else 0.em,
+                fontSize = 10.sp,
+                letterSpacing = if (line.figures) 0.12.em else if (friendly) 0.22.em else 0.em,
                 fontFeatureSettings = "tnum",
             ),
         ) { append(if (friendly && !line.figures) label.uppercase() else label) }
         line.detail?.let { detail ->
-            append("   ")
+            append("   ")
             withStyle(
                 SpanStyle(
                     fontFamily = Fonts.Text,
                     fontStyle = if (isSpacingFriendly(detail)) FontStyle.Italic else FontStyle.Normal,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                 ),
             ) { append(detail) }
         }
@@ -408,12 +612,3 @@ private fun TimeLineText(line: TimeLine.Line, color: Color) {
         overflow = TextOverflow.Ellipsis,
     )
 }
-
-private fun lerp(a: Color, b: Color, t: Float) = Color(
-    red = a.red + (b.red - a.red) * t,
-    green = a.green + (b.green - a.green) * t,
-    blue = a.blue + (b.blue - a.blue) * t,
-    alpha = a.alpha + (b.alpha - a.alpha) * t,
-)
-
-private fun scaleColor(c: Color, k: Float) = Color(c.red * k, c.green * k, c.blue * k, c.alpha)

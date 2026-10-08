@@ -99,8 +99,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     speaker = c.speaker,
                     entityId = ui.entityId,
                     lighting = ui.lighting,
-                    time = io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value),
-                    date = io.github.hazymorning.klangbild.ui.RestTexts.date(wall.value),
+                    nowMs = wall.value,
                 )
                 is Content.SetupContent -> {
                     val scene = remember(ui.setup, screen, ui.lighting) { SetupArt.scene(ui.setup, screen, ui.lighting) }

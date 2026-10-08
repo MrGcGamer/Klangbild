@@ -10,15 +10,15 @@ class TrackTextTest {
     @Test
     fun `splits classical work and movement`() {
         val x = t("Suite bergamasque, L. 75: III. Clair de lune")
-        assertThat(x.work).isEqualTo("Suite bergamasque, L. 75")
+        assertThat(x.work).isEqualTo("Suite bergamasque, L.\u202F75")
         assertThat(x.title).isEqualTo("III. Clair de lune")
 
         val y = t("Symphony No. 9 in D Minor, Op. 125 \"Choral\": IV. Presto - Allegro assai")
-        assertThat(y.work).isEqualTo("Symphony No. 9 in D Minor, Op. 125 \"Choral\"")
         assertThat(y.title).isEqualTo("IV. Presto\u00A0– Allegro assai")
+        assertThat(y.work).isEqualTo("Symphony No.\u202F9 in D Minor, Op.\u202F125 \"Choral\"")
 
         val z = t("Goldberg-Variationen, BWV 988: Aria")
-        assertThat(z.work).isEqualTo("Goldberg-Variationen, BWV 988")
+        assertThat(z.work).isEqualTo("Goldberg-Variationen, BWV\u00A0988")
         assertThat(z.title).isEqualTo("Aria")
     }
 
@@ -60,7 +60,7 @@ class TrackTextTest {
             "Gundula Janowitz", "Hilde Rössel-Majdan", "Waldemar Kmentt", "Walter Berry",
         )
         val s = TrackText.formatArtists(orchestra)!!
-        assertThat(s).endsWith(" und weitere")
+        assertThat(s).endsWith(" u.\u202Fa.")
         assertThat(s.length).isAtMost(TrackText.MAX_ARTISTS_CHARS)
         assertThat(s).startsWith("Berliner Philharmoniker, Herbert von Karajan")
     }
@@ -69,5 +69,31 @@ class TrackTextTest {
     fun `drops an album that only repeats the title`() {
         assertThat(t("Blackstar", album = "Blackstar").album).isNull()
         assertThat(t("Lazarus", album = "Blackstar").album).isEqualTo("Blackstar")
+    }
+
+    @Test
+    fun `drops emoji at the edges of a title but keeps inner ones`() {
+        assertThat(t("🌙 Mondlicht-Tape ✨").title).isEqualTo("Mondlicht-Tape")
+        assertThat(t("Love ❤️ Song").title).isEqualTo("Love ❤️ Song")
+        assertThat(t("🔥🔥🔥").title).isEqualTo("🔥🔥🔥")
+    }
+
+    @Test
+    fun `offers artist lines from complete to short`() {
+        val x = TrackText.from(TrackInfo("T", listOf("Kammerphilharmonie an der Spree", "Johanna Reiter", "Paul Weber")))
+        assertThat(x.artistOptions()).containsExactly(
+            "Kammerphilharmonie an der Spree, Johanna Reiter & Paul Weber",
+            "Kammerphilharmonie an der Spree, Johanna Reiter u.\u202Fa.",
+            "Kammerphilharmonie an der Spree u.\u202Fa.",
+        ).inOrder()
+        assertThat(x.shortArtists).isEqualTo("Kammerphilharmonie an der Spree u.\u202Fa.")
+        assertThat(TrackText.from(TrackInfo("T", listOf("A", "B"))).shortArtists).isEqualTo("A & B")
+    }
+
+    @Test
+    fun `keeps abbreviations with their numbers`() {
+        assertThat(TrackText.typeset("Klaviersonate Nr. 11 A-Dur, KV 331")).isEqualTo("Klaviersonate Nr.\u202F11 A-Dur, KV\u00A0331")
+        assertThat(TrackText.typeset("Sinfonie Nr. 9 d-Moll, op. 125")).isEqualTo("Sinfonie Nr.\u202F9 d-Moll, op.\u202F125")
+        assertThat(TrackText.typeset("Mr. Brightside")).isEqualTo("Mr. Brightside")
     }
 }

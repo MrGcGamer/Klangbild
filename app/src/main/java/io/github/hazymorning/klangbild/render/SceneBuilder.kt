@@ -5,8 +5,8 @@ import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.art.stableHash
 import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverPalette
+import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
-import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.color.ScenePalette
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -24,15 +24,15 @@ class ArtworkScene(
     val coverGenerated: Boolean,
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
-    /** The wall with the glow, at reduced resolution; drawn stretched (it is all soft light). */
-    val backdrop: Bitmap,
+    /** Greyscale light around the cover at reduced resolution; tinted and stretched when drawn. */
+    val lightMap: Bitmap,
+    /** The light's sRGB tint at its brightest, time of day included. */
+    val lightTint: Int,
+    /** Daylight colour of the light, kept to re-light the scene. */
+    val lightColor: Lch,
     val palette: ScenePalette,
     val analysis: CoverAnalysis,
     val lighting: Lighting,
-    /** Colour of the light (sRGB). */
-    val light: Int,
-    /** Tint for the additive sun sprite, already scaled to its intended strength. */
-    val sunTint: Int,
     /** 48 × 48 thumbnail of the cover, kept to re-light the scene without the source. */
     val thumb: IntArray,
 ) {
@@ -41,11 +41,6 @@ class ArtworkScene(
 
 object SceneBuilder {
     const val THUMB = 48
-
-    /** Shared greyscale sun sprite. */
-    val sunSprite: Bitmap by lazy {
-        Bitmap.createBitmap(HaloLight.sunSprite(), HaloLight.SPRITE, HaloLight.SPRITE, Bitmap.Config.ARGB_8888)
-    }
 
     /**
      * @param source decoded cover or null (radio, missing art) → generated Chladni figure.
@@ -107,10 +102,20 @@ object SceneBuilder {
         thumb: IntArray,
     ): ArtworkScene {
         val palette = CoverPalette.derive(analysis, lighting)
-        val light = HaloLight.lightColor(analysis, palette)
-        val peak = HaloLight.glowPeak(analysis)
-        val backdropPx = HaloLight.backdrop(palette, light, peak, rect, layout.screen, lighting, stableHash(key))
-        val backdrop = Bitmap.createBitmap(backdropPx, HaloLight.BACKDROP_W, HaloLight.BACKDROP_H, Bitmap.Config.ARGB_8888)
+        val color = HaloLight.lightColor(analysis)
+        val peak = HaloLight.glowPeak(analysis, rect.width, layout.slot)
+        var tint = 0
+        val map = HaloLight.lightMap(
+            cover = rect,
+            screen = layout.screen,
+            openToRight = !layout.mirrored,
+            night = HaloLight.nightOf(lighting),
+            seed = stableHash(key),
+            ditherLsb = { gain ->
+                tint = HaloLight.lightTint(color, peak, gain, lighting)
+                ditherFor(tint)
+            },
+        )
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -118,31 +123,23 @@ object SceneBuilder {
             coverRect = rect,
             coverGenerated = generated,
             coverNativePx = nativePx,
-            backdrop = backdrop,
+            lightMap = Bitmap.createBitmap(map.pixels, HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888),
+            lightTint = tint,
+            lightColor = color,
             palette = palette,
             analysis = analysis,
             lighting = lighting,
-            light = light,
-            sunTint = sunTint(light, HaloLight.SUN_LIFT, lighting),
             thumb = thumb,
         )
     }
 
     /**
-     * Tint for the additive sun sprite. The sprite is added in sRGB, where small additions
-     * on a dark wall look much brighter than their linear value suggests – so the tint is
-     * defined directly as the sRGB lift at the sun's centre: [lift] of the light colour.
+     * Dither amplitude (grey levels) for a map that is drawn multiplied by [tint]: about one
+     * output level of noise, so even the darkest stretch of the glow never shows bands.
      */
-    private fun sunTint(light: Int, lift: Float, lighting: Lighting): Int {
-        val lit = lighting.apply(Oklab.fromArgb(light)).toArgb()
-        val r = (lit shr 16) and 0xFF
-        val g = (lit shr 8) and 0xFF
-        val b = lit and 0xFF
-        val maxC = maxOf(r, g, b).coerceAtLeast(1)
-        val night = (1f - lighting.brightness).coerceIn(0f, 1f)
-        val k = lift * 255f / maxC * (1f - 1.6f * night).coerceAtLeast(0.25f)
-        fun ch(v: Int) = (v * k).roundToInt().coerceIn(0, 255)
-        return (0xFF shl 24) or (ch(r) shl 16) or (ch(g) shl 8) or ch(b)
+    fun ditherFor(tint: Int): Float {
+        val maxC = maxOf((tint shr 16) and 0xFF, (tint shr 8) and 0xFF, tint and 0xFF).coerceAtLeast(16)
+        return (1.25f * 255f / maxC).coerceIn(1f, 6f)
     }
 
     /** Stable per album/station: about half of all albums show the cover on the right. */

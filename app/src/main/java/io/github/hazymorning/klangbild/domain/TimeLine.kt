@@ -11,6 +11,9 @@ object TimeLine {
     /** [label] is set in spaced capitals, [detail] in italics. */
     data class Line(val label: String, val detail: String? = null, val figures: Boolean = false)
 
+    /** The one separator used everywhere: a middle dot between no-break-glued spaces. */
+    const val SEPARATOR = " · "
+
     private val words = listOf(
         "", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf",
     )
@@ -25,7 +28,7 @@ object TimeLine {
         linkDown: Boolean = false,
     ): Line? {
         if (linkDown) return Line("Verbindung unterbrochen", "wird wiederhergestellt …")
-        val nextText = next?.let { listOfNotNull(it.title, it.artists).joinToString(" · ") }
+        val nextText = next?.let { listOfNotNull(it.title, it.shortArtists).joinToString(SEPARATOR) }
         if (showExact && positionMs != null) {
             val figures = if (durationMs != null) "${formatClock(positionMs)} / ${formatClock(durationMs)}" else formatClock(positionMs)
             return Line(figures, figures = true)

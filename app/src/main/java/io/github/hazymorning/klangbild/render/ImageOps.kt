@@ -78,10 +78,17 @@ object ImageOps {
     }
 
     /**
-     * Converts linear light to 8-bit sRGB with triangular dither (±1 LSB). Large soft
-     * gradients on an OLED otherwise show visible bands, especially in dark tones.
+     * Converts linear light to 8-bit sRGB with triangular dither (±[ditherLsb] LSB). Large
+     * soft gradients on an OLED otherwise show visible bands, especially in dark tones.
+     * Pixels darker than [blackBelow] become pure black without noise.
      */
-    fun toArgbDithered(img: LinearImage, seed: Int = 1, alpha: FloatArray? = null): IntArray {
+    fun toArgbDithered(
+        img: LinearImage,
+        seed: Int = 1,
+        alpha: FloatArray? = null,
+        ditherLsb: Float = 1f,
+        blackBelow: Float = -1f,
+    ): IntArray {
         val out = IntArray(img.width * img.height)
         var state = seed * 0x9E3779B9.toInt() or 1
         fun rnd(): Float { // xorshift32 → 0..1
@@ -91,7 +98,11 @@ object ImageOps {
             return (state ushr 8) / 16777216f
         }
         for (i in out.indices) {
-            val d = rnd() - rnd() // triangular in -1..1
+            if (img.r[i] < blackBelow && img.g[i] < blackBelow && img.b[i] < blackBelow && alpha == null) {
+                out[i] = 0xFF shl 24 // true black stays black: no dither noise where there is no light
+                continue
+            }
+            val d = (rnd() - rnd()) * ditherLsb // triangular in -1..1 (× amplitude)
             val r = (Oklab.linearToSrgb(img.r[i]) * 255f + d).roundToInt().coerceIn(0, 255)
             val g = (Oklab.linearToSrgb(img.g[i]) * 255f + d).roundToInt().coerceIn(0, 255)
             val b = (Oklab.linearToSrgb(img.b[i]) * 255f + d).roundToInt().coerceIn(0, 255)

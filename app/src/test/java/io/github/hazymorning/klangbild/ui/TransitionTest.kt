@@ -17,8 +17,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Motion as a sequence of stills: the track change (light cools like a filament, cover
- * cross-fades, text leaves and arrives) and the pause (the lamp dims).
+ * Motion as a sequence of stills: the track change (old print goes dark, the wall holds
+ * while the light changes colour, the new print comes up, text follows), the next song of
+ * the same album (only the text changes), the pause (the lamp dims) and buffering.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,9 +41,33 @@ class TransitionTest {
         compose.mainClock.advanceTimeBy(100)
         compose.onRoot().captureRoboImage("build/screenshots/transition/track_00.png")
         stage = b
-        for (i in 1..12) {
-            compose.mainClock.advanceTimeBy(320)
+        for (i in 1..14) {
+            compose.mainClock.advanceTimeBy(200)
             compose.onRoot().captureRoboImage("build/screenshots/transition/track_%02d.png".format(i))
+        }
+    }
+
+    @Test
+    fun sameAlbum() {
+        val first = Fixtures.track(SyntheticCover.SALZWASSER)
+        val a = Fixtures.stage(first, MDPI)
+        val nextSong = first.copy(title = "Ebbe", durationMs = 201_000, key = "Ebbe|" + first.artists.joinToString() + "|" + first.album)
+        // Same picture, new track: the scene is rebuilt from the same image.
+        val b = io.github.hazymorning.klangbild.app.StageData(
+            nextSong,
+            io.github.hazymorning.klangbild.render.SceneBuilder.build(
+                nextSong.key, io.github.hazymorning.klangbild.art.SyntheticCovers.render(SyntheticCover.SALZWASSER),
+                nextSong.artSeed, MDPI, io.github.hazymorning.klangbild.color.Lighting.DAY, layoutSeed = nextSong.album,
+            ),
+        )
+        var stage by mutableStateOf(a)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Fixtures.Theatre(stage, PlayerStatus.PLAYING) }
+        compose.mainClock.advanceTimeBy(100)
+        stage = b
+        for (i in 1..5) {
+            compose.mainClock.advanceTimeBy(380)
+            compose.onRoot().captureRoboImage("build/screenshots/transition/album_%02d.png".format(i))
         }
     }
 
