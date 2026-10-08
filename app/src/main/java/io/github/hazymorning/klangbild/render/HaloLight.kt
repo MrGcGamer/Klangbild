@@ -106,8 +106,8 @@ object HaloLight {
         val alpha = FloatArray(size * size)
         val c = (size - 1) / 2f
         for (y in 0 until size) for (x in 0 until size) {
-            val r = sqrt(((x - c) * (x - c) + (y - c) * (y - c))) / c // 0..1 at the edge
-            val v = if (r >= 1f) 0f else (exp(-(r / 0.42f) * (r / 0.42f)) * (1f - r * r)).toFloat()
+            val r = sqrt((x - c) * (x - c) + (y - c) * (y - c)) / c // 0..1 at the edge
+            val v = if (r >= 1f) 0f else exp(-(r / 0.42f) * (r / 0.42f)) * (1f - r * r)
             val o = y * size + x
             img.r[o] = v; img.g[o] = v; img.b[o] = v
             alpha[o] = 1f

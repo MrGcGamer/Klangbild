@@ -61,7 +61,13 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
     val entrance = remember { Animatable(0f) }
     LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1_800, easing = Motion.Dimmer)) }
 
-    val content = contentKey(ui)
+    // The first seconds after a start stay dark instead of flashing "connecting …":
+    // usually the music is there before anyone could read that line.
+    val quiet by produceState(initialValue = true) {
+        delay(QUIET_START_MS)
+        value = false
+    }
+    val content = contentKey(ui, quiet)
     Box(
         modifier
             .fillMaxSize()
@@ -123,9 +129,13 @@ private sealed interface Content {
     }
 }
 
-private fun contentKey(ui: UiState): Content = when (val s = ui.screen) {
+private const val QUIET_START_MS = 4_000L
+
+private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s = ui.screen) {
     is Screen.Stage -> ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
-    is Screen.Rest -> Content.RestContent(s.reason, s.speaker)
+    is Screen.Rest ->
+        if (quietStart && s.reason == io.github.hazymorning.klangbild.domain.RestReason.CONNECTING) Content.Dark
+        else Content.RestContent(s.reason, s.speaker)
     is Screen.Setup -> Content.SetupContent(s.reason)
 }
 

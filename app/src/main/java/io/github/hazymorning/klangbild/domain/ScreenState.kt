@@ -104,9 +104,8 @@ class ScreenStateMachine(private val timing: Timing = Timing()) {
             if (player == null) return Screen.Rest(RestReason.CONNECTING)
             val downFor = s.linkDownSinceMs?.let { now - it } ?: 0L
             val track = player.track
-            val wasOnStage = track != null && player.status in stagedStatuses
-            return if (wasOnStage && downFor < timing.linkGraceMs) {
-                Screen.Stage(track!!, player.status, s.next, linkDown = true)
+            return if (track != null && player.status in stagedStatuses && downFor < timing.linkGraceMs) {
+                Screen.Stage(track, player.status, s.next, linkDown = true)
             } else {
                 Screen.Rest(RestReason.OFFLINE, speaker)
             }

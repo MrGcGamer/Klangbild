@@ -180,7 +180,7 @@ object SyntheticCovers {
                         (1f - depth * 0.35f) - 0.05f * sin(u * PI.toFloat() * (1.3f + l * 0.4f) + l)
                     if (v > ridge) {
                         val tone = 0.70f - depth * 0.58f
-                        val fog = exp(-(v - ridge) * (6f + depth * 10f)).toFloat() * (0.35f - depth * 0.25f)
+                        val fog = exp(-(v - ridge) * (6f + depth * 10f)) * (0.35f - depth * 0.25f)
                         lum = tone + fog
                     }
                 }
@@ -274,7 +274,7 @@ object SyntheticCovers {
                 val depth = l / (layerColors.size - 1f)
                 val ridge = 0.40f + depth * 0.45f - 0.12f * (noise.line(u * (1.6f + l * 0.7f) + l * 9f, l * 2f) - 0.5f) * 2f
                 if (v > ridge) {
-                    val fog = exp(-(v - ridge) * (5f + 12f * depth)).toFloat() * (0.4f - 0.3f * depth)
+                    val fog = exp(-(v - ridge) * (5f + 12f * depth)) * (0.4f - 0.3f * depth)
                     val lc = layerColors[l]
                     col = floatArrayOf(lc[0] + fog * 0.5f, lc[1] + fog * 0.5f, lc[2] + fog * 0.45f)
                 }

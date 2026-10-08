@@ -103,7 +103,7 @@ class HaSource(
         val key = player?.track?.let { trackKey(it) }
         if (key != null && key != lastPlayerKey) {
             lastPlayerKey = key
-            if (player?.isMusicAssistant == true) scope.launch { refreshQueue(force = false) }
+            if (player.isMusicAssistant) scope.launch { refreshQueue(force = false) }
         }
 
         val enriched = player?.let { enrich(it) }

@@ -98,3 +98,85 @@ Metern Abstand liegt das unter dem Auflösungsvermögen des Auges. Ein 300-px-Se
 bleibt dadurch klein und scharf statt groß und matschig. Bekannte CDNs (Spotify, Deezer,
 Apple, Tidal, Qobuz, Google, Music Assistants Imageproxy) werden nach der größten Variante
 gefragt; die Original-URL bleibt Rückfall.
+
+## 8. Licht statt Effekte – Performance auf schwacher GPU
+
+Der Streamer rendert in 4K mit einer PowerVR GE9215. Deshalb:
+- **Vorberechnung pro Titel** (CPU, Hintergrund-Thread, nacheinander): Cover per Lanczos-3 auf
+  die exakte Pixelgröße, Farbanalyse, die Wand mit dem Leuchten (analytisch aus dem Abstand
+  zum Cover, in linearem Licht, mit Dithering gegen Banding) in 960 × 540, gestreckt gezeichnet.
+- **Pro Frame** nur Transparenz, Transformationen und Farbmatrizen; animierte Werte werden in
+  Draw-/Layer-Lambdas gelesen, sodass Animationen nie neu komponieren.
+- **Nichts animiert dauerhaft.** Wenn nichts passiert, wird nichts gezeichnet. Sonne und
+  OLED-Drift ticken alle fünf Sekunden (wenige Pixel), die Zeitzeile ändert sich höchstens
+  alle 15 Sekunden. Nur Übergänge (3,6 s) laufen mit voller Bildrate.
+- **Die Sonne** ist ein 384-px-Graustufen-Sprite, eingefärbt per Farbfilter und additiv
+  gezeichnet – ein einziges transformiertes Rechteck.
+- Kein AGSL, kein `RenderEffect`: nicht nötig, und so sehen Tests und Gerät gleich aus.
+- Ob es auf dem echten Gerät durchgehend 60 fps sind, ist **nicht geprüft** (kein Gerät
+  verfügbar). Dafür gibt es `--ez debug true` (Bilder/s, langsamster Frame, verspätete Frames).
+
+## 9. Signierung und versionCode
+
+- **Keystore im Repo** (`keystore/klangbild-release.jks`, Passwort im Build-Skript). Das Repo ist
+  privat, der Schlüssel wurde nur für diese Sideload-App erzeugt und schützt nichts anderes.
+  GitHub Secrets konnte ich aus dieser Umgebung nicht setzen; so signieren lokale Builds und
+  CI identisch, und `adb install -r` funktioniert immer.
+- **versionCode = Minuten seit 2026-01-01 bis zur Commit-Zeit von HEAD.** Steigt mit jedem
+  Commit automatisch, ist pro Commit deterministisch, braucht keinen vollständigen Git-Verlauf
+  (CI checkt flach aus) und hält bis weit über 2100. `versionName` = Datum + Commit-Hash.
+- Keine `abiFilters`: Die mitgelieferten nativen Bibliotheken (DataStore, Compose) enthalten
+  `armeabi-v7a`, `arm64-v8a`, `x86` und `x86_64` (geprüft mit `aapt2 dump badging`).
+
+## 10. Klartext nur im Heimnetz
+
+Android kann in der Network-Security-Config keine IP-Bereiche ausdrücken. Deshalb erlaubt die
+Plattform Klartext, und ein OkHttp-Interceptor (`LocalNetwork.CleartextGuard`) lässt `http://`
+nur zu privaten/link-lokalen Adressen, `.local`/`.lan`/`.home.arpa`, Namen ohne Punkt und
+Namen, die ausschließlich auf private Adressen auflösen. Alles andere braucht `https://`.
+
+## 11. Token-Speicherung
+
+DataStore im App-eigenen Speicher, `allowBackup=false` und Ausschluss aus Cloud-Backup und
+Geräteübertragung. Bewusst ohne Android-Keystore-Verschlüsselung: Auf manchen TV-Geräten geht
+der Keystore-Schlüssel bei Updates verloren, dann wäre der Token weg – die App-Sandbox ist für
+ein privates Gerät der passende Schutz. Der Token geht nur an den HA-Host, nie an Cover-Server.
+
+## 12. Einrichtung per QR-Code
+
+Ein eigener Mini-HTTP-Server (ein Request pro Verbindung, harte Größenlimits, nur
+`Content-Length`) statt eines Web-Frameworks: wenig Code, wenig Angriffsfläche, testbar. Er
+läuft nur, solange der Einrichtungsbildschirm sichtbar ist. Jeder API-Aufruf braucht den
+sechsstelligen Code vom TV (im QR-Code enthalten); nach acht Fehlversuchen wird ein neuer
+gezogen. Der gespeicherte Token wird nie an den Browser zurückgegeben. Die Lautsprecherliste
+kommt über die REST-API von HA (`/api/states`), Music-Assistant-Player zuerst.
+
+## 13. Ruhe und Bildschirm
+
+- Pause: Licht dimmt sofort sanft (2,4 s); nach 3 Minuten macht die Bühne der stillen Uhr
+  Platz; nach der Ruhezeit (Standard 10 Minuten) wird `FLAG_KEEP_SCREEN_ON` gelöscht.
+- **Standard „Bildschirm freigeben“** statt „App schließen“: Der Fernseher folgt dann seinem
+  eigenen Bildschirmschoner-/Schlaf-Timer, und wenn die Musik vorher weitergeht, ist Klangbild
+  noch da. „App schließen“ ist wählbar.
+- Die Einrichtung bekommt die dreifache Ruhezeit (jemand tippt am Handy), aber nie unendlich.
+- Verbindungsabbrüche: 20 Sekunden lang läuft die Bühne einfach weiter (die meisten Aussetzer
+  sind kürzer), danach erklärt der Ruhebildschirm in einem Satz, was los ist.
+
+## 14. Screenshots nicht als Baselines
+
+Die Screenshot-Tests rendern alle Zustände bei jedem CI-Lauf (und laden sie als Artifact
+hoch), vergleichen aber nicht pixelgenau mit eingecheckten Referenzbildern: Während der
+Gestaltung ändern sich die Bilder ständig, und ~40 PNGs pro Runde würden das Repo aufblähen.
+Kuratierte Bilder für die README liegen in `docs/screens/`.
+
+## 15. Songtexte: bewusst (noch) nicht
+
+Home Assistant reicht keine Songtexte durch. Music Assistant kennt sie
+(`metadata/get_track_lyrics`, auch synchronisiert als LRC), aber nur über eine direkte,
+authentifizierte Verbindung zum MA-Server mit eigenem Token. Für Version 1 überwiegt der
+Einrichtungsaufwand – siehe Ideen in der Abschlussnotiz.
+
+## 16. Remote-Steuerung
+
+OK = Pause/Weiter, ◀/▶ = Titel zurück/vor über `media_player.*`-Aktionen in HA. Unsichtbar,
+bis man sie braucht; als einzige Rückmeldung erscheinen kurz die genauen Zeiten. Abschaltbar.
