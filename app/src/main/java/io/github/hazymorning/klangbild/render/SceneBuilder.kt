@@ -58,8 +58,9 @@ object SceneBuilder {
         screen: ScreenSpec,
         lighting: Lighting,
         layoutSeed: String? = null,
+        mirrored: Boolean? = null,
     ): ArtworkScene {
-        val layout = HaloLayout(screen, mirrored = layoutSeed?.let { mirrorFor(it) } ?: false)
+        val layout = HaloLayout(screen, mirrored = mirrored ?: layoutSeed?.let { mirrorFor(it) } ?: false)
         val square: IntArray
         val nativePx: Int?
         if (source != null) {

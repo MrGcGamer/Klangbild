@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home Assistant usually runs on plain http:// inside the home network. Android cannot
+  express IP ranges here, so cleartext is permitted at the platform level and narrowed down
+  in code: LocalNetwork.CleartextGuard rejects http:// to anything outside the local network
+  (private/link-local addresses, .local/.lan names, single-label hosts, hosts resolving only
+  to private addresses). Everything else must use https:// with the system's trust store.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

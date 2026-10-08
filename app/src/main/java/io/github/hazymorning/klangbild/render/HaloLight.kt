@@ -84,7 +84,10 @@ object HaloLight {
                 val px = (x + 0.5f) * sx
                 val dx = max(max(cover.left - px, px - cover.right), 0f)
                 val d = sqrt(dx * dx + dy * dy)
-                val g = exp(-(d / GLOW_SIGMA_DP).toDouble().pow(1.35)).toFloat() * gain
+                // Behind the cover the wall stays dark: when a cover fades during a
+                // transition it dims to the wall instead of revealing a glowing patch.
+                val inside = px > cover.left + 1f && px < cover.right - 1f && py > cover.top + 1f && py < cover.bottom - 1f
+                val g = if (inside) 0f else exp(-(d / GLOW_SIGMA_DP).toDouble().pow(1.35)).toFloat() * gain
                 val o = y * outW + x
                 img.r[o] = base[0] + lit[0] * g
                 img.g[o] = base[1] + lit[1] * g

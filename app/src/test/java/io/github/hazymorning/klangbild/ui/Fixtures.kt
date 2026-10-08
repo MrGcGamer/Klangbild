@@ -12,6 +12,9 @@ import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.StageModel
+import io.github.hazymorning.klangbild.app.StageData
+import io.github.hazymorning.klangbild.ui.stage.StageTheatre
+import androidx.compose.runtime.Composable
 
 /** Test content: the demo catalogue plus helpers to turn it into scenes and models. */
 object Fixtures {
@@ -49,6 +52,21 @@ object Fixtures {
             timeLine = TimeLine.compute(status, positionMs, track.durationMs, nextText, track.source, exact),
             clock = clock,
             night = night,
+        )
+    }
+
+    fun stage(track: TrackInfo, screen: ScreenSpec = ScreenSpec.TV_1080, lighting: Lighting = Lighting.DAY) =
+        StageData(track, scene(track, screen, lighting))
+
+    /** The animated stage (pause dimming, buffering breath) for one stage, frozen in time. */
+    @Composable
+    fun Theatre(stage: StageData, status: PlayerStatus, next: TrackInfo? = null, night: Boolean = false, exact: Boolean = false) {
+        StageTheatre(
+            stage = stage,
+            status = status,
+            modelFor = { s -> model(s.track, next = next, status = status, night = night, exact = exact, scene = s.scene) },
+            progressFor = { s -> s.track.durationMs?.let { 1f / 3f } },
+            wallClock = { 0L },
         )
     }
 }

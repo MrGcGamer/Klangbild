@@ -1,0 +1,175 @@
+package io.github.hazymorning.klangbild.ui
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import io.github.hazymorning.klangbild.app.StageData
+import io.github.hazymorning.klangbild.app.UiState
+import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.Screen
+import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.domain.TrackText
+import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.ui.stage.StageModel
+import io.github.hazymorning.klangbild.ui.stage.StageTheatre
+import kotlinx.coroutines.delay
+
+/** A wall clock that ticks every [periodMs] (the UI needs minutes, the sun a few dp). */
+@Composable
+fun rememberWallClock(periodMs: Long = 5_000, now: () -> Long = System::currentTimeMillis): State<Long> =
+    produceState(initialValue = now()) {
+        while (true) {
+            value = now()
+            delay(periodMs)
+        }
+    }
+
+/** What the root needs from the outside world. */
+class RootHooks(
+    val positionNow: () -> Long?,
+    /** Local time until which exact figures replace the time line (after a key press). */
+    val exactUntil: State<Long> = mutableLongStateOf(0L),
+    val now: () -> Long = System::currentTimeMillis,
+)
+
+/**
+ * The whole screen. Switches between stage, rest and setup with a slow fade through the
+ * dark, fades in from black on start (no white flash, ever) and lets everything drift a
+ * few pixels for OLED care.
+ */
+@Composable
+fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: Modifier = Modifier) {
+    val wall = rememberWallClock(now = hooks.now)
+    val density = LocalDensity.current.density
+    val entrance = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1_800, easing = Motion.Dimmer)) }
+
+    val content = contentKey(ui)
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .graphicsLayer {
+                alpha = entrance.value
+                val (dx, dy) = Motion.drift(wall.value, 12f * density)
+                translationX = dx.toFloat()
+                translationY = dy.toFloat()
+            },
+    ) {
+        AnimatedContent(
+            targetState = content,
+            transitionSpec = {
+                fadeIn(tween(1_300, delayMillis = 900, easing = Motion.Dimmer)) togetherWith
+                    fadeOut(tween(900, easing = Motion.Dimmer))
+            },
+            contentKey = { it.key },
+            label = "screen",
+        ) { key ->
+            when (key) {
+                is Content.StageContent -> StageContentView(ui, key, screen, hooks, wall)
+                is Content.RestContent -> RestScreen(
+                    reason = key.reason,
+                    speaker = key.speaker,
+                    entityId = ui.entityId,
+                    lighting = ui.lighting,
+                    time = io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value),
+                    date = io.github.hazymorning.klangbild.ui.RestTexts.date(wall.value),
+                )
+                is Content.SetupContent -> {
+                    val scene = remember(ui.setup, screen, ui.lighting) { SetupArt.scene(ui.setup, screen, ui.lighting) }
+                    SetupScreen(key.reason, ui.setup, scene)
+                }
+                Content.Dark -> Box(Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+private sealed interface Content {
+    val key: String
+
+    data class StageContent(val stage: StageData) : Content {
+        // One stage view for all tracks: track changes are animated inside the theatre.
+        override val key = "stage"
+    }
+
+    data class RestContent(val reason: io.github.hazymorning.klangbild.domain.RestReason, val speaker: String?) : Content {
+        override val key = "rest:$reason"
+    }
+
+    data class SetupContent(val reason: io.github.hazymorning.klangbild.domain.SetupReason) : Content {
+        override val key = "setup:$reason"
+    }
+
+    data object Dark : Content {
+        override val key = "dark"
+    }
+}
+
+private fun contentKey(ui: UiState): Content = when (val s = ui.screen) {
+    is Screen.Stage -> ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
+    is Screen.Rest -> Content.RestContent(s.reason, s.speaker)
+    is Screen.Setup -> Content.SetupContent(s.reason)
+}
+
+@Composable
+private fun StageContentView(ui: UiState, key: Content.StageContent, screen: ScreenSpec, hooks: RootHooks, wall: State<Long>) {
+    val stageScreen = ui.screen as? Screen.Stage
+    // While a new cover loads, the previous stage stays; status follows the live state.
+    val status = stageScreen?.status ?: PlayerStatus.PAUSED
+    val next = stageScreen?.next
+    val clock = if (ui.showClock) io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value) else null
+    val exact = hooks.exactUntil.value > hooks.now()
+    val minuteBucket = wall.value / 15_000 // time line words change at most every 15 s
+    val stage = key.stage
+    val modelFor: (StageData) -> StageModel = remember(stage, minuteBucket, exact, status, next, clock, ui.night) {
+        { s: StageData ->
+            val position = if (s.track.key == stage.track.key) hooks.positionNow() else null
+            StageModel(
+                scene = s.scene,
+                text = TrackText.from(s.track),
+                status = status,
+                durationMs = s.track.durationMs,
+                positionMs = { hooks.positionNow() },
+                timeLine = TimeLine.compute(
+                    status = status,
+                    positionMs = position,
+                    durationMs = s.track.durationMs,
+                    next = next?.let { TrackText.from(it) },
+                    source = s.track.source,
+                    showExact = exact,
+                ),
+                clock = clock,
+                night = ui.night,
+            )
+        }
+    }
+    StageTheatre(
+        stage = stage,
+        status = status,
+        modelFor = modelFor,
+        progressFor = { s ->
+            val d = s.track.durationMs
+            val p = hooks.positionNow()
+            if (d != null && d > 0 && p != null && s.track.key == stage.track.key) p.toFloat() / d else null
+        },
+        wallClock = { wall.value },
+    )
+}

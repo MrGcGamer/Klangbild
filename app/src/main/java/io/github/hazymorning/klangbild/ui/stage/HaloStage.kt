@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
@@ -100,32 +102,43 @@ fun HaloLightLayer(
         val (cx, cy) = HaloLight.sunCenter(rect, sunAngle())
         val d = HaloLight.sunDiameter(rect) * density
         val tint = lerp(sunColor, amber.copy(alpha = 1f).let { scaleColor(it, 0.35f) }, cooling().coerceIn(0f, 1f))
-        drawImage(
-            sprite,
-            dstOffset = IntOffset((cx * density - d / 2).roundToInt(), (cy * density - d / 2).roundToInt()),
-            dstSize = IntSize(d.roundToInt(), d.roundToInt()),
-            alpha = a * level,
-            colorFilter = ColorFilter.tint(tint, BlendMode.Modulate),
-            blendMode = BlendMode.Plus,
-            filterQuality = FilterQuality.Low,
-        )
+        // The sun lights the wall around the cover, never the area behind it.
+        clipRect(
+            left = rect.left * density,
+            top = rect.top * density,
+            right = rect.right * density,
+            bottom = rect.bottom * density,
+            clipOp = ClipOp.Difference,
+        ) {
+            drawImage(
+                sprite,
+                dstOffset = IntOffset((cx * density - d / 2).roundToInt(), (cy * density - d / 2).roundToInt()),
+                dstSize = IntSize(d.roundToInt(), d.roundToInt()),
+                alpha = a * level,
+                colorFilter = ColorFilter.tint(tint, BlendMode.Modulate),
+                blendMode = BlendMode.Plus,
+                filterQuality = FilterQuality.Low,
+            )
+        }
     }
 }
 
 /**
  * The cover, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
  * size). A hairline inner edge gives it the presence of a print, also on a dark cover.
+ * [dim] (pause) darkens it through the colour matrix rather than transparency, so the
+ * light behind never shines through.
  */
 @Composable
 fun HaloCoverLayer(
     scene: ArtworkScene,
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
-    dim: Float = 1f,
+    dim: () -> Float = { 1f },
     scale: () -> Float = { 1f },
 ) {
     val image = remember(scene) { scene.cover.asImageBitmap() }
-    val filter = remember(scene, dim) { coverFilter(scene.lighting, dim) }
+    val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
     val edge = scene.palette.ink.asColor().copy(alpha = if (scene.analysis.meanL < 0.25f) 0.10f else 0.06f)
     Canvas(
@@ -142,6 +155,9 @@ fun HaloCoverLayer(
                 )
             },
     ) {
+        // Dimming is quantised so an animation reuses a handful of colour filters.
+        val step = (dim().coerceIn(0f, 1f) * 50f).roundToInt()
+        val filter = filters.getOrPut(step) { coverFilter(scene.lighting, step / 50f) }
         val x = (rect.left * density).roundToInt()
         val y = (rect.top * density).roundToInt()
         drawImage(
