@@ -85,6 +85,14 @@ jobs:
         with:
           name: klangbild-apk
 
+      - name: Speicherplatz freigeben
+        # The TV image wants a large userdata partition; the runner's disk is tight.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+            /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk || true
+          df -h /
+
       - name: KVM aktivieren
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -99,7 +107,8 @@ jobs:
           arch: x86
           profile: tv_1080p
           disable-animations: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disk-size: 3G
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
           script: bash ci/tv-smoke.sh klangbild.apk
 
       - name: Smoke-Test-Ergebnisse hochladen
