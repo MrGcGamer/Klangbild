@@ -42,6 +42,7 @@ class SmoothedPosition(
     private var lastKey: String? = null
 
     /** Call whenever a new snapshot arrives, with the raw position for "now". */
+    @Synchronized
     fun onReport(trackKey: String?, rawNowMs: Long?, nowMs: Long) {
         val shown = lastShown
         if (rawNowMs == null || shown == null || trackKey != lastKey) {
@@ -54,7 +55,8 @@ class SmoothedPosition(
         lastKey = trackKey
     }
 
-    /** Position to display now. */
+    /** Position to display now (called from the draw phase). */
+    @Synchronized
     fun display(rawNowMs: Long?, nowMs: Long): Long? {
         if (rawNowMs == null) {
             lastShown = null
