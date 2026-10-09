@@ -7,6 +7,7 @@ import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.color.ScenePalette
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -29,13 +30,17 @@ class ArtworkScene(
     val coverGenerated: Boolean,
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
-    /** The lamp's pool of light, greyscale, 1 px per dp, centred on the print. */
-    val glow: Bitmap,
-    /** Static wall mask with the print (its shadow, the clearance at the screen edges). */
+    /** The lamp's pool of light: a greyscale disc, placed and stretched when drawn. */
+    val lamp: Bitmap,
+    /** Static wall mask with the print (dark behind it, clear of the screen edges). */
     val holeMask: Bitmap,
     /** The same without the print – for the moments when the print is taken down. */
     val openMask: Bitmap,
-    /** The light's sRGB tint at its brightest, time of day included. */
+    /** The faint rim of light around a dark print (null when the print stands out anyway). */
+    val rim: Bitmap?,
+    /** Tint of the rim. */
+    val rimTint: Int,
+    /** The lamp's sRGB tint at its brightest (the lamp itself), time of day included. */
     val lightTint: Int,
     /** Daylight colour of the light, kept to re-light the scene. */
     val lightColor: Lch,
@@ -127,11 +132,12 @@ object SceneBuilder {
         val palette = CoverPalette.derive(analysis, lighting)
         val color = HaloLight.lightColor(analysis)
         val printDp = nativePx?.let { HaloLayout.coverDp(layout, it) } ?: layout.slot
-        val peak = HaloLight.glowPeak(analysis, printDp, layout.slot)
+        // glowPeak is the brightness where the light leaves the print; the lamp itself is brighter.
+        val peak = HaloLight.glowPeak(analysis, printDp, layout.slot) / HaloLight.EDGE_STRENGTH
         val tint = HaloLight.lightTint(color, peak, lighting)
-        val night = HaloLight.nightOf(lighting)
-        val glowSize = HaloLight.glowSize(shape)
-        val glow = HaloLight.glowSprite(shape, night, stableHash(key), ditherFor(tint))
+        val rimLuminance = HaloLight.rimLuminance(edgeLuminance(thumb))
+        val rimTint = if (rimLuminance > 0f) HaloLight.lightTint(HaloLight.LAMP, rimLuminance, lighting) else 0
+        val s = HaloLight.LAMP_SPRITE
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -139,9 +145,15 @@ object SceneBuilder {
             shape = shape,
             coverGenerated = generated,
             coverNativePx = nativePx,
-            glow = Bitmap.createBitmap(glow, glowSize, glowSize, Bitmap.Config.ARGB_8888),
-            holeMask = Bitmap.createBitmap(HaloLight.holeMask(shape, layout.screen, night), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888),
+            lamp = Bitmap.createBitmap(HaloLight.lampSprite(ditherFor(tint), seed = stableHash(key)), s, s, Bitmap.Config.ARGB_8888),
+            holeMask = Bitmap.createBitmap(HaloLight.holeMask(shape, layout.screen), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888),
             openMask = openMask(layout.screen),
+            rim = if (rimLuminance > 0f) {
+                Bitmap.createBitmap(HaloLight.rimMap(shape, layout.screen), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888)
+            } else {
+                null
+            },
+            rimTint = rimTint,
             lightTint = tint,
             lightColor = color,
             palette = palette,
@@ -149,6 +161,18 @@ object SceneBuilder {
             lighting = lighting,
             thumb = thumb,
         )
+    }
+
+    /** Mean relative luminance of the outer ring of a 48 × 48 thumbnail (the print's edge). */
+    fun edgeLuminance(thumb: IntArray, size: Int = THUMB, ring: Int = 3): Float {
+        var sum = 0.0
+        var n = 0
+        for (y in 0 until size) for (x in 0 until size) {
+            if (x >= ring && x < size - ring && y >= ring && y < size - ring) continue
+            sum += Oklab.relativeLuminance(thumb[y * size + x])
+            n++
+        }
+        return if (n == 0) 0f else (sum / n).toFloat()
     }
 
     private val openMasks = HashMap<ScreenSpec, Bitmap>()

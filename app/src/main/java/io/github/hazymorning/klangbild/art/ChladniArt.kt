@@ -16,10 +16,11 @@ import kotlin.random.Random
  * name means. Every station or album gets its own stable figure and colours.
  *
  * The plate is round, seen from above, hung on the wall like the prints (outside the disc
- * the image is transparent): two nearly equal vibration modes (Bessel functions in the
- * radius, cosines around it) are superposed, which gives the curved, flower-like figures of
- * real sand photographs instead of a grid of lines. Both modes share the same axis, so
- * every figure is mirror-symmetric – no figure can turn into a hooked, pinwheel-like sign.
+ * the image is transparent): a ring mode of the plate (Bessel functions in the radius) is
+ * superposed with a nearly equal mode that has three to six lobes around it, so the sand
+ * circles undulate like ripples – the calm figures of real sand photographs, not a grid of
+ * lines. Both modes share the same axis, so every figure is mirror-symmetric – no figure
+ * can turn into a hooked, pinwheel-like sign.
  *
  * Pure Kotlin (returns ARGB pixels), so it renders identically on the JVM and the device
  * and can be produced at the exact on-screen pixel size – no upscaling, ever.
@@ -47,16 +48,17 @@ object ChladniArt {
 
     fun specFor(seedText: String): Spec {
         val rnd = Random(stableHash(seedText.ifBlank { "Klangbild" }))
-        val n1 = 2 + rnd.nextInt(4) // 2..5 nodal diameters
-        val rings = 2 + rnd.nextInt(2) // 2..3 nodal circles
-        val n2 = n1 + 2 + rnd.nextInt(3)
+        // A ring mode – nodal circles only, the last one at the rim – made wavy by a second
+        // mode with three to six lobes. Nodal diameters through the centre would turn into
+        // crosses, wheels and rosettes, which read as signs.
+        val rings = 3 + rnd.nextInt(2)
+        val n2 = 3 + rnd.nextInt(4)
         // McMahon: the m-th zero of J_n lies near (m + n/2 − 1/4)·π.
-        val k1 = ((rings + n1 / 2f - 0.25f) * PI).toFloat()
-        val k2 = k1 * (0.94f + 0.12f * rnd.nextFloat())
-        val mix = (0.45f + 0.4f * rnd.nextFloat()) * (if (rnd.nextBoolean()) 1f else -1f)
-        rnd.nextFloat() // (formerly a rotation between the modes – it made chiral figures)
+        val k1 = ((rings - 0.25f) * PI).toFloat()
+        val k2 = k1 * (0.96f + 0.08f * rnd.nextFloat())
+        val mix = (0.35f + 0.3f * rnd.nextFloat()) * (if (rnd.nextBoolean()) 1f else -1f)
         val (plate, sand) = palettes[rnd.nextInt(palettes.size)]
-        return Spec(n1, k1, n2, k2, mix, plate, sand)
+        return Spec(0, k1, n2, k2, mix, plate, sand)
     }
 
     /**
@@ -72,6 +74,9 @@ object ChladniArt {
 
     /** Radius of the central clamp (plate units). */
     private const val MOUNT = 0.035f
+
+    /** The sand thins out over this outer share of the radius. */
+    private const val SAND_RIM = 0.06f
 
     fun render(spec: Spec, size: Int, seed: Int = 1): IntArray {
         val out = IntArray(size * size)
@@ -124,16 +129,18 @@ object ChladniArt {
                 val dist = abs(f) / max(hypot(fr, ft), 0.6f)
                 val line = exp(-(dist / lineWidth) * (dist / lineWidth))
                 val halo = exp(-(dist / (lineWidth * 4f)) * (dist / (lineWidth * 4f)))
-                // sand: stippled grains, denser on the nodal lines; a little dust elsewhere
-                // sand slides off the bolt: none right next to it
-                val clear = ((r - MOUNT) / 0.05f).coerceIn(0f, 1f)
+                // sand: stippled grains, denser on the nodal lines; a little dust elsewhere.
+                // Sand slides off the bolt and off the free rim: none right next to either,
+                // so no line ends abruptly at the plate's edge.
+                val rimClear = ((1f - r) / SAND_RIM).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+                val clear = ((r - MOUNT) / 0.05f).coerceIn(0f, 1f) * rimClear
                 val grain = if (rnd.nextFloat() < line * 0.9f * clear) 0.75f + 0.25f * rnd.nextFloat() else 0f
-                val dust = if (rnd.nextFloat() < halo * 0.06f + 0.004f) 0.55f else 0f
+                val dust = if (rnd.nextFloat() < (halo * 0.06f + 0.004f) * rimClear) 0.55f else 0f
                 // plate: brushed metal, a soft light from the upper left, a bright rim
                 val light = 1.06f - 0.22f * hypot(u + 0.25f, v + 0.3f)
                 val tex = 1f + (rnd.nextFloat() - 0.5f) * 0.05f
                 val rim = exp(-((1f - r) / 0.012f).let { it * it }) * 0.35f
-                val k = (grain + dust + line * 0.1f).coerceAtMost(1f)
+                val k = (grain + dust + line * 0.1f * clear).coerceAtMost(1f)
                 val base = light * tex
                 val rr = (pr * base + 255f * rim * 0.4f) * (1f - k) + sr * k
                 val gg = (pg * base + 255f * rim * 0.4f) * (1f - k) + sg * k

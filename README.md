@@ -38,7 +38,7 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Klassik mit Werk und Satz](docs/screens/02-klassik.jpg) | ![Japanisch, fast schwarzes Cover](docs/screens/03-japanisch.jpg) |
 | *Klassik: Werk über dem Satz, viele Mitwirkende auf einer Zeile mit „u. a.“* | *Japanisch, fast schwarzes Cover im warmweißen Lampenlicht* |
 | ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.jpg) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.jpg) |
-| *Radio ohne Cover: Sand auf einer schwingenden Platte (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, im Passepartout statt groß und matschig* |
+| *Radio ohne Cover: Sand auf einer schwingenden Platte, sanft gewellte Knotenkreise (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, im Passepartout statt groß und matschig* |
 | ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
 | *Pausiert: das Licht wird gedimmt wie eine Lampe* | *Abends wärmer und dunkler* |
 | ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
@@ -46,10 +46,11 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 
-**Titelwechsel** – das alte Bild wird dunkel, und wo es hing, liegt für einen Moment nur
-das Licht der Lampe auf der leeren Wand; die Lampe dimmt und wechselt ihre Farbe, dann kommt
-das neue Bild, der Text folgt. Uhr und unveränderte Zeilen bleiben stehen; beim nächsten
-Titel desselben Albums wechselt nur der Text:
+**Titelwechsel** – das alte Bild wird dunkel, die Lampe wird heruntergedreht, und wo das
+Bild hing, liegt für einen Moment nur ihr schwacher, runder Lichtkegel auf der leeren Wand;
+sie wechselt ihre Farbe, dann kommt das neue Bild mit dem Licht, der Text folgt. Uhr und
+unveränderte Zeilen bleiben stehen (wechselt das Bild die Seite, wartet die Uhr gedimmt an
+ihrem Platz); beim nächsten Titel desselben Albums wechselt nur der Text:
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
@@ -59,16 +60,19 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 
 ## Was Klangbild kann
 
-- **Licht aus dem Bild.** Eine Lampe hängt leicht versetzt hinter dem Cover und beleuchtet
-  die Wand in der Leitfarbe des Covers (Farbanalyse im Farbraum Oklab): der violette Himmel
-  eines Synthwave-Covers, nicht seine kleine orange Sonne. Warme Cover bekommen
-  Glühlampenlicht statt rostbraunem Schein, graue und weiße Cover warmweißes Licht
-  (≈ 2700 K), weiße Cover blenden nie. Direkt am Bild ist das Licht etwas schwächer, ein
-  Stück weiter am hellsten. Weit weg vom Bild ist die Wand schwarz.
+- **Licht aus dem Bild.** Eine Lampe steht verdeckt hinter dem Cover, nah an seinem Rand,
+  und wirft einen runden, weichen Lichtkegel an die Wand – in der Leitfarbe des Covers
+  (Farbanalyse im Farbraum Oklab): der violette Himmel eines Synthwave-Covers, nicht seine
+  kleine orange Sonne. Warme Cover bekommen Glühlampenlicht (≈ 3300 K) statt rostbraunem
+  Schein, graue und weiße Cover warmweißes Licht, kühle Farben bleiben zurückhaltend; weiße
+  Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Drittel
+  der Bildbreite aus; die abgewandte Seite bleibt dunkel, ein dunkles Cover
+  bekommt dort einen feinen Lichtsaum, damit seine Kanten nicht in der Wand verschwinden.
+  Weit weg vom Bild und am Bildschirmrand ist die Wand schwarz.
 - **Das Licht als Sonnenuhr.** Die Lampe hinter dem Bild wandert im Lauf des Titels von
   links unten über oben nach rechts unten – unmerklich langsam, nach ein paar Minuten
-  deutlich; das Licht fällt jeweils auf dieser Seite weit, auf der anderen kaum. Bei Radio
-  pendelt sie langsam mit der Uhrzeit. Ein feines Streiflicht liegt über dem Cover.
+  deutlich; das Licht fällt jeweils auf dieser Seite an die Wand. Bei Radio pendelt sie
+  langsam mit der Uhrzeit. Ein feines Streiflicht liegt über dem Cover.
 - **Zeit in Worten.** „In drei Minuten · nächster Titel“, „Gleich“, „Letzte Takte“,
   „Pausiert“. Genaue Zeiten erscheinen nur kurz nach einem Tastendruck.
 - **Typografie mit Haltung.** Newsreader für Titel, Jost für Kapitälchen und Ziffern.

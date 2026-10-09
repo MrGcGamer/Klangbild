@@ -115,7 +115,7 @@ class ReadmeMotionTest {
         }
         stage = b
         var frame = 8
-        // 2.6 s transition at 10 fps, then a hold on the new picture
+        // 2.7 s transition at 10 fps, then a hold on the new picture
         while (frame < 8 + 44) {
             compose.mainClock.advanceTimeBy(100)
             compose.onRoot().captureRoboImage("build/screenshots/readme-motion/frame_%03d.png".format(frame))

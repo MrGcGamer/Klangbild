@@ -110,6 +110,9 @@ object RestLight {
     private const val RX = 275f
     private const val RY = 175f
 
+    /** The oval vignette reaches black this far from the screen edges (dp). */
+    private const val EDGE_DP = 36f
+
     /**
      * Greyscale light field for the whole screen (sRGB-encoded, dithered), brightest at
      * [cx], [cy] (dp), black well before the screen edges.
@@ -126,8 +129,8 @@ object RestLight {
             val q = u * u + v * v
             val reach = (1f - q / (1.6f * 1.6f)).coerceAtLeast(0f)
             // Round all the way: an oval vignette keeps the screen edges black, too.
-            val ex = (px - screen.widthDp / 2f) / (screen.widthDp / 2f - HaloLight.EDGE_CLEAR_DP)
-            val ey = (py - screen.heightDp / 2f) / (screen.heightDp / 2f - HaloLight.EDGE_CLEAR_DP)
+            val ex = (px - screen.widthDp / 2f) / (screen.widthDp / 2f - EDGE_DP)
+            val ey = (py - screen.heightDp / 2f) / (screen.heightDp / 2f - EDGE_DP)
             val vignette = HaloLight.smoothstep(1f, 0.2f, ex * ex + ey * ey)
             val value = exp(-q * 1.4f) * reach * reach * vignette
             val o = y * MAP_W + x

@@ -50,17 +50,20 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
 ## Design principles (do not regress)
 
 - **Object, not app.** No buttons, no bars, no icons for their own sake, no harsh white.
-  Progress is the sundial (the brighter side of the halo wanders around the cover) plus a
-  time line in words.
-- **One style: Halo.** A lamp behind the print, offset ~24 dp towards the sundial's sun,
-  lights the wall in the cover's leading colour (hue groups, area over brightness; warm hues
-  → tungsten, neutral → warm white). 50 % at the print's edge, peak 8–14 dp out,
-  exponential fall-off; cos³ sundial lobe. No light within 36 dp of the screen edges, far
-  wall pure black. Night 0.28× day, saturation ≤ 50 %; dimmed light loses chroma.
-  `render/DesignRulesTest` guards these numbers.
-- **Light per frame:** pool sprite (translated) × rotating sweep mask × static wall mask ×
-  tint colour filter – one rectangle (two while a print fades). Never add per-frame image
-  processing.
+  Progress is the sundial (the lamp's pool wanders around the cover) plus a time line in
+  words.
+- **One style: Halo.** A lamp hidden behind the print, 0.2 × print size inside its edge on
+  the sundial's side, throws a round pool I = (1 − (r/R)²)³ (R = 0.6 × print size, 1.25×
+  along the edge) in the cover's leading colour (hue groups, area over brightness; warm hues
+  → ~3300 K tungsten, neutral → warm white, cool hues held back). Brightest at the print's
+  edge, ~40 % of that at 50 dp, gone by 128 dp; the far side gets nothing – a dark print gets
+  a faint rim there instead (`rimMap`, ≤ 1.5 %). Light fades out between 108 and 16 dp from
+  the screen edges (long fade: no straight cut), far wall pure black. Night 0.28× day,
+  saturation ≤ 50 %; dimmed light loses chroma. `render/DesignRulesTest` guards these numbers.
+- **Light per frame:** lamp sprite (moved, rotated, stretched by its local matrix) × static
+  wall mask × tint colour filter – one rectangle (two while a print is taken down), plus the
+  rim drawn with `Lighten` (never `Plus`: sums of sRGB values overshoot). Shaders are made
+  once per scene. Never add per-frame image processing.
 - **Grid** (960 × 540 dp): cover slot 320 dp at 108 dp margin; text column 360 dp; clock cap
   on the cover top, title grows upward from 44 dp above the artist baseline (350 dp), time
   line on the cover bottom. Layout mirrors per album (burn-in), whole stage drifts ±12 dp.
@@ -71,14 +74,19 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
   or italics for CJK/Arabic (`isSpacingFriendly`); there the artist outranks the album.
   Titles ≤ 3 lines, prefer breaks after section dashes; artists on one line ("u. a." in
   italics); no mid-word breaks (`breaksInsideWord`); edge emoji dropped (`Emoji.trimEdges`),
-  inner ones dimmed; one separator `TimeLine.SEPARATOR`; `TrackText.typeset` for dashes and
-  narrow no-break spaces after abbreviations.
-- **Calm motion:** track change 2.7 s in sequence (old print out 700 ms, its shadow fading with
-  it → empty lit wall 500 ms while the lamp dips and morphs colour in OKLCH → new print in
-  900 ms → text); clock and unchanged lines stay. Same picture (album) → only text. Pause
-  dims lamp, cover and text over 2.4 s; time line cross-fades 600 ms. Screens switch by
-  fading through dark.
-- **Generated art:** Chladni plates must stay mirror-symmetric (no chiral pinwheels).
+  inner ones dimmed; one separator `TimeLine.SEPARATOR` (its dot lifted next to RTL text);
+  `TrackText.typeset` for dashes and narrow no-break spaces after abbreviations; a short word
+  opening a sentence never ends a line.
+- **Calm motion:** track change 2.7 s in sequence (old print out 700 ms with its shadow while
+  the lamp goes down to 32 % → empty wall 500 ms, a dim round pool ≤ 2.5 %, colour morphs in
+  OKLCH → new print in 900 ms with the light → text). Unchanged lines stay, each compared on
+  its own (same text, place and colour); a clock that has to move holds at 60 % through the
+  dark moment. Same picture (album) → only text; same track in new light → old text fades on
+  top. Pause dims lamp, cover and text over 2.4 s; time line cross-fades 600 ms. Screens
+  switch by fading through dark.
+- **Generated art:** Chladni plates are ring modes made wavy by a second mode (3–6 lobes),
+  mirror-symmetric, sand thinning out at the rim – no nodal diameters (they make crosses,
+  wheels and rosettes).
 - **Rest screen:** serif clock ("H:mm") under a dim lamp that moves with it; re-hung every
   15 min; night: black wall, only the time.
 - **German UI texts**, 24 h clock, numbers up to twelve in words in the time line.

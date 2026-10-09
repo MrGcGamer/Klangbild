@@ -110,19 +110,19 @@ gefragt; die Original-URL bleibt Rückfall.
 
 Der Streamer rendert in 4K mit einer PowerVR GE9215. Deshalb:
 - **Vorberechnung pro Titel** (CPU, Hintergrund-Thread, nacheinander): Cover per Lanczos-3 auf
-  die exakte Pixelgröße, Farbanalyse, eine **Graustufen-Lichtkarte** (analytisch aus dem
-  Abstand zum Cover, in linearem Licht, mit Dithering gegen Banding) in 960 × 540, gestreckt
-  gezeichnet.
-- **Licht pro Frame:** ein einziges Rechteck mit `ComposeShader(Lichtkarte × SweepGradient)`
-  und einem Farbfilter. Der Sweep-Gradient ist die Sonnenuhr-Maske (wird nur gedreht), der
-  Farbfilter die Lichtfarbe (kann beim Titelwechsel durch OKLCH wandern). Das Dithering der
-  Karte ist so stark gewählt, dass nach dem Einfärben noch etwa ein Ausgabe-Level Rauschen
-  übrig bleibt.
+  die exakte Pixelgröße, Farbanalyse, ein **Graustufen-Sprite für den Lichtkegel** (512 × 512)
+  und eine **Wandmaske** in 960 × 540 (Schatten des Bildes, Abstand zum Bildschirmrand) –
+  analytisch, in linearem Licht, mit Dithering gegen Banding, gestreckt gezeichnet.
+- **Licht pro Frame:** ein einziges Rechteck mit `ComposeShader(Lichtkegel × Wandmaske)` und
+  einem Farbfilter. Für die Sonnenuhr wird nur die lokale Matrix des Lichtkegels gesetzt
+  (verschieben, drehen, strecken); die Shader entstehen einmal pro Szene. Der Farbfilter ist
+  die Lichtfarbe (kann beim Titelwechsel durch OKLCH wandern). Das Dithering ist so stark
+  gewählt, dass nach dem Einfärben noch etwa ein Ausgabe-Level Rauschen übrig bleibt.
 - **Pro Frame** nur Transparenz, Transformationen und Farbmatrizen; animierte Werte werden in
   Draw-/Layer-Lambdas gelesen, sodass Animationen nie neu komponieren.
 - **Nichts animiert dauerhaft.** Wenn nichts passiert, wird nichts gezeichnet. Sonnenuhr und
   OLED-Drift ticken alle fünf Sekunden (wenige Pixel), die Zeitzeile ändert sich höchstens
-  alle 15 Sekunden. Nur Übergänge (2,6 s) laufen mit voller Bildrate.
+  alle 15 Sekunden. Nur Übergänge (2,7 s) laufen mit voller Bildrate.
 - Kein AGSL, kein `RenderEffect`: nicht nötig, und so sehen Tests und Gerät gleich aus.
 - Ob es auf dem echten Gerät durchgehend 60 fps sind, ist **nicht geprüft** (kein Gerät
   verfügbar). Dafür gibt es `--ez debug true` (Bilder/s, langsamster Frame, verspätete Frames).
@@ -265,4 +265,39 @@ UI-Effekt“: überall derselbe abgerundete Rahmen, nur heller oder dunkler. Umg
 
 Weiterhin bewusst nicht übernommen: eigene Serifenschriften für Japanisch und Arabisch (mehrere
 MB; auf dem Gerät greifen die System-Noto-Schriften).
+
+## 19. Fünfte Runde: ein Lichtkegel statt eines Rahmens
+
+Die vierte Kritik maß das Licht nach: am Bild 1,8 %, dann ein flaches Band 30–60 px weit,
+dann ein steiler Abfall – der Umriss lief parallel zum Bild mit abgerundeter Ecke, wie ein
+Box-Shadow. Umgesetzt:
+
+- **Eine Lampe mit rundem Lichtkegel.** Die Lampe steht 0,2 × Bildgröße innerhalb der
+  Sonnenseite hinter dem Bild und wirft einen Lichtfleck I = (1 − (r/R)²)³ mit
+  R = 0,6 × Bildgröße, entlang der Kante 1,25-fach gestreckt: am Bildrand am hellsten, 50 dp
+  weiter etwa 40 % davon, nach 128 dp nichts mehr; die abgewandte Seite bleibt dunkel. Pro
+  Frame wird nur die lokale Matrix des Sprites gesetzt (verschieben, drehen, strecken); die
+  Shader entstehen einmal pro Szene.
+- **Leere Wand ohne Kachel.** Beim Wechsel wird die Lampe auf 32 % heruntergedreht; die leere
+  Wand zeigt nur den runden Lichtkegel (Spitze ≤ 2,5 %), keine Scheibe, keinen Umriss.
+- **Rand zum Bildschirm als langer Verlauf.** Das Licht läuft zwischen 108 und 16 dp vor dem
+  Bildschirmrand aus. Der frühere kurze Verlauf (84 → 36 dp) schnitt den größeren Lichtkegel
+  oben gerade ab.
+- **Dunkle Cover verlieren keine Kanten:** ein feiner Lichtsaum rundum (mindestens 0,8 %,
+  doppelte Randhelligkeit des Covers, höchstens 1,5 %, nach etwa 20 dp vorbei). Er wird mit
+  „Lighten“ gezeichnet, nicht addiert: Summen von sRGB-Werten überschießen – addiert hätte er
+  die Sonnenseite auf 11 % statt 5,5 % gebracht.
+- **Lichtfarbe:** warme Cover ≈ 3300 K (Chroma/Helligkeit wie rgb(76, 55, 33), Farbton
+  64–72°), neutrale warmweiß, kühle zurückhaltend (Chroma/Helligkeit ≤ 0,1).
+- **Seitenwechsel ohne Schwarz:** muss die Uhr umziehen, bleibt sie gedimmt (60 %) an ihrem
+  Platz, bis das neue Licht kommt, und ist weg, bevor das neue Bild dort erscheint. Das alte
+  und das neue Licht überlappen sich ein wenig.
+- **Zeilen einzeln vergleichen:** das Album des nächsten Titels bleibt stehen, auch wenn der
+  Titel einen Gastkünstler hat; eine Zeile bleibt nur, wenn Text, Platz und Farbe gleich sind.
+  Beim selben Titel in neuem Licht blendet der alte Text oben aus, statt zu springen.
+- **Klangplatten als gewellte Ringe:** statt Durchmessern (Kreuze, Räder, Rosetten) nur
+  Knotenkreise, die eine zweite Schwingung mit drei bis sechs Bögen sanft wellt; der Sand
+  dünnt am Rand aus, keine Linie endet abrupt an der Kante.
+- **Typografie:** der Trennpunkt neben arabischem Text sitzt etwas höher (sonst liest er sich
+  als Satzpunkt); „Auf der Seite“ bricht nicht nach „Auf“ um.
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -71,12 +73,12 @@ fun BaseWall(modifier: Modifier = Modifier) {
 }
 
 /**
- * The light on the wall: the lamp's pool behind the print, shifted towards the sundial's
- * sun ([sunAngle]), shaped by the sundial mask, held off the screen edges and hidden behind
- * the print by the static wall mask, tinted with [tint]. [alpha] fades the layer during
- * transitions; [lightLevel] dims the lamp (pause, link loss) – dim light also loses colour.
- * [holeOpen] 0..1 takes the print's shadow away while the print itself fades out, so the
- * empty wall is one continuous pool of light.
+ * The light on the wall: the lamp's round pool, placed just inside the print's edge on the
+ * sundial's side ([sunAngle]), hidden behind the print and held off the screen edges by the
+ * static wall mask, tinted with [tint]; a dark print also gets a faint rim all around.
+ * [alpha] fades the layer during transitions; [lightLevel] dims the lamp (pause, link loss)
+ * – dim light also loses colour. [holeOpen] 0..1 takes the print's shadow away while the
+ * print itself is taken down, so the empty wall shows the whole pool and nothing else.
  */
 @Composable
 fun HaloLightLayer(
@@ -88,66 +90,64 @@ fun HaloLightLayer(
     tint: () -> Int = { scene.lightTint },
     holeOpen: () -> Float = { 0f },
 ) {
-    val clamp = android.graphics.Shader.TileMode.CLAMP
-    val glowShader = remember(scene) { android.graphics.BitmapShader(scene.glow, clamp, clamp) }
-    val holeShader = remember(scene) { android.graphics.BitmapShader(scene.holeMask, clamp, clamp) }
-    val openShader = remember(scene) { android.graphics.BitmapShader(scene.openMask, clamp, clamp) }
-    val shape = scene.shape
+    val light = remember(scene) { WallLight(scene) }
     Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
         val level = lightLevel().coerceIn(0f, 1f)
         if (a <= 0.002f || level <= 0.002f) return@Canvas
-        val d = density
-        val cx = shape.centerX * d
-        val cy = shape.centerY * d
-        val sun = sunAngle()
-        val rad = Math.toRadians(sun.toDouble())
-        val offset = HaloLight.lampOffset(shape.rect.width) * d
-        val gx = cx + (kotlin.math.cos(rad) * offset).toFloat()
-        val gy = cy - (kotlin.math.sin(rad) * offset).toFloat()
-        val glowPx = scene.glow.width * d // the sprite has 1 px per dp
-        glowShader.setLocalMatrix(
-            android.graphics.Matrix().apply {
-                setScale(d, d)
-                postTranslate(gx - glowPx / 2f, gy - glowPx / 2f)
-            },
-        )
-        // The sundial: a lobe towards the sun; it fades out towards the print's centre, so
-        // an empty wall shows a calm pool, not a pie chart.
-        val sweep = android.graphics.SweepGradient(cx, cy, maskStops, null).apply {
-            // Sweep angles run clockwise on screen, the sun's angle counter-clockwise.
-            setLocalMatrix(android.graphics.Matrix().apply { setRotate(-sun, cx, cy) })
-        }
-        val core = android.graphics.RadialGradient(
-            cx, cy, shape.radius * d, coreColors, coreStops, clamp,
-        )
-        val angular = android.graphics.ComposeShader(sweep, core, android.graphics.BlendMode.SRC_OVER)
-        val lamp = android.graphics.ComposeShader(glowShader, angular, android.graphics.BlendMode.MODULATE)
-        val maskMatrix = android.graphics.Matrix().apply { setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H) }
-        holeShader.setLocalMatrix(maskMatrix)
-        openShader.setLocalMatrix(maskMatrix)
+        light.place(HaloLight.lampPose(scene.shape, sunAngle()), density, size)
         val filter = ColorFilter.tint(Color(HaloLight.dimTint(tint(), level)), BlendMode.Modulate)
         val open = holeOpen().coerceIn(0f, 1f)
-        if (open > 0.001f) {
-            drawRect(
-                brush = ShaderBrush(android.graphics.ComposeShader(lamp, openShader, android.graphics.BlendMode.MODULATE)),
-                alpha = a,
-                colorFilter = filter,
-            )
-        }
+        if (open > 0.001f) drawRect(light.openWall, alpha = a, colorFilter = filter)
         if (open < 0.999f) {
-            drawRect(
-                brush = ShaderBrush(android.graphics.ComposeShader(lamp, holeShader, android.graphics.BlendMode.MODULATE)),
-                alpha = a * (1f - open),
-                colorFilter = filter,
-            )
+            drawRect(light.wall, alpha = a * (1f - open), colorFilter = filter)
+            // The rim only shows where the pool is dimmer than it (the far sides). Added on
+            // top it would brighten the lit side twice over – sums of sRGB values overshoot.
+            light.rim?.let { rim ->
+                drawRect(
+                    rim,
+                    alpha = a * (1f - open),
+                    colorFilter = ColorFilter.tint(Color(HaloLight.dimTint(scene.rimTint, level)), BlendMode.Modulate),
+                    blendMode = BlendMode.Lighten,
+                )
+            }
         }
     }
 }
 
-private val maskStops: IntArray by lazy { HaloLight.maskStops() }
-private val coreColors = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0x00FFFFFF)
-private val coreStops = floatArrayOf(0f, 0.55f, 1f)
+/** The shaders of one scene's light, made once; per frame only their matrices change. */
+private class WallLight(scene: ArtworkScene) {
+    private val lamp = clamped(scene.lamp)
+    private val hole = clamped(scene.holeMask)
+    private val open = clamped(scene.openMask)
+    private val rimMap = scene.rim?.let(::clamped)
+    private val spriteHalf = scene.lamp.width / 2f
+    private val lampMatrix = android.graphics.Matrix()
+    private val maskMatrix = android.graphics.Matrix()
+
+    /** Lamp × wall mask with the print. */
+    val wall = ShaderBrush(android.graphics.ComposeShader(lamp, hole, android.graphics.BlendMode.MODULATE))
+
+    /** Lamp × wall mask without the print. */
+    val openWall = ShaderBrush(android.graphics.ComposeShader(lamp, open, android.graphics.BlendMode.MODULATE))
+    val rim = rimMap?.let { ShaderBrush(it) }
+
+    /** Puts the pool where the lamp stands now; the masks just cover the screen. */
+    fun place(pose: HaloLight.LampPose, density: Float, size: Size) {
+        lampMatrix.setTranslate(-spriteHalf, -spriteHalf)
+        lampMatrix.postScale(pose.alongEdge * density / spriteHalf, pose.towardsSun * density / spriteHalf)
+        lampMatrix.postRotate(pose.rotationDeg)
+        lampMatrix.postTranslate(pose.x * density, pose.y * density)
+        lamp.setLocalMatrix(lampMatrix)
+        maskMatrix.setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H)
+        hole.setLocalMatrix(maskMatrix)
+        open.setLocalMatrix(maskMatrix)
+        rimMap?.setLocalMatrix(maskMatrix)
+    }
+
+    private fun clamped(bitmap: android.graphics.Bitmap) =
+        android.graphics.BitmapShader(bitmap, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+}
 
 /**
  * The print, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
@@ -257,7 +257,10 @@ class TextPlan(
     val artists: String?,
     val artistLines: Int,
     val showClock: Boolean,
-)
+) {
+    /** The artists take at most one line (or there are none). */
+    val oneArtistLine: Boolean get() = artists == null || artistLines == 1
+}
 
 /** Styles of the text column; colours come from the scene. */
 private class ColumnStyles(model: StageModel) {
@@ -536,31 +539,42 @@ fun HaloTextLayer(
 enum class TextLine { WORK, TITLE, ARTIST, ALBUM, TIME }
 
 /**
- * Lines that look exactly the same before and after a change (same text in the same
- * place): they stay while the others fade.
+ * Lines that look exactly the same before and after a change (same text in the same place
+ * and colour): they stay while the others fade. Each line is compared on its own – the
+ * album of the next song stays even when that song has a guest artist.
  */
 fun steadyLines(before: StageModel, beforePlan: TextPlan, after: StageModel, afterPlan: TextPlan): Set<TextLine> {
     if (before.scene.layout.columnLeft != after.scene.layout.columnLeft || before.night != after.night) return emptySet()
+    val a = before.scene.palette
+    val b = after.scene.palette
     val out = HashSet<TextLine>()
-    val sameTitleBlock = beforePlan.title.text == afterPlan.title.text && beforePlan.titleStyle.fontSize == afterPlan.titleStyle.fontSize
+    val sameTitleBlock = beforePlan.title.text == afterPlan.title.text &&
+        beforePlan.titleStyle.fontSize == afterPlan.titleStyle.fontSize && a.ink == b.ink
     if (sameTitleBlock) out += TextLine.TITLE
-    if (before.text.work == after.text.work && beforePlan.titleStyle.fontSize == afterPlan.titleStyle.fontSize &&
-        beforePlan.titleLines == afterPlan.titleLines && sameTitleBlock
-    ) out += TextLine.WORK
+    // The work line sits on top of the title block, so it can only stay if the title does.
+    if (sameTitleBlock && before.text.work == after.text.work && a.inkMuted == b.inkMuted) out += TextLine.WORK
     val sameArtists = beforePlan.artists == afterPlan.artists && beforePlan.artistLines == afterPlan.artistLines
-    if (sameArtists) out += TextLine.ARTIST
-    if (sameArtists && before.text.album == after.text.album) out += TextLine.ALBUM
-    if (before.timeLine == after.timeLine) out += TextLine.TIME
+    if (sameArtists && a.inkMuted == b.inkMuted) out += TextLine.ARTIST
+    // The album hangs under the artist line: its place is the same whenever neither side
+    // needs a second artist line.
+    val albumInPlace = sameArtists || (beforePlan.oneArtistLine && afterPlan.oneArtistLine)
+    if (albumInPlace && before.text.album == after.text.album && a.inkFaint == b.inkFaint) out += TextLine.ALBUM
+    if (before.timeLine == after.timeLine && a.inkQuiet == b.inkQuiet && a.inkHush == b.inkHush) out += TextLine.TIME
     return out
 }
 
-/** The clock at the top of the text column, its cap height on the cover's top edge. */
+/**
+ * The clock at the top of the text column, its cap height on the cover's top edge.
+ * [color] overrides the palette's colour (a clock that stays through a change takes on the
+ * new print's colour gradually).
+ */
 @Composable
 fun HaloClockLayer(
     model: StageModel,
     modifier: Modifier = Modifier,
     plan: TextPlan = rememberTextPlan(model),
     alpha: () -> Float = { 1f },
+    color: ColorProducer? = null,
 ) {
     val clock = model.clock
     if (clock == null || !plan.showClock || model.night) return
@@ -570,7 +584,7 @@ fun HaloClockLayer(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
-        content = { BasicText(clock, style = styles.clock) },
+        content = { BasicText(clock, style = styles.clock, color = color) },
     ) { measurables, constraints ->
         val p = measurables[0].measure(Constraints())
         val baseline = (layout.clockTop * density).roundToInt() + (12.sp.toPx() * 0.70f).roundToInt()
@@ -677,6 +691,15 @@ fun isMostlyCjk(text: String): Boolean {
     return letters > 0 && cjk * 2 >= letters
 }
 
+/** How far the separator dot is raised next to Arabic or Hebrew (share of its size). */
+private val RTL_DOT_LIFT = BaselineShift(0.2f)
+
+/** True if [text] contains letters of a right-to-left script. */
+fun isRightToLeft(text: String): Boolean = text.any {
+    val d = Character.getDirectionality(it)
+    d == Character.DIRECTIONALITY_RIGHT_TO_LEFT || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
+}
+
 @Composable
 private fun TimeLineText(line: TimeLine.Line, labelColor: Color, detailColor: Color) {
     val label = line.label
@@ -695,10 +718,17 @@ private fun TimeLineText(line: TimeLine.Line, labelColor: Color, detailColor: Co
         line.detail?.let { detail ->
             append("\u00A0\u00A0 ")
             // Each part in its own direction (a title in Arabic, an artist in Latin…), and
-            // the separator always in the Latin face, so it never turns into a full stop.
+            // the separator always in the Latin face. Next to Arabic, whose letters sit low
+            // on the line, the dot is raised a little – at the Latin height it would read
+            // as a full stop.
             val parts = detail.split(TimeLine.SEPARATOR)
             parts.forEachIndexed { i, part ->
-                if (i > 0) withStyle(SpanStyle(fontFamily = Fonts.Sans, fontSize = 12.sp, color = detailColor)) { append(TimeLine.SEPARATOR) }
+                if (i > 0) {
+                    val lift = if (isRightToLeft(parts[i - 1]) || isRightToLeft(part)) RTL_DOT_LIFT else BaselineShift.None
+                    withStyle(SpanStyle(fontFamily = Fonts.Sans, fontSize = 12.sp, color = detailColor, baselineShift = lift)) {
+                        append(TimeLine.SEPARATOR)
+                    }
+                }
                 withStyle(
                     SpanStyle(
                         fontFamily = Fonts.Text,

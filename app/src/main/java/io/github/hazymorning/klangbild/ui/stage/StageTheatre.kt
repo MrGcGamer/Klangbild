@@ -20,6 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorProducer
+import androidx.compose.ui.graphics.lerp
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.render.ArtworkScene
@@ -40,11 +43,11 @@ enum class Change {
 
 /**
  * The stage with its transitions. On a track change the old print goes dark – and as it
- * goes, the wall behind it fills with the lamp's light, so the empty wall is one quiet pool
- * of light, not a black panel. While the wall is empty the lamp dims a little and changes
- * colour through OKLCH (never through grey) and the sundial swings back to the morning;
- * then the new print comes up and the new text settles in from below. Lines that stay the
- * same (the artist of the next song, the clock) do not move at all.
+ * goes, the lamp behind it is turned down, so the empty wall shows one dim, round pool of
+ * light, not a black panel. While the wall is empty the lamp changes colour through OKLCH
+ * (never through grey) and the sundial swings back to the morning; then the new print comes
+ * up with the light and the new text settles in from below. Lines that stay the same (the
+ * album of the next song, the clock) do not move at all.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
@@ -147,16 +150,25 @@ fun StageTheatre(
     }
     val oldCover: () -> Float = { 1f - p(0, Motion.COVER_OUT_END_MS, Motion.Sine) }
     val newCover: () -> Float = { p(Motion.COVER_IN_START_MS, Motion.COVER_IN_END_MS, Motion.Sine) }
-    // The lamp goes down a little while the prints are swapped.
+    // The lamp goes down while the prints are swapped: the empty wall shows a dim pool only.
     val swapDip: () -> Float = {
-        if (prev == null || kind != Change.FULL) 1f
-        else 1f - 0.5f * (p(0, Motion.COVER_OUT_END_MS) - p(Motion.COVER_IN_START_MS, Motion.COVER_IN_END_MS))
+        if (prev == null || kind != Change.FULL) {
+            1f
+        } else {
+            val down = p(0, Motion.COVER_OUT_END_MS) - p(Motion.COVER_IN_START_MS, Motion.COVER_IN_END_MS)
+            1f - (1f - Motion.SWAP_LIGHT) * down
+        }
     }
     val level: () -> Float = { pausedLevel * breathing.value * swapDip() }
 
-    // The clock only moves along if its place changes.
+    // The clock only moves along if its place changes. Then it stays, a little dimmed, where
+    // it was through the dark moment and dissolves over to its new place as the new light
+    // comes – the screen never goes entirely dark. (It is gone before the new print, which
+    // now hangs where it was, comes up beneath it.)
     val clockStays = prev != null && prevPlan != null && prevPlan.showClock && curPlan.showClock &&
         prev.scene.layout.columnLeft == cur.scene.layout.columnLeft && kind != Change.SOFT
+    val clockMoves = prev != null && prevPlan != null && prevPlan.showClock && curPlan.showClock &&
+        !clockStays && kind == Change.FULL
     val prevTextAlpha: () -> Float = { 1f - p(0, 550) }
     val curTextAlpha: () -> Float = {
         when {
@@ -165,18 +177,33 @@ fun StageTheatre(
             else -> p(Motion.TEXT_IN_START_MS, Motion.TEXT_IN_END_MS)
         }
     }
+    val prevClockAlpha: () -> Float =
+        if (clockMoves) ({ (1f - (1f - Motion.HELD_CLOCK) * p(0, 550)) * (1f - p(1_000, 1_300)) }) else prevTextAlpha
+    val curClockAlpha: () -> Float = when {
+        clockStays || prev == null -> ({ 1f })
+        clockMoves -> ({ p(1_100, 1_900) })
+        else -> curTextAlpha
+    }
+    // A clock that stays takes on the new print's colour while the lamp changes colour.
+    val prevQuiet = prevModel?.scene?.palette?.inkQuiet
+    val curQuiet = curModel.scene.palette.inkQuiet
+    val clockColor: ColorProducer? = if (clockStays && prevQuiet != null && prevQuiet != curQuiet) {
+        ColorProducer { lerp(Color(prevQuiet), Color(curQuiet), p(500, 1_400)) }
+    } else {
+        null
+    }
 
     Box(modifier.fillMaxSize()) {
         BaseWall()
         if (prev != null && kind == Change.FULL && !sameSpot) {
-            // The print moves to the other side: the old light goes before the new one comes.
+            // The print moves to the other side: the old light hands over to the new one.
             HaloLightLayer(
                 prev.scene, sunAngle = angle, lightLevel = level, tint = tint,
-                alpha = { 1f - p(300, 1_000) }, holeOpen = { 1f - oldCover() },
+                alpha = { 1f - p(300, 1_150) }, holeOpen = { 1f - oldCover() },
             )
             HaloLightLayer(
                 cur.scene, sunAngle = angle, lightLevel = level, tint = tint,
-                alpha = { p(1_000, 1_700) }, holeOpen = { 1f - newCover() },
+                alpha = { p(850, 1_700) }, holeOpen = { 1f - newCover() },
             )
         } else {
             HaloLightLayer(
@@ -219,7 +246,7 @@ fun StageTheatre(
                 offsetY = { -6f * p(0, 550) },
                 hidden = steady,
             )
-            if (!clockStays) HaloClockLayer(prevModel, plan = prevPlan, alpha = prevTextAlpha)
+            if (!clockStays) HaloClockLayer(prevModel, plan = prevPlan, alpha = prevClockAlpha)
         }
         HaloTextLayer(
             curModel,
@@ -235,7 +262,14 @@ fun StageTheatre(
             },
             steady = steady,
         )
-        HaloClockLayer(curModel, plan = curPlan, alpha = if (clockStays || prev == null) ({ 1f }) else curTextAlpha)
+        HaloClockLayer(curModel, plan = curPlan, alpha = curClockAlpha, color = clockColor)
+        if (prevModel != null && prevPlan != null && kind == Change.SOFT) {
+            // Same track in new light: the old text lies on top and fades, so the colours
+            // (and lines that night hides) change gently instead of at once.
+            val fade = { 1f - p(0, total) }
+            HaloTextLayer(prevModel, plan = prevPlan, alpha = fade, dim = { textDim })
+            HaloClockLayer(prevModel, plan = prevPlan, alpha = fade)
+        }
     }
 }
 

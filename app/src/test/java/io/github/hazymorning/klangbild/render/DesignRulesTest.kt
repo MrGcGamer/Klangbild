@@ -30,12 +30,26 @@ class DesignRulesTest {
 
     private fun grey(px: Int) = px and 0xFF
 
+    private fun forEachMapPixel(block: (x: Int, y: Int, xDp: Float, yDp: Float) -> Unit) {
+        for (y in 0 until HaloLight.MAP_H) for (x in 0 until HaloLight.MAP_W) {
+            block(x, y, (x + 0.5f) / HaloLight.MAP_W * screen.widthDp, (y + 0.5f) / HaloLight.MAP_H * screen.heightDp)
+        }
+    }
+
+    /** Light of the pool [d] dp outside the print, straight out in direction [deg] (maths angle). */
+    private fun lightOutside(pose: HaloLight.LampPose, deg: Float, d: Float): Float {
+        val rad = Math.toRadians(deg.toDouble())
+        val ux = kotlin.math.cos(rad).toFloat()
+        val uy = -kotlin.math.sin(rad).toFloat()
+        val boundary = shape.radius / maxOf(kotlin.math.abs(ux), kotlin.math.abs(uy))
+        val r = boundary + d
+        return HaloLight.lampAt(pose, shape.centerX + ux * r, shape.centerY + uy * r)
+    }
+
     @Test
     fun `no light at all near the screen edges`() {
-        for (mask in listOf(HaloLight.holeMask(shape, screen, night = 0f), HaloLight.openMask(screen))) {
-            for (y in 0 until HaloLight.MAP_H) for (x in 0 until HaloLight.MAP_W) {
-                val xDp = (x + 0.5f) / HaloLight.MAP_W * screen.widthDp
-                val yDp = (y + 0.5f) / HaloLight.MAP_H * screen.heightDp
+        for (mask in listOf(HaloLight.holeMask(shape, screen), HaloLight.openMask(screen), HaloLight.rimMap(shape, screen))) {
+            forEachMapPixel { x, y, xDp, yDp ->
                 val edge = minOf(xDp, screen.widthDp - xDp, yDp, screen.heightDp - yDp)
                 if (edge < HaloLight.EDGE_CLEAR_DP - 1f) assertWithMessage("($x, $y)").that(grey(mask[y * HaloLight.MAP_W + x])).isEqualTo(0)
             }
@@ -43,41 +57,81 @@ class DesignRulesTest {
     }
 
     @Test
+    fun `dark behind the print`() {
+        val hole = HaloLight.holeMask(shape, screen)
+        val rim = HaloLight.rimMap(shape, screen)
+        forEachMapPixel { x, y, xDp, yDp ->
+            if (shape.contains(xDp, yDp)) {
+                assertWithMessage("hole ($x, $y)").that(grey(hole[y * HaloLight.MAP_W + x])).isEqualTo(0)
+                assertWithMessage("rim ($x, $y)").that(grey(rim[y * HaloLight.MAP_W + x])).isEqualTo(0)
+            }
+        }
+    }
+
+    @Test
     fun `the far wall is pure black`() {
-        val p = HaloLight.profile(shape.rect.width, 0f)
-        // The pool is gone (below the black threshold) well within the sprite's margin.
-        assertThat(HaloLight.pool(110f, p)).isLessThan(0.0005f)
-        val sprite = HaloLight.glowSprite(shape, night = 0f, seed = 1)
-        val size = HaloLight.glowSize(shape)
+        assertThat(HaloLight.lampProfile(1f)).isEqualTo(0f)
+        val size = 128
+        val sprite = HaloLight.lampSprite(ditherLsb = 4f, seed = 1, size = size)
         for (i in 0 until size) {
             assertThat(grey(sprite[i])).isEqualTo(0) // top row
             assertThat(grey(sprite[i * size])).isEqualTo(0) // left column
         }
+        // The side away from the sun gets nothing at all.
+        val pose = HaloLight.lampPose(shape, 90f)
+        assertThat(lightOutside(pose, -90f, 0f)).isEqualTo(0f)
     }
 
     @Test
-    fun `dark behind the print, a little shaded at its edge, brightest a few dp out`() {
-        val p = HaloLight.profile(shape.rect.width, 0f)
-        fun light(d: Float) = HaloLight.pool(d, p) * HaloLight.shade(d, inside = false, p = p)
-        assertThat(HaloLight.shade(0f, inside = true, p = p)).isEqualTo(0f)
-        val profile = (1..60).map { it to light(it.toFloat()) }
-        val (peakAt, peak) = profile.maxBy { it.second }
-        assertThat(peakAt).isIn(8..18)
-        assertThat(light(1f) / peak).isIn(Range.closed(0.45f, 0.62f))
-        assertThat(light(70f)).isLessThan(peak * 0.02f)
-    }
-
-    @Test
-    fun `the lamp sits off centre, and the sun's side is clearly the lit one`() {
-        assertThat(HaloLight.lampOffset(320f)).isIn(Range.closed(20f, 32f))
-        for (sun in listOf(225f, 90f, -45f, 10f)) {
-            val lit = Oklab.linearToSrgb(HaloLight.maskAt(sun, sun))
-            assertThat(lit / Oklab.linearToSrgb(HaloLight.maskAt(sun + 90f, sun))).isAtLeast(3.8f)
-            assertThat(lit / Oklab.linearToSrgb(HaloLight.maskAt(sun + 180f, sun))).isAtLeast(3.8f)
+    fun `a round pool, brightest at the print's edge, about 40 percent at 50 dp, gone by 128 dp`() {
+        val pose = HaloLight.lampPose(shape, 90f)
+        val edge = lightOutside(pose, 90f, 0f)
+        assertThat(edge).isWithin(0.001f).of(HaloLight.EDGE_STRENGTH)
+        // falls off steadily – no band, no ledge
+        var last = edge
+        for (d in 1..140) {
+            val v = lightOutside(pose, 90f, d.toFloat())
+            assertThat(v).isAtMost(last)
+            last = v
         }
-        val stops = HaloLight.maskStops()
-        assertThat(Oklab.srgbToLinear(stops.first() and 0xFF)).isWithin(0.01f).of(1f)
-        assertThat(Oklab.srgbToLinear(stops[stops.size / 2] and 0xFF)).isWithin(0.01f).of(HaloLight.UNLIT)
+        assertThat(lightOutside(pose, 90f, 50f) / edge).isIn(Range.closed(0.33f, 0.45f))
+        assertThat(lightOutside(pose, 90f, 108f) / edge).isLessThan(0.02f)
+        assertThat(lightOutside(pose, 90f, 128f)).isEqualTo(0f)
+        // a pool, not a frame: it reaches along the edge, but only part of the way round
+        assertThat(lightOutside(pose, 0f, 0f) / edge).isLessThan(0.1f)
+    }
+
+    @Test
+    fun `the lamp follows the sun, and the sun's side is clearly the lit one`() {
+        for (sun in listOf(225f, 160f, 90f, 10f, -45f)) {
+            val pose = HaloLight.lampPose(shape, sun)
+            val lit = lightOutside(pose, sun, 4f)
+            assertThat(lit).isGreaterThan(0.5f)
+            assertThat(lightOutside(pose, sun + 180f, 4f)).isEqualTo(0f)
+            assertThat(lit / maxOf(lightOutside(pose, sun + 90f, 4f), 1e-6f)).isAtLeast(3.8f)
+            assertThat(lit / maxOf(lightOutside(pose, sun - 90f, 4f), 1e-6f)).isAtLeast(3.8f)
+            // the lamp stands behind the print, inside its outline
+            assertThat(shape.contains(pose.x, pose.y)).isTrue()
+        }
+    }
+
+    @Test
+    fun `a dark print gets a faint rim all around, a bright one none`() {
+        assertThat(HaloLight.rimLuminance(0.002f)).isWithin(1e-4f).of(0.008f)
+        assertThat(HaloLight.rimLuminance(0.006f)).isWithin(1e-4f).of(0.012f)
+        assertThat(HaloLight.rimLuminance(0.03f)).isAtMost(0.015f)
+        assertThat(HaloLight.rimLuminance(0.2f)).isEqualTo(0f)
+        val rim = HaloLight.rimMap(shape, screen)
+        fun at(xDp: Float, yDp: Float): Float {
+            val x = (xDp / screen.widthDp * HaloLight.MAP_W).toInt()
+            val y = (yDp / screen.heightDp * HaloLight.MAP_H).toInt()
+            return Oklab.srgbToLinear(grey(rim[y * HaloLight.MAP_W + x]))
+        }
+        // all four sides, fading out over about 20 dp
+        for ((x, y) in listOf(shape.rect.left - 1.5f to shape.centerY, shape.rect.right + 1.5f to shape.centerY, shape.centerX to shape.rect.top - 1.5f, shape.centerX to shape.rect.bottom + 1.5f)) {
+            assertThat(at(x, y)).isGreaterThan(0.6f)
+        }
+        assertThat(at(shape.rect.right + 22f, shape.centerY)).isLessThan(0.06f)
     }
 
     @Test
@@ -115,13 +169,23 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `warm light is tungsten, never rust`() {
+    fun `warm light is tungsten, never rust, and warmer than a neutral cover's`() {
         val a = CoverPalette.analyze(thumb(0xFFC2552A.toInt() to 0.7f, 0xFF3B2414.toInt() to 0.3f))
         val c = HaloLight.lightColor(a)
-        assertThat(c.h).isIn(Range.closed(64f, 85f))
-        assertThat(c.c).isAtMost(0.045f)
+        assertThat(c.h).isIn(Range.closed(64f, 72f))
+        // about 3300 K: chroma relative to lightness as in rgb(76, 55, 33)
+        assertThat(c.c / c.l).isIn(Range.closed(0.08f, 0.13f))
         val grey = CoverPalette.analyze(thumb(0xFF808080.toInt() to 1f))
-        assertThat(HaloLight.lightColor(grey)).isEqualTo(HaloLight.LAMP)
+        val lamp = HaloLight.lightColor(grey)
+        assertThat(lamp).isEqualTo(HaloLight.LAMP)
+        assertThat(c.c / c.l).isAtLeast(lamp.c / lamp.l * 1.3f)
+    }
+
+    @Test
+    fun `cool light is held back, so it never reads as an LED strip`() {
+        val a = CoverPalette.analyze(thumb(0xFF2A1450.toInt() to 0.7f, 0xFF4B2C9A.toInt() to 0.3f))
+        val c = HaloLight.lightColor(a)
+        assertThat(c.c / c.l).isAtMost(0.1f)
     }
 
     @Test
@@ -134,6 +198,20 @@ class DesignRulesTest {
                 val t = rnd.nextFloat() * 6.283f
                 assertThat(ChladniArt.field(spec, r, t)).isWithin(1e-4f).of(ChladniArt.field(spec, r, -t))
             }
+        }
+    }
+
+    @Test
+    fun `sand figures are wavy rings, never a cross, a wheel or a rosette`() {
+        for (i in 0 until 200) {
+            val spec = ChladniArt.specFor("Sender $i")
+            // no nodal diameters: through the centre they make crosses, wheels and petals
+            assertThat(spec.n1).isEqualTo(0)
+            assertThat(spec.n2).isIn(3..6)
+            // the second mode only bends the circles
+            assertThat(kotlin.math.abs(spec.mix)).isIn(Range.closed(0.35f, 0.65f))
+            // the sand leaves the clamp in the middle free: the field there is the ring mode's
+            assertThat(ChladniArt.field(spec, 0.05f, 1f)).isGreaterThan(0.8f)
         }
     }
 
