@@ -18,6 +18,9 @@ import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.ui.stage.HaloStage
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.onRoot
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -28,6 +31,9 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class OptionsTest {
+    @get:org.junit.Rule
+    val compose = androidx.compose.ui.test.junit4.createComposeRule()
+
     private val pärt = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
     private val everywhere = SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Büro", "Flur", "Terrasse")))
     private val two = SpeakerLabel.group(SpeakerGroup("Wohnzimmer Lautsprecher", listOf("Küche")))
@@ -95,6 +101,21 @@ class OptionsTest {
     }
 
     @Test fun menuEveningSleep() = shot("menu_sleep_evening") { MenuScreen(menu(MenuEntry.SLEEP_AFTER), Lighting.EVENING) }
+
+    /** The list glides through the light when the cursor moves down by one line, then by three. */
+    @Test fun menuGlide() {
+        var state by androidx.compose.runtime.mutableStateOf(menu(MenuEntry.ALBUM))
+        compose.mainClock.autoAdvance = false
+        compose.setContent { MenuScreen(state, Lighting.DAY) }
+        compose.mainClock.advanceTimeBy(100)
+        var frame = 0
+        fun grab() = compose.onRoot().captureRoboImage("build/screenshots/options/menu_glide_%02d.png".format(frame++))
+        grab()
+        state = menu(MenuEntry.GROUP)
+        repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
+        state = menu(MenuEntry.DAY_NIGHT)
+        repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
+    }
 
     @Test fun menuConnection() = shot("menu_connection") {
         MenuScreen(menu(MenuEntry.DEMO, Settings(), MenuContext(LinkState.UNCONFIGURED)), Lighting.DAY)
