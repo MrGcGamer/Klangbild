@@ -10,7 +10,6 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import org.junit.Rule

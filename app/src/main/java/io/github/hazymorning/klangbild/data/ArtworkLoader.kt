@@ -45,8 +45,11 @@ class ArtworkLoader(
         }
         http.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) return null
-            val bytes = response.body.bytes()
-            return decode(bytes)
+            // A cover is a few megabytes at most; anything far larger is not read at all.
+            if (response.body.contentLength() > MAX_BYTES) return null
+            val source = response.body.source()
+            if (source.request(MAX_BYTES + 1)) return null
+            return decode(source.readByteArray())
         }
     }
 
@@ -54,16 +57,19 @@ class ArtworkLoader(
         /** Larger sources are subsampled on decode; nothing on screen needs more. */
         const val MAX_DECODE_PX = 2048
 
+        /** The most a cover download may weigh (bytes). */
+        const val MAX_BYTES = 16L * 1024 * 1024
+
         fun decode(bytes: ByteArray): Bitmap? {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            val w = bounds.outWidth
+            val h = bounds.outHeight
             var sample = 1
-            while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_DECODE_PX / 2 &&
-                maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_DECODE_PX
-            ) {
-                sample *= 2
-            }
+            while (minOf(w, h) / (sample * 2) >= MAX_DECODE_PX / 2 && maxOf(w, h) / sample > MAX_DECODE_PX) sample *= 2
+            // However odd its shape, no picture takes more memory than a square of MAX_DECODE_PX.
+            while ((w / sample).toLong() * (h / sample) > MAX_DECODE_PX.toLong() * MAX_DECODE_PX) sample *= 2
             val opts = BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.ARGB_8888

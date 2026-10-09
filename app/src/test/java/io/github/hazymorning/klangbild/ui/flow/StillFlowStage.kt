@@ -15,9 +15,9 @@ import io.github.hazymorning.klangbild.ui.stage.asColor
 import io.github.hazymorning.klangbild.ui.stage.rememberTextPlan
 
 /**
- * A complete, static Cover Flow stage: the wall, the cards at rest (the current one in the
- * middle at position 0) and the text column. The animated stage ([FlowTheatre]) composes the
- * same layers with its transitions.
+ * A complete, static Cover Flow stage for stills: the wall, the cards at rest (the current one
+ * in the middle at position 0) and the text column. The app's stage ([FlowTheatre]) composes
+ * the same layers with its transitions.
  */
 @Composable
 fun FlowStage(model: StageModel, cards: List<CardMotion>, modifier: Modifier = Modifier) {

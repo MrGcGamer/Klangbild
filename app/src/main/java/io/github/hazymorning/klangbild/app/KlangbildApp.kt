@@ -22,6 +22,8 @@ class AppGraph(context: Context) {
         .writeTimeout(15, TimeUnit.SECONDS)
         // WebSocket keep-alive is handled by HA pings; OkHttp answers server pings itself.
         .addInterceptor(LocalNetwork.CleartextGuard())
+        // …and every redirect hop, too: a picture link must not lead to plain HTTP outside the home.
+        .addNetworkInterceptor(LocalNetwork.CleartextGuard())
         .build()
 
     val settings = SettingsStore(context.applicationContext)

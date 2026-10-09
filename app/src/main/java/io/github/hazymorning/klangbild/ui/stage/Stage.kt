@@ -57,22 +57,6 @@ import io.github.hazymorning.klangbild.ui.theme.titleType
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/**
- * A complete, static stage for one model. The animated stage ([StageTheatre]) composes the
- * same layers with transition and pause parameters.
- */
-@Composable
-fun Stage(model: StageModel, modifier: Modifier = Modifier) {
-    val plan = rememberTextPlan(model)
-    Box(modifier.fillMaxSize()) {
-        BaseWall(model.scene.palette.wall.asColor())
-        WallLayer(model.scene)
-        ArtworkLayer(model.scene)
-        TextLayer(model, plan = plan)
-        StatusLayer(model)
-    }
-}
-
 /** The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in the light. */
 @Composable
 fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier) {
