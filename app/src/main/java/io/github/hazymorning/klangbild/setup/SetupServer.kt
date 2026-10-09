@@ -52,8 +52,6 @@ class SetupServer(
     private var socket: ServerSocket? = null
     private var job: Job? = null
 
-    val isRunning: Boolean get() = socket != null
-
     fun start() {
         if (socket != null) return
         handler.rotateCode()

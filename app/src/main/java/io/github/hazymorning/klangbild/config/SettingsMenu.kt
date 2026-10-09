@@ -48,9 +48,6 @@ object SettingsMenu {
 
     fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx)) }
 
-    /** True for lines that do something (open the setup code) rather than hold a value. */
-    fun isAction(e: MenuEntry) = e == MenuEntry.CONNECTION
-
     fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
         MenuEntry.CLOCK -> onOff(s.showClock)
         MenuEntry.TIME_LINE -> onOff(s.showTimeLine)

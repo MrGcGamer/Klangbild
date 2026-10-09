@@ -69,19 +69,6 @@ object HaloLight {
         return argb
     }
 
-    /**
-     * [tint] dimmed to [k] of its brightness (linear light). Dim light also loses colour –
-     * chroma falls with lightness squared – so a dimmed warm light never turns brown.
-     */
-    fun dimTint(tint: Int, k: Float): Int {
-        if (k >= 0.999f) return tint
-        if (k <= 0.001f) return 0xFF000000.toInt()
-        val lab = Oklab.fromArgb(tint)
-        val f = Math.cbrt(k.toDouble()).toFloat()
-        val c = lab.chroma * f * f
-        return Lch(lab.l * f, c, lab.hue).toArgb()
-    }
-
     /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
     fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
 

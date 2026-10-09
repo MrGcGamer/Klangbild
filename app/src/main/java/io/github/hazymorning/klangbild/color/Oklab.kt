@@ -128,17 +128,4 @@ object Oklab {
         val bl = (linearToSrgb(rgb[2]) * 255f).roundToInt().coerceIn(0, 255)
         return (alpha.coerceIn(0, 255) shl 24) or (r shl 16) or (g shl 8) or bl
     }
-
-    /** WCAG relative luminance of an sRGB colour, 0..1. */
-    fun relativeLuminance(argb: Int): Float =
-        0.2126f * srgbToLinear(argb shr 16) + 0.7152f * srgbToLinear(argb shr 8) + 0.0722f * srgbToLinear(argb)
-
-    /** WCAG contrast ratio between two opaque colours (1..21). */
-    fun contrastRatio(a: Int, b: Int): Float {
-        val la = relativeLuminance(a)
-        val lb = relativeLuminance(b)
-        val hi = maxOf(la, lb)
-        val lo = minOf(la, lb)
-        return (hi + 0.05f) / (lo + 0.05f)
-    }
 }

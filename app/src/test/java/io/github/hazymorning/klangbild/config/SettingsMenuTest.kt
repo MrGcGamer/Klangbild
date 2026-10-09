@@ -51,7 +51,7 @@ class SettingsMenuTest {
                 for (row in SettingsMenu.rows(s, ctx)) {
                     assertThat(row.value).isNotEmpty()
                     assertThat(row.description).endsWith(".")
-                    assertThat(SettingsMenu.step(row.entry, s, +1) == null).isEqualTo(SettingsMenu.isAction(row.entry))
+                    assertThat(SettingsMenu.step(row.entry, s, +1) == null).isEqualTo((row.entry == MenuEntry.CONNECTION))
                 }
             }
         }

@@ -5,9 +5,10 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.color.CoverPalette
-import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
+import io.github.hazymorning.klangbild.color.contrastRatio
+import io.github.hazymorning.klangbild.color.relativeLuminance
 import io.github.hazymorning.klangbild.ui.stage.BLOCK_SHARE
 import org.junit.Test
 import kotlin.random.Random
@@ -27,13 +28,9 @@ class DesignRulesTest {
     /** The glow at (x, y) dp on the 960 × 540 map. */
     private fun IntArray.at(xDp: Float, yDp: Float): Int = this[yDp.toInt() * WallGlow.MAP_W + xDp.toInt()]
 
-    private fun luminance(argb: Int) = Oklab.relativeLuminance(argb)
+    private fun luminance(argb: Int) = relativeLuminance(argb)
 
-    private fun contrast(a: Int, b: Int): Float {
-        val la = luminance(a)
-        val lb = luminance(b)
-        return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
-    }
+    private fun contrast(a: Int, b: Int) = contrastRatio(a, b)
 
     private val covers = listOf(
         0xFFF2EEE6.toInt(), // white paper
@@ -153,18 +150,10 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `dimmed light loses colour faster than brightness`() {
-        val tint = Lch(0.42f, 0.09f, 300f).toArgb()
-        val dim = HaloLight.dimTint(tint, 0.3f)
-        assertThat(Oklab.relativeLuminance(dim)).isWithin(0.004f).of(Oklab.relativeLuminance(tint) * 0.3f)
-        assertThat(Oklab.fromArgb(dim).chroma).isLessThan(Oklab.fromArgb(tint).chroma * 0.5f)
-    }
-
-    @Test
     fun `night turns the lamp right down and takes its colour`() {
         val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
         val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
-        assertThat(Oklab.relativeLuminance(night)).isAtMost(Oklab.relativeLuminance(day) * 0.29f)
+        assertThat(luminance(night)).isAtMost(luminance(day) * 0.29f)
         assertThat(HaloLight.hsvSaturation(night)).isAtMost(0.5f)
     }
 
@@ -183,7 +172,7 @@ class DesignRulesTest {
         assertThat(screen.heightDp / 2f - layout.artRect.centerY).isWithin(0.01f).of(HaloLayout.LIFT)
         // margins: the artwork 96 dp from the left, the column 80 dp from the right, 64 dp between
         assertThat(layout.artRect.left).isWithin(0.01f).of(96f)
-        assertThat(screen.widthDp - layout.columnRight).isWithin(0.01f).of(80f)
+        assertThat(screen.widthDp - (layout.columnLeft + layout.columnWidth)).isWithin(0.01f).of(80f)
         assertThat(layout.columnLeft - layout.artRect.right).isWithin(0.01f).of(64f)
     }
 

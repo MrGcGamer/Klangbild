@@ -233,13 +233,6 @@ object CoverPalette {
     }
 
     /** Chroma limit for light colours derived from a cover (keeps neon in check). */
-    fun tameForLight(lab: Lab, maxChroma: Float = 0.13f, minL: Float = 0f, maxL: Float = 1f): Lab {
-        val c = lab.chroma
-        val scale = if (c > maxChroma) maxChroma / c else 1f
-        val l = lab.l.coerceIn(minL, maxL)
-        return Lab(l, lab.a * scale, lab.b * scale)
-    }
-
     internal fun clamp01(x: Float) = max(0f, min(1f, x))
     internal fun soft(x: Float) = sqrt(clamp01(x))
 }

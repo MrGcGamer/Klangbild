@@ -86,6 +86,8 @@ android {
             isIncludeAndroidResources = true
             all {
                 it.maxHeapSize = "3g"
+                // Two JVMs share the Robolectric classes; the screenshot classes run side by side.
+                it.maxParallelForks = 2
                 it.systemProperty("robolectric.graphicsMode", "NATIVE")
                 // Robolectric fetches its android-all jars itself; use the same Maven Central
                 // mirror as Gradle (repo1.maven.org rate-limits shared egress IPs).

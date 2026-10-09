@@ -59,9 +59,6 @@ object Motion {
     /** A line that changes its content (status, station, notice) cross-fades. */
     const val LINE_FADE_MS = 400
 
-    /** Switching between stage, rest and setup screens. */
-    const val SCREEN_CHANGE_MS = 1_600
-
     /** Light, artwork and text while paused. */
     const val PAUSED_LIGHT = 0.45f
     const val PAUSED_COVER = 0.72f

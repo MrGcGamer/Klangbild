@@ -19,7 +19,6 @@ import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
-import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.ScreenDecision
@@ -208,10 +207,6 @@ class NowPlayingController(
             recompute()
         }
         scope.launch { source?.send(command) }
-    }
-
-    suspend fun saveSettings(transform: (Settings) -> Settings) {
-        settingsStore.update(transform, settingsStore.settings.first())
     }
 
     // --- settings menu -------------------------------------------------------------------
@@ -471,7 +466,5 @@ class NowPlayingController(
 
         /** An untouched menu closes after this long. */
         const val MENU_IDLE_MS = 60_000L
-
-        fun isPlaying(s: Screen) = s is Screen.Stage && s.status == PlayerStatus.PLAYING
     }
 }

@@ -85,18 +85,4 @@ class EntityStore {
 
     private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
     private fun JsonObject.num(key: String): Double? = (this[key] as? JsonPrimitive)?.doubleOrNull
-
-    companion object {
-        /** Full state objects as returned by `get_states` / REST, for completeness. */
-        fun fromFullState(obj: JsonObject): EntityState? {
-            val id = (obj["entity_id"] as? JsonPrimitive)?.content ?: return null
-            return EntityState(
-                entityId = id,
-                state = (obj["state"] as? JsonPrimitive)?.content ?: "unknown",
-                attributes = (obj["attributes"] as? JsonObject) ?: JsonObject(emptyMap()),
-                lastChanged = 0.0,
-                lastUpdated = 0.0,
-            )
-        }
-    }
 }

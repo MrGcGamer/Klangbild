@@ -14,9 +14,9 @@ class CoverPaletteTest {
     }
 
     private fun assertReadable(p: ScenePalette) {
-        assertWithMessage("ink $p").that(Oklab.contrastRatio(p.ink, p.base)).isAtLeast(10f)
-        assertWithMessage("inkMuted $p").that(Oklab.contrastRatio(p.inkMuted, p.base)).isAtLeast(6f)
-        assertWithMessage("accent $p").that(Oklab.contrastRatio(p.accent, p.base)).isAtLeast(4.5f)
+        assertWithMessage("ink $p").that(contrastRatio(p.ink, p.base)).isAtLeast(10f)
+        assertWithMessage("inkMuted $p").that(contrastRatio(p.inkMuted, p.base)).isAtLeast(6f)
+        assertWithMessage("accent $p").that(contrastRatio(p.accent, p.base)).isAtLeast(4.5f)
         // never harsh white
         val ink = Oklab.fromArgb(p.ink)
         assertThat(ink.l).isAtMost(0.95f)
@@ -55,7 +55,7 @@ class CoverPaletteTest {
                 val p = CoverPalette.derive(CoverPalette.analyze(pixels), lighting)
                 if (lighting == Lighting.NIGHT) {
                     // at night everything is dimmer, but text must still read
-                    assertWithMessage("night ink $p").that(Oklab.contrastRatio(p.ink, p.base)).isAtLeast(4.5f)
+                    assertWithMessage("night ink $p").that(contrastRatio(p.ink, p.base)).isAtLeast(4.5f)
                 } else {
                     assertReadable(p)
                 }

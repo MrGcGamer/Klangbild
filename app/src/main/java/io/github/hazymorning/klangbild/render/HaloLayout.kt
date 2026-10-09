@@ -9,7 +9,6 @@ data class ScreenSpec(val widthPx: Int, val heightPx: Int, val density: Float) {
 
     companion object {
         val TV_1080 = ScreenSpec(1920, 1080, 2f)
-        val TV_4K = ScreenSpec(3840, 2160, 4f)
     }
 }
 
@@ -20,7 +19,6 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
     val centerX get() = left + width / 2f
     val centerY get() = top + height / 2f
 
-    fun translate(dx: Float, dy: Float) = RectDp(left + dx, top + dy, width, height)
 }
 
 /**
@@ -62,7 +60,6 @@ data class HaloLayout(val screen: ScreenSpec) {
     val gap = 64f * sx
     val columnLeft get() = margin + art + gap
     val columnWidth get() = screen.widthDp - rightMargin - columnLeft
-    val columnRight get() = screen.widthDp - rightMargin
 
     /** Centre line of the text block (from its first cap height to its last baseline). */
     val textCenter get() = artTop + art / 2f

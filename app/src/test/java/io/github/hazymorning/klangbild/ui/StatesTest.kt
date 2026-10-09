@@ -115,10 +115,10 @@ class States4kTest {
 
     @Test fun playing4k() = shot(
         "4k_stage_classical",
-        Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = Fixtures.pärt, screen = ScreenSpec.TV_4K),
+        Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = Fixtures.pärt, screen = Fixtures.TV_4K),
     )
 
-    @Test fun lowRes4k() = shot("4k_stage_lowres", Fixtures.model(Fixtures.track(SyntheticCover.PASTELL), screen = ScreenSpec.TV_4K))
+    @Test fun lowRes4k() = shot("4k_stage_lowres", Fixtures.model(Fixtures.track(SyntheticCover.PASTELL), screen = Fixtures.TV_4K))
 
-    @Test fun radio4k() = shot("4k_stage_radio", Fixtures.model(Fixtures.radio, screen = ScreenSpec.TV_4K))
+    @Test fun radio4k() = shot("4k_stage_radio", Fixtures.model(Fixtures.radio, screen = Fixtures.TV_4K))
 }

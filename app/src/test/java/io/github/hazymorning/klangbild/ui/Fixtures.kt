@@ -21,6 +21,9 @@ import io.github.hazymorning.klangbild.ui.stage.StatusLine
 object Fixtures {
     val tracks = Catalogue.tracks
 
+    /** A 4K panel with the UI at 4K (xxxhdpi), to check crispness and the honest cover scale. */
+    val TV_4K = ScreenSpec(3840, 2160, 4f)
+
     /** Renders use Berlin time on 8 October 2026. */
     val zone: java.time.ZoneId = java.time.ZoneId.of("Europe/Berlin")
 

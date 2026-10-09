@@ -56,13 +56,3 @@ class Noise(seed: Int) {
     /** 1D noise along x, convenient for ridgelines. */
     fun line(x: Float, row: Float = 0.5f, octaves: Int = 5): Float = fbm(x, row, octaves)
 }
-
-/** Deterministic 32-bit hash of a string (FNV-1a), for seeding generated art. */
-fun stableHash(text: String): Int {
-    var h = 0x811C9DC5.toInt()
-    for (ch in text) {
-        h = h xor ch.code
-        h *= 0x01000193
-    }
-    return h
-}
