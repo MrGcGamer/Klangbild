@@ -170,6 +170,24 @@ Messungen am Gerät?
 | 9, 10 | Schlaftimer, Liedtext | **nicht möglich** | Home Assistant reicht weder den Schlaftimer noch Liedtexte von Music Assistant weiter. |
 | 12 | Sendspin | **später** | Das Protokoll ist noch in Vorschau. |
 
+## 8. Version 3
+
+Umgesetzt, auf Wunsch nach dem Test von 2.0:
+
+- **Cover Flow** als zweite Ansicht – mit der ganzen Warteschlange, wenn Music Assistant
+  direkt verbunden ist (siehe [`DECISIONS.md`](DECISIONS.md) 26 und 27).
+- **Hell am Tag, dunkel am Abend**, automatisch nach der Sonne (ebd. 25).
+- **Neue Schriften:** Jost und DM Sans statt Mona Sans (ebd. 24).
+
+Neu bewertet durch die direkte Verbindung zu Music Assistant:
+
+| # | Idee | Entscheidung | Warum |
+|---|---|---|---|
+| 10 | Liedtext-Zeile | **jetzt möglich, später** | Music Assistant liefert Liedtexte über die eigene API; Home Assistant war der Engpass. Bleibt freiwillig und eine Gestaltungsfrage (eine Zeile, langsam überblendet). |
+| 9 | Schlaftimer in Worten | **prüfen** | Ob Music Assistants API einen Schlaftimer kennt, ist noch offen. |
+| 12 | Sendspin | **später** | Mit der direkten Verbindung rückt es näher, das Protokoll ist aber noch in Vorschau. |
+| 1 | Am Gerät messen | **bleibt Nummer 1** | Cover Flow zeichnet bis zu fünf gedrehte Karten pro Frame – am Streamer mit `--ez debug true` prüfen, bevor Neues dazukommt. |
+
 ## Quellen (Auswahl)
 
 - Sonos: Räume gruppieren, „Überall“ – <https://support.sonos.com/de-de/article/group-and-ungroup-rooms>

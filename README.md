@@ -6,7 +6,9 @@ Klangbild ist eine Android-TV-App für den Google TV Streamer. Sobald Music Assi
 Wohnzimmer Musik abspielt, weckt Home Assistant den Fernseher und Klangbild zeigt, was
 läuft: das Cover groß wie ein Bild an der Wand, sein Licht fällt in den Farben seiner Ränder
 auf die dunkle Wand, daneben Titel, Künstler und Album in klarer Typografie und ein
-schlichter Fortschrittsbalken. Keine Knöpfe, keine Symbole, nichts, was blinkt.
+schlichter Fortschrittsbalken – oder, als zweite Ansicht, alle Cover in einer Reihe wie im
+Cover Flow. Tagsüber hängt das Bild an einer hellen Papierwand, abends an einer dunklen.
+Keine Knöpfe, keine Symbole, nichts, was blinkt.
 
 > *Klangbild* (das): in der Hi-Fi-Sprache der Charakter eines Klangs – und wörtlich das Bild
 > des Klangs.
@@ -47,6 +49,10 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 | ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
 | *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht* |
+| ![Cover Flow](docs/screens/14-cover-flow.jpg) | ![Cover Flow am Tag](docs/screens/15-cover-flow-hell.jpg) |
+| *Cover Flow: links was lief, rechts was kommt, darüber ein Schein in der Farbe des Covers* | *Cover Flow am Tag: Papier statt Schwarz, weiche Schatten statt Licht* |
+| ![Am Tag](docs/screens/16-tag.jpg) | |
+| *Am Tag: warmes Papier mit einem Hauch der Coverfarbe, das Bild wirft einen Schatten* | |
 
 **Titelwechsel** – in gut einer Sekunde: das alte Cover verlischt, das neue kommt aus dem
 Dunkel und setzt sich aus einer Spur Größe an seinen Platz, das Licht wechselt in die neuen
@@ -55,12 +61,29 @@ zwei Bilder übereinander. Beim nächsten Titel desselben Albums wechselt nur de
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
+**Cover Flow** – in 1,3 Sekunden dreht sich die Reihe weiter: Das alte Cover schwenkt zur
+Seite, das nächste wendet sich dem Raum zu, ohne dass sich zwei Bilder je durchdringen; neue
+Cover rollen vom Ende der Reihe herein:
+
+![Cover Flow als Bildfolge](docs/screens/cover-flow.gif)
+
 Die drei verworfenen bzw. weiterentwickelten Gestaltungsrichtungen und die Begründung der
 Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 [`docs/design/richtungen.jpg`](docs/design/richtungen.jpg).
 
 ## Was Klangbild kann
 
+- **Zwei Ansichten.** *Einzelbild*: ein Cover an der Wand, in seinem eigenen Licht.
+  *Cover Flow*: das Cover in der Mitte, links die Alben davor, rechts die nächsten, gedreht im
+  Raum und auf glänzendem Boden gespiegelt; die Lieder eines Albums sind ein Cover, ein
+  Radiosender auch. Kommt ein neues Album, dreht sich die Reihe weiter; schaltet jemand
+  schnell weiter, endet jede Bewegung sauber, bevor die nächste beginnt. Mit Music Assistant
+  direkt verbunden (freiwillig, siehe [Einrichtung](#einrichtung)) zeigt die Reihe die ganze
+  Warteschlange: zwei Cover rechts, die echte Vorgeschichte links.
+- **Hell am Tag, dunkel am Abend.** Automatisch nach der Sonne (`sun.sun`, sonst nach der
+  Uhr), in den Einstellungen auch fest hell oder dunkel. Die helle Wand ist warmes Papier mit
+  einem Hauch der Coverfarbe, das Bild wirft einen weichen Schatten; der Wechsel geht langsam,
+  wie das Licht draußen.
 - **Das Bild ist die Hauptsache.** Das Cover nimmt zwei Drittel der Bildschirmhöhe ein und
   ist immer das größte und schwerste Element; der Textblock daneben ist deutlich kleiner und
   steht optisch mittig neben ihm (gemessen von der Versalhöhe der ersten bis zur Grundlinie
@@ -79,16 +102,17 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   Bildschirms neu gezeichnet und wächst jedes Mal um Bruchteile eines Pixels, ein Sprung
   (Spulen) gleitet in einer Drittelsekunde an die neue Stelle. Pausiert wird er etwas
   dunkler. (Die Bildrate auf dem Streamer ist noch nicht am Gerät gemessen.)
-- **Typografie.** Eine einzige Schrift, Mona Sans, mit optischen Größen: große Titel in
-  ihrem engeren Display-Schnitt, kleine Zeilen im offeneren Text-Schnitt. Rangfolge allein
-  über Größe, Gewicht und Helligkeit – keine Versalien, keine Sperrung, keine Kursive.
+- **Typografie.** Zwei Schriften, die sich ergänzen: Titel, Uhr und Zahlen in Jost, einer
+  geometrischen Grotesk in der Linie der Futura; alle kleineren Zeilen in DM Sans, die mit
+  optischen Größen für kleine Schrift gebaut ist. Rangfolge allein über Größe, Gewicht und
+  Helligkeit – keine Versalien, keine Sperrung, keine Kursive.
   Klassische Titel werden in Werk und Satz geteilt und brechen bevorzugt nach den
   Gedankenstrichen um (höchstens drei Zeilen), „(feat. …)“ wandert zu den Künstlern,
   „– 2011 Remaster“ wird zur leisen Notiz hinter dem Titel, „Nr. 9“ und „op. 125“ trennen
   nie, ein kurzes Wort bleibt beim nächsten („Spiegel / im Spiegel“). Künstler stehen auf
   einer Zeile (erst etwas kleiner, dann „… u. a.“), passt das Jahr nicht mehr hinter das
-  Album, fällt es weg; nur sehr lange Titel setzen den ganzen Block etwas schmaler. Uhrzeit
-  und Zeiten stehen in festen Ziffernzellen, der Doppelpunkt mittig. Japanisch, Arabisch
+  Album, fällt es weg; sehr lange Titel werden kleiner, bis zu vier Zeilen. Uhrzeit und
+  Zeiten stehen in festen Ziffernzellen, der Doppelpunkt mittig. Japanisch, Arabisch
   (rechts nach links) und Emoji werden korrekt gesetzt; Emoji am Rand eines Titels fallen
   weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
@@ -96,13 +120,14 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout mit
   heller Schnittkante.
 - **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
-  noch Cover, Titel und Künstler.
+  noch Cover, Titel und Künstler (im Cover Flow treten die Nachbarn ins Dunkel zurück).
 - **OLED-Schutz.** Die ganze Komposition wandert unmerklich um ein paar Pixel, die Uhr im
   Ruhebildschirm wird jede Viertelstunde umgehängt, am Bildschirmrand ist es immer schwarz.
 - **Jeder Zustand ist gestaltet:** spielt, pausiert, puffert, stumm, Titelwechsel, nichts läuft, Verbindung weg, Lautsprecher nicht erreichbar
   oder unbekannt, Token abgelehnt, Einrichtung.
 - **Als Nächstes** kommt aus der Music-Assistant-Warteschlange (`music_assistant.get_queue`);
-  das Cover des nächsten Titels wird vorab berechnet, damit der Wechsel nahtlos ist.
+  das Cover des nächsten Titels wird vorab berechnet, damit der Wechsel nahtlos ist. Mit
+  Music Assistant direkt verbunden steht hinter dem Album auch sein Jahr.
 - **Lautsprechergruppe.** Spielen weitere Lautsprecher mit (Music Assistant, Attribut
   `group_members`), steht neben der Uhrzeit „Wohnzimmer + 5“ – so, wie Sonos und Spotify
   Gruppen benennen; bei nur einem weiteren Lautsprecher beide Namen („Wohnzimmer + Küche“),
@@ -165,11 +190,17 @@ Beim ersten Start zeigt Klangbild einen QR-Code und einen sechsstelligen Code.
    Langlebige Zugangstoken → Token erstellen*.
 4. *Lautsprecher suchen* – Klangbild fragt Home Assistant nach allen `media_player`-Entitäten,
    Music-Assistant-Player stehen oben. Den Wohnzimmer-Lautsprecher wählen.
-5. Ruhezeit und Optionen wählen, *Speichern*. Der Fernseher verbindet sich sofort.
+5. Ruhezeit und Optionen wählen.
+6. **Music Assistant (freiwillig)** – für Cover Flow mit der ganzen Warteschlange. Die Adresse
+   (z. B. `http://192.168.1.10:8095`) ist meist schon eingetragen, wenn gerade Musik läuft.
+   Dazu ein langlebiges Zugangstoken aus Music Assistant: im eigenen Profil (über die
+   Einstellungen) eines erstellen und einfügen. Klangbild prüft beides beim Speichern. Wer es
+   nicht braucht, lässt die Felder leer.
+7. *Speichern*. Der Fernseher verbindet sich sofort.
 
 Später ändert sich die Verbindung über die Einstellungen am Fernseher: **OK lange drücken**
-(oder die Menütaste) → *Verbindung → Home Assistant* zeigt den QR-Code wieder. *Zurück*
-schließt ihn.
+(oder die Menütaste) → *Verbindung → Home Assistant* (oder *Music Assistant*) zeigt den
+QR-Code wieder. *Zurück* schließt ihn.
 
 ### Alternativ: alles per ADB
 
@@ -185,6 +216,10 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | `ha_url` | String | Adresse von Home Assistant (wird gespeichert) |
 | `token` | String | Langlebiges Zugangstoken (wird gespeichert) |
 | `entity` | String | `media_player`-Entität (wird gespeichert) |
+| `ma_url` | String | Adresse von Music Assistant, freiwillig (wird gespeichert) |
+| `ma_token` | String | Zugangstoken von Music Assistant (wird gespeichert) |
+| `view` | String | Ansicht: `einzelbild` (Standard) oder `coverflow` |
+| `appearance` | String | Erscheinungsbild: `automatisch` (Standard), `hell` oder `dunkel` |
 | `sleep_minutes` | Int/String | Minuten ohne Musik bis zur Ruhe (1–720, Standard 10) |
 | `sleep_action` | String | `release` (Bildschirm freigeben, Standard) oder `close` (App schließen) |
 | `clock` | Boolean | Uhr anzeigen (Standard `true`) |
@@ -201,7 +236,8 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | `debug` | Boolean | Nur für diesen Start: Bildrate einblenden (siehe Fehlerbehebung) |
 
 Läuft Klangbild schon, übernimmt es neue Extras ohne Neustart. Boolesche Werte verstehen
-auch `ja`/`nein` und `an`/`aus`.
+auch `ja`/`nein` und `an`/`aus`. Eine neue Adresse ohne ihr Token verwirft das gespeicherte
+Token: Ein Token geht nur an die Adresse, für die es gemacht ist.
 
 ## Home-Assistant-Automationen
 
@@ -361,15 +397,18 @@ sich die Einstellungen nach einer Minute von selbst.
 
 | Bereich | Zeile | Werte |
 |---|---|---|
-| Anzeige | Uhrzeit, Fortschritt, Als Nächstes, Album, Lautsprechergruppe | an / aus |
+| Anzeige | Ansicht | Einzelbild / Cover Flow |
+| | Uhrzeit, Fortschritt, Als Nächstes, Album, Lautsprechergruppe | an / aus |
 | | Lautstärke | bei Änderung / immer / aus |
-| Licht | Wandlicht | kräftig / normal / dezent / aus |
+| Licht | Erscheinungsbild | dunkel / automatisch / hell |
+| | Wandlicht | kräftig / normal / dezent / aus |
 | | Tag und Nacht | an / aus |
 | Fernbedienung | Musik steuern (OK, ◀ / ▶) | an / aus |
 | | Hoch und runter | einblenden / Lautstärke |
 | Ruhe | Ruhe nach | fünf Minuten bis zwei Stunden |
 | | Danach | Bildschirm freigeben / App schließen |
 | Verbindung | Home Assistant | OK zeigt den QR-Code zum Einrichten |
+| | Music Assistant | verbunden / nicht eingerichtet / …; OK zeigt den QR-Code |
 
 ## Bildschirmschoner (optional)
 
@@ -406,6 +445,9 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | Ruckeln? | Mit `--ez debug true` starten: oben links stehen Bilder pro Sekunde, langsamster Frame und verspätete Frames. Außerdem: `adb shell dumpsys gfxinfo io.github.hazymorning.klangbild`. |
 | App schließt nach einer Weile | Ruhezeit mit „App schließen“ eingestellt – in den Einstellungen auf „Bildschirm freigeben“ ändern. |
 | Klangbild fehlt auf dem Startbildschirm | Per ADB installierte Apps stehen unter *Apps → Ihre Apps → Alle anzeigen*; von dort zu den Favoriten verschieben. Oder aus Home Assistant öffnen (`media_player.select_source`). |
+| Cover Flow zeigt rechts nur ein Cover | Ohne direkte Verbindung zu Music Assistant kennt Klangbild nur den nächsten Titel. Music Assistant auf der Einrichtungsseite eintragen. |
+| Menü: „Music Assistant · Token abgelehnt“ | Das Token ist abgelaufen (nach einem Jahr) oder gelöscht. Neues Token erstellen und über den QR-Code eintragen. |
+| Menü: „Music Assistant · Nicht erreichbar“ | Adresse prüfen (Port meist `:8095`). Klangbild zeigt bis dahin, was Home Assistant weiß. |
 | Keine Lautsprechergruppe zu sehen | Music Assistant meldet synchron gruppierte Lautsprecher über das Attribut `group_members`; spielt der Lautsprecher in einem Gruppen-Player mit, erkennt Klangbild das am Namen der aktiven Warteschlange (`music_assistant.get_queue`), spätestens nach einer Minute. Spielt der Lautsprecher allein, steht bewusst nichts da. |
 
 Logs: `adb logcat | grep -i klangbild`
@@ -414,12 +456,16 @@ Logs: `adb logcat | grep -i klangbild`
 
 - Keine Telemetrie, keine Werbung, keine Cloud-Dienste. Klangbild spricht nur mit deinem
   Home Assistant, deinem Music-Assistant-Server und den Cover-Servern der Musikdienste.
-- Der Token liegt nur im App-eigenen Speicher; Backups und Geräteübertragung sind
-  ausgeschlossen. Er wird ausschließlich an den Home-Assistant-Host geschickt, nie an
-  Cover-Server.
+- Die Tokens liegen nur im App-eigenen Speicher; Backups und Geräteübertragung sind
+  ausgeschlossen. Jedes geht ausschließlich an seinen eigenen Server (Home Assistant bzw.
+  Music Assistant), nie an Cover-Server – und nur an die Adresse, für die es gemacht ist:
+  Ändert sich die Adresse ohne neues Token, wird das alte verworfen, sodass auch keine andere
+  App auf dem Fernseher es umleiten kann.
+- Cover werden mit Grenzen geladen (höchstens 16 MB, im Speicher nie größer als nötig);
+  unverschlüsseltes `http://` ist nur im Heimnetz erlaubt, auch nach Weiterleitungen.
 - Die Einrichtungsseite läuft nur, solange der QR-Code zu sehen ist, verlangt den
   sechsstelligen Code (nach acht Fehlversuchen gibt es einen neuen) und gibt den
-  gespeicherten Token nie zurück. Im Heimnetz läuft sie über `http://` – wie meist auch
+  gespeicherten Tokens nie zurück. Im Heimnetz läuft sie über `http://` – wie meist auch
   Home Assistant selbst.
 - Der Signaturschlüssel im Repo (`keystore/`) ist nur für diese App erzeugt und schützt
   nichts außer Updates dieser privaten Sideload-App (siehe `docs/DECISIONS.md`).
@@ -441,7 +487,8 @@ Logs: `adb logcat | grep -i klangbild`
 
 ## Lizenzen
 
-- Schrift: [Mona Sans](app/src/main/assets/licenses/MonaSans-OFL.txt) (GitHub, mit Degarism
-  Studio), SIL Open Font License 1.1, unverändert in die App eingebunden.
+- Schriften: [Jost](app/src/main/assets/licenses/Jost-OFL.txt) (Owen Earl, indestructible
+  type*) und [DM Sans](app/src/main/assets/licenses/DMSans-OFL.txt) (Colophon Foundry), beide
+  SIL Open Font License 1.1, unverändert in die App eingebunden.
 - Bibliotheken: AndroidX/Jetpack Compose, Kotlin Coroutines und kotlinx.serialization,
   OkHttp, ZXing – Apache License 2.0.

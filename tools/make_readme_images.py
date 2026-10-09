@@ -4,8 +4,8 @@
     ./gradlew :app:testDebugUnitTest --tests '*Readme*' -Proborazzi.test.record=true
     python3 tools/make_readme_images.py
 
-Stills become high-quality JPEGs (4:4:4, dark gradients survive), the track change an
-animated GIF (dithered, 10 fps).
+Stills become high-quality JPEGs (4:4:4, dark gradients survive), the track change and the
+Cover Flow turning over animated GIFs (dithered, 10 fps).
 """
 import glob
 import os
@@ -26,8 +26,8 @@ def stills():
         print("still", name)
 
 
-def motion():
-    frames = sorted(glob.glob(os.path.join(SRC, "readme-motion", "frame_*.png")))
+def motion(folder, name):
+    frames = sorted(glob.glob(os.path.join(SRC, folder, "frame_*.png")))
     if not frames:
         return
     images = [Image.open(f).convert("RGB").resize((800, 450), Image.LANCZOS) for f in frames]
@@ -41,16 +41,17 @@ def motion():
     durations[0] = 1200
     durations[-1] = 2500
     quantized[0].save(
-        os.path.join(DST, "titelwechsel.gif"),
+        os.path.join(DST, name + ".gif"),
         save_all=True,
         append_images=quantized[1:],
         duration=durations,
         loop=0,
         optimize=False,
     )
-    print("gif", len(quantized), "frames")
+    print("gif", name, len(quantized), "frames")
 
 
 if __name__ == "__main__":
     stills()
-    motion()
+    motion("readme-motion", "titelwechsel")
+    motion("readme-flow", "cover-flow")

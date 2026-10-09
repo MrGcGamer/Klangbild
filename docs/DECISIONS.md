@@ -526,3 +526,153 @@ Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
   ist oben eingearbeitet, dazu: ein kleinerer, weicherer Lichtstreifen hinter der gewählten
   Menüzeile, der nur sie beleuchtet, und ein Satz statt Etikett, wenn Home Assistant nicht
   erreichbar ist.
+
+## 24. Version 3: Jost und DM Sans statt Mona Sans
+
+Rückmeldung zu 2.0: Mona Sans sah aus wie eine zwanzig Jahre alte Systemschrift. Gesucht war
+eine wirklich schöne Schrift – unabhängig recherchiert, nicht aus einer Vorlage abgeleitet.
+
+- **Vorgehen:** 43 frei lizenzierte Schriften mit den echten Zeilen der App in TV-Größen
+  gesetzt; zehn davon in der Bühne, hell und dunkel; große Detailbögen; fünf Paarungen.
+  Zuletzt eine Blindkritik durch einen unabhängigen Prüfer, der die Namen nicht kannte.
+- **Ausgeschlossen:** Fontshare-Schriften (ihre Lizenz verbietet die Weitergabe über
+  Repositorys und jede Veränderung) – nur SIL OFL; Google Sans, die Stimme von Google TV
+  selbst. Die neutralen Grotesken (Inter, Geist, Fixel, Schibsted, Public Sans, Onest,
+  Golos, Hanken, Libre Franklin, Mona …) sehen einander zum Verwechseln ähnlich: kompetent,
+  aber genau der „Standard“-Eindruck, der kritisiert wurde.
+- **Gewählt, Platz 1 der Blindkritik:** **Jost** (Owen Earl, indestructible type*, OFL,
+  v3.710) – eine geometrische Grotesk in der Linie der Futura – für Titel ab 24 sp, die
+  große Uhr, Überschriften und alle Ziffern; **DM Sans** (Colophon Foundry, OFL, v4.004, mit
+  optischen Größen 9–40) für alles bis 21 sp. Das klassische Prinzip aus Auszeichnungs- und
+  Textschrift (wie Futura und Avenir). Beide haben eine Versalhöhe von 0,70 em, die
+  Ausrichtungen des Rasters an Versalhöhen gelten also über beide hinweg. Jost allein fiel
+  durch (kleine Zeilen zu schwach, x-Höhe 0,46), DM Sans allein wirkte wie die
+  Web-Vorlage von heute.
+- **Feinschliff aus der Kritik:** Titel 400 auf zwei Zeilen, 420–430 ab drei; Laufweite −1 %
+  bei 44/40 sp, −0,5 % bei 34/30, 0 darunter; Zeilenabstand 1,13–1,16 (ein Umlaut stößt
+  nicht an die Unterlänge darüber); Künstler 21/500, Album 17/400, 15-sp-Zeilen 440 mit
+  +1,5 %. Die Versionszeile steht in DM Sans – Jost nie unter 24 sp außer bei Ziffern.
+- **Ziffern:** DM Sans hat keine Tabellenziffern und eine sehr schmale Eins (0,34 gegen
+  0,66 em) – in festen Zellen klafften Lücken („4:1 1“). Josts Ziffern sind gleichmäßig
+  (0,45–0,60 em): Zeiten stehen in Jost in festen Zellen, der Doppelpunkt um 0,123 em
+  angehoben (DM Sans 0,10 em). Die große Uhr im Ruhebildschirm (132 sp) behält ihre
+  natürlichen Ziffern; jede neue Minute blendet weich über (700 ms), damit die zentrierte
+  Zeile nie springt.
+- **Folgen:** Die schmale Ersatzbreite entfällt (keine Breitenachse); die Titelleiter endet
+  bei 24 sp auf vier Zeilen. Zeichenabdeckung: Jost Latin Ext-A 99 % und Kyrillisch, DM Sans
+  Latin Ext-A 88 % (es fehlen nur Esperanto-Buchstaben und Raritäten). Die APK ist rund 1 MB
+  kleiner.
+
+## 25. Hell am Tag, dunkel am Abend
+
+Gewünscht: tagsüber hell, abends und nachts dunkel – automatisch, in den Einstellungen
+festlegbar. Gewählt wurde die einfachste robuste und übliche Regel.
+
+- **Automatisch folgt der Sonne** – die Regel, nach der auch Android und Apple TV ihr dunkles
+  Design schalten: hell von Sonnenaufgang bis Sonnenuntergang (Elevation −0,833°) laut
+  `sun.sun` aus Home Assistant, ohne diese Entität nach der Uhr (eine Näherung der
+  Sonnenhöhe aus Tageszeit). Ein halbes Grad Hysterese verhindert Flackern in der Dämmerung.
+  Einstellung *Erscheinungsbild*: Automatisch (Standard), Hell, Dunkel.
+- **Die helle Wand ist warmes Papier** (Oklab L 0,915), nie Weiß, mit einem Hauch der
+  Coverfarbe – zum Warmen gezogen, damit ein rotes Cover Pfirsich gibt statt Rosa; das
+  *Wandlicht* stellt ein, wie viel (Aus = reines Papier). Statt des Lichts wirft das Bild
+  einen weichen Schatten (10 dp Versatz, σ 16 dp, höchstens 20 % dunkler, dazu ein feiner
+  Kontaktschatten) – wieder eine Bitmap je Szene.
+- **Schrift** in denselben drei Stufen, gespiegelt (Oklab L 0,24 / 0,37 / 0,49); auch die
+  leiseste hat auf Papier mindestens 4,5 : 1. Ein weißes Cover bleibt eine Spur weißer als
+  das Papier und bekommt eine dunkle Haarlinie; kleine Cover liegen in einem elfenbeinfarbenen
+  Passepartout statt einem schwarzen; eine Pause dimmt das Bild weniger (es würde sonst
+  schmutzig).
+- **Der Wechsel** blendet die ganze Bühne in 2,4 s über, wie das Licht draußen; andere
+  Bildschirme gehen durchs Dunkle. Ruhe, Menü (sein Lichtband wird ein etwas weißeres Band)
+  und Einrichtung folgen der Wand.
+
+## 26. Cover Flow
+
+Die große Aufgabe dieser Runde: eine zweite Ansicht wie das Cover Flow aus iTunes – das
+aktuelle Cover in der Mitte, links die vorherigen, rechts die nächsten, gedreht im Raum, mit
+Spiegelung auf glänzendem Boden –, mit sehr sanften Übergängen, bis zu den Randfällen
+durchdacht. Einstellung *Ansicht*: Einzelbild (Standard) oder Cover Flow.
+
+- **Geometrie** aus dem Entwurf vermessen: das mittlere Cover 300 dp (die Mitte 272 dp vom
+  linken Rand), zwei Karten je Seite, um 60° zur Mitte gedreht, ihre Außenkanten 222,5 und
+  255 dp neben der Mitte, in 92 % der Höhe – alle in *einer* gemeinsamen Perspektive. Die
+  Textspalte beginnt bei 570 dp; alle Regeln des Einzelbilds gelten weiter. Die Lage einer
+  Karte ist eine einzige Zahl (0 = Mitte, ±1, ±2 …); daraus folgen pro Frame vier Ecken und
+  ein texturiertes Viereck (`Matrix.setPolyToPoly`) – nichts wird gemessen oder angelegt.
+- **Karten als fertige Texturen:** Bild, runde Ecken und Spiegelung sind in eine Bitmap
+  gebacken, so ist jede Karte ein einziges Viereck, ohne Offscreen-Ebenen. Android zeichnet
+  Bitmaps ohne Mipmaps; eine weit gedrehte Karte würde in Bewegung flimmern – darum gibt es
+  jede Karte auch in halber Auflösung, und ab etwa zwei Dritteln Stauchung wird überblendet.
+- **Licht:** Im Dunkeln ein breiter, schwacher Lichtfleck über den Karten in der Farbe des
+  aktuellen Covers, vor der Textspalte verschwunden, der Boden bleibt schwarz, damit die
+  Spiegelungen stehen. Auf Papier werfen die Karten weiche Schatten, und was zur Seite steht,
+  tritt ein wenig ins Papier zurück – wie Dinge, die weiter vom Fenster stehen. Nachts treten
+  die Seitenkarten ganz ins Dunkel zurück.
+- **Bewegung:** Kommt ein anderes Bild in die Mitte, dreht sich die Reihe in 1,3 s weiter –
+  sanfter Anfang, eine ruhige Mitte (höchstens doppelt so schnell wie im Schnitt), langes
+  weiches Ankommen. Eine Karte, die die Mitte verlässt, schwenkt früh zur Seite – drehen und
+  ausweichen zugleich –, so sind zwei Karten, die sich in der Mitte begegnen, schon
+  auseinander, wenn sie aneinander vorbeiziehen: Sie schneiden sich nie, und die
+  Zeichenreihenfolge darf einfach wechseln (ein Test prüft das über die ganze Bewegung). Die
+  alten Zeilen gehen zuerst, die neuen steigen ab 620 ms, wenn das neue Cover ankommt.
+- **Kein Bild steht je halb durchsichtig vor einem anderen:** Neue Karten rollen deckend von
+  jenseits des Reihenendes herein, im Verband; Karten, die nicht mehr gebraucht werden,
+  lösen sich auf, bevor etwas an ihnen vorbeizieht. Ein Sprung zu etwas Neuem rollt das neue
+  Cover vom Ende herein; wird ein Titel dazwischengeschoben oder die Warteschlange
+  umgestellt, wird die kommende Seite als Ganzes ersetzt.
+- **Ein Wechsel nach dem anderen:** Kommt während einer Bewegung schon der nächste Titel
+  (schnelles Weiterschalten), landet die laufende Bewegung zuerst, dann geht es direkt zum
+  neuesten – keine abgebrochene Bewegung, kein Sprung. Das Einzelbild macht es jetzt genauso.
+- **Die Reihe** (`CoverStrip`) kennt Bilder, nicht Songs: Die Lieder eines Albums sind eine
+  Karte, ein Radiosender auch. Jede Karte behält ihre Identität, solange sie in der Reihe
+  steht – so wird jede Änderung Karte für Karte animiert: Die nächste Karte kommt aus der
+  rechten Reihe, ein Schritt zurück holt die linke, alles andere ist eine neue Karte. Solange
+  die Warteschlange zum neuen Titel noch nicht bekannt ist, bleibt rechts stehen, was dort
+  stand. Ein anderer Lautsprecher beginnt eine neue Reihe.
+- **Szenen** werden außerhalb des Hauptthreads vorbereitet (die Mitte zuerst, dann was kommt,
+  dann was war) und zwischengespeichert. Ändert sich nur das Tageslicht, behalten die Karten
+  ihre Texturen; ändert sich die Wand (hell ↔ dunkel), wechselt die ganze Reihe auf einmal,
+  sobald jede Karte bereit ist – nie eine Reihe aus zwei Welten.
+
+## 27. Music Assistant direkt (freiwillig)
+
+Home Assistant reicht von Music Assistants Warteschlange nur den aktuellen und den nächsten
+Titel weiter (`music_assistant.get_queue`). Für Cover Flow – zwei Karten rechts, die
+Vorgeschichte links – braucht es die ganze Warteschlange, und die kennt nur Music Assistant
+selbst.
+
+- **Freiwillig:** Ohne Music Assistant funktioniert alles wie bisher (rechts der nächste
+  Titel, links merkt sich Klangbild, was lief). Mit Music Assistant: zwei Karten rechts,
+  echte Vorgeschichte links ab dem ersten Titel, dazu das Erscheinungsjahr des Albums, das
+  Home Assistant nicht weitergibt.
+- **Weg:** Music Assistants eigene API (`POST <adresse>/api`, Befehl
+  `player_queues/items`), mit einem langlebigen Zugangstoken – seit Version 2.7 ist eine
+  Anmeldung Pflicht; Home Assistants eigene Zugangsdaten taugen dafür nicht. Gelesen werden
+  40 Titel vor und nach dem aktuellen (genug, um auch hinter einem Album mit zwanzig Liedern
+  das nächste zu finden), immer wenn Home Assistants Warteschlange sich ändert, und nur,
+  wenn der aktuelle Titel dort derselbe ist, den Home Assistant meldet. Bilder kommen über
+  Music Assistants Bildproxy (ohne Anmeldung) oder, wenn öffentlich, direkt vom Dienst.
+- **Einrichtung** auf der Einrichtungsseite: Die Adresse errät Klangbild aus den Bildlinks
+  (`…:8095/imageproxy/…`), das Token kommt aus dem eigenen Profil in Music Assistant; beides
+  wird vor dem Speichern geprüft. Im Menü zeigt *Verbindung → Music Assistant* den Zustand.
+
+## 28. Aufräumen, Leistung, Sicherheit
+
+- **Ein Token geht nur an die Adresse, für die es gemacht ist.** Ändert sich die Adresse
+  (auf der Einrichtungsseite oder per `am start`-Extra) ohne neues Token, wird das alte
+  verworfen. Vorher hätte jede andere App auf dem Fernseher die Startaktivität mit einer
+  eigenen `ha_url` aufrufen und so das gespeicherte Token an sich schicken lassen können.
+- **Cover mit Grenzen:** Ein Download über 16 MB wird nicht gelesen; wie seltsam ein Bild
+  auch geformt ist, im Speicher wird es nie größer als ein Quadrat von 2048 px. Antworten von
+  Music Assistant sind auf 4 MB begrenzt.
+- **Klartext nur im Heimnetz – auch nach Weiterleitungen:** Die Prüfung läuft jetzt auch für
+  jeden Weiterleitungsschritt, nicht nur für die erste Anfrage.
+- **Kein toter Code:** Die statischen Bühnen für Standbilder liegen bei den Tests, die App
+  hat nur ihre animierten Bühnen; der Satz der Bühne (Stile, Titelleiter, Zeilenumbrüche)
+  steht in einer eigenen Datei.
+- **Tests:** 212, etwa 40 s auf zwei Prozessen; die Bewegungen werden als Bildfolgen geprüft
+  (Cover Flow vor, zurück, Sprung, eingeschobener Titel, geänderte Warteschlange, schnelles
+  Weiterschalten, Papier).
+- **Einrichtungsseite** im Stil der App: eine Schrift (die des Handys), normale Schreibweise,
+  keine Kursive, keine gesperrten Versalien; hell oder dunkel, wie das Handy eingestellt ist.

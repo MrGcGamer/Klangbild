@@ -23,7 +23,10 @@ python3 tools/make_readme_images.py                            # docs/screens/ f
   Curated renderings for the README live in `docs/screens/`.
 - The progress bar refreshes in a loop of its own, so a stage never goes idle: stills wrap
   their content in `Fixtures.Still { }` (provides `LocalStill`), animated sequences use
-  `createComposeRule()` with `mainClock.autoAdvance = false`.
+  `createComposeRule()` with `mainClock.autoAdvance = false`. The static stages for stills
+  (`Stage`, `FlowStage`) live in the test sources; the app only has its theatres.
+- Motion is judged as contact sheets: `FlowMotionTest`/`TransitionTest` render frames to
+  `app/build/screenshots/…`; tile them with Pillow and look at them.
 - Look at renders with the Read tool; build contact sheets with Pillow for motion.
 - The emulator smoke test (CI) talks to a stand-in Home Assistant: `ci/fake_ha.py`.
 
@@ -33,27 +36,39 @@ python3 tools/make_readme_images.py                            # docs/screens/ f
 data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swappable one for
                 group members via watch(), render_template via watchTemplate(), call_service,
                 ping, backoff), EntityStore (compressed diff applier), PlayerParser (entity +
-                MA get_queue), HaUrls, LocalNetwork (cleartext only in LAN), ArtworkUrls (CDN
-                hi-res rewrites), HaSource (NowPlayingSource: player + sun.sun + MA queue +
-                speaker count for "Überall")
-data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader, Backoff
-domain/         TrackInfo, PlayerSnapshot (+ SpeakerGroup, volume), SpeakerLabel ("Wohnzimmer + 5",
-                "Überall", room names, "35 %"), TrackText (typographic cleanup), Progress +
-                SmoothedPosition, TimeLine (clock format, separator), ScreenStateMachine
-color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, text inks), Lighting (time of day)
-render/         HaloLayout (the grid), WallGlow (the artwork's light on the wall), HaloLight
-                (PrintShape; lamp tint for rest and menu), SceneBuilder (per-track precompute:
-                Lanczos cover at exact px, glow map, palette), ImageOps
-art/            ChladniArt (missing-cover art), Noise
-app/            NowPlayingController (single source of truth → StateFlow<UiState>), KlangbildApp/AppGraph
-setup/          MiniHttp, SetupHandler (one-time code, API), SetupPage (HTML), SetupServer (+ QR, discovery)
+                MA get_queue), HaUrls, LocalNetwork (cleartext only in LAN, every redirect hop),
+                ArtworkUrls (CDN hi-res rewrites), HaSource (NowPlayingSource: player + sun.sun +
+                MA queue + speaker count for "Überall" + the optional MA queue window)
+data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
+                MaQueue (queue items around the current one → QueueWindow, pictures via imageproxy)
+data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader (size limits), Backoff
+domain/         TrackInfo (+ pictureKey), PlayerSnapshot (+ SpeakerGroup, QueueInfo), SpeakerLabel
+                ("Wohnzimmer + 5", "Überall", room names, "35 %"), TrackText (typographic cleanup),
+                Progress + SmoothedPosition, TimeLine (clock format, separator), ScreenStateMachine,
+                StageView (SINGLE / FLOW), CoverStrip (the cover flow's cards: one per picture, ids kept)
+color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, inks, both walls), Lighting
+                (time of day), Appearance (LIGHT / DARK, by the sun)
+render/         HaloLayout (the grid, per view), WallGlow (the artwork's light on the dark wall),
+                WallShade (its shadow on paper), HaloLight (PrintShape; lamp tint for rest and
+                menu), SceneBuilder (per-track precompute: Lanczos cover at exact px, wall, palette,
+                flow card; relight), FlowGeometry (the shared perspective), FlowCards (baked card
+                textures), FlowLight (the pool of light above the cards), ImageOps
+art/            ChladniArt (missing-cover art), StableHash
+app/            NowPlayingController (single source of truth → StateFlow<UiState>), Scenes (scene
+                cache + builds off the main thread), KlangbildApp/AppGraph
+setup/          MiniHttp, SetupHandler (one-time code, API, token bound to its address), SetupPage
+                (HTML), SetupServer (+ QR, discovery)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), stage/ (Stage layers,
-                StageTheatre transitions, ProgressBar, StageModel + StageTexts), theme/Type
-                (Mona Sans, `mona()`), MenuScreen, RestScreen, SetupScreen, Motion, DebugOverlay
+                Typesetting, StageTheatre transitions, ProgressBar, StageModel + StageTexts),
+                flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
+                theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
+                RestScreen, SetupScreen, Motion, DebugOverlay
 dream/          KlangbildDream (DreamService with ComposeView)
-config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel) + SettingsStore (DataStore),
-                SettingsMenu (entries, values, German explanations, steps), LaunchExtras (am start extras)
-test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME)
+config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode) + SettingsStore
+                (DataStore), SettingsMenu (entries, values, German explanations, steps), LaunchExtras
+                (am start extras)
+test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME),
+                Fixtures, the static stages for stills
 ```
 
 ## Design principles (do not regress)
@@ -68,16 +83,19 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   cap height from the artwork's top edge, "Als Nächstes" stands with its baseline on the
   bottom edge; every line starts on the column's left edge. No mirroring; the whole stage
   drifts ±12 dp against burn-in. Square artwork has 8 dp corners.
-- **One typeface: Mona Sans** (GitHub release with the optical-size axis, OFL, shipped
-  unmodified), via `mona(size, weight, …)` – optical size = size in sp. Sentence case only:
-  no capitals, no letter-spaced labels, no italics, no second family (those read as "AI
-  template"). Title 44/40 sp (2 lines, weight 440), then 34/30/26 sp (3 lines, 450–460);
-  only if that is not enough does the whole block (never a single line) go narrower (wdth
-  87.5); Japanese/Chinese/Korean titles at 0.88×. A version ("Radio Edit") is a quiet
-  subtitle line under the title. Artist 21 sp/520; album, work 17 sp; labels, times, status,
-  next 15 sp – nothing smaller. Large lines are pulled left by their extra side bearing
-  (`opticalIndent`). Times use `Figures`: digits in equal cells (Mona's tabular figures slash
-  the zero) and the colon raised 0.095 em. Mona lacks U+202F, U+2009 and U+2002 – use U+00A0.
+- **Two faces, one voice:** Jost (Owen Earl, OFL) for titles ≥ 24 sp, the large clock,
+  headings and all figures (`titleType()`); DM Sans (Colophon, OFL, optical size = size in
+  sp) for everything ≤ 21 sp (`textType()`). Both shipped unmodified, both cap height 0.70.
+  Sentence case only: no capitals, no letter-spaced labels, no italics, no third family
+  (those read as "AI template"); the platform's Google Sans is out (it reads as Google TV's
+  own UI). Title 44/40 sp (2 lines, weight 400, −1 %), then 34/30 sp (3 lines, 420, −0.5 %),
+  26 sp (3 lines, 430), 24 sp (4 lines); Japanese/Chinese/Korean titles at 0.88×. A version
+  ("Radio Edit") is a quiet subtitle line (DM Sans). Artist 21 sp/500; album, work 17 sp;
+  labels, times, status, next 15 sp/440 – nothing smaller. Large lines are pulled left by
+  their extra side bearing (`opticalIndent`). Times are set in Jost with `Figures`: digits in
+  equal cells (DM Sans has no tabular figures and a narrow 1), colon raised 0.123 em; the
+  rest clock keeps natural figures and dissolves into each new minute. Neither face has
+  U+202F, U+2009 or U+2002 – use U+00A0.
   Titles ≤ 3 lines, prefer breaks after section dashes, no mid-word breaks
   (`breaksInsideWord`), a word of one to three letters stays with the next ("Spiegel / im
   Spiegel"); artists on one line (smaller, then "u. a."); the year leaves the album line
@@ -87,8 +105,15 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   in UI prose a short word opening a sentence never ends a line, and articles and
   adjectives stay with their noun.
 - **Text colour:** three levels only – title; artist, clock and the bar's fill; everything
-  else (like white at 100 / 80 / 62 %) – near-neutral with a breath of the cover's hue
-  (chroma ≤ 0.009, a little warmer in the evening), never #FFF, never ivory.
+  else (like white at 100 / 80 / 62 %; on paper Oklab L 0.24 / 0.37 / 0.49, the quietest
+  still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
+  warmer in the evening), never #FFF, never ivory.
+- **Light and dark wall (`Appearance`):** automatic by the sun – light from sunrise to sunset
+  (elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) – or fixed. The
+  light wall is warm paper (Oklab L 0.915) with a breath of the cover's colour pulled towards
+  warm, never white; there the artwork casts a soft shadow (`WallShade`) instead of light, a
+  white cover gets a dark hairline, small covers an ivory mat. A wall change cross-fades the
+  stage in 2.4 s.
 - **Light (`WallGlow`):** a tight halo in the colours of the artwork's own edges, the same on
   every side: each wall point takes the nearest edge colour, averaged over a stretch that
   grows with distance (diffuse, no streaks); at most L* ≈ 17 at the edge and never more than
@@ -114,7 +139,20 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   text; same track in new light → quiet cross-fade. Pause (600 ms) dims light, artwork and
   text – nothing moves, so the lines hung on the artwork's edges stay aligned. Mute is only
   a word; a lost link dims like a pause. Nothing slides, nothing bounces. Screens switch by
-  fading through dark.
+  fading through dark. **One change at a time:** what arrives during a change waits until it
+  has landed, then the newest goes next (`snapshotFlow … conflate()`) – no change is cut short.
+- **Cover Flow** (`StageView.FLOW`): middle cover 300 dp centred 272 dp from the left, two
+  cards per side turned 60° in one shared perspective (outer edges 222.5/255 dp beside the
+  centre, 92 % height), mirrored on a glossy floor; column from 570 dp, 50 dp right margin;
+  every other rule holds. A card is one textured quad (print, corners and reflection baked;
+  a half-size copy against shimmer – HWUI has no mipmaps). Dark: a dim pool of the cover's
+  colour above the cards (`FlowLight`); paper: soft card shadows, side cards fade a little
+  into the paper; night: side cards step back into the dark. The strip turns over in 1.3 s
+  (`Motion.Turn`, peak ≤ 2× average speed); leaving cards swing aside early so crossing cards
+  never intersect (tested); arriving cards roll in opaque from beyond the strip's end,
+  unwanted ones dissolve before anything passes them – never a half-transparent card in
+  front of another. Cards are pictures, not songs (`CoverStrip`, `TrackInfo.pictureKey`);
+  ids are kept so every change animates card by card.
 - **States say it in words**, in the status line, place first and state last: "Wohnzimmer
   · Pausiert", "Küche · Stumm", "Lautstärke 35 %" (3.5 s), "Überall";
   "Verbindung wird wiederhergestellt …" in the progress bar's place.
@@ -122,8 +160,12 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
   a soft, low band of light (σ 120 × 12 dp, ≈ L* 10) that lights it alone; the list glides
   through it and fades with distance. Values are words, changes apply at once (left/right
-  clamp, OK wraps), closes itself after 60 s. Options show or hide parts and dim the light –
-  no fonts, colours or layout variants.
+  clamp, OK wraps), closes itself after 60 s. Options show or hide parts, choose the view and
+  the wall, and dim the light – no fonts, colours or layout variants.
+- **Music Assistant** is optional: without it Klangbild works from Home Assistant alone; with
+  it (address + long-lived token on the setup page, checked before storing) the cover flow
+  shows the whole queue and the album line its year. Tokens only ever go to the address they
+  were made for; a new address without its token drops the old one.
 - **Generated art:** Chladni plates are ring modes – two or three nodal circles inside 0.64 of
   the radius – made wavy by a second mode (3–6 lobes, rounded: amplitude ≤ 1.5 r/(n² − 1),
   share capped so circles never touch), mirror-symmetric, no sand beyond 0.74–0.84 of the
@@ -131,6 +173,7 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **Rest screen:** large light clock ("H:mm", 132 sp, `Figures`) under a dim pool of light
   that moves with it; re-hung every 15 min; one plain sentence when something is wrong
   ("Home Assistant ist nicht erreichbar."); night: black wall, only the time.
-- **German UI texts**, 24 h clock.
+- **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
+  (system) sans face, sentence case, no italics, light or dark as the phone is set.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,
   dream on Google TV) – mark it as unverified.
