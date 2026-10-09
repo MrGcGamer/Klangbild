@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.em
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.SetupReason
 import io.github.hazymorning.klangbild.render.ArtworkScene
@@ -35,7 +36,7 @@ import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.ui.stage.ArtworkLayer
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
-import io.github.hazymorning.klangbild.ui.stage.GlowLayer
+import io.github.hazymorning.klangbild.ui.stage.WallLayer
 import io.github.hazymorning.klangbild.ui.stage.asColor
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.textType
@@ -45,13 +46,14 @@ import kotlin.math.max
 object SetupArt {
     /**
      * The QR code as a printed card at the exact on-screen pixel size of the cover slot:
-     * ivory paper, dark modules on whole pixels, generous quiet zone. Becomes the "cover" of
-     * the setup scene, so it hangs on the wall in the same light as an album.
+     * ivory paper (a whiter one on the light wall), dark modules on whole pixels, generous
+     * quiet zone. Becomes the "cover" of the setup scene, so it hangs on the wall in the same
+     * light as an album.
      */
-    fun card(qr: Array<BooleanArray>?, sizePx: Int): Bitmap {
+    fun card(qr: Array<BooleanArray>?, sizePx: Int, appearance: Appearance = Appearance.DARK): Bitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        c.drawColor(0xFFEAE2D4.toInt())
+        c.drawColor(if (appearance == Appearance.DARK) 0xFFEAE2D4.toInt() else 0xFFF7F4EE.toInt())
         if (qr != null) {
             val n = qr.size
             val module = max(1, (sizePx * 0.80f / n).toInt())
@@ -68,13 +70,13 @@ object SetupArt {
         return bmp
     }
 
-    fun scene(info: SetupInfo?, screen: ScreenSpec, lighting: Lighting): ArtworkScene {
+    fun scene(info: SetupInfo?, screen: ScreenSpec, lighting: Lighting, appearance: Appearance = Appearance.DARK): ArtworkScene {
         // The code hangs where the artwork would; setup asks for action, so it takes only a
         // little of the evening's dimming.
         val layout = HaloLayout(screen)
         val px = (layout.art * screen.density).toInt()
-        val card = card(info?.qr, px)
-        return SceneBuilder.build("setup|${info?.url}|${info?.code}", card, "setup", screen, Lighting.DAY.lerp(lighting, 0.35f))
+        val card = card(info?.qr, px, appearance)
+        return SceneBuilder.build("setup|${info?.url}|${info?.code}", card, "setup", screen, Lighting.DAY.lerp(lighting, 0.35f), appearance)
     }
 
     /** "http://192.168.1.23:8765" → "192.168.1.23:8765" (what people actually type). */
@@ -99,8 +101,8 @@ fun SetupScreen(
     val label = textType(15f, 500, p.inkQuiet.asColor(), tracking = 0.01f)
     val body = textType(19f, 420, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
     Box(modifier.fillMaxSize()) {
-        BaseWall()
-        GlowLayer(scene)
+        BaseWall(p.wall.asColor())
+        WallLayer(scene)
         ArtworkLayer(scene)
 
         val lead = when (reason) {
@@ -143,7 +145,7 @@ fun SetupScreen(
                                 withStyle(SpanStyle(letterSpacing = 0.03.em)) { append(SetupArt.shortUrl(url)) }
                             }
                         } ?: AnnotatedString("Keine Netzwerkverbindung"),
-                        style = body.copy(color = p.inkFaint.asColor()),
+                        style = body.copy(color = p.inkQuiet.asColor()),
                     )
                 }
             },

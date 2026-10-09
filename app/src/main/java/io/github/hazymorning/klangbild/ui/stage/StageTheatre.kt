@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.hazymorning.klangbild.app.StageData
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.ui.Motion
@@ -34,6 +35,13 @@ enum class Change {
 
     /** Same track, new scene (better cover, time-of-day light): a quiet cross-fade. */
     SOFT,
+
+    /** Same track on the other wall (light ↔ dark): the same cross-fade, slower, like the light outside. */
+    WALL,
+    ;
+
+    /** A cross-fade of the same track. */
+    val isSoft get() = this == SOFT || this == WALL
 }
 
 /**
@@ -66,6 +74,7 @@ fun StageTheatre(
     LaunchedEffect(stage) {
         if (stage.scene !== current.scene || stage.track != current.track) {
             change = when {
+                stage.track.key == current.track.key && stage.scene.appearance != current.scene.appearance -> Change.WALL
                 stage.track.key == current.track.key -> Change.SOFT
                 samePicture(current.scene, stage.scene) -> Change.TEXT
                 else -> Change.FULL
@@ -85,7 +94,11 @@ fun StageTheatre(
         label = "pause-light",
     )
     val coverDim by animateFloatAsState(
-        targetValue = if (quiet) Motion.PAUSED_COVER else 1f,
+        targetValue = when {
+            !quiet -> 1f
+            stage.scene.appearance == Appearance.LIGHT -> Motion.PAUSED_COVER_ON_PAPER
+            else -> Motion.PAUSED_COVER
+        },
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
         label = "pause-cover",
     )
@@ -145,25 +158,25 @@ fun StageTheatre(
     // The text: the old block leaves first, the new lines follow one after another.
     val textStart = if (kind == Change.FULL) Motion.TEXT_IN_MS else Motion.TEXT_IN_SAME_PICTURE_MS
     val textIn: (TextLine) -> Float = { line ->
-        if (prev == null || kind == Change.SOFT) 1f else p(textStart + stagger(line), textStart + stagger(line) + Motion.TEXT_LINE_MS, Motion.Decelerate)
+        if (prev == null || kind.isSoft) 1f else p(textStart + stagger(line), textStart + stagger(line) + Motion.TEXT_LINE_MS, Motion.Decelerate)
     }
     val textRise: (TextLine) -> Float = { line ->
-        if (prev == null || kind == Change.SOFT) 0f else 10f * (1f - textIn(line))
+        if (prev == null || kind.isSoft) 0f else 10f * (1f - textIn(line))
     }
 
     Box(modifier.fillMaxSize()) {
-        BaseWall()
-        if (prev != null && pictureChanges) GlowLayer(prev.scene, level = level)
-        GlowLayer(cur.scene, alpha = newGlow, level = level)
+        BaseWall(cur.scene.palette.wall.asColor())
+        if (prev != null && pictureChanges) WallLayer(prev.scene, level = level)
+        WallLayer(cur.scene, alpha = newGlow, level = level)
         if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
         ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim }, scale = settle)
         if (prevModel != null && prevPlan != null) {
-            val out: () -> Float = { if (kind == Change.SOFT) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS) }
+            val out: () -> Float = { if (kind.isSoft) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS) }
             TextLayer(
                 prevModel,
                 plan = prevPlan,
                 alpha = { out() },
-                rise = { if (kind == Change.SOFT) 0f else -6f * p(0, Motion.TEXT_OUT_MS) },
+                rise = { if (kind.isSoft) 0f else -6f * p(0, Motion.TEXT_OUT_MS) },
                 dim = { textDim },
             )
         }
@@ -187,6 +200,7 @@ private fun durationOf(change: Change) = when (change) {
     Change.FULL -> Motion.TRACK_CHANGE_MS
     Change.TEXT -> Motion.TEXT_CHANGE_MS
     Change.SOFT -> Motion.SOFT_SWAP_MS
+    Change.WALL -> Motion.WALL_CHANGE_MS
 }
 
 /** Same picture: consecutive songs of one album. */

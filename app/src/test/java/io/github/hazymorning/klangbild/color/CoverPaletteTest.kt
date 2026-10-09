@@ -13,14 +13,13 @@ class CoverPaletteTest {
         return out.toIntArray()
     }
 
-    private fun assertReadable(p: ScenePalette) {
-        assertWithMessage("ink $p").that(contrastRatio(p.ink, p.base)).isAtLeast(10f)
-        assertWithMessage("inkMuted $p").that(contrastRatio(p.inkMuted, p.base)).isAtLeast(6f)
-        assertWithMessage("accent $p").that(contrastRatio(p.accent, p.base)).isAtLeast(4.5f)
-        // never harsh white
-        val ink = Oklab.fromArgb(p.ink)
-        assertThat(ink.l).isAtMost(0.95f)
-    }
+    private val covers = listOf(
+        solid(0xFF000000.toInt()),
+        solid(0xFFFFFFFF.toInt()),
+        solid(0xFF808080.toInt()),
+        mix(0xFFFF00FF.toInt() to 0.5f, 0xFF00FFFF.toInt() to 0.5f),
+        mix(0xFFEEE7D8.toInt() to 0.7f, 0xFFD8512E.toInt() to 0.2f, 0xFF2E5BA6.toInt() to 0.1f),
+    )
 
     @Test
     fun `oklab round trip`() {
@@ -42,40 +41,49 @@ class CoverPaletteTest {
     }
 
     @Test
-    fun `palettes stay readable and tame for every edge case`() {
-        val covers = listOf(
-            solid(0xFF000000.toInt()),
-            solid(0xFFFFFFFF.toInt()),
-            solid(0xFF808080.toInt()),
-            mix(0xFFFF00FF.toInt() to 0.5f, 0xFF00FFFF.toInt() to 0.5f),
-            mix(0xFFEEE7D8.toInt() to 0.7f, 0xFFD8512E.toInt() to 0.2f, 0xFF2E5BA6.toInt() to 0.1f),
-        )
-        for (pixels in covers) {
+    fun `text stays readable on both walls for every edge case`() {
+        for (pixels in covers) for (appearance in Appearance.entries) {
             for (lighting in listOf(Lighting.DAY, Lighting.EVENING, Lighting.NIGHT)) {
-                val p = CoverPalette.derive(CoverPalette.analyze(pixels), lighting)
+                val p = CoverPalette.derive(CoverPalette.analyze(pixels), lighting, appearance)
+                val title = contrastRatio(p.ink, p.wall)
+                val quiet = contrastRatio(p.inkQuiet, p.wall)
                 if (lighting == Lighting.NIGHT) {
-                    // at night everything is dimmer, but text must still read
-                    assertWithMessage("night ink $p").that(contrastRatio(p.ink, p.base)).isAtLeast(4.5f)
+                    // at night everything is dimmer, but the title must still read
+                    assertWithMessage("night title $p").that(title).isAtLeast(4.5f)
                 } else {
-                    assertReadable(p)
+                    assertWithMessage("title $p").that(title).isAtLeast(if (appearance == Appearance.DARK) 10f else 9f)
+                    assertWithMessage("quiet $p").that(quiet).isAtLeast(4.5f)
                 }
-                // neon stays in check
-                assertThat(Oklab.fromArgb(p.accent).chroma).isAtMost(0.13f)
-                p.glow.forEach { assertThat(Oklab.fromArgb(it).chroma).isAtMost(0.14f) }
             }
         }
     }
 
     @Test
-    fun `neutral covers get a warm brass accent, colourful ones their own hue`() {
-        val grey = CoverPalette.derive(CoverPalette.analyze(solid(0xFF777777.toInt())))
-        assertThat(grey.tintHue).isNull()
-        val accentHue = Oklab.fromArgb(grey.accent).hue
-        assertThat(accentHue).isWithin(15f).of(CoverPalette.WARM_HUE)
+    fun `the walls are black and warm paper, never white`() {
+        for (pixels in covers) {
+            val dark = CoverPalette.derive(CoverPalette.analyze(pixels), Lighting.DAY, Appearance.DARK)
+            assertThat(dark.wall).isEqualTo(0xFF000000.toInt())
+            val light = CoverPalette.derive(CoverPalette.analyze(pixels), Lighting.DAY, Appearance.LIGHT)
+            val paper = Oklab.fromArgb(light.wall)
+            assertThat(paper.l).isIn(com.google.common.collect.Range.closed(0.88f, 0.93f))
+            // a breath of the cover's colour at most
+            assertThat(paper.chroma).isAtMost(0.02f)
+            // ink never pure black
+            assertThat(Oklab.fromArgb(light.ink).l).isAtLeast(0.2f)
+        }
+    }
 
-        val blue = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())))
-        assertThat(blue.tintHue).isNotNull()
-        assertThat(Oklab.fromArgb(blue.accent).hue).isWithin(12f).of(Oklab.fromArgb(0xFF2E5BA6.toInt()).hue)
+    @Test
+    fun `the light wall takes the cover's hue, a neutral cover leaves it warm`() {
+        val blue = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT)
+        val grey = CoverPalette.derive(CoverPalette.analyze(solid(0xFF777777.toInt())), Lighting.DAY, Appearance.LIGHT)
+        assertThat(blue.lead).isNotNull()
+        assertThat(grey.lead).isNull()
+        assertThat(Oklab.fromArgb(blue.wall).chroma).isGreaterThan(Oklab.fromArgb(grey.wall).chroma)
+        assertThat(Oklab.fromArgb(grey.wall).hue).isWithin(20f).of(CoverPalette.WARM_HUE)
+        // the "Wandlicht" setting at "Aus" leaves plain paper
+        val plain = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT, wallTint = 0f)
+        assertThat(Oklab.fromArgb(plain.wall).chroma).isAtMost(0.007f)
     }
 
     @Test
@@ -91,5 +99,20 @@ class CoverPaletteTest {
         val noon = Lighting.fromLocalTime(13, 0)
         val midnight = Lighting.fromLocalTime(0, 30)
         assertThat(noon.brightness).isGreaterThan(midnight.brightness)
+    }
+
+    @Test
+    fun `the wall turns with the sun and holds steady near the horizon`() {
+        assertThat(Appearance.bySun(30.0)).isEqualTo(Appearance.LIGHT)
+        assertThat(Appearance.bySun(-6.0)).isEqualTo(Appearance.DARK)
+        // sunset is at −0.833°: just above it is still day …
+        assertThat(Appearance.bySun(-0.5)).isEqualTo(Appearance.LIGHT)
+        // … and a value wobbling around the line does not flip the wall back and forth
+        assertThat(Appearance.bySun(-0.6, previous = Appearance.DARK)).isEqualTo(Appearance.DARK)
+        assertThat(Appearance.bySun(-1.0, previous = Appearance.LIGHT)).isEqualTo(Appearance.LIGHT)
+        assertThat(Appearance.bySun(0.0, previous = Appearance.DARK)).isEqualTo(Appearance.LIGHT)
+        // without Home Assistant the clock decides: day at noon, night at midnight
+        assertThat(Appearance.bySun(Lighting.approximateElevation(12, 0))).isEqualTo(Appearance.LIGHT)
+        assertThat(Appearance.bySun(Lighting.approximateElevation(23, 30))).isEqualTo(Appearance.DARK)
     }
 }

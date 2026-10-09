@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
@@ -108,16 +109,17 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     lighting = ui.lighting,
                     nowMs = wall.value,
                     lightFactor = ui.display.light.factor,
+                    appearance = c.appearance,
                 )
                 is Content.SetupContent -> {
-                    val scene = remember(ui.setup, screen, ui.lighting) { SetupArt.scene(ui.setup, screen, ui.lighting) }
+                    val scene = remember(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
                     SetupScreen(c.reason, ui.setup, scene)
                 }
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
         }
         // The settings menu lies over everything and fades in and out on its own.
-        MenuOverlay(ui.menu, ui.lighting)
+        MenuOverlay(ui.menu, ui.lighting, ui.appearance)
     }
 }
 
@@ -129,12 +131,13 @@ private sealed interface Content {
         override val key = "stage"
     }
 
-    data class RestContent(val reason: io.github.hazymorning.klangbild.domain.RestReason, val speaker: String?) : Content {
-        override val key = "rest:$reason"
+    data class RestContent(val reason: io.github.hazymorning.klangbild.domain.RestReason, val speaker: String?, val appearance: Appearance) : Content {
+        // A new wall fades through the dark like a new screen.
+        override val key = "rest:$reason:$appearance"
     }
 
-    data class SetupContent(val reason: io.github.hazymorning.klangbild.domain.SetupReason) : Content {
-        override val key = "setup:$reason"
+    data class SetupContent(val reason: io.github.hazymorning.klangbild.domain.SetupReason, val appearance: Appearance) : Content {
+        override val key = "setup:$reason:$appearance"
     }
 
     data object Dark : Content {
@@ -148,8 +151,8 @@ private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s 
     is Screen.Stage -> ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
     is Screen.Rest ->
         if (quietStart && s.reason == io.github.hazymorning.klangbild.domain.RestReason.CONNECTING) Content.Dark
-        else Content.RestContent(s.reason, s.speaker)
-    is Screen.Setup -> Content.SetupContent(s.reason)
+        else Content.RestContent(s.reason, s.speaker, ui.appearance)
+    is Screen.Setup -> Content.SetupContent(s.reason, ui.appearance)
 }
 
 @Composable

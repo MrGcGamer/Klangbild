@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.render
 import android.graphics.Bitmap
 import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.art.stableHash
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lighting
@@ -28,8 +29,11 @@ class ArtworkScene(
     val coverGenerated: Boolean,
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
-    /** The light around the print on the wall ([WallGlow]), the whole screen at 1 px per dp. */
-    val glow: Bitmap,
+    /**
+     * The wall around the print, the whole screen at 1 px per dp: in the dark the print's light
+     * on black ([WallGlow]), in the light paper with the print's shadow ([WallShade]).
+     */
+    val wall: Bitmap,
     val palette: ScenePalette,
     val analysis: CoverAnalysis,
     val lighting: Lighting,
@@ -37,8 +41,12 @@ class ArtworkScene(
     val thumb: IntArray,
     /** A small cover in its mat: the light comes from the mat's edge (barely any). */
     val matted: Boolean = false,
+    /** How much of the cover's colour the light wall takes (the light level setting). */
+    val wallTint: Float = 1f,
 ) {
     val screen: ScreenSpec get() = layout.screen
+
+    val appearance: Appearance get() = palette.appearance
 
     /** The square the print bitmap occupies (dp). */
     val coverRect: RectDp get() = layout.coverRect(layout.art)
@@ -51,13 +59,17 @@ object SceneBuilder {
     const val THUMB = 48
 
     /**
-     * Passe-partout for small prints: near-black mat board with a faint grain (a light board
-     * would be the largest static bright area on the OLED and glare at night)…
+     * Passe-partout for small prints on the dark wall: near-black mat board with a faint grain
+     * (a light board would be the largest static bright area on the OLED and glare at night)…
      */
     const val MAT = 0xFF141312.toInt()
 
     /** …and the white core of the bevel around the window, as cut into real mat board. */
     const val BEVEL = 0xFFC8C1B6.toInt()
+
+    /** On the light wall the board is ivory, a shade lighter than the paper, its bevel white. */
+    const val MAT_LIGHT = 0xFFF3EFE8.toInt()
+    const val BEVEL_LIGHT = 0xFFFFFDFA.toInt()
 
     /** Share of the free mat above the print (the rest goes below it). */
     private const val OPTICAL_TOP = 0.455f
@@ -71,6 +83,8 @@ object SceneBuilder {
         artSeed: String,
         screen: ScreenSpec,
         lighting: Lighting,
+        appearance: Appearance = Appearance.DARK,
+        wallTint: Float = 1f,
     ): ArtworkScene {
         val layout = HaloLayout(screen)
         val slotPx = (layout.art * screen.density).roundToInt()
@@ -91,7 +105,7 @@ object SceneBuilder {
             val print = ImageOps.resize(square, side, side, coverPx, coverPx)
             val mat = coverPx < slotPx - 1
             matted = mat
-            coverPixels = if (mat) matted(print, coverPx, slotPx, screen.density) else print
+            coverPixels = if (mat) matted(print, coverPx, slotPx, screen.density, appearance) else print
             coverSize = if (mat) slotPx else coverPx
             thumb = ImageOps.thumbnail(square, side, side, THUMB)
             shape = PrintShape(slotRect, corner = layout.radius)
@@ -105,14 +119,32 @@ object SceneBuilder {
         }
         val cover = Bitmap.createBitmap(coverPixels, coverSize, coverSize, Bitmap.Config.ARGB_8888)
         val analysis = CoverPalette.analyze(thumb)
-        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, matted)
+        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, matted, appearance, wallTint)
     }
 
-    /** Re-light an existing scene (time of day changed) without touching the cover. */
-    fun relight(scene: ArtworkScene, lighting: Lighting): ArtworkScene = assemble(
-        scene.key, scene.layout, scene.cover, scene.shape, scene.coverGenerated,
-        scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted,
-    )
+    /**
+     * Re-light an existing scene (time of day, appearance or wall tint changed) without the
+     * source image: only a small print's mat changes with the wall.
+     */
+    fun relight(scene: ArtworkScene, lighting: Lighting, appearance: Appearance, wallTint: Float): ArtworkScene {
+        val cover = if (scene.matted && scene.appearance != appearance) remat(scene, appearance) else scene.cover
+        return assemble(
+            scene.key, scene.layout, cover, scene.shape, scene.coverGenerated,
+            scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted, appearance, wallTint,
+        )
+    }
+
+    /** The print of a matted scene in the mat of [appearance]. */
+    private fun remat(scene: ArtworkScene, appearance: Appearance): Bitmap {
+        val slotPx = scene.cover.width
+        val printPx = (HaloLayout.coverDp(scene.layout, scene.coverNativePx) * scene.screen.density).roundToInt()
+        val print = IntArray(printPx * printPx)
+        scene.cover.getPixels(print, 0, printPx, (slotPx - printPx) / 2, printTop(slotPx, printPx), printPx, printPx)
+        val px = matted(print, printPx, slotPx, scene.screen.density, appearance)
+        return Bitmap.createBitmap(px, slotPx, slotPx, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun printTop(slotPx: Int, printPx: Int) = ((slotPx - printPx) * OPTICAL_TOP).roundToInt()
 
     private fun assemble(
         key: String,
@@ -125,11 +157,17 @@ object SceneBuilder {
         lighting: Lighting,
         thumb: IntArray,
         matted: Boolean,
+        appearance: Appearance,
+        wallTint: Float,
     ): ArtworkScene {
-        val palette = CoverPalette.derive(analysis, lighting)
-        // The wall sees the outside of the picture: for a matted print that is the mat board.
-        val edges = if (matted) IntArray(THUMB * THUMB) { MAT } else thumb
-        val glow = WallGlow.field(edges, THUMB, shape, layout.screen, lighting)
+        val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint)
+        val wall = if (appearance == Appearance.DARK) {
+            // The wall sees the outside of the picture: for a matted print that is the mat board.
+            val edges = if (matted) IntArray(THUMB * THUMB) { MAT } else thumb
+            WallGlow.field(edges, THUMB, shape, layout.screen, lighting)
+        } else {
+            WallShade.field(palette.wall, shape, layout.screen)
+        }
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -137,12 +175,13 @@ object SceneBuilder {
             shape = shape,
             coverGenerated = generated,
             coverNativePx = nativePx,
-            glow = Bitmap.createBitmap(glow, WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888),
+            wall = Bitmap.createBitmap(wall, WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888),
             palette = palette,
             analysis = analysis,
             lighting = lighting,
             thumb = thumb,
             matted = matted,
+            wallTint = wallTint,
         )
     }
 
@@ -151,7 +190,9 @@ object SceneBuilder {
      * the grid holds: grained mat board, a 1 dp white bevel around the window, the print
      * centred.
      */
-    fun matted(print: IntArray, printPx: Int, slotPx: Int, density: Float, seed: Int = 7): IntArray {
+    fun matted(print: IntArray, printPx: Int, slotPx: Int, density: Float, appearance: Appearance = Appearance.DARK, seed: Int = 7): IntArray {
+        val board = if (appearance == Appearance.DARK) MAT else MAT_LIGHT
+        val bevelColor = if (appearance == Appearance.DARK) BEVEL else BEVEL_LIGHT
         var state = seed * 0x9E3779B9.toInt() or 1
         fun grain(): Int {
             state = state xor (state shl 13)
@@ -159,10 +200,10 @@ object SceneBuilder {
             state = state xor (state shl 5)
             return (state ushr 8) % 5 - 2
         }
-        val out = IntArray(slotPx * slotPx) { shifted(MAT, grain()) }
+        val out = IntArray(slotPx * slotPx) { shifted(board, grain()) }
         val left = (slotPx - printPx) / 2
         // Optically centred, as framers do: a little more mat below than above.
-        val top = ((slotPx - printPx) * OPTICAL_TOP).roundToInt()
+        val top = printTop(slotPx, printPx)
         for (y in 0 until printPx) System.arraycopy(print, y * printPx, out, (y + top) * slotPx + left, printPx)
         val bevel = density.roundToInt().coerceAtLeast(1)
         for (b in 1..bevel) {
@@ -170,8 +211,8 @@ object SceneBuilder {
             val x1 = left + printPx - 1 + b
             val y0 = top - b
             val y1 = top + printPx - 1 + b
-            for (x in x0..x1) for (y in intArrayOf(y0, y1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
-            for (y in y0..y1) for (x in intArrayOf(x0, x1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
+            for (x in x0..x1) for (y in intArrayOf(y0, y1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = bevelColor
+            for (y in y0..y1) for (x in intArrayOf(x0, x1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = bevelColor
         }
         return out
     }

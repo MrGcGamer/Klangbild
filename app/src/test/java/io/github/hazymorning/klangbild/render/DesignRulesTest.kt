@@ -4,6 +4,7 @@ import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.art.ChladniArt
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
@@ -11,6 +12,7 @@ import io.github.hazymorning.klangbild.color.contrastRatio
 import io.github.hazymorning.klangbild.color.relativeLuminance
 import io.github.hazymorning.klangbild.ui.stage.BLOCK_SHARE
 import org.junit.Test
+import kotlin.math.abs
 import kotlin.random.Random
 
 /** Design principles as tests, so polishing never quietly breaks them. */
@@ -137,16 +139,29 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `three clear text levels and the title keeps 4,5 to 1 at night`() {
-        val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY)
-        val tiers = listOf(p.ink, p.inkMuted, p.inkFaint).map { Oklab.fromArgb(it).l }
-        // each level clearly below the one above it …
-        for (i in 1 until tiers.size) assertThat(tiers[i - 1] - tiers[i]).isAtLeast(0.1f)
-        // … and no in-between greys
-        assertThat(p.inkQuiet).isEqualTo(p.inkFaint)
-        assertThat(p.inkHush).isEqualTo(p.inkFaint)
+    fun `three clear text levels on both walls and the title keeps 4,5 to 1 at night`() {
+        for (appearance in Appearance.entries) {
+            val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY, appearance)
+            val tiers = listOf(p.ink, p.inkMuted, p.inkQuiet).map { Oklab.fromArgb(it).l }
+            // each level clearly apart from the one before it, away from the wall
+            for (i in 1 until tiers.size) assertThat(abs(tiers[i - 1] - tiers[i])).isAtLeast(0.1f)
+        }
         val night = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.NIGHT)
         assertThat(contrast(night.ink, 0xFF000000.toInt())).isAtLeast(4.5f)
+    }
+
+    @Test
+    fun `on the light wall the artwork casts a soft shadow below it, none above`() {
+        val wall = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY, Appearance.LIGHT).wall
+        val field = WallShade.field(wall, shape, screen)
+        val rect = layout.artRect
+        val below = luminance(field.at(rect.centerX, rect.bottom + 6f))
+        val above = luminance(field.at(rect.centerX, rect.top - 6f))
+        val far = luminance(field.at(rect.right + 40f, rect.top + 20f))
+        assertThat(below).isLessThan(far * 0.9f)
+        assertThat(above).isGreaterThan(below)
+        // a few dozen dp away the paper is clean
+        assertThat(far).isWithin(0.004f).of(luminance(wall))
     }
 
     @Test

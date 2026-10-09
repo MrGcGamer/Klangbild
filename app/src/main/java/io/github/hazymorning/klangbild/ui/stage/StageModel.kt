@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
@@ -102,12 +103,13 @@ fun Int.asColor() = Color(this)
 /**
  * Colour matrix for the artwork: the time-of-day lighting (perceptual dimming, only a touch
  * warmer at night – dim light loses colour rather than gaining it) and a gentle highlight
- * compression – even a white cover never glares (white becomes a soft paper tone around
- * L* 88 instead of #FFFFFF; a full-screen-bright print would also make the TV's brightness
- * limiter dim everything).
+ * compression – even a white cover never glares on black (white becomes a soft paper tone
+ * around L* 88 instead of #FFFFFF; a full-screen-bright print would also make the TV's
+ * brightness limiter dim everything). On the light wall a white cover stays a little whiter
+ * than the paper around it.
  */
-fun coverFilter(lighting: Lighting, dim: Float = 1f): ColorFilter {
-    val k = lighting.brightness.pow(1.36f) * dim
+fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): ColorFilter {
+    val k = lighting.brightness.pow(1.36f) * dim * if (appearance == Appearance.LIGHT) 1.06f else 1f
     val w = lighting.warmth
     val r = k * 0.92f * (1f + 0.0375f * w)
     val g = k * 0.905f * (1f - 0.0066f * w)

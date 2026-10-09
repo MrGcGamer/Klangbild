@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.config
 
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.data.LinkState
 
 /** Sections of the settings menu, in order. */
@@ -19,6 +20,7 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     ALBUM(MenuSection.DISPLAY, "Album"),
     GROUP(MenuSection.DISPLAY, "Lautsprechergruppe"),
     VOLUME(MenuSection.DISPLAY, "Lautstärke"),
+    APPEARANCE(MenuSection.LIGHT, "Erscheinungsbild"),
     LIGHT(MenuSection.LIGHT, "Wandlicht"),
     DAY_NIGHT(MenuSection.LIGHT, "Tag und Nacht"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
@@ -28,8 +30,8 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     CONNECTION(MenuSection.CONNECTION, "Home Assistant"),
 }
 
-/** What the menu needs to know besides the settings. */
-data class MenuContext(val link: LinkState? = null)
+/** What the menu needs to know besides the settings: the connection and the wall as it is now. */
+data class MenuContext(val link: LinkState? = null, val appearance: Appearance = Appearance.DARK)
 
 /** A line as the menu shows it: the value in words and what the option does. */
 data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
@@ -58,6 +60,11 @@ object SettingsMenu {
             VolumeDisplay.ON_CHANGE -> "Bei Änderung"
             VolumeDisplay.ALWAYS -> "Immer"
             VolumeDisplay.OFF -> "Aus"
+        }
+        MenuEntry.APPEARANCE -> when (s.appearance) {
+            AppearanceMode.AUTO -> "Automatisch"
+            AppearanceMode.LIGHT -> "Hell"
+            AppearanceMode.DARK -> "Dunkel"
         }
         MenuEntry.LIGHT -> when (s.light) {
             LightLevel.STRONG -> "Kräftig"
@@ -91,11 +98,26 @@ object SettingsMenu {
             VolumeDisplay.ALWAYS -> "Die Lautstärke steht ständig neben der Uhrzeit."
             VolumeDisplay.OFF -> "Die Lautstärke erscheint nie."
         }
-        MenuEntry.LIGHT -> "Wie hell das Bild die Wand um sich herum anstrahlt. " + when (s.light) {
-            LightLevel.STRONG -> "Kräftig passt zu hellen Räumen."
-            LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-            LightLevel.SUBTLE -> "Dezent passt zu dunklen Abenden."
-            LightLevel.OFF -> "Aus: nur das Bild, ohne Licht."
+        MenuEntry.APPEARANCE -> when (s.appearance) {
+            AppearanceMode.AUTO ->
+                "Hell, solange die Sonne scheint, dunkel von Sonnenuntergang bis Sonnenaufgang – nach dem Stand der Sonne in Home Assistant."
+            AppearanceMode.LIGHT -> "Immer hell: eine Wand wie Papier, dunkle Schrift."
+            AppearanceMode.DARK -> "Immer dunkel: das Bild leuchtet auf schwarzer Wand."
+        }
+        MenuEntry.LIGHT -> if (ctx.appearance == Appearance.LIGHT) {
+            "Wie stark die helle Wand die Farbe des Bildes annimmt. " + when (s.light) {
+                LightLevel.STRONG -> "Kräftig: ein deutlicher Hauch."
+                LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
+                LightLevel.SUBTLE -> "Dezent: nur eine Ahnung."
+                LightLevel.OFF -> "Aus: reines Papier."
+            }
+        } else {
+            "Wie hell das Bild die Wand um sich herum anstrahlt. " + when (s.light) {
+                LightLevel.STRONG -> "Kräftig passt zu hellen Räumen."
+                LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
+                LightLevel.SUBTLE -> "Dezent passt zu dunklen Abenden."
+                LightLevel.OFF -> "Aus: nur das Bild, ohne Licht."
+            }
         }
         MenuEntry.DAY_NIGHT ->
             "Abends wärmer und dunkler, nachts nur Bild, Titel und Künstler – nach dem Stand der Sonne."
@@ -131,6 +153,7 @@ object SettingsMenu {
         MenuEntry.ALBUM -> s.copy(showAlbum = !s.showAlbum)
         MenuEntry.GROUP -> s.copy(showGroup = !s.showGroup)
         MenuEntry.VOLUME -> s.copy(volumeDisplay = move(VOLUME_ORDER, s.volumeDisplay, direction, wrap))
+        MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
         MenuEntry.DAY_NIGHT -> s.copy(dayNight = !s.dayNight)
         MenuEntry.REMOTE -> s.copy(remoteControl = !s.remoteControl)
@@ -145,6 +168,7 @@ object SettingsMenu {
     /** From quiet to present: left means less, right means more. */
     private val VOLUME_ORDER = listOf(VolumeDisplay.OFF, VolumeDisplay.ON_CHANGE, VolumeDisplay.ALWAYS)
     private val LIGHT_ORDER = listOf(LightLevel.OFF, LightLevel.SUBTLE, LightLevel.NORMAL, LightLevel.STRONG)
+    private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {
         val i = order.indexOf(current).coerceAtLeast(0) + direction

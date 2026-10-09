@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.art.SyntheticCovers
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -37,10 +38,15 @@ object Fixtures {
     /** What comes next in most shots. */
     val pärt = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
 
-    fun scene(track: TrackInfo, screen: ScreenSpec = ScreenSpec.TV_1080, lighting: Lighting = Lighting.DAY): ArtworkScene {
+    fun scene(
+        track: TrackInfo,
+        screen: ScreenSpec = ScreenSpec.TV_1080,
+        lighting: Lighting = Lighting.DAY,
+        appearance: Appearance = Appearance.DARK,
+    ): ArtworkScene {
         val cover = track.artworkUrl?.removePrefix(Catalogue.SCHEME)?.let { SyntheticCover.valueOf(it) }
         val bmp = cover?.let { SyntheticCovers.render(it) }
-        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting)
+        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance)
     }
 
     fun model(
@@ -54,7 +60,8 @@ object Fixtures {
         group: String? = null,
         lead: String? = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false),
         night: Boolean = false,
-        scene: ArtworkScene = scene(track, screen, lighting),
+        appearance: Appearance = Appearance.DARK,
+        scene: ArtworkScene = scene(track, screen, lighting, appearance),
         album: Boolean = true,
         progress: Boolean = true,
         linkDown: Boolean = false,
@@ -82,8 +89,12 @@ object Fixtures {
         CompositionLocalProvider(LocalStill provides true, content = content)
     }
 
-    fun stage(track: TrackInfo, screen: ScreenSpec = ScreenSpec.TV_1080, lighting: Lighting = Lighting.DAY) =
-        StageData(track, scene(track, screen, lighting))
+    fun stage(
+        track: TrackInfo,
+        screen: ScreenSpec = ScreenSpec.TV_1080,
+        lighting: Lighting = Lighting.DAY,
+        appearance: Appearance = Appearance.DARK,
+    ) = StageData(track, scene(track, screen, lighting, appearance))
 
     /** The animated stage (pause dimming, buffering breath) for one stage, frozen in time. */
     @Composable

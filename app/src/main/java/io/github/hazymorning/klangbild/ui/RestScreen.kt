@@ -28,6 +28,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.art.stableHash
+import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.RestReason
@@ -47,16 +49,19 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-/** Quiet colours for screens without a cover: soft white on black, dimmed with the day. */
-data class QuietColors(val primary: Color, val secondary: Color, val label: Color) {
+/**
+ * Quiet colours for screens without a cover: soft white on black, or near-black on warm
+ * paper – dimmed with the day either way.
+ */
+data class QuietColors(val wall: Color, val primary: Color, val secondary: Color, val label: Color) {
     companion object {
-        fun of(lighting: Lighting): QuietColors {
+        fun of(lighting: Lighting, appearance: Appearance = Appearance.DARK): QuietColors {
             fun c(l: Float, ch: Float) = Color(lighting.applyArgb(Lch(l, ch, HaloLight.LAMP_HUE).toArgb()))
-            return QuietColors(
-                primary = c(0.84f, 0.004f),
-                secondary = c(0.68f, 0.004f),
-                label = c(0.62f, 0.004f),
-            )
+            return if (appearance == Appearance.DARK) {
+                QuietColors(wall = Color.Black, primary = c(0.84f, 0.004f), secondary = c(0.68f, 0.004f), label = c(0.62f, 0.004f))
+            } else {
+                QuietColors(wall = c(CoverPalette.PAPER, 0.006f), primary = c(0.28f, 0.004f), secondary = c(0.42f, 0.004f), label = c(0.5f, 0.004f))
+            }
         }
     }
 }
@@ -168,16 +173,18 @@ fun RestScreen(
     zone: ZoneId = ZoneId.systemDefault(),
     /** The lamp's strength from the settings (0 = off). */
     lightFactor: Float = 1f,
+    appearance: Appearance = Appearance.DARK,
 ) {
-    val colors = QuietColors.of(lighting)
+    val colors = QuietColors.of(lighting, appearance)
     val lines = RestTexts.lines(reason, speaker, entityId)
     val night = lighting.brightness < 0.7f
-    val peak = RestLight.peak(lighting)?.let { it * lightFactor }?.takeIf { it > 0f }
+    // A lamp only lights a dark wall.
+    val peak = RestLight.peak(lighting)?.let { it * lightFactor }?.takeIf { it > 0f && appearance == Appearance.DARK }
     val tint = remember(lighting, peak) { peak?.let { HaloLight.lightTint(HaloLight.LAMP, it, lighting) } }
     val screen = ScreenSpec(960, 540, 1f)
 
     Box(modifier.fillMaxSize()) {
-        BaseWall()
+        BaseWall(colors.wall)
         val slot = nowMs / (15 * 60_000L)
         Crossfade(targetState = slot, animationSpec = tween(2_400, easing = Motion.Dimmer), label = "re-hang") { s ->
             val (dx, dy) = RestLight.blockOffset(s * 15 * 60_000L)

@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
@@ -43,6 +44,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.app.MenuState
+import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.MenuRow
@@ -92,7 +95,7 @@ object MenuGrid {
  * behind it keeps running and is there again the moment the menu closes.
  */
 @Composable
-fun MenuOverlay(menu: MenuState?, lighting: Lighting, modifier: Modifier = Modifier) {
+fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
     // The last menu stays while it fades out.
     val last = remember { arrayOfNulls<MenuState>(1) }
     if (menu != null) last[0] = menu
@@ -103,7 +106,7 @@ fun MenuOverlay(menu: MenuState?, lighting: Lighting, modifier: Modifier = Modif
         exit = fadeOut(tween(600, easing = Motion.Dimmer)),
         label = "menu",
     ) {
-        (menu ?: last[0])?.let { MenuScreen(it, lighting) }
+        (menu ?: last[0])?.let { MenuScreen(it, lighting, appearance) }
     }
 }
 
@@ -130,8 +133,11 @@ private fun menuLines(rows: List<MenuRow>): List<MenuLine> {
     return out
 }
 
-/** The menu's voices: near-neutral white on black, a little dimmer in the evening. */
+/** The menu's voices: near-neutral white on black or near-black on paper, a little dimmer in the evening. */
 private class MenuColors(
+    val wall: Color,
+    /** The light behind the chosen line, added to the wall. */
+    val band: Color,
     val heading: Color,
     val description: Color,
     val hint: Color,
@@ -142,18 +148,36 @@ private class MenuColors(
     val valueFocus: Color,
 ) {
     companion object {
-        fun of(lighting: Lighting): MenuColors {
-            fun c(l: Float) = Color(lighting.applyArgb(Lch(l, 0.004f, HaloLight.LAMP_HUE).toArgb()))
-            return MenuColors(
-                heading = c(0.90f),
-                description = c(0.72f),
-                hint = c(0.60f),
-                header = c(0.60f),
-                label = c(0.64f),
-                labelFocus = c(0.93f),
-                value = c(0.60f),
-                valueFocus = c(0.82f),
-            )
+        fun of(lighting: Lighting, appearance: Appearance): MenuColors {
+            fun c(l: Float, chroma: Float = 0.004f) = Color(lighting.applyArgb(Lch(l, chroma, HaloLight.LAMP_HUE).toArgb()))
+            return if (appearance == Appearance.DARK) {
+                MenuColors(
+                    wall = Color.Black,
+                    band = Color(HaloLight.lightTint(HaloLight.LAMP, MenuGrid.GLOW_PEAK, lighting)),
+                    heading = c(0.90f),
+                    description = c(0.72f),
+                    hint = c(0.60f),
+                    header = c(0.60f),
+                    label = c(0.64f),
+                    labelFocus = c(0.93f),
+                    value = c(0.60f),
+                    valueFocus = c(0.82f),
+                )
+            } else {
+                // On paper the chosen line lies in a band of slightly whiter light.
+                MenuColors(
+                    wall = c(CoverPalette.PAPER, 0.006f),
+                    band = Color(0xFF0D0C0B),
+                    heading = c(0.26f),
+                    description = c(0.42f),
+                    hint = c(0.52f),
+                    header = c(0.52f),
+                    label = c(0.48f),
+                    labelFocus = c(0.24f),
+                    value = c(0.52f),
+                    valueFocus = c(0.36f),
+                )
+            }
         }
     }
 }
@@ -165,16 +189,16 @@ private class MenuColors(
  * fades with distance – no frame, no scroll bar, no check box. Values are words.
  */
 @Composable
-fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifier) {
+fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = Appearance.DARK, modifier: Modifier = Modifier) {
     // A menu asks for action: it takes only a little of the evening's dimming.
     val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
-    val colors = remember(light) { MenuColors.of(light) }
+    val colors = remember(light, appearance) { MenuColors.of(light, appearance) }
     val lines = remember(menu.rows.map { it.entry }) { menuLines(menu.rows) }
     val itemTops = remember(lines) { lines.filterIsInstance<MenuLine.Item>().associate { it.index to it.top } }
     val cursor = menu.cursor.coerceIn(0, menu.rows.size - 1)
     val row = menu.rows[cursor]
 
-    BoxWithConstraints(modifier.fillMaxSize().background(Color.Black)) {
+    BoxWithConstraints(modifier.fillMaxSize().background(colors.wall)) {
         val density = LocalDensity.current.density
         val screen = ScreenSpec((maxWidth.value * density).roundToInt(), (maxHeight.value * density).roundToInt(), density)
         val layout = HaloLayout(screen)
@@ -185,17 +209,18 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifie
         LaunchedEffect(target) { offset.animateTo(target, tween(340, easing = Motion.Dimmer)) }
 
         val glowCx = layout.columnLeft + layout.columnWidth / 2f
-        val field = remember(screen, light) {
-            val tint = HaloLight.lightTint(HaloLight.LAMP, MenuGrid.GLOW_PEAK, light)
-            val px = glowField(glowCx, focusY, screen.widthDp, screen.heightDp, SceneBuilder.ditherFor(tint))
-            Bitmap.createBitmap(px, GLOW_MAP_W, GLOW_MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap() to tint
+        val field = remember(screen, colors) {
+            val px = glowField(glowCx, focusY, screen.widthDp, screen.heightDp, SceneBuilder.ditherFor(colors.band.toArgb()))
+            Bitmap.createBitmap(px, GLOW_MAP_W, GLOW_MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()
         }
         Canvas(Modifier.fillMaxSize()) {
+            // The band's light adds to the wall – on black and on paper alike.
             drawImage(
-                field.first,
+                field,
                 dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                colorFilter = ColorFilter.tint(Color(field.second), BlendMode.Modulate),
+                colorFilter = ColorFilter.tint(colors.band, BlendMode.Modulate),
                 filterQuality = FilterQuality.Low,
+                blendMode = BlendMode.Plus,
             )
         }
 

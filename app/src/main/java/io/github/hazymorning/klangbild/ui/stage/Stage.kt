@@ -42,6 +42,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.em
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverKind
 import io.github.hazymorning.klangbild.color.ScenePalette
 import io.github.hazymorning.klangbild.domain.PlayerStatus
@@ -64,38 +65,40 @@ import kotlin.math.roundToInt
 fun Stage(model: StageModel, modifier: Modifier = Modifier) {
     val plan = rememberTextPlan(model)
     Box(modifier.fillMaxSize()) {
-        BaseWall()
-        GlowLayer(model.scene)
+        BaseWall(model.scene.palette.wall.asColor())
+        WallLayer(model.scene)
         ArtworkLayer(model.scene)
         TextLayer(model, plan = plan)
         StatusLayer(model)
     }
 }
 
-/** The wall under everything: black (on an OLED the pixels are simply off). */
+/** The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in the light. */
 @Composable
-fun BaseWall(modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxSize()) { drawRect(Color.Black) }
+fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier) {
+    Canvas(modifier.fillMaxSize()) { drawRect(color) }
 }
 
 /**
- * The artwork's light on the wall ([io.github.hazymorning.klangbild.render.WallGlow]): one
- * static bitmap, scaled softly to the screen. [level] is its brightness in linear light
- * (pause, the "Wandlicht" setting: 0 = off, 1 = as designed, 1.45 = strong); [alpha] fades
- * the layer during a change.
+ * The wall around the artwork, one static bitmap scaled softly to the screen: in the dark the
+ * artwork's light ([io.github.hazymorning.klangbild.render.WallGlow]) – [level] is its
+ * brightness in linear light (pause, the "Wandlicht" setting: 0 = off, 1 = as designed,
+ * 1.45 = strong) –, in the light paper with the artwork's shadow. [alpha] fades the layer
+ * during a change.
  */
 @Composable
-fun GlowLayer(
+fun WallLayer(
     scene: ArtworkScene,
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
     level: () -> Float = { 1f },
 ) {
-    val image = remember(scene) { scene.glow.asImageBitmap() }
+    val image = remember(scene) { scene.wall.asImageBitmap() }
     val filters = remember { HashMap<Int, ColorFilter?>() }
+    val lit = scene.appearance == Appearance.DARK
     Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
-        val l = level().coerceIn(0f, 2f)
+        val l = if (lit) level().coerceIn(0f, 2f) else 1f
         if (a <= 0.002f || l <= 0.002f) return@Canvas
         // The bitmap is sRGB: a factor k in linear light is k^(1/2.2) on its values.
         val step = (l.pow(1f / 2.2f) * 40f).roundToInt()
@@ -146,7 +149,7 @@ fun ArtworkLayer(
             },
     ) {
         val step = (dim().coerceIn(0f, 1f) * 50f).roundToInt()
-        val filter = filters.getOrPut(step) { coverFilter(scene.lighting, step / 50f) }
+        val filter = filters.getOrPut(step) { coverFilter(scene.lighting, step / 50f, scene.appearance) }
         val x = (rect.left * density).roundToInt().toFloat()
         val y = (rect.top * density).roundToInt().toFloat()
         val w = scene.cover.width.toFloat()
@@ -167,9 +170,16 @@ fun ArtworkLayer(
     }
 }
 
-/** A faint inner hairline for dark square artwork (white at 7 %); none for light artwork or a plate. */
-private fun edgeLine(scene: ArtworkScene): Color? =
-    if (!scene.shape.round && scene.palette.kind == CoverKind.DARK) Color.White.copy(alpha = 0.07f) else null
+/**
+ * A faint inner hairline where the artwork would dissolve into the wall: white at 7 % inside
+ * dark square artwork on black, black at 8 % inside pale artwork on paper; none for a plate.
+ */
+private fun edgeLine(scene: ArtworkScene): Color? = when {
+    scene.shape.round -> null
+    scene.appearance == Appearance.DARK && scene.palette.kind == CoverKind.DARK -> Color.White.copy(alpha = 0.07f)
+    scene.appearance == Appearance.LIGHT && scene.palette.kind == CoverKind.LIGHT -> Color.Black.copy(alpha = 0.08f)
+    else -> null
+}
 
 /**
  * The stage's typography: sentence case; hierarchy from size, weight and three levels of

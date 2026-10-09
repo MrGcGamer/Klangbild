@@ -53,10 +53,12 @@ data class Lighting(val brightness: Float, val warmth: Float) {
          * Fallback without Home Assistant: a smooth day curve from the local clock
          * (approximate solar elevation peaking at 13:00).
          */
-        fun fromLocalTime(hour: Int, minute: Int): Lighting {
+        fun fromLocalTime(hour: Int, minute: Int): Lighting = fromSunElevation(approximateElevation(hour, minute))
+
+        /** The sun's elevation (°) as a smooth day curve peaking at 13:00 – up from about 7:40 to 18:20. */
+        fun approximateElevation(hour: Int, minute: Int): Double {
             val t = hour + minute / 60f
-            val approxElevation = 50.0 * cos((t - 13.0) / 24.0 * 2.0 * Math.PI) - 8.0
-            return fromSunElevation(approxElevation)
+            return 50.0 * cos((t - 13.0) / 24.0 * 2.0 * Math.PI) - 8.0
         }
 
         private fun smoothstep(edge0: Float, edge1: Float, x: Float): Float {

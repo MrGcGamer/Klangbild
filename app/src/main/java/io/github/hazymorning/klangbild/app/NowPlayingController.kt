@@ -1,6 +1,8 @@
 package io.github.hazymorning.klangbild.app
 
+import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.config.AppearanceMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
 import io.github.hazymorning.klangbild.config.MenuContext
@@ -67,6 +69,8 @@ data class UiState(
     /** The latest scene that is ready; may lag behind [screen] while a new cover loads. */
     val stage: StageData? = null,
     val lighting: Lighting = Lighting.DAY,
+    /** Light wall by day, dark at night (or as set). */
+    val appearance: Appearance = Appearance.DARK,
     val night: Boolean = false,
     /** What the stage shows (clock, progress, album …) and how strong its light is. */
     val display: DisplayOptions = DisplayOptions(),
@@ -283,9 +287,9 @@ class NowPlayingController(
         recompute()
     }
 
-    private fun menuState(s: Settings): MenuState? {
+    private fun menuState(s: Settings, appearance: Appearance): MenuState? {
         val cursor = menuCursor ?: return null
-        val ctx = MenuContext(link = _ui.value.source.link)
+        val ctx = MenuContext(link = _ui.value.source.link, appearance = appearance)
         return MenuState(SettingsMenu.rows(s, ctx), cursor)
     }
 
@@ -349,15 +353,18 @@ class NowPlayingController(
         if (menuCursor != null && t - menuTouchedAt > MENU_IDLE_MS) menuCursor = null
         val decision: ScreenDecision = machine.decide(src, t)
         val lighting = lightingFor(s, src)
+        val appearance = appearanceFor(s, src)
+        val look = Look(lighting, appearance, s.light.factor)
         val night = s.dayNight && lighting.brightness < 0.7f
         val previous = _ui.value
-        val menu = menuState(s)
+        val menu = menuState(s, appearance)
         _ui.value = previous.copy(
             screen = decision.screen,
             keepScreenOn = decision.keepScreenOn || menu != null,
             asleep = decision.asleep && menu == null,
             sleepAction = s.sleepAction,
             lighting = lighting,
+            appearance = appearance,
             night = night,
             display = s.display,
             session = session.value,
@@ -366,8 +373,8 @@ class NowPlayingController(
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
         )
         val stage = decision.screen as? Screen.Stage
-        if (stage != null) ensureScene(stage.track, stage.next, lighting)
-        relightIfNeeded(lighting)
+        if (stage != null) ensureScene(stage.track, stage.next, look)
+        relightIfNeeded(look)
         // The setup page is only reachable while the setup screen is visible.
         if (decision.screen is Screen.Setup && viewers > 0) setupServer.start() else setupServer.stop()
     }
@@ -379,13 +386,33 @@ class NowPlayingController(
         return Lighting.fromLocalTime(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
     }
 
-    private fun ensureScene(track: TrackInfo, next: TrackInfo?, lighting: Lighting) {
+    /**
+     * The wall follows the setting – or, automatically, the sun: Home Assistant's elevation,
+     * else the local clock. The last decision holds it steady near the horizon.
+     */
+    private var lastAppearance: Appearance? = null
+
+    private fun appearanceFor(s: Settings, src: SourceState): Appearance {
+        val a = when (s.appearance) {
+            AppearanceMode.LIGHT -> Appearance.LIGHT
+            AppearanceMode.DARK -> Appearance.DARK
+            AppearanceMode.AUTO -> {
+                val elevation = src.sunElevation ?: Calendar.getInstance().apply { timeInMillis = now() }
+                    .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
+                Appearance.bySun(elevation, lastAppearance)
+            }
+        }
+        lastAppearance = a
+        return a
+    }
+
+    private fun ensureScene(track: TrackInfo, next: TrackInfo?, look: Look) {
         val current = _ui.value.stage
         if (current?.track?.key == track.key && current.track == track) return
         val cached = synchronized(prepared) { prepared[track.key] }
-        if (cached != null && sameLight(cached.lighting, lighting)) {
+        if (cached != null && look.fits(cached)) {
             _ui.value = _ui.value.copy(stage = StageData(track, cached))
-            prefetch(next, lighting)
+            prefetch(next, look)
             return
         }
         if (buildingKey == track.key) return
@@ -393,13 +420,13 @@ class NowPlayingController(
         sceneJob?.cancel()
         sceneJob = scope.launch {
             val scene = try {
-                buildScene(track, lighting)
+                buildScene(track, look)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 buildingKey = null
                 throw e
             } catch (e: Throwable) {
                 // Broken image, out of memory …: the generated figure always works.
-                withContext(sceneDispatcher) { buildScene(track, lighting, withCover = false) }
+                withContext(sceneDispatcher) { buildScene(track, look, withCover = false) }
             }
             buildingKey = null
             synchronized(prepared) { remember(track.key, scene) }
@@ -407,21 +434,21 @@ class NowPlayingController(
             if (screen is Screen.Stage && screen.track.key == track.key) {
                 _ui.value = _ui.value.copy(stage = StageData(track, scene))
             }
-            prefetch(next, lighting)
+            prefetch(next, look)
         }
     }
 
-    private fun prefetch(next: TrackInfo?, lighting: Lighting) {
+    private fun prefetch(next: TrackInfo?, look: Look) {
         next ?: return
         if (synchronized(prepared) { prepared.containsKey(next.key) }) return
         scope.launch {
-            runCatching { buildScene(next, lighting) }.getOrNull()?.let { scene ->
+            runCatching { buildScene(next, look) }.getOrNull()?.let { scene ->
                 synchronized(prepared) { remember(next.key, scene) }
             }
         }
     }
 
-    private suspend fun buildScene(track: TrackInfo, lighting: Lighting, withCover: Boolean = true): ArtworkScene {
+    private suspend fun buildScene(track: TrackInfo, look: Look, withCover: Boolean = true): ArtworkScene {
         // Wait at most a few seconds for the cover; then the Chladni figure steps in.
         val bitmap = if (!withCover) null else withTimeoutOrNull(COVER_TIMEOUT_MS) { runCatching { artwork.load(track) }.getOrNull() }
         return withContext(sceneDispatcher) {
@@ -430,7 +457,9 @@ class NowPlayingController(
                 source = bitmap,
                 artSeed = track.artSeed,
                 screen = screenSpec,
-                lighting = lighting,
+                lighting = look.lighting,
+                appearance = look.appearance,
+                wallTint = look.wallTint,
             )
         }
     }
@@ -442,12 +471,12 @@ class NowPlayingController(
 
     private var relighting = false
 
-    private fun relightIfNeeded(lighting: Lighting) {
+    private fun relightIfNeeded(look: Look) {
         val stage = _ui.value.stage ?: return
-        if (relighting || sameLight(stage.scene.lighting, lighting)) return
+        if (relighting || look.fits(stage.scene)) return
         relighting = true
         scope.launch {
-            val scene = withContext(sceneDispatcher) { SceneBuilder.relight(stage.scene, lighting) }
+            val scene = withContext(sceneDispatcher) { SceneBuilder.relight(stage.scene, look.lighting, look.appearance, look.wallTint) }
             synchronized(prepared) { remember(stage.track.key, scene) }
             val now = _ui.value.stage
             if (now?.track?.key == stage.track.key) _ui.value = _ui.value.copy(stage = StageData(now.track, scene))
@@ -455,8 +484,14 @@ class NowPlayingController(
         }
     }
 
-    private fun sameLight(a: Lighting, b: Lighting) =
-        abs(a.brightness - b.brightness) < 0.03f && abs(a.warmth - b.warmth) < 0.05f
+    /** How scenes are lit: the time of day, the wall, and how much colour a light wall takes. */
+    private data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float) {
+        fun fits(scene: ArtworkScene) =
+            scene.appearance == appearance &&
+                abs(scene.lighting.brightness - lighting.brightness) < 0.03f &&
+                abs(scene.lighting.warmth - lighting.warmth) < 0.05f &&
+                (appearance == Appearance.DARK || scene.wallTint == wallTint)
+    }
 
     companion object {
         const val COVER_TIMEOUT_MS = 6_000L

@@ -53,15 +53,19 @@ object Motion {
     /** Same track, better cover or new time-of-day light. */
     const val SOFT_SWAP_MS = 900
 
+    /** Light wall to dark one at sunset (and back in the morning). */
+    const val WALL_CHANGE_MS = 2_400
+
     /** On pause the light, the artwork and the text dim; nothing moves. */
     const val PAUSE_MS = 600
 
     /** A line that changes its content (status, station, notice) cross-fades. */
     const val LINE_FADE_MS = 400
 
-    /** Light, artwork and text while paused. */
+    /** Light, artwork and text while paused; on the light wall the artwork dims less (it would turn muddy). */
     const val PAUSED_LIGHT = 0.45f
     const val PAUSED_COVER = 0.72f
+    const val PAUSED_COVER_ON_PAPER = 0.86f
     const val PAUSED_TEXT = 0.7f
 
     /** Eased progress of a phase that runs from [start] to [end] of the overall 0..1 [t]. */
