@@ -55,6 +55,12 @@ object Oklab {
 
     fun srgbToLinear(channel: Int): Float = toLinearTable[channel and 0xFF]
 
+    /** An sRGB-encoded value 0..1 in linear light. */
+    fun srgbToLinear(c: Float): Float {
+        val v = c.coerceIn(0f, 1f)
+        return if (v <= 0.04045f) v / 12.92f else ((v + 0.055f) / 1.055f).toDouble().pow(2.4).toFloat()
+    }
+
     fun linearToSrgb(x: Float): Float {
         val c = x.coerceIn(0f, 1f)
         return if (c <= 0.0031308f) c * 12.92f else (1.055f * c.toDouble().pow(1.0 / 2.4).toFloat() - 0.055f)

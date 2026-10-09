@@ -59,11 +59,14 @@ class ArtworkScene(
 object SceneBuilder {
     const val THUMB = 48
 
-    /** Passe-partout for small prints: a dark mat board… */
-    private const val MAT = 0xFF191715.toInt()
+    /**
+     * Passe-partout for small prints: charcoal mat board with a faint grain (a light board
+     * would be the largest static bright area on the OLED and glare at night)…
+     */
+    const val MAT = 0xFF221F1C.toInt()
 
-    /** …with a light bevel around the window, as cut into real mat board. */
-    private const val BEVEL_WHITE = 0.15f
+    /** …and the white core of the bevel around the window, as cut into real mat board. */
+    const val BEVEL = 0xFFC8C1B6.toInt()
 
     /**
      * @param source decoded cover or null (radio, missing art) → generated Chladni figure.
@@ -133,10 +136,12 @@ object SceneBuilder {
         val color = HaloLight.lightColor(analysis)
         val printDp = nativePx?.let { HaloLayout.coverDp(layout, it) } ?: layout.slot
         // glowPeak is the brightness where the light leaves the print; the lamp itself is brighter.
-        val peak = HaloLight.glowPeak(analysis, printDp, layout.slot) / HaloLight.EDGE_STRENGTH
+        val peak = HaloLight.lampPeak(HaloLight.glowPeak(analysis, printDp, layout.slot))
         val tint = HaloLight.lightTint(color, peak, lighting)
         val rimLuminance = HaloLight.rimLuminance(edgeLuminance(thumb))
-        val rimTint = if (rimLuminance > 0f) HaloLight.lightTint(HaloLight.LAMP, rimLuminance, lighting) else 0
+        // The rim is the same lamp's light, a little less coloured – not a second light.
+        val rimColor = Lch(color.l, color.c / 2f, color.h)
+        val rimTint = if (rimLuminance > 0f) HaloLight.lightTint(rimColor, rimLuminance, lighting) else 0
         val s = HaloLight.LAMP_SPRITE
         return ArtworkScene(
             key = key,
@@ -185,27 +190,37 @@ object SceneBuilder {
 
     /**
      * A small print (shown at its honest size) in a passe-partout that fills the slot, so
-     * the grid holds: dark mat board, a light bevel around the window, the print centred.
+     * the grid holds: grained mat board, a 1 dp white bevel around the window, the print
+     * centred.
      */
-    fun matted(print: IntArray, printPx: Int, slotPx: Int, density: Float): IntArray {
-        val out = IntArray(slotPx * slotPx) { MAT }
+    fun matted(print: IntArray, printPx: Int, slotPx: Int, density: Float, seed: Int = 7): IntArray {
+        var state = seed * 0x9E3779B9.toInt() or 1
+        fun grain(): Int {
+            state = state xor (state shl 13)
+            state = state xor (state ushr 17)
+            state = state xor (state shl 5)
+            return (state ushr 8) % 5 - 2
+        }
+        val out = IntArray(slotPx * slotPx) { shifted(MAT, grain()) }
         val off = (slotPx - printPx) / 2
         for (y in 0 until printPx) System.arraycopy(print, y * printPx, out, (y + off) * slotPx + off, printPx)
-        val bevel = (density / 2f).roundToInt().coerceAtLeast(1)
-        fun lift(x: Int, y: Int) {
-            if (x !in 0 until slotPx || y !in 0 until slotPx) return
-            val p = out[y * slotPx + x]
-            fun ch(v: Int) = (v + (255 - v) * BEVEL_WHITE).roundToInt().coerceIn(0, 255)
-            out[y * slotPx + x] = (0xFF shl 24) or (ch((p shr 16) and 0xFF) shl 16) or (ch((p shr 8) and 0xFF) shl 8) or ch(p and 0xFF)
-        }
+        val bevel = density.roundToInt().coerceAtLeast(1)
         for (b in 1..bevel) {
             val lo = off - b
             val hi = off + printPx - 1 + b
             for (i in lo..hi) {
-                lift(i, lo); lift(i, hi); lift(lo, i); lift(hi, i)
+                for ((x, y) in arrayOf(i to lo, i to hi, lo to i, hi to i)) {
+                    if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
+                }
             }
         }
         return out
+    }
+
+    /** [argb] with [d] added to each channel. */
+    private fun shifted(argb: Int, d: Int): Int {
+        fun ch(shift: Int) = (((argb shr shift) and 0xFF) + d).coerceIn(0, 255) shl shift
+        return (argb and 0xFF000000.toInt()) or ch(16) or ch(8) or ch(0)
     }
 
     /**

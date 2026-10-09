@@ -38,16 +38,17 @@ class StageModel(
 fun Int.asColor() = Color(this)
 
 /**
- * Colour matrix for the cover: the time-of-day lighting (perceptual dimming, warmer at
- * night) and a gentle highlight compression – even a white cover never glares
- * (white becomes a warm paper tone instead of #FFFFFF).
+ * Colour matrix for the cover: the time-of-day lighting (perceptual dimming, only a touch
+ * warmer at night – a grey gains at most 0.004 of chroma, towards hue 62°, since dim light
+ * loses colour rather than gaining it) and a gentle highlight compression – even a white
+ * cover never glares (white becomes a warm paper tone instead of #FFFFFF).
  */
 fun coverFilter(lighting: Lighting, dim: Float = 1f): ColorFilter {
     val k = lighting.brightness.pow(1.36f) * dim
     val w = lighting.warmth
-    val r = k * 0.955f * (1f + 0.02f * w)
-    val g = k * 0.94f * (1f - 0.05f * w)
-    val b = k * 0.91f * (1f - 0.20f * w)
+    val r = k * 0.955f * (1f + 0.0375f * w)
+    val g = k * 0.94f * (1f - 0.0066f * w)
+    val b = k * 0.91f * (1f - 0.045f * w)
     return ColorFilter.colorMatrix(
         ColorMatrix(
             floatArrayOf(

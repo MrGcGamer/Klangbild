@@ -9,7 +9,6 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -46,16 +45,17 @@ data class PrintShape(val rect: RectDp, val round: Boolean = false) {
 
 /**
  * The light of a Halo scene: a lamp hidden behind the print, close to its sun-side edge,
- * throwing a soft oval pool of light onto the wall.
+ * throwing a soft round pool of light onto the wall.
  *
- *  - The **lamp** ([lampSprite], [lampPose]) is one radial pool, I = (1 − (r/R)²)³: brightest
- *    at the print's edge on the sun's side, about 40 % of that 50 dp out, gone by 128 dp;
- *    the far side of the print stays dark. It follows the sundial's sun around the print –
- *    per frame the sprite is only moved, rotated and stretched.
+ *  - The **lamp** ([lampSprite], [lampPose]) is one radial pool whose lightness falls as
+ *    (1 − (r/R)²)^1.5: brightest at the print's edge on the sun's side, about half the
+ *    luminance 25 dp out, gone with zero slope at 70 dp – it fits into the 72 dp of free
+ *    wall between the print and the black band at the screen edge, so nothing ever clips
+ *    it. The far side of the print stays dark. It follows the sundial's sun around the
+ *    print – per frame the sprite is only moved, rotated and stretched.
  *  - The **wall mask** ([holeMask]) is static: the print hides the wall behind it, and the
- *    light thins out towards the screen edges (none within 16 dp). While a print is taken
- *    down the hole fades with it ([openMask]) – the empty wall shows the lamp's pool,
- *    nothing else.
+ *    36 dp next to the screen edges stay black. While a print is taken down the hole fades
+ *    with it ([openMask]) – the empty wall shows the lamp's pool, nothing else.
  *  - A dark print gets a faint **rim** of wall light all around ([rimMap]), so its far
  *    edges never vanish into the black wall.
  *  - The **colour** ([lightTint]) is applied when drawing, so it can morph and dim.
@@ -67,41 +67,52 @@ object HaloLight {
     const val MAP_H = 540
 
     /** No light at all within this distance of the screen edges (dp)… */
-    const val EDGE_CLEAR_DP = 16f
+    const val EDGE_CLEAR_DP = 36f
 
     /**
-     * …and full light only this much further in (at the print's outer edges). The fade is
-     * long and gentle, so a pool that reaches towards the screen edge thins out on its own
-     * instead of being cut off along a straight line.
+     * …and full light from this much further in. Only a safety net: the pool is sized to
+     * end before it, so the band never cuts a visible shape.
      */
-    const val EDGE_FADE_DP = 92f
+    const val EDGE_FADE_DP = 4f
 
     /** Side of the lamp sprite (px); the pool is a disc of radius [LAMP_SPRITE] / 2. */
     const val LAMP_SPRITE = 512
 
-    /** Radius of the pool, as a share of the print's size (190 dp for a 320 dp print). */
-    const val LAMP_RADIUS = 0.6f
+    /** Radius of the pool, as a share of the print's size (110 dp for a 320 dp print). */
+    const val LAMP_RADIUS = 0.34375f
 
-    /** The pool is stretched along the print's edge by this much. */
+    /** The pool is stretched along the print's edge by this much (not at its corners). */
     const val LAMP_STRETCH = 1.25f
 
-    /** How far inside the print's sun-side edge the lamp sits (share of the print's size). */
-    const val LAMP_INSET = 0.2f
+    /** How far inside the print's sun-side edge the lamp sits (share of size: 40 dp). */
+    const val LAMP_INSET = 0.125f
 
-    /** The pool's profile at [u] = r / R: 1 at the lamp, 0 at the rim. */
+    /**
+     * The pool's profile at [u] = r / R as perceived lightness: 1 at the lamp, falling to 0
+     * with zero slope at the rim. The sprite stores it sRGB-encoded and the GPU multiplies
+     * it by the tint as such, so the lightness on the wall follows this curve. (A profile
+     * in linear light falls in a straight line of lightness and reads as a fuzzy disc.)
+     */
     fun lampProfile(u: Float): Float {
         if (u >= 1f) return 0f
         val q = 1f - u * u
-        return q * q * q
+        return q * sqrt(q)
     }
 
-    /** Strength of the pool where it leaves the print on the sun's side (≈ 0.70). */
+    /** Lightness of the pool where it leaves the print on the sun's side (≈ 0.81). */
     val EDGE_STRENGTH: Float get() = lampProfile(LAMP_INSET / LAMP_RADIUS)
+
+    /**
+     * Luminance of the lamp itself for a pool that has [edgeLuminance] where it leaves the
+     * print. The sprite multiplies the tint in sRGB, so the division happens there.
+     */
+    fun lampPeak(edgeLuminance: Float): Float =
+        Oklab.srgbToLinear(Oklab.linearToSrgb(edgeLuminance) / EDGE_STRENGTH)
 
     /** Where and how the lamp's pool lies for the sun at [sunDeg] (dp, screen coordinates). */
     data class LampPose(val x: Float, val y: Float, val alongEdge: Float, val towardsSun: Float, val rotationDeg: Float)
 
-    fun lampPose(shape: PrintShape, sunDeg: Float): LampPose {
+    fun lampPose(shape: PrintShape, sunDeg: Float, screen: ScreenSpec): LampPose {
         val size = shape.rect.width
         val rad = Math.toRadians(sunDeg.toDouble())
         val ux = cos(rad).toFloat()
@@ -110,13 +121,19 @@ object HaloLight {
         val boundary = if (shape.round) shape.radius else shape.radius / max(abs(ux), abs(uy))
         val d = boundary - LAMP_INSET * size
         val r = LAMP_RADIUS * size
-        return LampPose(
-            x = shape.centerX + ux * d,
-            y = shape.centerY + uy * d,
-            alongEdge = r * LAMP_STRETCH,
-            towardsSun = r,
-            rotationDeg = 90f - sunDeg,
-        )
+        // Stretched along a side; at a corner the stretch would point out across the wall.
+        val side = if (shape.round) 1f else cos(2 * rad).toFloat().let { it * it }
+        val along = r * (1f + (LAMP_STRETCH - 1f) * side)
+        val rotation = 90f - sunDeg
+        // The whole pool stays clear of the band at the screen edges: near an outer edge the
+        // lamp moves deeper behind the print, so its light there is dimmer, never cut off.
+        val phi = Math.toRadians(rotation.toDouble())
+        val halfW = hypot(along * cos(phi).toFloat(), r * sin(phi).toFloat())
+        val halfH = hypot(along * sin(phi).toFloat(), r * cos(phi).toFloat())
+        val safe = EDGE_CLEAR_DP + EDGE_FADE_DP
+        val x = (shape.centerX + ux * d).coerceIn(min(safe + halfW, shape.centerX), max(screen.widthDp - safe - halfW, shape.centerX))
+        val y = (shape.centerY + uy * d).coerceIn(min(safe + halfH, shape.centerY), max(screen.heightDp - safe - halfH, shape.centerY))
+        return LampPose(x, y, alongEdge = along, towardsSun = r, rotationDeg = rotation)
     }
 
     /**
@@ -136,10 +153,9 @@ object HaloLight {
     }
 
     /**
-     * The pool as a greyscale disc sprite, sRGB-encoded (so that multiplying by an sRGB
-     * tint on the GPU gives the right result). [ditherLsb] is the dither amplitude in grey
-     * levels: the tint scales the sprite down, so the dither must be proportionally
-     * stronger to still break up bands in the final 8-bit output.
+     * The pool as a greyscale disc sprite holding [lampProfile] as sRGB values. [ditherLsb]
+     * is the dither amplitude in grey levels: the tint scales the sprite down, so the
+     * dither must be proportionally stronger to still break up bands in the final output.
      */
     fun lampSprite(ditherLsb: Float = 1f, seed: Int = 3, size: Int = LAMP_SPRITE): IntArray {
         val out = IntArray(size * size)
@@ -165,10 +181,20 @@ object HaloLight {
     /** The wall mask without a print: only the clearance at the screen edges. */
     fun openMask(screen: ScreenSpec): IntArray = mask(screen) { x, y -> edgeWindow(x, y, screen) }
 
-    /** The faint rim of wall light around a dark print: 1 at its edge, gone after ~20 dp. */
-    fun rimMap(shape: PrintShape, screen: ScreenSpec): IntArray = mask(screen) { x, y ->
-        val d = shape.distance(x, y)
-        if (shape.contains(x, y)) 0f else exp(-d / 7f) * edgeWindow(x, y, screen)
+    /** Width of the rim around a dark print (dp). */
+    const val RIM_DP = 20f
+
+    /**
+     * The faint rim of wall light around a dark print, as lightness like the pool: 1 at its
+     * edge, gone with zero slope [RIM_DP] out.
+     */
+    fun rimMap(shape: PrintShape, screen: ScreenSpec): IntArray = mask(screen, encoded = true) { x, y ->
+        if (shape.contains(x, y)) {
+            0f
+        } else {
+            val q = (1f - (shape.distance(x, y) / RIM_DP).let { it * it }).coerceAtLeast(0f)
+            q * sqrt(q) * edgeWindow(x, y, screen)
+        }
     }
 
     /**
@@ -178,13 +204,14 @@ object HaloLight {
     fun rimLuminance(edgeLuminance: Float): Float =
         if (edgeLuminance > 0.03f) 0f else max(0.008f, 2f * edgeLuminance).coerceAtMost(0.015f)
 
-    private inline fun mask(screen: ScreenSpec, value: (Float, Float) -> Float): IntArray {
+    /** A greyscale map of the screen; [value] is linear light unless it is [encoded] already. */
+    private inline fun mask(screen: ScreenSpec, encoded: Boolean = false, value: (Float, Float) -> Float): IntArray {
         val sx = screen.widthDp / MAP_W
         val sy = screen.heightDp / MAP_H
         val out = IntArray(MAP_W * MAP_H)
         for (y in 0 until MAP_H) for (x in 0 until MAP_W) {
-            val v = value((x + 0.5f) * sx, (y + 0.5f) * sy)
-            val g = (Oklab.linearToSrgb(v.coerceIn(0f, 1f)) * 255f).roundToInt()
+            val v = value((x + 0.5f) * sx, (y + 0.5f) * sy).coerceIn(0f, 1f)
+            val g = ((if (encoded) v else Oklab.linearToSrgb(v)) * 255f).roundToInt()
             out[y * MAP_W + x] = (0xFF shl 24) or (g shl 16) or (g shl 8) or g
         }
         return out
@@ -200,9 +227,9 @@ object HaloLight {
         }
     }
 
-    /** Opaque grey for linear [v]; pure black (no dither noise) where there is no light. */
+    /** Opaque grey for the sRGB value [v]; pure black (no dither noise) where there is no light. */
     private fun grey(v: Float, rnd: Dither, amplitude: Float): Int {
-        val g = if (v < 0.0005f) 0 else (Oklab.linearToSrgb(v) * 255f + (rnd.next() - rnd.next()) * amplitude).roundToInt().coerceIn(0, 255)
+        val g = if (v < 0.004f) 0 else (v * 255f + (rnd.next() - rnd.next()) * amplitude).roundToInt().coerceIn(0, 255)
         return (0xFF shl 24) or (g shl 16) or (g shl 8) or g
     }
 
@@ -264,10 +291,20 @@ object HaloLight {
             // ~3300 K: clearly warm, still light – never below hue 60° (rust).
             Lch(0.70f, (lead.chroma * 0.8f).coerceIn(0.06f, 0.083f), hue.coerceIn(64f, 72f))
         } else {
-            // Cool and violet light reads as an LED strip when it is saturated: held back.
-            Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.035f, 0.06f), hue)
+            // Cool and violet light reads as an LED strip: it is drawn towards the lamp's warm
+            // white (in OKLab, so it passes through neutral, never through green) and kept
+            // to little chroma – a hint of the cover's colour in lamp light.
+            val own = Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.035f, 0.06f), hue).toLab()
+            val mixed = own.lerp(Lch(0.66f, LAMP.c, LAMP.h).toLab(), COOL_TO_LAMP).toLch()
+            Lch(mixed.l, mixed.c.coerceAtMost(COOL_CHROMA), mixed.h)
         }
     }
+
+    /** How far cool light is drawn towards the lamp's warm white. */
+    private const val COOL_TO_LAMP = 0.4f
+
+    /** Chroma limit of cool light at the reference lightness (≈ 0.02 at the glow's level). */
+    private const val COOL_CHROMA = 0.034f
 
     /** Light for neutral covers (black and white, greys): warm white, like a 2700–3000 K bulb. */
     val LAMP = Lch(0.70f, 0.045f, 72f)
@@ -294,15 +331,17 @@ object HaloLight {
     fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
         val night = nightOf(lighting)
         val warm = lighting.warmth.coerceIn(0f, 1f)
-        val hue = mixHue(color.h, LAMP_HUE, 0.35f * warm)
-        var chroma = color.c * (1f - 1.25f * night)
+        // After sunset the light warms towards the lamp's white – in OKLab, so cool light
+        // passes through neutral on its way, never through green.
+        val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * warm).toLch()
+        var chroma = base.c * (1f - 1.25f * night)
         val luminance = peak * (1f - 1.8f * night).coerceAtLeast(0.28f)
         val maxSaturation = 1f - 1.25f * night
-        var argb = scaledTo(Lch(color.l, chroma, hue), luminance)
+        var argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
         repeat(12) {
             if (hsvSaturation(argb) <= maxSaturation + 1e-3f) return argb
             chroma *= 0.85f
-            argb = scaledTo(Lch(color.l, chroma, hue), luminance)
+            argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
         }
         return argb
     }

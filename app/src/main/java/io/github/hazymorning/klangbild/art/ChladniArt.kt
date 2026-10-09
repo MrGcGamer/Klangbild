@@ -17,10 +17,10 @@ import kotlin.random.Random
  *
  * The plate is round, seen from above, hung on the wall like the prints (outside the disc
  * the image is transparent): a ring mode of the plate (Bessel functions in the radius) is
- * superposed with a nearly equal mode that has three to six lobes around it, so the sand
+ * superposed with a nearly equal mode that has two to eight lobes around it, so the sand
  * circles undulate like ripples – the calm figures of real sand photographs, not a grid of
- * lines. Both modes share the same axis, so every figure is mirror-symmetric – no figure
- * can turn into a hooked, pinwheel-like sign.
+ * lines. The sand stays clear of the rim. Both modes share the same axis, so every figure
+ * is mirror-symmetric – no figure can turn into a hooked, pinwheel-like sign.
  *
  * Pure Kotlin (returns ARGB pixels), so it renders identically on the JVM and the device
  * and can be produced at the exact on-screen pixel size – no upscaling, ever.
@@ -48,18 +48,40 @@ object ChladniArt {
 
     fun specFor(seedText: String): Spec {
         val rnd = Random(stableHash(seedText.ifBlank { "Klangbild" }))
-        // A ring mode – nodal circles only, the last one at the rim – made wavy by a second
-        // mode with three to six lobes. Nodal diameters through the centre would turn into
-        // crosses, wheels and rosettes, which read as signs.
-        val rings = 3 + rnd.nextInt(2)
-        val n2 = 3 + rnd.nextInt(4)
-        // McMahon: the m-th zero of J_n lies near (m + n/2 − 1/4)·π.
-        val k1 = ((rings - 0.25f) * PI).toFloat()
-        val k2 = k1 * (0.96f + 0.08f * rnd.nextFloat())
-        val mix = (0.35f + 0.3f * rnd.nextFloat()) * (if (rnd.nextBoolean()) 1f else -1f)
+        // A ring mode – two or three nodal circles, the outermost well inside the rim – made
+        // wavy by a second mode with three to eight lobes. Nodal diameters through the centre
+        // would turn into crosses, wheels and rosettes; a single circle or two lobes read as
+        // an "O".
+        val rings = 2 + rnd.nextInt(2)
+        val n2 = LOBES[rnd.nextInt(LOBES.size)]
+        val k1 = J0_ZEROS[rings - 1] / OUTER_RING
+        val k2 = k1 * (0.97f + 0.06f * rnd.nextFloat())
+        // The second mode's share: the outermost circle undulates by 3–6 % of the radius, but
+        // no circle may wander far towards its neighbour, the clamp or the sandless rim.
+        val radii = FloatArray(rings) { J0_ZEROS[it] / k1 }
+        fun undulation(i: Int) = abs(besselTable(n2).at(k2 * radii[i])) / (k1 * abs(besselTable(1).at(J0_ZEROS[i])))
+        var mix = (0.03f + 0.03f * rnd.nextFloat()) / undulation(rings - 1).coerceAtLeast(1e-3f)
+        for (i in 0 until rings) {
+            val inside = if (i == 0) radii[0] - MOUNT * 2f else radii[i] - radii[i - 1]
+            val outside = if (i == rings - 1) (SAND_IN - radii[i]) * 2f else radii[i + 1] - radii[i]
+            mix = minOf(mix, 0.3f * minOf(inside, outside) / undulation(i).coerceAtLeast(1e-4f))
+        }
+        mix = mix.coerceAtMost(MAX_MIX) * (if (rnd.nextBoolean()) 1f else -1f)
         val (plate, sand) = palettes[rnd.nextInt(palettes.size)]
         return Spec(0, k1, n2, k2, mix, plate, sand)
     }
+
+    /** The first zeros of J₀: where the nodal circles of a ring mode lie. */
+    private val J0_ZEROS = floatArrayOf(2.4048f, 5.5201f, 8.6537f)
+
+    /** Radius of the outermost nodal circle (share of the plate's radius). */
+    private const val OUTER_RING = 0.68f
+
+    /** Lobes of the second mode. */
+    private val LOBES = intArrayOf(3, 4, 5, 6, 8)
+
+    /** Upper limit of the second mode's share: more would break the circles apart. */
+    const val MAX_MIX = 0.6f
 
     /**
      * The plate's vibration at radius [r] (0..1) and angle [theta]: sand gathers where it is
@@ -75,8 +97,9 @@ object ChladniArt {
     /** Radius of the central clamp (plate units). */
     private const val MOUNT = 0.035f
 
-    /** The sand thins out over this outer share of the radius. */
-    private const val SAND_RIM = 0.06f
+    /** The sand thins out between these radii (shares of the plate's): none at the rim. */
+    private const val SAND_IN = 0.82f
+    private const val SAND_OUT = 0.9f
 
     fun render(spec: Spec, size: Int, seed: Int = 1): IntArray {
         val out = IntArray(size * size)
@@ -132,7 +155,7 @@ object ChladniArt {
                 // sand: stippled grains, denser on the nodal lines; a little dust elsewhere.
                 // Sand slides off the bolt and off the free rim: none right next to either,
                 // so no line ends abruptly at the plate's edge.
-                val rimClear = ((1f - r) / SAND_RIM).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+                val rimClear = ((SAND_OUT - r) / (SAND_OUT - SAND_IN)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
                 val clear = ((r - MOUNT) / 0.05f).coerceIn(0f, 1f) * rimClear
                 val grain = if (rnd.nextFloat() < line * 0.9f * clear) 0.75f + 0.25f * rnd.nextFloat() else 0f
                 val dust = if (rnd.nextFloat() < (halo * 0.06f + 0.004f) * rimClear) 0.55f else 0f

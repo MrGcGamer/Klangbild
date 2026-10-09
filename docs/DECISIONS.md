@@ -301,3 +301,37 @@ Box-Shadow. Umgesetzt:
 - **Typografie:** der Trennpunkt neben arabischem Text sitzt etwas höher (sonst liest er sich
   als Satzpunkt); „Auf der Seite“ bricht nicht nach „Auf“ um.
 
+## 20. Sechste Runde: der Lichtkegel passt ins Raster
+
+Die fünfte Kritik bestätigte leere Wand, stehende Albumzeile und Lichtfarbe, fand aber den
+Lichtkegel zu groß für das Raster: zwischen Bild und schwarzem Randstreifen liegen nur 72 dp
+Wand. Bei Covern auf der linken Seite schnitt der Rand den Kegel ab, die Höhenlinien wurden zu
+abgerundeten Rechtecken – wieder der Box-Shadow. Umgesetzt:
+
+- **Kleinerer Kegel, Abfall in Helligkeit:** Lampe 40 dp innerhalb der Kante, R = 110 dp; die
+  empfundene Helligkeit fällt wie (1 − (r/R)²)^1,5 (das Sprite speichert sie direkt als
+  sRGB-Wert): an der Kante am hellsten, 25 dp weiter etwa halbe Leuchtdichte, nach 70 dp ohne
+  Knick vorbei. Ein Abfall in linearem Licht fällt in Helligkeit wie eine Gerade und wirkt
+  wie eine unscharfe Scheibe.
+- **Randstreifen wieder 36 dp, wirklich schwarz:** Nahe einem Außenrand rückt die Lampe tiefer
+  hinter das Bild (dort etwas dunkler), statt abgeschnitten zu werden; an Ecken wird der Kegel
+  nicht gestreckt. Ein neuer Test prüft die gerenderten Pixel aller Demo-Szenen am Anfang, in
+  der Mitte und am Ende des Titels: im Randstreifen ist jeder Wert 0.
+- **Saum in der Farbe der Lampe** (halbe Sättigung) und in Helligkeit über 20 dp auslaufend,
+  damit er nicht als zweites Licht wirkt.
+- **Kühles Licht** wird in OKLab zu 40 % zum warmweißen Lampenlicht gezogen (abends weiter),
+  mit wenig Chroma – ein Hauch der Coverfarbe statt LED-Leiste. Der Weg führt über Neutral,
+  nie über Grün.
+- **Nachts gewinnt das Cover kaum Farbe:** höchstens +0,004 Chroma Richtung Bernstein statt
+  eines olivgrünen Stichs.
+- **Uhr beim Seitenwechsel:** alte und neue Uhr blenden gleichzeitig über, zusammen nie unter
+  60 %.
+- **Klangplatten:** zwei oder drei Knotenkreise innerhalb von 68 % des Radius, drei- bis
+  achtzählig gewellt, der Anteil der zweiten Schwingung so begrenzt, dass sich keine Kreise
+  berühren; zwischen 82 und 90 % des Radius dünnt der Sand auf null aus. Kein einzelner Kreis
+  und keine zweizählige Welle (beides liest sich als „O“).
+- **Passepartout:** bleibt dunkel (ein helles wäre die größte statische helle Fläche auf dem
+  OLED, siehe Abschnitt 4), bekommt aber eine feine Körnung und eine 1 dp breite weiße
+  Schnittkante – ein Museums-Passepartout statt einer leeren Fläche.
+- **Typografie:** lange Satzbezeichnungen dürfen eine Größenstufe kleiner werden, wenn sie dann
+  nur nach den Gedankenstrichen umbrechen; „den Code“ bleibt zusammen.

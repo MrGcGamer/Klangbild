@@ -95,7 +95,7 @@ fun HaloLightLayer(
         val a = alpha().coerceIn(0f, 1f)
         val level = lightLevel().coerceIn(0f, 1f)
         if (a <= 0.002f || level <= 0.002f) return@Canvas
-        light.place(HaloLight.lampPose(scene.shape, sunAngle()), density, size)
+        light.place(HaloLight.lampPose(scene.shape, sunAngle(), scene.screen), density, size)
         val filter = ColorFilter.tint(Color(HaloLight.dimTint(tint(), level)), BlendMode.Modulate)
         val open = holeOpen().coerceIn(0f, 1f)
         if (open > 0.001f) drawRect(light.openWall, alpha = a, colorFilter = filter)
@@ -603,7 +603,8 @@ private class TitleChoice(val size: Float, val lines: Int, val text: AnnotatedSt
  * The title at the largest size of the ladder that fits its line limit and the height it
  * is given; balanced line breaks. At each size, a version that may only break after the
  * dashes between a movement's sections is tried first ("Presto – / Allegro assai", never
- * "Allegro / assai"). Returns null if nothing fits.
+ * "Allegro / assai"); if only the free version fits, one size smaller is still worth it
+ * when the dash version fits there. Returns null if nothing fits.
  */
 private fun pickTitleSize(
     text: AnnotatedString,
@@ -614,14 +615,20 @@ private fun pickTitleSize(
 ): TitleChoice? {
     val base = glueParentheses(text)
     val glued = glueBetweenDashes(base)
-    for ((size, lines) in titleLadder) {
-        val style = styles.titleAt(size)
-        if (glued != null) {
-            val g = measurer.measure(glued, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
-            if (g.lineCount <= lines && g.size.height <= maxH && breaksOnlyAfterDashes(g)) return TitleChoice(size, lines, glued)
+    fun gluedFits(size: Float, lines: Int): Boolean {
+        if (glued == null) return false
+        val g = measurer.measure(glued, style = styles.titleAt(size), constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
+        return g.lineCount <= lines && g.size.height <= maxH && breaksOnlyAfterDashes(g)
+    }
+    for ((i, step) in titleLadder.withIndex()) {
+        val (size, lines) = step
+        if (gluedFits(size, lines)) return TitleChoice(size, lines, glued!!)
+        val r = measurer.measure(base, style = styles.titleAt(size), constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
+        if (r.lineCount <= lines && r.size.height <= maxH && !breaksInsideWord(r)) {
+            val smaller = titleLadder.getOrNull(i + 1)
+            if (smaller != null && gluedFits(smaller.first, smaller.second)) return TitleChoice(smaller.first, smaller.second, glued!!)
+            return TitleChoice(size, lines, base)
         }
-        val r = measurer.measure(base, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
-        if (r.lineCount <= lines && r.size.height <= maxH && !breaksInsideWord(r)) return TitleChoice(size, lines, base)
     }
     return null
 }

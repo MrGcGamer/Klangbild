@@ -65,8 +65,8 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   (Farbanalyse im Farbraum Oklab): der violette Himmel eines Synthwave-Covers, nicht seine
   kleine orange Sonne. Warme Cover bekommen Glühlampenlicht (≈ 3300 K) statt rostbraunem
   Schein, graue und weiße Cover warmweißes Licht, kühle Farben bleiben zurückhaltend; weiße
-  Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Drittel
-  der Bildbreite aus; die abgewandte Seite bleibt dunkel, ein dunkles Cover
+  Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Fünftel
+  der Bildbreite weich aus; die abgewandte Seite bleibt dunkel, ein dunkles Cover
   bekommt dort einen feinen Lichtsaum, damit seine Kanten nicht in der Wand verschwinden.
   Weit weg vom Bild und am Bildschirmrand ist die Wand schwarz.
 - **Das Licht als Sonnenuhr.** Die Lampe hinter dem Bild wandert im Lauf des Titels von
@@ -84,7 +84,8 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   am Rand eines Titels fallen weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
   (Music Assistant, Spotify, Deezer, Apple Music, Tidal, Qobuz, YouTube Music) und zeigt sie
-  nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout.
+  nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout mit
+  heller Schnittkante.
 - **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
   noch Cover, Titel und Künstler. Ohne Home Assistant (Demo) nach der Uhrzeit.
 - **OLED-Schutz.** Die ganze Komposition wandert langsam um ein paar Pixel, das Layout

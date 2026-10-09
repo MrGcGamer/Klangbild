@@ -163,8 +163,8 @@ fun StageTheatre(
 
     // The clock only moves along if its place changes. Then it stays, a little dimmed, where
     // it was through the dark moment and dissolves over to its new place as the new light
-    // comes – the screen never goes entirely dark. (It is gone before the new print, which
-    // now hangs where it was, comes up beneath it.)
+    // comes – the two together never drop below the held level, so the screen never goes
+    // dark. (The old one is gone before the new print, which now hangs where it was, is up.)
     val clockStays = prev != null && prevPlan != null && prevPlan.showClock && curPlan.showClock &&
         prev.scene.layout.columnLeft == cur.scene.layout.columnLeft && kind != Change.SOFT
     val clockMoves = prev != null && prevPlan != null && prevPlan.showClock && curPlan.showClock &&
@@ -178,10 +178,10 @@ fun StageTheatre(
         }
     }
     val prevClockAlpha: () -> Float =
-        if (clockMoves) ({ (1f - (1f - Motion.HELD_CLOCK) * p(0, 550)) * (1f - p(1_000, 1_300)) }) else prevTextAlpha
+        if (clockMoves) ({ (1f - (1f - Motion.HELD_CLOCK) * p(0, 550)) * (1f - p(1_000, 1_600)) }) else prevTextAlpha
     val curClockAlpha: () -> Float = when {
         clockStays || prev == null -> ({ 1f })
-        clockMoves -> ({ p(1_100, 1_900) })
+        clockMoves -> ({ p(1_000, 1_600) })
         else -> curTextAlpha
     }
     // A clock that stays takes on the new print's colour while the lamp changes colour.
