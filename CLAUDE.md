@@ -2,7 +2,10 @@
 
 Android TV "now playing" display for Home Assistant + Music Assistant. Runs on a Google TV
 Streamer (Android TV 14, 4K, weak PowerVR GPU, OLED TV). Sideload only.
-Docs for humans are German (`README.md`, `docs/`); code and comments are English.
+Docs for humans are German; code and comments are English. The README stays under 400
+characters (what it is, what is special) and the release notes short: effort goes into the
+app, not into documents (`docs/` holds only the release notes that CI publishes, and old
+design records that are no longer kept up).
 
 ## Build & test
 
@@ -12,7 +15,6 @@ Docs for humans are German (`README.md`, `docs/`); code and comments are English
 ./gradlew :app:testDebugUnitTest --tests '*HaloStageTest*' -Proborazzi.test.record=true   # one class
 ./gradlew :app:assembleRelease                                 # signed, R8-minified APK
 python3 tools/make_launcher_assets.py                          # re-render banner + icons (Pillow)
-python3 tools/make_readme_images.py                            # docs/screens/ from the Readme* tests
 ```
 
 - Local SDK: `local.properties` → `sdk.dir=/opt/android-sdk` (not committed). compileSdk 37.
@@ -20,7 +22,6 @@ python3 tools/make_readme_images.py                            # docs/screens/ f
   mirror first (`settings.gradle.kts`, `robolectric.dependency.repo.url` in `app/build.gradle.kts`).
 - Screenshots are **not** committed as baselines; tests render to `app/build/screenshots/`
   (CI uploads them as an artifact; the plugin copies them there at the end of the task).
-  Curated renderings for the README live in `docs/screens/`.
 - The progress bar refreshes in a loop of its own, so a stage never goes idle: stills wrap
   their content in `Fixtures.Still { }` (provides `LocalStill`), animated sequences use
   `createComposeRule()` with `mainClock.autoAdvance = false`. The static stages for stills
