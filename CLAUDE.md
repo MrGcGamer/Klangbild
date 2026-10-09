@@ -75,8 +75,10 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   narrower (wdth 90, 82); artist 21 sp/520; album, work 17 sp; labels, times, status, next
   15 sp – nothing smaller. No tabular figures (Mona's slash the zero). Mona lacks U+202F,
   U+2009 and U+2002 – use U+00A0. Titles ≤ 3 lines, prefer breaks after section dashes, no
-  mid-word breaks (`breaksInsideWord`); artists on one line (smaller, then narrower, then
-  "u. a."); the year leaves the album line before anything is cut; edge emoji dropped
+  mid-word breaks (`breaksInsideWord`), a word of one to three letters stays with the next
+  ("Spiegel / im Spiegel"); artists on one line (smaller, then narrower, then "u. a."); the
+  year leaves the album line before anything is cut; "Als Nächstes" drops the artist before
+  it cuts; edge emoji dropped
   (`Emoji.trimEdges`), inner ones dimmed; one separator `TimeLine.SEPARATOR`;
   `TrackText.typeset` for dashes and no-break spaces after abbreviations; CJK/Arabic fall back
   to system fonts (RTL lines isolated); in UI prose a short word opening a sentence never ends
@@ -89,7 +91,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   with distance (diffuse, no streaks). 0.045 relative luminance at the edge, falling as
   exp(−(d/σ)^1.7), σ = 0.19 × artwork size, so the text stands on dark wall; dark edges glow
   at 32 %, chroma ≤ 0.13, night dimmer and paler; the 36 dp next to the screen edges stay
-  black (`EdgeBandTest` checks rendered pixels). One bitmap per scene, drawn as one rectangle,
+  black (`EdgeBandTest` checks rendered pixels), faded in as a product of a horizontal and a
+  vertical ramp (a min() of edge distances creases along the diagonals). One bitmap per scene, drawn as one rectangle,
   dimmed through a colour matrix.
 - **Progress:** a classic bar – 4 dp, round ends, no knob, track 20 %, fill 90 % of the ink,
   elapsed left, "−remaining" right. Refreshed ~30×/s aligned to frames (only its own draw);

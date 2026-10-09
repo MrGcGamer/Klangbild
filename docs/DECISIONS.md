@@ -462,6 +462,9 @@ Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
   selbst). Keine Tabellenziffern: Monas Tabellen-Null ist durchgestrichen und die Eins hat
   einen Fuß – Gewohnheiten einer Code-Schrift. Mona fehlen schmale Leerzeichen (U+202F,
   U+2009, U+2002); wo vorher eines stand, steht ein geschütztes Leerzeichen.
+- **Satz:** Ein Wort aus ein bis drei Buchstaben bleibt im Titel beim folgenden Wort
+  („Spiegel / im Spiegel“, nie „Spiegel im / Spiegel“); passt „Als Nächstes“ mit Künstler
+  nicht in die Zeile, steht nur der Titel da, statt den Künstler abzuschneiden.
 - **Schriftgrößen:** Titel 44 oder 40 sp in höchstens zwei Zeilen (Gewicht 440), sonst 36 bis
   26 sp in drei Zeilen (450–460), danach schmaler (Breite 90, 82). Künstler 21 sp, Gewicht 520,
   80 % Helligkeit; Album 17 sp; Zeiten, Statuszeile, „Als Nächstes“ 15 sp. Der große, leichte
@@ -475,7 +478,9 @@ Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
   exp(−(d/σ)^1,7) mit σ = 0,19 × Bildgröße: Das Licht bleibt nah am Bild, der Text steht auf
   dunkler Wand. Ein Test prüft, dass auch die leiseste Zeile auf dem hellsten Licht 4,5 : 1
   Kontrast behält. Dunkle Ränder leuchten schwächer, Farbigkeit ist begrenzt, nachts gedämpft;
-  am Bildschirmrand bleibt es schwarz. Eine Bitmap je Szene, gezeichnet als ein Rechteck,
+  am Bildschirmrand bleibt es schwarz – eingeblendet als Produkt einer waagerechten und einer
+  senkrechten Rampe (das Minimum der Randabstände knickte sichtbar entlang der Diagonalen,
+  wie eine Gehrung). Eine Bitmap je Szene, gezeichnet als ein Rechteck,
   gedimmt über eine Farbmatrix – pro Frame passiert nichts.
 - **Abgerundete Ecken:** 8 dp, gut 2 % der Seitenlänge (gemessen bei Apple, Tidal, Sonos:
   1,7–3,2 %).
