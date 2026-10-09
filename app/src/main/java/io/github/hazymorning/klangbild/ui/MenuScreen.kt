@@ -55,7 +55,8 @@ import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.theme.Fonts
-import io.github.hazymorning.klangbild.ui.theme.mona
+import io.github.hazymorning.klangbild.ui.theme.textType
+import io.github.hazymorning.klangbild.ui.theme.titleType
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.exp
@@ -199,7 +200,7 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifie
         }
 
         // Left: the heading at the print's top edge, the explanation level with the chosen line.
-        val headingStyle = mona(36f, 440, colors.heading)
+        val headingStyle = titleType(36f, 420, colors.heading)
         BaselineAt(x = layout.margin, baseline = layout.artTop + 36f * Fonts.CAP_HEIGHT, width = layout.art) {
             BasicText("Einstellungen", style = headingStyle)
         }
@@ -211,20 +212,20 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifie
             BaselineAt(x = layout.margin, baseline = focusY + LABEL_BASELINE_FROM_CENTRE, width = layout.art - 24f) {
                 BasicText(
                     text,
-                    style = mona(18f, 420, colors.description, lineHeight = 26f).merge(
+                    style = textType(18f, 420, colors.description, lineHeight = 26f).merge(
                         TextStyle(lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)),
                     ),
                 )
             }
         }
         BaselineAt(x = layout.margin, baseline = layout.artTop + layout.art, width = layout.art) {
-            BasicText("OK ändert" + TimeLine.SEPARATOR + "Zurück schließt", style = mona(15f, 500, colors.hint, tracking = 0.01f))
+            BasicText("OK ändert" + TimeLine.SEPARATOR + "Zurück schließt", style = textType(15f, 500, colors.hint, tracking = 0.01f))
         }
 
         // Right: the lines in the text column.
-        val labelStyle = mona(21f, 480)
-        val valueStyle = mona(17f, 440)
-        val headerStyle = mona(15f, 600, colors.header, tracking = 0.01f)
+        val labelStyle = textType(21f, 480)
+        val valueStyle = textType(17f, 440)
+        val headerStyle = textType(15f, 600, colors.header, tracking = 0.01f)
         for (line in lines) {
             val height = if (line is MenuLine.Header) MenuGrid.HEADER else MenuGrid.ROW
             Box(

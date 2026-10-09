@@ -4,7 +4,7 @@
 Usage: python3 tools/make_launcher_assets.py   (needs Pillow)
 
 The motif is the app itself: a small square "cover" with softly rounded corners whose own
-colours glow onto a black wall, next to the wordmark set in Mona Sans.
+colours glow onto a black wall, next to the wordmark set in Jost, the title face.
 """
 import math
 import os
@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(ROOT, "app", "src", "main", "res")
-FONT = os.path.join(RES, "font", "monasans.ttf")
+FONT = os.path.join(RES, "font", "jost.ttf")
 
 WALL = (0, 0, 0)
 INK = (236, 234, 230)
@@ -22,13 +22,13 @@ CARD_TOP = (190, 112, 58)
 CARD_BOTTOM = (92, 44, 26)
 
 
-def mona(size, weight=460, opsz=72):
+def jost(size, weight=420):
     f = ImageFont.truetype(FONT, size)
     axes = f.get_variation_axes()
     vals = []
     for a in axes:
         name = a["name"] if isinstance(a["name"], str) else a["name"].decode()
-        vals.append({"Weight": weight, "Optical size": opsz, "Width": 100}.get(name, a["default"]))
+        vals.append({"Weight": weight}.get(name, a["default"]))
     f.set_variation_by_axes(vals)
     return f
 
@@ -83,13 +83,13 @@ def banner(path, w=320, h=180):
     y0 = (h * s - side) // 2
     lit_card(img, (x0, y0, x0 + side, y0 + side), s)
     d = ImageDraw.Draw(img)
-    f = mona(int(38 * s))
+    f = jost(int(38 * s))
     text = "Klangbild"
     tw = d.textlength(text, font=f)
     tx = x0 + side + int(22 * s)
     ascent, descent = f.getmetrics()
-    # cap height (0.729 em) centred on the card
-    cap = 0.729 * 38 * s
+    # cap height (0.70 em) centred on the card
+    cap = 0.70 * 38 * s
     ty = int((h * s) / 2 + cap / 2 - ascent)
     d.text((tx, ty), text, font=f, fill=INK)
     img = img.resize((w, h), Image.LANCZOS)

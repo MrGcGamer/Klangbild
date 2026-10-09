@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
@@ -37,8 +38,8 @@ import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
-import io.github.hazymorning.klangbild.ui.theme.mona
-import io.github.hazymorning.klangbild.ui.theme.rememberFigures
+import io.github.hazymorning.klangbild.ui.theme.textType
+import io.github.hazymorning.klangbild.ui.theme.titleType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -215,22 +216,25 @@ fun RestScreen(
 @Composable
 private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        val clock = mona(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.02f).merge(TextStyle(textAlign = TextAlign.Center))
-        // Figures in fixed cells: the clock does not shift as the minutes change.
-        BasicText(rememberFigures(clock).of(time), style = clock)
+        val clock = titleType(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.01f).merge(TextStyle(textAlign = TextAlign.Center))
+        // The figures keep their own widths (in cells this large the "1" would stand apart);
+        // a new minute dissolves in, so the re-centred line never jumps.
+        Crossfade(targetState = time, Modifier.fillMaxWidth(), animationSpec = tween(700, easing = Motion.Dimmer), label = "minute") { t ->
+            BasicText(t, Modifier.fillMaxWidth(), style = clock)
+        }
         if (date != null) {
             Spacer(Modifier.height(4.dp))
-            BasicText(date, style = mona(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))
+            BasicText(date, style = textType(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))
         }
         if (label != null) {
             Spacer(Modifier.height(28.dp))
-            BasicText(label, style = mona(16f, 500, colors.label).merge(TextStyle(textAlign = TextAlign.Center)))
+            BasicText(label, style = textType(16f, 500, colors.label).merge(TextStyle(textAlign = TextAlign.Center)))
         }
         if (sentence != null) {
             Spacer(Modifier.height(if (label != null) 10.dp else 28.dp))
             BasicText(
                 sentence,
-                style = mona(19f, 420, colors.secondary, lineHeight = 27f).merge(
+                style = textType(19f, 420, colors.secondary, lineHeight = 27f).merge(
                     TextStyle(
                         textAlign = TextAlign.Center,
                         lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),

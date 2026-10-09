@@ -48,9 +48,11 @@ import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.ui.Motion
+import io.github.hazymorning.klangbild.ui.theme.Face
 import io.github.hazymorning.klangbild.ui.theme.Fonts
-import io.github.hazymorning.klangbild.ui.theme.mona
 import io.github.hazymorning.klangbild.ui.theme.rememberFigures
+import io.github.hazymorning.klangbild.ui.theme.textType
+import io.github.hazymorning.klangbild.ui.theme.titleType
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -170,12 +172,12 @@ private fun edgeLine(scene: ArtworkScene): Color? =
     if (!scene.shape.round && scene.palette.kind == CoverKind.DARK) Color.White.copy(alpha = 0.07f) else null
 
 /**
- * The stage's typography: one family, sentence case; hierarchy from size, weight and three
- * levels of brightness. The title is large and light, the artist smaller but a little heavier
- * – the two balance each other; everything else is quiet. [width] narrows the whole block,
- * never a single line, when a very long title needs it.
+ * The stage's typography: sentence case; hierarchy from size, weight and three levels of
+ * brightness. The title in the title face, large and light (never below 24 sp); everything
+ * else in the text face (never above 21 sp) – the artist a little heavier, so the two balance
+ * each other; everything else quiet. Times take the title face's figures.
  */
-class StageStyles(palette: ScenePalette, val width: Float = 100f) {
+class StageStyles(palette: ScenePalette) {
     val ink = palette.ink.asColor()
     val muted = palette.inkMuted.asColor()
     val quiet = palette.inkQuiet.asColor()
@@ -183,27 +185,29 @@ class StageStyles(palette: ScenePalette, val width: Float = 100f) {
     /** The title at one step of [titleLadder]; Japanese, Chinese and Korean a little smaller (their characters stand taller than capitals). */
     fun title(step: TitleStep, cjk: Boolean = false): TextStyle {
         val size = if (cjk) step.size * CJK_SCALE else step.size
-        return mona(
+        return titleType(
             size = size,
             weight = step.weight,
             color = ink,
             lineHeight = size * step.leading + if (cjk) 6f else 0f,
-            tracking = if (!cjk && size >= 40f) -0.005f else 0f,
-            width = width,
+            tracking = if (cjk) 0f else step.tracking,
         ).merge(TextStyle(lineBreak = LineBreak.Heading, textDirection = TextDirection.Content, textAlign = TextAlign.Left))
     }
 
     /** The version under the title ("Radio Edit"): a quiet subtitle at 60 % of the title's size. */
-    fun version(titleSize: Float): TextStyle = mona((titleSize * 0.6f).coerceIn(17f, 26f), 440, quiet, width = width).text()
+    fun version(titleSize: Float): TextStyle = textType((titleSize * 0.5f).coerceIn(17f, 21f), 420, quiet).text()
 
-    val work = mona(17f, 480, quiet, lineHeight = 23f, width = width).text()
-    val artist = mona(21f, 520, muted, lineHeight = 27f, width = width).text()
-    val artistSmall = mona(19f, 520, muted, lineHeight = 25f, width = width).text()
-    val album = mona(17f, 420, quiet, lineHeight = 23f, tracking = 0.005f, width = width).text()
+    val work = textType(17f, 440, quiet, lineHeight = 23f, tracking = 0.005f).text()
+    val artist = textType(21f, 500, muted, lineHeight = 27f).text()
+    val artistSmall = textType(19f, 500, muted, lineHeight = 25f).text()
+    val album = textType(17f, 400, quiet, lineHeight = 23f, tracking = 0.005f).text()
 
-    /** Times, status, station: small and calm, always at normal width. */
-    val label = mona(15f, 500, quiet, lineHeight = 20f, tracking = 0.01f)
-    val next = mona(15f, 440, quiet, lineHeight = 20f).merge(TextStyle(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left))
+    /** Status, station: small and calm, with a little air (light on black closes up). */
+    val label = textType(15f, 440, quiet, lineHeight = 20f, tracking = 0.015f)
+
+    /** Times (the clock, the progress bar's times): figures in the title face, whose digits are even. */
+    val time = titleType(15f, 440, quiet, lineHeight = 20f, tracking = 0.015f)
+    val next = textType(15f, 440, quiet, lineHeight = 20f, tracking = 0.015f).merge(TextStyle(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left))
 
     /** "Als Nächstes" differs from what follows by weight alone. */
     val nextLead = SpanStyle(fontWeight = FontWeight(560))
@@ -212,28 +216,25 @@ class StageStyles(palette: ScenePalette, val width: Float = 100f) {
 
     companion object {
         const val CJK_SCALE = 0.88f
-
-        /** The whole block's width when a title only fits narrower. */
-        const val NARROW = 87.5f
     }
 }
 
-/** One size of the title: [size] sp, at most [lines] lines; [narrow] sets the whole block narrower. */
-class TitleStep(val size: Float, val lines: Int, val weight: Int, val leading: Float, val narrow: Boolean = false)
+/** One size of the title: [size] sp, at most [lines] lines, [tracking] em. */
+class TitleStep(val size: Float, val lines: Int, val weight: Int, val leading: Float, val tracking: Float)
 
 /**
  * Title sizes from large to small: two lines at display size, then three lines a little
- * smaller and (slightly) heavier so they stay as strong. Only when three lines at the smallest
- * size are not enough does the whole block become narrower.
+ * smaller and (slightly) heavier so they look as strong; four lines only as the last resort.
+ * Large sizes close up a little (−1 %); the line spacing leaves room for an umlaut under a
+ * descender.
  */
 val titleLadder = listOf(
-    TitleStep(44f, 2, 440, 1.06f),
-    TitleStep(40f, 2, 440, 1.06f),
-    TitleStep(34f, 3, 450, 1.1f),
-    TitleStep(30f, 3, 450, 1.1f),
-    TitleStep(26f, 3, 460, 1.12f),
-    TitleStep(26f, 3, 460, 1.12f, narrow = true),
-    TitleStep(24f, 4, 460, 1.12f, narrow = true),
+    TitleStep(44f, 2, 400, 1.13f, -0.01f),
+    TitleStep(40f, 2, 400, 1.13f, -0.01f),
+    TitleStep(34f, 3, 420, 1.14f, -0.005f),
+    TitleStep(30f, 3, 420, 1.15f, -0.005f),
+    TitleStep(26f, 3, 430, 1.16f, 0f),
+    TitleStep(24f, 4, 430, 1.16f, 0f),
 )
 
 /** Vertical rhythm of the text block: space from a line's baseline to the next one's cap height (dp). */
@@ -257,7 +258,7 @@ class TextPlan(
     val title: AnnotatedString,
     val titleStyle: TextStyle,
     val titleLines: Int,
-    /** The styles of the block's lines (narrower when the title needs it). */
+    /** The styles of the block's lines. */
     val styles: StageStyles,
     /** "Radio Edit" under the title. */
     val version: String?,
@@ -290,7 +291,6 @@ private fun planText(
     val d = density.density
     val colW = (layout.columnWidth * d).roundToInt()
     val normal = StageStyles(model.scene.palette)
-    val narrow = StageStyles(model.scene.palette, StageStyles.NARROW)
     val cjk = isMostlyCjk(t.title)
     val version = t.version?.takeUnless { model.night }
 
@@ -315,9 +315,9 @@ private fun planText(
         return layout.art * BLOCK_SHARE * d - rest
     }
 
-    val choice = pickTitleSize(title, { step -> (if (step.narrow) narrow else normal).title(step, cjk) }, measurer, colW, ::budget, d)
+    val choice = pickTitleSize(title, { step -> normal.title(step, cjk) }, measurer, colW, ::budget, d)
         ?: TitleChoice(titleLadder.last(), title)
-    val block = if (choice.step.narrow) narrow else normal
+    val block = normal
 
     // Artists on one line: the most complete form that fits – at the artist's size, then a
     // step smaller, before anything is cut.
@@ -441,7 +441,7 @@ fun TextLayer(
                         positionMs = model.positionMs,
                         playing = playing,
                         colors = ProgressColors(track = styles.ink.copy(alpha = 0.16f), fill = styles.muted, label = styles.quiet),
-                        labelStyle = styles.label,
+                        labelStyle = styles.time,
                     )
                     else -> BasicText(content, style = styles.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -544,14 +544,14 @@ fun StatusLayer(
     if (status == null || status.isEmpty || model.night) return
     val layout = model.scene.layout
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
-    val figures = rememberFigures(styles.label)
+    val figures = rememberFigures(styles.time, Face.TITLE)
     val clockText = status.clock
     Layout(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
         content = {
-            if (clockText != null) BasicText(figures.of(clockText), style = styles.label.copy(color = styles.muted), maxLines = 1) else Box(Modifier)
+            if (clockText != null) BasicText(figures.of(clockText), style = styles.time.copy(color = styles.muted), maxLines = 1) else Box(Modifier)
             Crossfade(
                 targetState = status.lead,
                 animationSpec = tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer),

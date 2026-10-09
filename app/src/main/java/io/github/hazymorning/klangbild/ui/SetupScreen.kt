@@ -38,7 +38,8 @@ import io.github.hazymorning.klangbild.ui.stage.BaseWall
 import io.github.hazymorning.klangbild.ui.stage.GlowLayer
 import io.github.hazymorning.klangbild.ui.stage.asColor
 import io.github.hazymorning.klangbild.ui.theme.Fonts
-import io.github.hazymorning.klangbild.ui.theme.mona
+import io.github.hazymorning.klangbild.ui.theme.textType
+import io.github.hazymorning.klangbild.ui.theme.titleType
 import kotlin.math.max
 
 object SetupArt {
@@ -95,8 +96,8 @@ fun SetupScreen(
     val p = scene.palette
     val layout = scene.layout
     val balanced = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)
-    val label = mona(15f, 500, p.inkQuiet.asColor(), tracking = 0.01f)
-    val body = mona(19f, 420, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
+    val label = textType(15f, 500, p.inkQuiet.asColor(), tracking = 0.01f)
+    val body = textType(19f, 420, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
     Box(modifier.fillMaxSize()) {
         BaseWall()
         GlowLayer(scene)
@@ -121,9 +122,9 @@ fun SetupScreen(
             modifier = Modifier.fillMaxSize(),
             content = {
                 Column(Modifier.width(layout.columnWidth.dp)) {
-                    BasicText("Klangbild", style = mona(44f, 440, p.ink.asColor(), tracking = -0.005f))
+                    BasicText("Klangbild", style = titleType(44f, 420, p.ink.asColor(), tracking = -0.005f))
                     Spacer(Modifier.height(4.dp))
-                    BasicText(lead, style = mona(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced)))
+                    BasicText(lead, style = textType(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced)))
                     Spacer(Modifier.height(20.dp))
                     BasicText(text, style = body)
                     Spacer(Modifier.height(30.dp))
@@ -131,7 +132,7 @@ fun SetupScreen(
                     Spacer(Modifier.height(2.dp))
                     BasicText(
                         info?.code?.chunked(3)?.joinToString(" ") ?: "—",
-                        style = mona(44f, 380, p.ink.asColor(), tracking = 0.01f),
+                        style = titleType(44f, 400, p.ink.asColor(), tracking = 0.01f),
                     )
                     Spacer(Modifier.height(8.dp))
                     BasicText(

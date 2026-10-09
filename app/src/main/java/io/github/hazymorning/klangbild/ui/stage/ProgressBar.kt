@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
+import io.github.hazymorning.klangbild.ui.theme.Face
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import kotlinx.coroutines.delay
@@ -85,7 +86,7 @@ fun ProgressBar(
         }
     }
     val label = labelStyle.copy(color = colors.label)
-    val figures = rememberFigures(labelStyle)
+    val figures = rememberFigures(labelStyle, Face.TITLE)
     Layout(
         modifier = modifier.fillMaxWidth(),
         content = {
