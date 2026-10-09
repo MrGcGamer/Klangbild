@@ -130,7 +130,9 @@ fun FieldLayer(
                 translate(m.toFloat(), m.toFloat())
             }) {
                 drawRect(base, topLeft = Offset(-m.toFloat(), -m.toFloat()), size = Size(fw.toFloat(), fh.toFloat()))
-                for ((i, blob) in field.blobs.withIndex()) {
+                // An index loop: nothing allocated per frame.
+                for (i in field.blobs.indices) {
+                    val blob = field.blobs[i]
                     val o = i * FieldMotion.STRIDE
                     FieldMotion.place(blob, t, places, o)
                     val r = places[o + 3] * w
