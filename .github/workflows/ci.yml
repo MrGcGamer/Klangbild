@@ -12,6 +12,12 @@ on:
         description: "Release unter diesem Tag veröffentlichen (z. B. v1.0.0; mit Bindestrich wie v1.1.0-beta.1 als Vorabversion); leer = nur bauen"
         required: false
         default: ""
+      messlauf:
+        description: "Fensterblick-Messlauf auf dem Emulator (1080p und 4K): Bilder, CPU, Speicher"
+        required: false
+        type: choice
+        options: ["aus", "prototyp", "kurz", "15 Minuten"]
+        default: "aus"
 
 # A manual release run must not cancel the push run of the same commit (and vice versa).
 concurrency:
@@ -133,6 +139,56 @@ jobs:
         with:
           name: emulator-smoke
           path: smoke/
+          if-no-files-found: warn
+
+  measure:
+    name: Fensterblick-Messlauf (${{ matrix.profile }})
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.messlauf != 'aus'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [tv_1080p, tv_4k]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: klangbild-apk
+
+      - name: Speicherplatz freigeben
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+            /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk || true
+
+      - name: KVM aktivieren
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Messen
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          MESSLAUF: ${{ inputs.messlauf }}
+        with:
+          api-level: 34
+          target: android-tv
+          arch: x86
+          profile: ${{ matrix.profile }}
+          disable-animations: false
+          disk-size: 3G
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
+          script: bash ci/vista-measure-all.sh klangbild.apk "$MESSLAUF"
+
+      - name: Messergebnisse hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: messlauf-${{ matrix.profile }}
+          path: measure/
           if-no-files-found: warn
 
   release:

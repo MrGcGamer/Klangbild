@@ -161,6 +161,8 @@ data class Settings(
 data class SessionOptions(
     val showSetup: Boolean = false,
     val debugOverlay: Boolean = false,
+    /** The Fensterblick's performance prototype: 0 off, 1 steady light, 2 the light changing every frame. */
+    val proto: Int = 0,
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -303,6 +305,7 @@ object LaunchExtras {
     const val SPOKEN_SKIP = "spoken_skip"
     const val SETUP = "setup"
     const val DEBUG = "debug"
+    const val PROTO = "fensterblick_proto"
 
     private val stored = listOf(
         HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
@@ -408,6 +411,11 @@ object LaunchExtras {
     fun session(extras: Map<String, Any?>) = SessionOptions(
         showSetup = boolOf(extras[SETUP]) ?: false,
         debugOverlay = boolOf(extras[DEBUG]) ?: false,
+        proto = when ((extras[PROTO] as? String)?.trim()?.lowercase()) {
+            "an", "on", "true", "1" -> 1
+            "zeitraffer", "timelapse" -> 2
+            else -> 0
+        },
     )
 
     fun hasStoredExtras(extras: Map<String, Any?>) = stored.any { extras.containsKey(it) }
