@@ -1,11 +1,14 @@
 package io.github.hazymorning.klangbild.data.ha
 
 import io.github.hazymorning.klangbild.data.Backoff
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +17,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -31,6 +33,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -205,6 +208,9 @@ class HaConnection(
         data class Failure(val error: Throwable) : WsEvent
     }
 
+    /** An answer, which may itself be null. */
+    private class Answer(val value: JsonElement?)
+
     private inner class Session(val socket: WebSocket) {
         private val nextId = AtomicInteger(1)
         val pending = ConcurrentHashMap<Int, CompletableDeferred<JsonElement?>>()
@@ -212,13 +218,23 @@ class HaConnection(
 
         fun send(obj: JsonObject): Boolean = socket.send(obj.toString())
 
+        /**
+         * Sends a command and waits for its answer. No answer in time, or a connection that
+         * ends under the call, is the call's failure ([IOException]) – never a cancellation that
+         * would silently end the caller's coroutine; only the caller's own cancellation passes.
+         */
         suspend fun command(timeoutMs: Long, build: (Int) -> JsonObject): JsonElement? {
             val id = nextId.getAndIncrement()
             val deferred = CompletableDeferred<JsonElement?>()
             pending[id] = deferred
             try {
-                if (!send(build(id))) throw IllegalStateException("socket closed")
-                return withTimeout(timeoutMs) { deferred.await() }
+                if (!send(build(id))) throw IOException("socket closed")
+                val answer = withTimeoutOrNull(timeoutMs) { Answer(deferred.await()) }
+                    ?: throw IOException("no answer within $timeoutMs ms")
+                return answer.value
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                throw IOException("connection lost", e)
             } finally {
                 pending.remove(id)
             }

@@ -10,6 +10,8 @@ import io.github.hazymorning.klangbild.data.ha.EntityState
 import io.github.hazymorning.klangbild.render.CoverField
 import io.github.hazymorning.klangbild.render.FieldScene
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -62,13 +64,31 @@ class LightSyncTest {
         var followed: Set<String> = emptySet()
         private var n = 0
 
+        /** The states Home Assistant sends once the lights are followed (a moment later), if any. */
+        var onFollow: Map<String, EntityState>? = null
+
+        /** How the next calls fail: null answers (an error), or a cancellation (a timeout). */
+        var failing = false
+        var cancelling = 0
+
         override fun follow(ids: Set<String>) {
             followed = ids
+            onFollow?.let { later ->
+                scope.backgroundScope.launch {
+                    delay(400)
+                    states.value = states.value + later.filterKeys { it in ids }
+                }
+            }
         }
 
-        override suspend fun callLight(service: String, entityId: String, data: JsonObject?): String {
+        override suspend fun callLight(service: String, entityId: String, data: JsonObject?): String? {
             val t = scope.testScheduler.currentTime
             calls += Call(t, service, entityId, data)
+            if (cancelling > 0) {
+                cancelling--
+                throw kotlinx.coroutines.CancellationException("no answer")
+            }
+            if (failing) return null
             val ctx = "ours-${n++}"
             val old = states.value.getValue(entityId)
             val attrs = buildJsonObject {
@@ -114,6 +134,68 @@ class LightSyncTest {
         LightSync.Target(bars, level, f, song, playing, night = 0f, warmth = 0.06f, motion = motion, fieldTime = { 0.0 })
 
     private val field = field()
+
+    @Test
+    fun `the bars' states arrive after they are followed - the bars are still taken over`() = runTest {
+        // Home Assistant sends a light's state only once it is followed, a moment later.
+        val ha = FakeHa(this, emptyMap())
+        ha.onFollow = mapOf(left to light(left, on = true), right to light(right, on = true))
+        val s = sync()
+        s.attach(ha)
+        s.update(target("a"))
+        testScheduler.advanceTimeBy(5_000)
+        assertThat(ha.to(left)).hasSize(1)
+        assertThat(ha.to(right)).hasSize(1)
+        // And they are given back as they were noted.
+        s.update(null)
+        testScheduler.advanceTimeBy(LightSync.IDLE_RELEASE_MS + 5_000)
+        assertThat(ha.to(left).last().data!!["color_temp_kelvin"]!!.jsonPrimitive.int).isEqualTo(2700)
+    }
+
+    @Test
+    fun `a bar that shows up later joins in`() = runTest {
+        val ha = FakeHa(this, mapOf(left to light(left, on = true)))
+        val s = sync()
+        s.attach(ha)
+        s.update(target("a"))
+        testScheduler.advanceTimeBy(LightSync.STATES_WAIT_MS + 2_000)
+        assertThat(ha.to(left)).hasSize(1)
+        assertThat(ha.to(right)).isEmpty()
+        // The right bar was unknown (unplugged); now it is there.
+        ha.states.value = ha.states.value + (right to light(right, on = true))
+        testScheduler.advanceTimeBy(3_000)
+        assertThat(ha.to(right)).hasSize(1)
+        assertThat(ha.to(left)).hasSize(1)
+    }
+
+    @Test
+    fun `a failing call is tried once more, for its bar only`() = runTest {
+        val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = true)))
+        val s = sync()
+        s.attach(ha)
+        ha.failing = true
+        s.update(target("a"))
+        testScheduler.advanceTimeBy(120_000)
+        // The first call and one more – not a call every few seconds for ever.
+        assertThat(ha.to(left)).hasSize(2)
+        assertThat(ha.to(right)).hasSize(2)
+    }
+
+    @Test
+    fun `a call that times out never freezes its bar`() = runTest {
+        val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = true)))
+        val s = sync()
+        s.attach(ha)
+        ha.cancelling = 2
+        s.update(target("a"))
+        testScheduler.advanceTimeBy(3_000)
+        // The next song reaches both bars again.
+        s.update(target("b", f = fourColours()))
+        testScheduler.advanceTimeBy(10_000)
+        assertThat(ha.to(left).size).isAtLeast(2)
+        assertThat(ha.to(right).size).isAtLeast(2)
+        assertThat(ha.to(left).last().brightness).isNotNull()
+    }
 
     @Test
     fun `takes the bars over in the cover's colours, an off one without a flash`() = runTest {

@@ -209,7 +209,7 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   Beim Ausschalten: App schließen / Bildschirmschoner), Verbindung. Label + value must fit the
   352 dp column on one line.
 - **Coverfarben** (setting "Hintergrund", `BackgroundMode.COVER`): the cover's own colours as the
-  wall, edge to edge and 18 dp beyond (`OVERSCAN_DP`: the ±12 dp drift never shows a border; the
+  wall, edge to edge and 18 dp beyond (`OVERSCAN_DP`: the ±6 dp drift never shows a border; the
   only wall without the black edge band, `EdgeBandTest` checks the edges are filled). A deep
   ground plus one mass per cover colour (up to 5), placed where the colour sits in the cover and
   pushed ≥ 0.42 screen widths apart; lit cores in the 3 most characteristic masses; 1–2 soft
@@ -258,7 +258,9 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   share capped so circles never touch), mirror-symmetric, no sand beyond 0.74–0.84 of the
   radius. No nodal diameters (crosses, wheels, rosettes), no single circle or two lobes ("O").
 - **Rest screen:** large light clock ("H:mm", 132 sp, natural figures) in the very middle of
-  a dim pool of light; one plain sentence when something is wrong
+  a dim pool of light (the user wants it centred; burn-in care is the ±6 dp drift, the
+  changing figures and the screen ending after "Ausschalten nach"); one plain sentence when
+  something is wrong
   ("Home Assistant ist nicht erreichbar."); at night the lamp is turned down, nothing left out.
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.

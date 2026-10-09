@@ -6,10 +6,11 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.compose.setContent
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private val controller get() = graph.controller
     private val peekUntil = mutableLongStateOf(0L)
+    private var view: ComposeView? = null
     private var centerLongPressed = false
     private var sideLongPressed = false
 
@@ -45,19 +47,8 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = onBack()
         })
-        val spec = screenSpec()
-        setContent {
-            val ui by controller.ui.collectAsStateWithLifecycle()
-            KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil, fieldTime = controller::fieldTime))
-            if (ui.session.debugOverlay) {
-                // Frames are only counted while the overlay shows them.
-                DisposableEffect(Unit) {
-                    FrameStats.attach(window)
-                    onDispose { FrameStats.detach(window) }
-                }
-                DebugOverlay()
-            }
-        }
+        // The composition lives while the activity is visible (see onStart/onStop).
+        setContentView(ComposeView(this).also { view = it })
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 controller.ui.collect { ui ->
@@ -75,10 +66,27 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         controller.attach(screenSpec())
+        val spec = screenSpec()
+        view?.setContent {
+            val ui by controller.ui.collectAsStateWithLifecycle()
+            val hooks = remember { RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil, fieldTime = controller::fieldTime) }
+            KlangbildRoot(ui, spec, hooks)
+            if (ui.session.debugOverlay) {
+                // Frames are only counted while the overlay shows them.
+                DisposableEffect(Unit) {
+                    FrameStats.attach(window)
+                    onDispose { FrameStats.detach(window) }
+                }
+                DebugOverlay()
+            }
+        }
     }
 
     override fun onStop() {
         controller.detach()
+        // Out of sight nothing is kept: the screens' scenes and bitmaps go with the composition,
+        // and coming back fades in from black, built anew.
+        view?.disposeComposition()
         super.onStop()
     }
 

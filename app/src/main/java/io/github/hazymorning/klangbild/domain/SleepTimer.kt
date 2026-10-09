@@ -100,7 +100,10 @@ class SleepTimer {
         lastPosMs = positionMs
         lastSpeed = s
         lastLookMs = nowMs
-        wakeAt = if (playing && end != null) nowMs + ((end - waitLeadMs - positionMs).coerceAtLeast(0) / s).toLong() else null
+        // Already past it (a position stuck beyond a too short length): no wake-up to wait for –
+        // the next item tells that this one ran out.
+        val ahead = end?.let { it - waitLeadMs - positionMs }
+        wakeAt = if (playing && ahead != null && ahead > 0) nowMs + (ahead / s).toLong() else null
         return false
     }
 

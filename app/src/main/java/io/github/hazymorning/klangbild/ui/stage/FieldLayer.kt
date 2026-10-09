@@ -163,19 +163,13 @@ fun FieldLayer(
 /** How much smaller than the screen the pools are drawn. */
 private const val DOWN = 4
 
-/** Stops of a pool's gradient: its falloff, piecewise linear. */
-private const val STOPS = 24
-
 private val UNIT_TOP_LEFT = Offset(-1f, -1f)
 private val UNIT_SIZE = Size(2f, 2f)
 
-/** A pool as a radial gradient on the unit circle: its colour, its strength falling off as [CoverField.falloff]. */
+/** A pool as a radial gradient on the unit circle: its colour, its strength falling off at its [FieldBlob.stops]. */
 private fun brush(b: FieldBlob): Brush {
     val colour = Color(b.colour)
-    val stops = Array(STOPS + 1) { i ->
-        val rho = i / STOPS.toFloat()
-        rho to colour.copy(alpha = b.alpha * CoverField.falloff(rho, b.focus))
-    }
+    val stops = Array(FieldBlob.STOPS + 1) { i -> i / FieldBlob.STOPS.toFloat() to colour.copy(alpha = b.alpha * b.stops[i]) }
     return Brush.radialGradient(*stops, center = Offset.Zero, radius = 1f)
 }
 

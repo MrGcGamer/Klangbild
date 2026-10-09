@@ -49,7 +49,9 @@ interface LightBridge {
  *  - before it takes the bars over it notes how they were, and gives that back when the
  *    music has ended for a while, when the option is switched off and when the app closes;
  *  - one call per bar at most every [MIN_GAP_MS], the newest wins; nothing is sent for a
- *    change too small to see; a failed call is tried once more;
+ *    change too small to see; a failed call is tried once more, for that bar only;
+ *  - the bars' states arrive a moment after they are first followed: it waits for them (a
+ *    while at most), and takes over a bar that only shows up later, noting its state first;
  *  - a new song is shown once it has played for [SETTLE_MS] (quick skips cost nothing), in a
  *    [TRACK_TRANSITION_MS] fade; drifting colours move in long fades every [DRIFT_MS];
  *  - a pause dims the bars to half, the night to [NIGHT] of the level;
@@ -94,6 +96,9 @@ class LightSync(
         var retryAt = 0L
         var takenOver = false
 
+        /** Calls that failed in a row: one is tried again, then the bar waits for the next change. */
+        var failures = 0
+
         /** The last state change already judged (Home Assistant's time stamp). */
         var checkedUpdate = 0.0
         val contexts = ArrayDeque<String>()
@@ -106,6 +111,12 @@ class LightSync(
     @Volatile private var lastTarget: Target? = null
     @Volatile private var bridge: LightBridge? = null
     private var loop: Job? = null
+
+    /** The bars being given back: a new loop waits for it. */
+    @Volatile private var releasing: Job? = null
+
+    /** When the bars were last asked to be followed: their states arrive a moment later. */
+    @Volatile private var followedAt = 0L
 
     // Confined to [context]:
     private val bars = LinkedHashMap<String, Bar>()
@@ -129,16 +140,22 @@ class LightSync(
     /** The Home Assistant link the calls go through (a new one after a new connection). */
     fun attach(bridge: LightBridge?) {
         this.bridge = bridge
-        bridge?.follow(followed(target))
+        follow(bridge, target)
         ensureLoop()
         wake.trySend(Unit)
+    }
+
+    private fun follow(bridge: LightBridge?, target: Target?) {
+        val ids = followed(target)
+        if (ids.isNotEmpty()) followedAt = now()
+        bridge?.follow(ids)
     }
 
     fun update(target: Target?) {
         val old = this.target
         this.target = target
         if (target != null) lastTarget = target
-        if (old?.bars != target?.bars || (old?.level == BarLevel.OFF) != (target?.level == BarLevel.OFF)) bridge?.follow(followed(target))
+        if (old?.bars != target?.bars || (old?.level == BarLevel.OFF) != (target?.level == BarLevel.OFF)) follow(bridge, target)
         ensureLoop()
         if (old?.song != target?.song || old?.playing != target?.playing || old?.level != target?.level || old == null || target == null) wake.trySend(Unit)
     }
@@ -150,17 +167,23 @@ class LightSync(
     fun release(): Job {
         val b = bridge
         target = null
-        return scope.launch(context) {
-            loop?.cancel()
-            loop = null
+        val old = synchronized(this) { loop.also { loop = null } }
+        old?.cancel()
+        val job = scope.launch(context) {
+            old?.join()
             restore(b)
         }
+        releasing = job
+        return job
     }
 
     @Synchronized
     private fun ensureLoop() {
         if (loop?.isActive == true) return
+        // Bars still being given back are given back first.
+        val giving = releasing
         loop = scope.launch(context) {
+            giving?.join()
             while (isActive) {
                 step(now())
                 withTimeoutOrNull(TICK_MS) { wake.receive() }
@@ -184,11 +207,14 @@ class LightSync(
         }
         idleSince = null
         val wanted = positions(tg.bars)
-        // Bars no longer wanted are given back; new ones are noted first.
+        // Bars no longer wanted are given back; new ones are noted first – once their states
+        // have arrived (they are followed only now), or after a while with what is there.
         if (wanted.keys != activeFor) {
+            if (wanted.keys.any { it !in states } && t - followedAt < STATES_WAIT_MS) return
             if (activeFor != null) restore(b)
             activate(wanted, states, t)
         }
+        adopt(wanted, states, t)
         watchForOthers(states, t)
         val paused = !tg.playing
         pausedSince = if (paused) (pausedSince ?: t) else null
@@ -215,9 +241,26 @@ class LightSync(
             share(tg, shownPaused) != shownShare -> send(b, tg, t, SOFT_TRANSITION_MS, force = false, paused = shownPaused)
             !paused && tg.motion > 0f && t - lastStepAt >= DRIFT_MS -> send(b, tg, t, DRIFT_TRANSITION_MS, force = false, paused = false)
         }
-        // Calls that had to wait (a bar still busy, a failure to try again).
-        val due = bars.values.any { !it.takenOver && !it.inFlight && it.retryAt in 1..t }
-        if (due) send(b, tg, t, SOFT_TRANSITION_MS, force = true, paused = shownPaused)
+        // Calls that had to wait (a bar still busy, a failure to try again): those bars only.
+        val due = bars.values.filter { !it.takenOver && !it.inFlight && it.retryAt in 1..t }.mapTo(HashSet()) { it.id }
+        if (due.isNotEmpty()) send(b, tg, t, SOFT_TRANSITION_MS, force = true, paused = shownPaused, only = due)
+    }
+
+    /**
+     * A wanted bar whose state arrived only after the others were taken over (or that was
+     * unavailable then): its state is noted, then it joins in at once.
+     */
+    private fun adopt(wanted: Map<String, Pair<Float, Float>>, states: Map<String, EntityState>, t: Long) {
+        for ((id, pos) in wanted) {
+            if (id in bars) continue
+            val s = states[id] ?: continue
+            if (s.state == "unavailable") continue
+            if (id !in saved) saved = saved + (id to savedOf(s))
+            bars[id] = Bar(id, pos).also {
+                it.checkedUpdate = s.lastUpdated
+                it.retryAt = t
+            }
+        }
     }
 
     /** Notes how the bars are, then takes them over. Bars that were off are switched on dark first, in the new colour – never a flash of their old one. */
@@ -240,13 +283,16 @@ class LightSync(
         lastStepAt = 0L
     }
 
-    /** The colour and brightness for each bar, sent where they differ enough from what it shows. */
-    private fun send(b: LightBridge, target: Target, t: Long, transitionMs: Long, force: Boolean, paused: Boolean) {
+    /**
+     * The colour and brightness for each bar (or the bars in [only]), sent where they differ
+     * enough from what it shows.
+     */
+    private fun send(b: LightBridge, target: Target, t: Long, transitionMs: Long, force: Boolean, paused: Boolean, only: Set<String>? = null) {
         // Where the field will stand when the fade has ended.
         val ft = target.fieldTime() + transitionMs / 1000.0 * target.motion
         val share = share(target, paused)
         for (bar in bars.values) {
-            if (bar.takenOver) continue
+            if (bar.takenOver || (only != null && bar.id !in only)) continue
             val state = b.lights.value[bar.id]
             if (state == null || state.state == "unavailable") continue
             FieldModel.light(target.field, bar.position.first, bar.position.second, ft, rgb)
@@ -266,15 +312,23 @@ class LightSync(
             bar.sentBri = bri
             bar.transitionMs = transitionMs + if (wasOff) PRE_ON_MS else 0L
             scope.launch(context) {
-                if (wasOff) {
-                    // On in the new colour, at the very least – then up.
-                    remember(bar, b.callLight("turn_on", bar.id, turnOn(xy, 2, 0)))
-                    delay(PRE_ON_MS)
+                var ctx: String? = null
+                try {
+                    if (wasOff) {
+                        // On in the new colour, at the very least – then up.
+                        remember(bar, b.callLight("turn_on", bar.id, turnOn(xy, 2, 0)))
+                        delay(PRE_ON_MS)
+                    }
+                    ctx = b.callLight("turn_on", bar.id, turnOn(xy, bri, transitionMs))
+                    remember(bar, ctx)
+                } finally {
+                    bar.inFlight = false
+                    when {
+                        ctx != null -> bar.failures = 0
+                        // Tried once more; after that the bar waits for the next change.
+                        ++bar.failures <= MAX_RETRIES && !bar.takenOver -> bar.retryAt = now() + RETRY_MS
+                    }
                 }
-                val ctx = b.callLight("turn_on", bar.id, turnOn(xy, bri, transitionMs))
-                remember(bar, ctx)
-                bar.inFlight = false
-                if (ctx == null && !bar.takenOver) bar.retryAt = now() + RETRY_MS
             }
         }
         lastStepAt = t
@@ -330,25 +384,40 @@ class LightSync(
 
     /** Gives every bar not taken over back as it was: on in its colour, or off (dimmed first, then off without a fade – a faded off leaves a Hue light at 1 %). */
     private suspend fun restore(b: LightBridge?) {
+        // What was noted, as it is now: a new takeover must not change it under the calls.
+        val notes = saved
         val toRestore = bars.values.filter { !it.takenOver }
-        bars.clear()
+        bars.values.removeAll { it.takenOver }
         activeFor = null
         shownSong = null
         idleSince = null
-        if (b == null) return
+        if (b == null) {
+            bars.clear()
+            return
+        }
+        // A bar leaves the list once it is back as it was: cut short, the rest is given back by
+        // whoever comes next.
         val offs = ArrayList<String>()
         for (bar in toRestore) {
-            val was = saved[bar.id] ?: continue
-            if (was.on) {
-                b.callLight("turn_on", bar.id, restoreOn(was))
-            } else {
-                b.callLight("turn_on", bar.id, buildJsonObject { put("brightness", 2); put("transition", OFF_FADE_MS / 1000.0) })
-                offs += bar.id
+            val was = notes[bar.id]
+            when {
+                was == null -> bars.remove(bar.id)
+                was.on -> {
+                    b.callLight("turn_on", bar.id, restoreOn(was))
+                    bars.remove(bar.id)
+                }
+                else -> {
+                    b.callLight("turn_on", bar.id, buildJsonObject { put("brightness", 2); put("transition", OFF_FADE_MS / 1000.0) })
+                    offs += bar.id
+                }
             }
         }
         if (offs.isNotEmpty()) {
             delay(OFF_FADE_MS + 300)
-            for (id in offs) b.callLight("turn_off", id, null)
+            for (id in offs) {
+                b.callLight("turn_off", id, null)
+                bars.remove(id)
+            }
         }
     }
 
@@ -414,6 +483,10 @@ class LightSync(
         const val OFF_FADE_MS = 2_000L
         const val PRE_ON_MS = 1_000L
         const val RETRY_MS = 5_000L
+        const val MAX_RETRIES = 1
+
+        /** How long to wait for the bars' states after they are first followed. */
+        const val STATES_WAIT_MS = 10_000L
         const val IDLE_RELEASE_MS = 5 * 60_000L
         const val REUSE_SNAPSHOT_MS = 60_000L
         const val SETTLE_REPORT_MS = 2_000L

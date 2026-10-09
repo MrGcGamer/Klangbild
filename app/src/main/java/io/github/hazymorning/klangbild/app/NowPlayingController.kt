@@ -387,6 +387,16 @@ class NowPlayingController(
         recompute()
     }
 
+    /**
+     * When the sleep timer pauses, as shown: an estimate for an end shifts by a millisecond from
+     * tick to tick (speed, rounding) – only a real change (over a second) is passed on, so the
+     * screen is not redrawn for nothing.
+     */
+    private fun steadySleepAt(at: Long?): Long? {
+        val shown = _ui.value.sleepAt
+        return if (at != null && shown != null && kotlin.math.abs(at - shown) <= 1_000) shown else at
+    }
+
     /** Wakes the controller when the sleep timer expects to act (a tick could be up to a second late). */
     private fun scheduleSleep(at: Long?) {
         val old = sleepWake
@@ -395,7 +405,8 @@ class NowPlayingController(
         sleepWake = at
         sleepJob = at?.let {
             scope.launch {
-                delay((it - now()).coerceAtLeast(0))
+                // Never sooner than a moment from now: a time already past must not spin.
+                delay((it - now()).coerceAtLeast(MIN_WAKE_MS))
                 synchronized(this@NowPlayingController) { sleepWake = null }
                 recompute()
             }
@@ -614,7 +625,12 @@ class NowPlayingController(
         // Spoken word: the chapter that plays, and the moment the next one begins.
         val position = stage?.let { contentPosition(t) }
         val chapter = stage?.let { ChapterPlace.at(it.track, position) }
-        chapterEndsAt = if (chapter != null && position != null && playing) t + ((chapter.endMs - position) / speed.coerceAtLeast(0.25f)).toLong() else null
+        // (A chapter that ends before its item's end and is already over waits for nothing.)
+        chapterEndsAt = if (chapter != null && position != null && playing && chapter.endMs > position) {
+            t + ((chapter.endMs - position) / speed.coerceAtLeast(0.25f)).toLong()
+        } else {
+            null
+        }
         // The sleep timer: it may want the music paused right now.
         if (sleepTimer.evaluate(t, stage?.track, position, speed, playing)) scope.launch { source?.send(RemoteCommand.PAUSE) }
         scheduleSleep(sleepTimer.wakeAt)
@@ -633,7 +649,7 @@ class NowPlayingController(
             menu = menu,
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
             chapter = chapter,
-            sleepAt = sleepTimer.pausesAt,
+            sleepAt = steadySleepAt(sleepTimer.pausesAt),
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)
@@ -761,5 +777,8 @@ class NowPlayingController(
 
         /** How long a closing connection waits for the light bars to be given back. */
         const val LIGHTS_RELEASE_MS = 4_000L
+
+        /** The sleep timer's wake-up is never sooner than this from now. */
+        const val MIN_WAKE_MS = 250L
     }
 }

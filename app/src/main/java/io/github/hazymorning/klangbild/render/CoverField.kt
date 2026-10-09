@@ -53,7 +53,26 @@ class FieldBlob(
     val turnSpeed: Float,
     val breath: Float,
     val breathPeriod: Float,
-)
+) {
+    /**
+     * The falloff ([CoverField.falloff]) at [STOPS] + 1 even steps from the middle to the rim:
+     * the screen's gradient has exactly these stops (linear between them), and the field
+     * computed on the CPU reads the same table – as cheap as it is faithful.
+     */
+    val stops: FloatArray = FloatArray(STOPS + 1) { CoverField.falloff(it / STOPS.toFloat(), focus) }
+
+    /** The falloff at [rho] (0 middle … 1 rim), as the screen draws it. */
+    fun strengthAt(rho: Float): Float {
+        if (rho >= 1f) return 0f
+        val x = rho * STOPS
+        val i = x.toInt()
+        return stops[i] + (stops[i + 1] - stops[i]) * (x - i)
+    }
+
+    companion object {
+        const val STOPS = 24
+    }
+}
 
 /**
  * "Coverfarben": the cover's colours as a field that fills the whole screen, edge to edge – a
@@ -421,7 +440,7 @@ object CoverField {
                 val u = u0 + (u1 - u0) * i / GRID_U.toFloat()
                 val v = v0 + (v1 - v0) * j / GRID_V.toFloat()
                 FieldModel.colour(field, u, v, places, out)
-                val y = 0.2126f * Oklab.srgbToLinear(out[0]) + 0.7152f * Oklab.srgbToLinear(out[1]) + 0.0722f * Oklab.srgbToLinear(out[2])
+                val y = 0.2126f * toLinear(out[0]) + 0.7152f * toLinear(out[1]) + 0.0722f * toLinear(out[2])
                 worst = if (field.dark) max(worst, y) else min(worst, y)
             }
             t += SCRIM_STEP_S
@@ -449,6 +468,11 @@ object CoverField {
     private const val GRID_U = 8
     private const val GRID_V = 12
     private const val TARGET = 4.8f
+
+    /** sRGB (0..1) to linear by table: the screen has 256 levels, the sampling many thousand. */
+    private val linearTable = FloatArray(256) { Oklab.srgbToLinear(it / 255f) }
+
+    private fun toLinear(v: Float): Float = linearTable[(v * 255f + 0.5f).toInt().coerceIn(0, 255)]
 
     private fun relativeLuminance(argb: Int): Float =
         0.2126f * Oklab.srgbToLinear(argb shr 16) + 0.7152f * Oklab.srgbToLinear(argb shr 8) + 0.0722f * Oklab.srgbToLinear(argb)
@@ -546,7 +570,7 @@ object FieldModel {
         val s = p[o + 5]
         val x = (dx * c + dy * s) / p[o + 3]
         val y = (-dx * s + dy * c) / (p[o + 3] * b.aspect)
-        return CoverField.falloff(sqrt(x * x + y * y), b.focus)
+        return b.strengthAt(sqrt(x * x + y * y))
     }
 
     /** Android's saturation matrix (luma weights 0.213 / 0.715 / 0.072), as the screen applies it. */
