@@ -93,12 +93,12 @@ object SetupPage {
   </section>
 
   <section>
-    <h2>3 · Ruhe</h2>
-    <div class="inline">Nach <input id="sleep" type="number" min="1" max="720" value="10"> Minuten ohne Musik</div>
-    <label class="row"><input type="radio" name="action" value="release" checked> den Bildschirm freigeben (Fernseher darf schlafen)</label>
-    <label class="row"><input type="radio" name="action" value="close"> die App schließen</label>
-    <label class="row"><input id="clock" type="checkbox" checked> Uhr anzeigen</label>
-    <label class="row"><input id="dayNight" type="checkbox" checked> abends wärmer und dunkler, nachts sehr zurückhaltend</label>
+    <h2>3 · Allgemein</h2>
+    <div class="inline">Ausschalten nach <input id="sleep" type="number" min="1" max="720" value="10"> Minuten ohne Musik, dann:</div>
+    <label class="row"><input type="radio" name="action" value="release" checked> Bildschirmschoner des Fernsehers</label>
+    <label class="row"><input type="radio" name="action" value="close"> App schließen</label>
+    <label class="row"><input id="clock" type="checkbox" checked> Uhrzeit anzeigen</label>
+    <label class="row"><input id="dayNight" type="checkbox" checked> Nachtmodus: abends wärmer, nachts gedämpft</label>
     <label class="row"><input id="remote" type="checkbox" checked> Fernbedienung steuert die Musik (OK: Pause, ◀ ▶: Titel)</label>
   </section>
 

@@ -199,6 +199,14 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   through it and fades with distance. Values are words, changes apply at once (left/right
   clamp, OK wraps), closes itself after 60 s. Options show or hide parts, choose the view and
   the wall, and dim the light – no fonts, colours or layout variants.
+  Labels are the common words people know from TVs and phones, values plain words: sections
+  Bild (Ansicht: Einzelnes Cover / Cover Flow, Erscheinungsbild, Nachtmodus), Informationen
+  (Uhrzeit, Fortschrittsbalken, Nächster Titel, Album und Jahr, Lautsprechergruppe,
+  Lautstärke), Effekte (Hintergrund: Einfarbig / Coverfarben, Intensität, Bewegung: Aus /
+  Langsam / Mittel / Schnell, Lichtleisten), Fernbedienung (Musik steuern, Pfeil hoch und
+  runter, Hörbücher, Podcasts: Spulen / Titel wechseln), Timer (Sleep-Timer, Ausschalten nach,
+  Beim Ausschalten: App schließen / Bildschirmschoner), Verbindung. Label + value must fit the
+  352 dp column on one line.
 - **Coverfarben** (setting "Hintergrund", `BackgroundMode.COVER`): the cover's own colours as the
   wall, edge to edge and 18 dp beyond (`OVERSCAN_DP`: the ±12 dp drift never shows a border; the
   only wall without the black edge band, `EdgeBandTest` checks the edges are filled). A deep
