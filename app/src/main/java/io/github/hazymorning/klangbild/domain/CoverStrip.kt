@@ -24,23 +24,29 @@ class CoverStrip(private val side: Int = SIDE) {
     private var upcoming: List<StripCard> = emptyList()
 
     /**
-     * [track] plays now, [coming] is what follows in the queue (as far as known), [before] what
-     * the queue played before it (most recent last; empty when unknown – then the strip
-     * remembers on its own).
+     * [track] plays now, [coming] is what follows in the queue (null while not known yet: then
+     * what stood behind a card that came to the middle stays), [before] what the queue played
+     * before it (most recent last; empty when unknown – then the strip remembers on its own).
      */
-    fun update(track: TrackInfo, coming: List<TrackInfo> = emptyList(), before: List<TrackInfo> = emptyList()): Strip {
+    fun update(track: TrackInfo, coming: List<TrackInfo>? = null, before: List<TrackInfo> = emptyList()): Strip {
         val picture = track.pictureKey
         val cur = current
         var spare: StripCard? = null
+        var stays: List<StripCard> = emptyList()
         current = when {
             cur == null -> card(track)
-            cur.picture == picture -> cur.copy(track = track)
+            cur.picture == picture -> {
+                stays = upcoming
+                cur.copy(track = track)
+            }
             upcoming.firstOrNull()?.picture == picture -> {
                 remember(cur)
+                stays = upcoming.drop(1)
                 upcoming.first().copy(track = track)
             }
             history.lastOrNull()?.picture == picture -> {
                 spare = cur
+                stays = listOf(cur) + upcoming
                 history.removeAt(history.lastIndex).copy(track = track)
             }
             else -> {
@@ -56,7 +62,11 @@ class CoverStrip(private val side: Int = SIDE) {
             history.addAll(played.asReversed())
         }
         val reuse = (upcoming + listOfNotNull(spare)).associateBy { it.picture }
-        upcoming = distinct(coming, now.picture).take(side).map { t -> reuse[t.pictureKey]?.copy(track = t) ?: card(t) }
+        upcoming = if (coming == null) {
+            stays.take(side)
+        } else {
+            distinct(coming, now.picture).take(side).map { t -> reuse[t.pictureKey]?.copy(track = t) ?: card(t) }
+        }
         val shown = history.takeLast(side)
         return Strip(shown + now + upcoming, shown.size)
     }

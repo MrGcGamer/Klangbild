@@ -100,6 +100,8 @@ object PlayerParser {
             current = current?.let { queueItem(it, baseUrl) },
             next = next?.let { queueItem(it, baseUrl) },
             name = q.string("name")?.trim()?.takeIf { it.isNotEmpty() },
+            queueId = q.string("queue_id")?.takeIf { it.isNotBlank() },
+            currentIndex = (q["current_index"] as? JsonPrimitive)?.intOrNull?.takeIf { it >= 0 },
         )
     }
 

@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.setup
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
+import io.github.hazymorning.klangbild.data.ma.MaLink
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -16,6 +17,8 @@ import java.security.SecureRandom
 class SetupHandlerTest {
     private var stored = Settings(haUrl = "http://192.168.1.5:8123", haToken = "secret-token", entityId = "media_player.alt")
     private val discovered = mutableListOf<Pair<String, String>>()
+    private val maChecked = mutableListOf<Pair<String, String>>()
+    private var maAnswer = MaLink.CONNECTED
 
     private val handler = SetupHandler(
         settings = { stored },
@@ -24,6 +27,11 @@ class SetupHandlerTest {
             DiscoverResult.Ok(listOf(SpeakerOption("media_player.wz", "Wohnzimmer", "spielt", true)))
         },
         save = { stored = it },
+        checkMa = { url, token ->
+            maChecked += url to token
+            maAnswer
+        },
+        maGuess = { "http://192.168.1.5:8095" },
         random = SecureRandom(),
     )
 
@@ -77,17 +85,54 @@ class SetupHandlerTest {
         assertThat(bad.status).isEqualTo(400)
         val ok = post(
             "/api/save",
-            """{"code":"${handler.code}","url":"ha.local:8123","token":"","entity":"media_player.wz",
+            """{"code":"${handler.code}","url":"192.168.1.5:8123","token":"","entity":"media_player.wz",
                "sleepMinutes":25,"sleepAction":"close","clock":false,"dayNight":true,"remote":false}""",
         )
         assertThat(ok.status).isEqualTo(200)
-        assertThat(stored.haUrl).isEqualTo("http://ha.local:8123")
+        assertThat(stored.haUrl).isEqualTo("http://192.168.1.5:8123")
         assertThat(stored.haToken).isEqualTo("secret-token")
         assertThat(stored.entityId).isEqualTo("media_player.wz")
         assertThat(stored.sleepAfterMinutes).isEqualTo(25)
         assertThat(stored.sleepAction).isEqualTo(SleepAction.CLOSE)
         assertThat(stored.showClock).isFalse()
         assertThat(stored.remoteControl).isFalse()
+    }
+
+    @Test
+    fun `a stored token only goes to the address it was made for`() {
+        val moved = post("/api/save", """{"code":"${handler.code}","url":"10.0.0.9:8123","token":"","entity":"media_player.wz"}""")
+        assertThat(moved.status).isEqualTo(400)
+        assertThat(stored.haUrl).isEqualTo("http://192.168.1.5:8123")
+        val withToken = post("/api/save", """{"code":"${handler.code}","url":"10.0.0.9:8123","token":"new","entity":"media_player.wz"}""")
+        assertThat(withToken.status).isEqualTo(200)
+        assertThat(stored.haToken).isEqualTo("new")
+    }
+
+    @Test
+    fun `music assistant is checked before it is stored, and leaving it empty removes it`() {
+        val state = json(post("/api/state", """{"code":"${handler.code}"}"""))
+        assertThat(state["maUrl"]!!.jsonPrimitive.content).isEqualTo("http://192.168.1.5:8095")
+        assertThat(state["hasMaToken"]!!.jsonPrimitive.content).isEqualTo("false")
+
+        val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
+        assertThat(post("/api/save", """{$base,"maUrl":"192.168.1.5:8095","maToken":""}""").status).isEqualTo(400)
+        maAnswer = MaLink.AUTH_FAILED
+        assertThat(post("/api/save", """{$base,"maUrl":"192.168.1.5:8095","maToken":"ma-secret"}""").status).isEqualTo(400)
+        assertThat(stored.maUrl).isNull()
+        maAnswer = MaLink.CONNECTED
+        assertThat(post("/api/save", """{$base,"maUrl":"192.168.1.5:8095","maToken":"ma-secret"}""").status).isEqualTo(200)
+        assertThat(stored.maUrl).isEqualTo("http://192.168.1.5:8095")
+        assertThat(stored.maToken).isEqualTo("ma-secret")
+        assertThat(maChecked.last()).isEqualTo("http://192.168.1.5:8095" to "ma-secret")
+        assertThat(String(post("/api/state", """{"code":"${handler.code}"}""").body)).doesNotContain("ma-secret")
+
+        // Saving again unchanged does not ask Music Assistant again; an empty address removes it.
+        val checks = maChecked.size
+        assertThat(post("/api/save", """{$base,"maUrl":"http://192.168.1.5:8095","maToken":""}""").status).isEqualTo(200)
+        assertThat(maChecked).hasSize(checks)
+        assertThat(post("/api/save", """{$base,"maUrl":""}""").status).isEqualTo(200)
+        assertThat(stored.maUrl).isNull()
+        assertThat(stored.maToken).isNull()
     }
 
     @Test

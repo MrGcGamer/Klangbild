@@ -4,6 +4,7 @@ import io.github.hazymorning.klangbild.config.LaunchExtras
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
 import io.github.hazymorning.klangbild.data.ha.HaUrls
+import io.github.hazymorning.klangbild.data.ma.MaLink
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -31,12 +32,18 @@ sealed interface DiscoverResult {
  *  - The server only runs while the setup screen is visible on the TV.
  *  - Every API call needs the six-digit code shown on the TV (also embedded in the QR
  *    code). Wrong codes are counted; after [MAX_FAILURES] a new code is drawn.
- *  - The stored token is never sent back to the browser.
+ *  - Stored tokens are never sent back to the browser, and a stored token is only kept for
+ *    the address it was made for.
+ *
+ * @param checkMa tries an address and token of Music Assistant (optional, for the whole queue).
+ * @param maGuess Music Assistant's address as far as the TV can tell (from its picture links).
  */
 class SetupHandler(
     private val settings: () -> Settings,
     private val discover: suspend (url: String, token: String) -> DiscoverResult,
     private val save: suspend (Settings) -> Unit,
+    private val checkMa: suspend (url: String, token: String) -> MaLink = { _, _ -> MaLink.UNREACHABLE },
+    private val maGuess: () -> String? = { null },
     private val random: SecureRandom = SecureRandom(),
 ) {
     @Volatile var code: String = newCode()
@@ -105,6 +112,8 @@ class SetupHandler(
                 put("clock", s.showClock)
                 put("dayNight", s.dayNight)
                 put("remote", s.remoteControl)
+                put("maUrl", s.maUrl ?: maGuess() ?: "")
+                put("hasMaToken", !s.maToken.isNullOrBlank())
             }.toString(),
         )
     }
@@ -141,8 +150,22 @@ class SetupHandler(
         val current = settings()
         val url = body.str("url")?.let { HaUrls.normalizeBase(it) }
             ?: return MiniHttp.Response.json(400, error("Die Adresse von Home Assistant fehlt oder ist ungültig."))
-        val token = body.str("token")?.trim()?.takeIf { it.isNotEmpty() } ?: current.haToken
-            ?: return MiniHttp.Response.json(400, error("Das Zugangstoken fehlt."))
+        val ha = current.withHa(url, body.str("token")?.trim()?.takeIf { it.isNotEmpty() })
+        if (ha.haToken == null) return MiniHttp.Response.json(400, error("Das Zugangstoken fehlt."))
+        val withMa = maSettings(ha, body) ?: return MiniHttp.Response.json(400, error("Die Adresse von Music Assistant ist ungültig."))
+        if (withMa.maUrl != null && withMa.maToken == null) {
+            return MiniHttp.Response.json(400, error("Bitte das Zugangstoken von Music Assistant einfügen – oder die Adresse leeren."))
+        }
+        if (withMa.hasMusicAssistant && (withMa.maUrl != current.maUrl || withMa.maToken != current.maToken)) {
+            when (checkMa(withMa.maUrl!!, withMa.maToken!!)) {
+                MaLink.CONNECTED -> Unit
+                MaLink.AUTH_FAILED -> return MiniHttp.Response.json(400, error("Music Assistant hat das Zugangstoken abgelehnt."))
+                MaLink.UNREACHABLE -> return MiniHttp.Response.json(
+                    400,
+                    error("Music Assistant antwortet nicht unter dieser Adresse. Bitte prüfen – oder die Adresse leeren, dann geht es ohne."),
+                )
+            }
+        }
         val entity = body.str("entity")?.trim()?.takeIf { LaunchExtras.isEntityId(it) }
             ?: return MiniHttp.Response.json(400, error("Bitte einen Lautsprecher auswählen."))
         val minutes = (body["sleepMinutes"] as? JsonPrimitive)?.intOrNull ?: body.str("sleepMinutes")?.toIntOrNull()
@@ -153,9 +176,7 @@ class SetupHandler(
             "release" -> SleepAction.RELEASE
             else -> current.sleepAction
         }
-        val updated = current.copy(
-            haUrl = url,
-            haToken = token,
+        val updated = withMa.copy(
             entityId = entity,
             sleepAfterMinutes = minutes,
             sleepAction = action,
@@ -168,6 +189,14 @@ class SetupHandler(
             put("ok", true)
             put("message", "Gespeichert. Der Fernseher verbindet sich jetzt mit Home Assistant.")
         }.toString())
+    }
+
+    /** [s] with Music Assistant's address and token from the form; null for an address that is none. */
+    private fun maSettings(s: Settings, body: JsonObject): Settings? {
+        val raw = body.str("maUrl")?.trim().orEmpty()
+        if (raw.isEmpty()) return s.withMa(null, null)
+        val url = HaUrls.normalizeBase(raw) ?: return null
+        return s.withMa(url, body.str("maToken")?.trim()?.takeIf { it.isNotEmpty() })
     }
 
     private fun error(message: String) = buildJsonObject {

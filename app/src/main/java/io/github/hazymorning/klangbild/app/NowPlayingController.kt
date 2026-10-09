@@ -21,6 +21,7 @@ import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
+import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.domain.CoverStrip
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.Screen
@@ -137,6 +138,11 @@ class NowPlayingController(
             // Leaving setup: the new settings start a fresh connection.
             session.value = session.value.copy(showSetup = false)
             machine.requestSetup(false)
+        },
+        checkMa = { url, token -> MaClient(http, url, token).check() },
+        maGuess = {
+            val track = _ui.value.source.player?.track
+            MaClient.addressIn(track?.artworkUrl) ?: MaClient.addressIn(track?.artworkFallbackUrl)
         },
     )
     private val setupServer = SetupServer(scope, setupHandler)
@@ -261,7 +267,7 @@ class NowPlayingController(
         val c = menuCursor ?: return
         menuTouchedAt = now()
         when (val entry = SettingsMenu.entries[c]) {
-            MenuEntry.CONNECTION -> {
+            MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT -> {
                 menuCursor = null
                 requestSetup(true)
             }
@@ -302,7 +308,7 @@ class NowPlayingController(
 
     private fun menuState(s: Settings, appearance: Appearance): MenuState? {
         val cursor = menuCursor ?: return null
-        val ctx = MenuContext(link = _ui.value.source.link, appearance = appearance)
+        val ctx = MenuContext(link = _ui.value.source.link, appearance = appearance, ma = _ui.value.source.ma)
         return MenuState(SettingsMenu.rows(s, ctx), cursor)
     }
 
@@ -315,15 +321,19 @@ class NowPlayingController(
         return smooth.display(raw, t)
     }
 
+    @Synchronized
     private fun reconcileSource() {
         val s = settings.value
-        val key = if (s.isConfigured) "ha|${s.haUrl}|${s.haToken}|${s.entityId}|${s.sunEntity}" else "unconfigured"
+        val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haToken, s.entityId, s.sunEntity, s.maUrl, s.maToken).joinToString("|") else "unconfigured"
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         sourceJob?.cancel()
         source?.stop()
+        // Another speaker (or another server) has its own history.
+        strip.clear()
+        val ma = if (s.hasMusicAssistant) MaClient(http, s.maUrl!!, s.maToken!!) else null
         val newSource: NowPlayingSource? =
-            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now) else null
+            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now, ma) else null
         source = newSource
         if (newSource == null) {
             _ui.value = _ui.value.copy(source = SourceState(LinkState.UNCONFIGURED))
@@ -441,7 +451,10 @@ class NowPlayingController(
      * at once, as soon as every card it shows is ready.
      */
     private fun showFlow(stage: Screen.Stage, look: Look) {
-        val s = strip.update(stage.track, coming = listOfNotNull(stage.next))
+        val src = _ui.value.source
+        // Music Assistant's whole queue if it is set up, else Home Assistant's next track.
+        val coming = if (src.queueKnown) src.coming.ifEmpty { listOfNotNull(stage.next) } else null
+        val s = strip.update(stage.track, coming, before = src.played)
         scenes.retain(s.cards.map { it.track.key }.toSet())
         val order = listOf(s.current) + (s.current + 1 until s.cards.size) + (s.current - 1 downTo 0)
         for (i in order) {

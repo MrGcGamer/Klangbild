@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.data
 
+import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -34,6 +35,13 @@ data class SourceState(
     val linkDownSinceMs: Long? = null,
     /** The speakers playing in sync with this one; null while it plays alone. */
     val group: SpeakerGroup? = null,
+    /** The queue around the current track is known ([next], and with Music Assistant [coming] and [played]). */
+    val queueKnown: Boolean = false,
+    /** What follows the current track and what was played before it (most recent last) – from Music Assistant. */
+    val coming: List<TrackInfo> = emptyList(),
+    val played: List<TrackInfo> = emptyList(),
+    /** The optional link to Music Assistant; null when it is not set up. */
+    val ma: MaLink? = null,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }

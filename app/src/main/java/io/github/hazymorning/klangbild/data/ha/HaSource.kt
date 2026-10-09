@@ -4,6 +4,11 @@ import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
+import io.github.hazymorning.klangbild.data.ma.MaAuthException
+import io.github.hazymorning.klangbild.data.ma.MaClient
+import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.data.ma.MaQueue
+import io.github.hazymorning.klangbild.data.ma.QueueWindow
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
@@ -24,7 +29,8 @@ import java.text.Normalizer
 
 /**
  * Home Assistant as the source: the configured media_player plus `sun.sun`, enriched with
- * Music Assistant's queue (next track, full-size artwork, individual artist names).
+ * Music Assistant's queue (next track, full-size artwork, individual artist names) – and,
+ * when Music Assistant itself is set up ([ma]), with the whole queue around the current track.
  */
 class HaSource(
     http: OkHttpClient,
@@ -33,6 +39,7 @@ class HaSource(
     private val playerEntity: String,
     private val sunEntity: String = "sun.sun",
     private val now: () -> Long = System::currentTimeMillis,
+    private val ma: MaClient? = null,
 ) : NowPlayingSource {
 
     private val connection = HaConnection(http, scope)
@@ -42,7 +49,9 @@ class HaSource(
     private var collector: Job? = null
     private var queuePoller: Job? = null
     @Volatile private var queue: QueueInfo? = null
+    @Volatile private var window: QueueWindow? = null
     @Volatile private var queueForKey: String? = null
+    @Volatile private var maLink: MaLink? = null
     @Volatile private var lastPlayerKey: String? = null
     private var linkDownSince: Long? = null
     private var lastSnapshot: PlayerSnapshot? = null
@@ -58,6 +67,10 @@ class HaSource(
                 .collect { (st, ents) -> publish(st, ents) }
         }
         queuePoller = scope.launch {
+            ma?.let {
+                maLink = it.check()
+                publish(connection.status.value, connection.entities.value)
+            }
             // Light periodic refresh: the queue can change without the track changing.
             while (isActive) {
                 delay(QUEUE_REFRESH_MS)
@@ -122,7 +135,9 @@ class HaSource(
             watched = others.toSet()
             connection.watch(watched)
         }
-        val currentQueue = queue?.takeIf { queueForKey == key }
+        val queueKnown = key != null && queueForKey == key
+        val currentQueue = queue?.takeIf { queueKnown }
+        val currentWindow = window?.takeIf { queueKnown }
         _state.value = SourceState(
             link = link,
             player = enriched,
@@ -134,6 +149,10 @@ class HaSource(
             linkDownSinceMs = linkDownSince,
             group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) }
                 ?.let { g -> if (isEverywhere(g)) g.copy(everywhere = true) else g },
+            queueKnown = queueKnown,
+            coming = currentWindow?.coming.orEmpty(),
+            played = currentWindow?.played.orEmpty(),
+            ma = if (ma == null) null else maLink,
         )
     }
 
@@ -155,11 +174,13 @@ class HaSource(
         val q = queue ?: return p
         val current = q.current ?: return p
         if (queueForKey != trackKey(track) || !sameTitle(current.title, track.title)) return p
+        // Only Music Assistant's own queue knows the album's year.
+        val year = window?.current?.takeIf { sameTitle(it.title, track.title) }?.year
         return p.copy(
             track = track.copy(
                 artists = current.artists.ifEmpty { track.artists },
                 album = track.album ?: current.album,
-                year = current.year ?: track.year,
+                year = current.year ?: year ?: track.year,
                 artworkUrl = current.artworkUrl ?: track.artworkUrl,
                 artworkFallbackUrl = track.artworkUrl ?: track.artworkFallbackUrl,
                 source = current.source ?: track.source,
@@ -173,11 +194,42 @@ class HaSource(
         delay(350) // let a burst of state changes settle
         val response = runCatching {
             connection.callService("music_assistant", "get_queue", playerEntity, returnResponse = true)
-        }.getOrNull() ?: return
-        val parsed = PlayerParser.queue(response, playerEntity, config.baseUrl) ?: return
+        }.getOrNull()
+        // No answer (a source without a queue, like Spotify Connect): nothing is known to follow.
+        // A periodic refresh that fails keeps what is known.
+        val again = force && queueForKey == key
+        val parsed = response?.let { PlayerParser.queue(it, playerEntity, config.baseUrl) }
+        if (parsed == null && again) return
+        val read = parsed?.let { readWindow(it) } ?: window.takeIf { again }
+        if (lastPlayerKey != key) return
         queue = parsed
+        window = read
         queueForKey = key
         publish(connection.status.value, connection.entities.value)
+    }
+
+    /**
+     * The whole queue around the current item, from Music Assistant itself (if set up) – only
+     * if it is the same item Home Assistant reports (the queue may have moved in between).
+     */
+    private suspend fun readWindow(q: QueueInfo): QueueWindow? {
+        val client = ma ?: return null
+        val id = q.queueId ?: lastSnapshot?.activeQueue ?: return null
+        val index = q.currentIndex ?: return null
+        val (offset, limit) = MaQueue.range(index)
+        return try {
+            val w = MaQueue.window(client.items(id, offset, limit), offset, index, client.baseUrl)
+            maLink = MaLink.CONNECTED
+            w.takeIf { a -> val b = q.current; a.current != null && b != null && sameTitle(a.current.title, b.title) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: MaAuthException) {
+            maLink = MaLink.AUTH_FAILED
+            null
+        } catch (_: Exception) {
+            maLink = MaLink.UNREACHABLE
+            null
+        }
     }
 
     /** All of the house's speakers play together (and there are at least three). */

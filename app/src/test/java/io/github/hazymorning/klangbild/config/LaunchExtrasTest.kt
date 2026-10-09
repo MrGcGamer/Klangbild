@@ -30,6 +30,22 @@ class LaunchExtrasTest {
     }
 
     @Test
+    fun `a token never follows an address it was not made for`() {
+        val s = Settings(haUrl = "http://192.168.1.5:8123", haToken = "ha", maUrl = "http://192.168.1.5:8095", maToken = "ma")
+        // Another app on the TV must not be able to send the stored tokens elsewhere.
+        val moved = LaunchExtras.applyTo(s, mapOf("ha_url" to "http://192.168.1.66:8123", "ma_url" to "192.168.1.66:8095"))
+        assertThat(moved.haUrl).isEqualTo("http://192.168.1.66:8123")
+        assertThat(moved.haToken).isNull()
+        assertThat(moved.maUrl).isEqualTo("http://192.168.1.66:8095")
+        assertThat(moved.maToken).isNull()
+        assertThat(LaunchExtras.applyTo(s, mapOf("ha_url" to "192.168.1.5:8123")).haToken).isEqualTo("ha")
+        val both = LaunchExtras.applyTo(s, mapOf("ma_url" to "mass.local:8095", "ma_token" to "neu"))
+        assertThat(both.maUrl).isEqualTo("http://mass.local:8095")
+        assertThat(both.maToken).isEqualTo("neu")
+        assertThat(both.hasMusicAssistant).isTrue()
+    }
+
+    @Test
     fun `display options from extras`() {
         val s = LaunchExtras.applyTo(
             Settings(),

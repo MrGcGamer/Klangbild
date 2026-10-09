@@ -69,6 +69,19 @@ class CoverStripTest {
     }
 
     @Test
+    fun `while the queue is not known yet, the cards behind the next one stay – after a jump none do`() {
+        val strip = CoverStrip()
+        val first = strip.update(a1, coming = listOf(b1, c1))
+        val forward = strip.update(b1)
+        assertThat(forward.albums()).containsExactly("Alpha", "Beta", "Gamma").inOrder()
+        assertThat(forward.cards.last().id).isEqualTo(first.cards.last().id)
+        val back = strip.update(a1)
+        assertThat(back.albums()).containsExactly("Alpha", "Beta", "Gamma").inOrder()
+        val jump = strip.update(d1)
+        assertThat(jump.albums()).containsExactly("Alpha", "Delta").inOrder()
+    }
+
+    @Test
     fun `a radio station is one card while its songs change`() {
         val strip = CoverStrip()
         val s1 = strip.update(TrackInfo("Song 1", listOf("X"), artworkUrl = "http://ha/logo.png", source = "Radio"))

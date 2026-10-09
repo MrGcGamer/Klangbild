@@ -48,4 +48,7 @@ data class QueueInfo(
      * plays in, whose members do not list each other in `group_members`.
      */
     val name: String? = null,
+    /** Music Assistant's id of the queue and the current item's place in it (to read the whole queue). */
+    val queueId: String? = null,
+    val currentIndex: Int? = null,
 )

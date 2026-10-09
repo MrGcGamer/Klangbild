@@ -82,8 +82,23 @@ data class Settings(
     val volumeKeys: Boolean = false,
     val appearance: AppearanceMode = AppearanceMode.AUTO,
     val view: StageView = StageView.SINGLE,
+    /** Music Assistant itself (optional): for the whole queue in Cover Flow. */
+    val maUrl: String? = null,
+    val maToken: String? = null,
 ) {
     val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && !haToken.isNullOrBlank() && !entityId.isNullOrBlank()
+
+    val hasMusicAssistant: Boolean get() = !maUrl.isNullOrBlank() && !maToken.isNullOrBlank()
+
+    /**
+     * [haUrl] set to [url]; a token only ever goes to the address it was made for, so a new
+     * address without [token] drops the old one.
+     */
+    fun withHa(url: String, token: String?): Settings = copy(haUrl = url, haToken = token ?: haToken.takeIf { url == haUrl })
+
+    /** The same for Music Assistant; no address clears both. */
+    fun withMa(url: String?, token: String?): Settings =
+        if (url == null) copy(maUrl = null, maToken = null) else copy(maUrl = url, maToken = token ?: maToken.takeIf { url == maUrl })
 
     val display: DisplayOptions
         get() = DisplayOptions(
@@ -125,6 +140,8 @@ class SettingsStore(private val context: Context) {
         val volumeKeys = booleanPreferencesKey("volume_keys")
         val appearance = stringPreferencesKey("appearance")
         val view = stringPreferencesKey("view")
+        val maUrl = stringPreferencesKey("ma_url")
+        val maToken = stringPreferencesKey("ma_token")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -147,6 +164,8 @@ class SettingsStore(private val context: Context) {
             volumeKeys = p[Keys.volumeKeys] ?: false,
             appearance = p[Keys.appearance]?.let { runCatching { AppearanceMode.valueOf(it) }.getOrNull() } ?: AppearanceMode.AUTO,
             view = p[Keys.view]?.let { runCatching { StageView.valueOf(it) }.getOrNull() } ?: StageView.SINGLE,
+            maUrl = p[Keys.maUrl],
+            maToken = p[Keys.maToken],
         )
     }
 
@@ -174,14 +193,17 @@ class SettingsStore(private val context: Context) {
             p[Keys.volumeKeys] = s.volumeKeys
             p[Keys.appearance] = s.appearance.name
             p[Keys.view] = s.view.name
+            putOrRemove(Keys.maUrl, s.maUrl)
+            putOrRemove(Keys.maToken, s.maToken)
         }
     }
 }
 
 /**
- * `am start` extras. Configuration extras (`ha_url`, `token`, `entity`, `sleep_minutes`,
- * `sleep_action`, `clock` and the display options) are stored; `setup` and `debug` only
- * apply to this launch.
+ * `am start` extras. Configuration extras (`ha_url`, `token`, `ma_url`, `ma_token`, `entity`,
+ * `sleep_minutes`, `sleep_action`, `clock` and the display options) are stored; `setup` and
+ * `debug` only apply to this launch. A new address without its token drops the stored one:
+ * no other app on the TV can redirect a token to an address of its choosing.
  *
  * ```
  * adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
@@ -191,6 +213,8 @@ class SettingsStore(private val context: Context) {
 object LaunchExtras {
     const val HA_URL = "ha_url"
     const val TOKEN = "token"
+    const val MA_URL = "ma_url"
+    const val MA_TOKEN = "ma_token"
     const val ENTITY = "entity"
     const val SLEEP_MINUTES = "sleep_minutes"
     const val SLEEP_ACTION = "sleep_action"
@@ -210,15 +234,19 @@ object LaunchExtras {
     const val DEBUG = "debug"
 
     private val stored = listOf(
-        HA_URL, TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
+        HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
         VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW,
     )
 
     /** Applies stored-setting extras to [s]. Unknown or invalid values are ignored. */
     fun applyTo(s: Settings, extras: Map<String, Any?>): Settings {
         var out = s
-        (extras[HA_URL] as? String)?.let { raw -> HaUrls.normalizeBase(raw)?.let { out = out.copy(haUrl = it) } }
-        (extras[TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }?.let { out = out.copy(haToken = it) }
+        val token = (extras[TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val haUrl = (extras[HA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
+        if (haUrl != null) out = out.withHa(haUrl, token) else if (token != null) out = out.copy(haToken = token)
+        val maToken = (extras[MA_TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val maUrl = (extras[MA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
+        if (maUrl != null) out = out.withMa(maUrl, maToken) else if (maToken != null && out.maUrl != null) out = out.copy(maToken = maToken)
         (extras[ENTITY] as? String)?.trim()?.takeIf { isEntityId(it) }?.let { out = out.copy(entityId = it) }
         intOf(extras[SLEEP_MINUTES])?.takeIf { it in 1..720 }?.let { out = out.copy(sleepAfterMinutes = it) }
         (extras[SLEEP_ACTION] as? String)?.let { a ->

@@ -2,7 +2,8 @@ package io.github.hazymorning.klangbild.setup
 
 /**
  * The phone-side setup page, served by the TV itself. Self-contained (no external
- * resources), German, and styled like the app: dark, warm, serif headings.
+ * resources), German, and as quiet as the app: one sans-serif face (the phone's own),
+ * sentence case, warm near-black or paper as the phone is set.
  */
 object SetupPage {
     fun html(prefilledCode: String?): String {
@@ -16,45 +17,51 @@ object SetupPage {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <title>Klangbild einrichten</title>
 <style>
   :root {
     --wall: #0f0d0c; --card: #171412; --line: #2c2723; --ink: #ebe3d8; --muted: #b3a89b;
-    --faint: #7d746b; --brass: #c9a46a; --bad: #e0876f;
+    --faint: #8a8076; --accent: #c9a46a; --on-accent: #1a140d; --bad: #e0876f;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --wall: #ebe6df; --card: #f6f2ec; --line: #d6cec4; --ink: #2b2622; --muted: #5e554d;
+      --faint: #7a7067; --accent: #8a6a36; --on-accent: #fbf8f3; --bad: #a8442e;
+    }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--wall); color: var(--ink); }
-  body { font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  body { font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
          padding: max(28px, env(safe-area-inset-top)) 22px 48px; max-width: 560px; margin: 0 auto; }
-  h1 { font: 400 42px/1.05 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; margin: 8px 0 2px; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); font-style: italic; font-family: Georgia, serif; margin: 0 0 30px; }
+  h1 { font-size: 36px; font-weight: 500; line-height: 1.1; margin: 8px 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
   section { border-top: 1px solid var(--line); padding: 22px 0 8px; }
-  h2 { font: 600 12px/1 system-ui, sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); margin: 0 0 16px; }
-  label { display: block; color: var(--muted); font-size: 14px; margin: 14px 0 6px; }
+  h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
+  label { display: block; color: var(--muted); font-size: 15px; margin: 14px 0 6px; }
   input[type=text], input[type=url], input[type=number], textarea {
     width: 100%; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 14px; font: inherit; outline: none; }
-  input:focus, textarea:focus { border-color: var(--brass); }
+  input:focus, textarea:focus { border-color: var(--accent); }
   textarea { min-height: 92px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; }
-  .hint { color: var(--faint); font-size: 14px; margin: 8px 0 0; }
-  button { appearance: none; border: 1px solid var(--brass); background: transparent; color: var(--brass);
-    border-radius: 999px; padding: 12px 22px; font: 600 15px system-ui, sans-serif; letter-spacing: .04em; margin-top: 18px; }
-  button.primary { background: var(--brass); color: #1a140d; border-color: var(--brass); width: 100%; padding: 15px; font-size: 16px; }
+  .hint { color: var(--faint); font-size: 15px; margin: 8px 0 0; }
+  button { appearance: none; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    border-radius: 999px; padding: 12px 22px; font: 600 15px system-ui, sans-serif; margin-top: 18px; }
+  button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); width: 100%; padding: 15px; font-size: 16px; }
   button:disabled { opacity: .45; }
   .speakers { display: grid; gap: 10px; }
   .speaker { display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line);
     border-radius: 12px; padding: 12px 14px; margin: 0; color: var(--ink); }
-  .speaker:has(input:checked) { border-color: var(--brass); }
-  .speaker input { accent-color: var(--brass); width: 20px; height: 20px; }
-  .speaker .name { font-family: Georgia, serif; font-size: 18px; }
-  .speaker .meta { color: var(--faint); font-size: 13px; }
+  .speaker:has(input:checked) { border-color: var(--accent); }
+  .speaker input { accent-color: var(--accent); width: 20px; height: 20px; }
+  .speaker .name { font-size: 17px; }
+  .speaker .meta { color: var(--faint); font-size: 14px; }
   .row { display: flex; gap: 12px; align-items: center; margin: 12px 0; color: var(--muted); }
-  .row input[type=checkbox], .row input[type=radio] { accent-color: var(--brass); width: 20px; height: 20px; flex: none; }
+  .row input[type=checkbox], .row input[type=radio] { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
   .inline { display: flex; gap: 10px; align-items: center; color: var(--muted); }
   .inline input { width: 90px; }
-  #status { min-height: 1.5em; margin-top: 16px; font-family: Georgia, serif; font-style: italic; }
-  #status.bad { color: var(--bad); } #status.good { color: var(--brass); }
+  #status { min-height: 1.5em; margin-top: 16px; }
+  #status.bad { color: var(--bad); } #status.good { color: var(--accent); }
   .hidden { display: none; }
 </style>
 </head>
@@ -93,6 +100,16 @@ object SetupPage {
     <label class="row"><input id="clock" type="checkbox" checked> Uhr anzeigen</label>
     <label class="row"><input id="dayNight" type="checkbox" checked> abends wärmer und dunkler, nachts sehr zurückhaltend</label>
     <label class="row"><input id="remote" type="checkbox" checked> Fernbedienung steuert die Musik (OK: Pause, ◀ ▶: Titel)</label>
+  </section>
+
+  <section>
+    <h2>4 · Music Assistant (freiwillig)</h2>
+    <p class="hint">Für Cover Flow: Mit Music Assistant zeigt Klangbild die ganze Warteschlange – was lief und was kommt.</p>
+    <label for="maUrl">Adresse</label>
+    <input id="maUrl" type="url" inputmode="url" placeholder="http://192.168.1.10:8095" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label for="maToken">Langlebiges Zugangstoken</label>
+    <textarea id="maToken" placeholder="Aus Music Assistant" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <p class="hint">In Music Assistant unter Einstellungen → Profil ein langlebiges Zugangstoken erstellen. Leer lassen, wenn du es nicht brauchst.</p>
   </section>
 
   <section>
@@ -139,6 +156,8 @@ object SetupPage {
     ${'$'}('sleep').value = s.sleepMinutes || 10;
     document.querySelectorAll('input[name=action]').forEach((r) => r.checked = (r.value === s.sleepAction));
     ${'$'}('clock').checked = !!s.clock; ${'$'}('dayNight').checked = !!s.dayNight; ${'$'}('remote').checked = !!s.remote;
+    ${'$'}('maUrl').value = s.maUrl || '';
+    if (s.hasMaToken) ${'$'}('maToken').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
     if (s.url && hasToken) find();
   }
   async function find() {
@@ -160,7 +179,8 @@ object SetupPage {
       const r = await api('/api/save', {
         url: ${'$'}('url').value, token: ${'$'}('token').value, entity: ${'$'}('entity').value.trim(),
         sleepMinutes: parseInt(${'$'}('sleep').value, 10), sleepAction: action,
-        clock: ${'$'}('clock').checked, dayNight: ${'$'}('dayNight').checked, remote: ${'$'}('remote').checked });
+        clock: ${'$'}('clock').checked, dayNight: ${'$'}('dayNight').checked, remote: ${'$'}('remote').checked,
+        maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value });
       status(r.message || (r.ok ? 'Gespeichert.' : 'Das hat nicht geklappt.'), r.ok ? 'good' : 'bad');
     } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
     finally { ${'$'}('save').disabled = false; }

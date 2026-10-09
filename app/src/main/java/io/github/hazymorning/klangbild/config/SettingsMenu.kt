@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.config
 
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.data.LinkState
+import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.domain.StageView
 
 /** Sections of the settings menu, in order. */
@@ -30,10 +31,11 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     SLEEP_AFTER(MenuSection.REST, "Ruhe nach"),
     SLEEP_ACTION(MenuSection.REST, "Danach"),
     CONNECTION(MenuSection.CONNECTION, "Home Assistant"),
+    MUSIC_ASSISTANT(MenuSection.CONNECTION, "Music Assistant"),
 }
 
-/** What the menu needs to know besides the settings: the connection and the wall as it is now. */
-data class MenuContext(val link: LinkState? = null, val appearance: Appearance = Appearance.DARK)
+/** What the menu needs to know besides the settings: the connections and the wall as they are now. */
+data class MenuContext(val link: LinkState? = null, val appearance: Appearance = Appearance.DARK, val ma: MaLink? = null)
 
 /** A line as the menu shows it: the value in words and what the option does. */
 data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
@@ -84,6 +86,13 @@ object SettingsMenu {
             !s.isConfigured -> "Einrichten"
             ctx.link == LinkState.CONNECTED -> "Verbunden"
             ctx.link == LinkState.AUTH_FAILED -> "Token abgelehnt"
+            else -> "Verbindet …"
+        }
+        MenuEntry.MUSIC_ASSISTANT -> when {
+            !s.hasMusicAssistant -> "Nicht eingerichtet"
+            ctx.ma == MaLink.CONNECTED -> "Verbunden"
+            ctx.ma == MaLink.AUTH_FAILED -> "Token abgelehnt"
+            ctx.ma == MaLink.UNREACHABLE -> "Nicht erreichbar"
             else -> "Verbindet …"
         }
     }
@@ -147,6 +156,12 @@ object SettingsMenu {
         } else {
             "OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy änderst du Adresse, Zugangstoken und\u00A0Lautsprecher."
         }
+        MenuEntry.MUSIC_ASSISTANT -> if (!s.hasMusicAssistant) {
+            "Freiwillig. Mit\u00A0Music\u00A0Assistant zeigt Cover\u00A0Flow die\u00A0ganze Warteschlange – was\u00A0lief und\u00A0was\u00A0kommt. " +
+                "OK\u00A0zeigt den\u00A0QR-Code zum\u00A0Einrichten."
+        } else {
+            "Cover\u00A0Flow zeigt die\u00A0ganze Warteschlange. OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy änderst du Adresse und\u00A0Token."
+        }
     }
 
     /**
@@ -171,7 +186,7 @@ object SettingsMenu {
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION -> null
+        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT -> null
     }
 
     /** From quiet to present: left means less, right means more. */
