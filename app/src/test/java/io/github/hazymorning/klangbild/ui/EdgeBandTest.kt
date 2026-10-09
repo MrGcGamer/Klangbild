@@ -1,9 +1,12 @@
 package io.github.hazymorning.klangbild.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -21,7 +24,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * OLED: the band next to the screen edges stays black – checked on the rendered pixels of
- * every test scene, in both views and behind the menu, not on the light model.
+ * every test scene, in both views and behind the menu, not on the light model. Only the cover's
+ * colours fill the screen to its edges, wherever the stage drifts.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -62,6 +66,43 @@ class EdgeBandTest {
     }
 
     @Test
+    fun theCoverColoursReachEveryEdgeWhereverTheStageDrifts() {
+        // "Coverfarben" is the one wall that fills the screen: it meets the light behind the TV.
+        // The stage drifts ±12 dp against burn-in; the field reaches beyond, so no edge ever shows black.
+        val scenes = Fixtures.tracks.take(6).map { Fixtures.scene(it, mdpi, coverField = true) }
+        var i by mutableStateOf(0)
+        var at by mutableStateOf(0.0)
+        var dx by mutableStateOf(0f)
+        var dy by mutableStateOf(0f)
+        compose.setContent {
+            Fixtures.Still {
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black).graphicsLayer {
+                        translationX = dx
+                        translationY = dy
+                    },
+                ) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        io.github.hazymorning.klangbild.ui.stage.LocalFieldTime provides
+                            io.github.hazymorning.klangbild.ui.stage.FieldTime({ at }, false),
+                    ) {
+                        Stage(Fixtures.model(Fixtures.tracks[i], screen = mdpi, scene = scenes[i]))
+                    }
+                }
+            }
+        }
+        for (k in scenes.indices) {
+            i = k
+            for ((t, d) in listOf(0.0 to (12f to 12f), 53.0 to (-12f to -12f), 211.0 to (12f to -12f))) {
+                at = t
+                dx = d.first
+                dy = d.second
+                assertWithMessage("${Fixtures.tracks[k].title} at $t s, drift $d").that(darkestOnTheEdges()).isAtLeast(6)
+            }
+        }
+    }
+
+    @Test
     fun theScreenEdgesStayBlackBehindTheMenu() {
         val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext())
@@ -71,6 +112,22 @@ class EdgeBandTest {
             cursor = c
             assertWithMessage(rows[c].entry.label).that(brightestInBand()).isEqualTo(0)
         }
+    }
+
+    /** The darkest pixel on the screen's outermost rows and columns (its brightest channel). */
+    private fun darkestOnTheEdges(): Int {
+        compose.waitForIdle()
+        val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+        var darkest = 255
+        for (y in 0 until h) for (x in 0 until w) {
+            if (x != 0 && x != w - 1 && y != 0 && y != h - 1) continue
+            val p = px[y * w + x]
+            darkest = minOf(darkest, maxOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF))
+        }
+        return darkest
     }
 
     /** The brightest channel value in the band along the screen edges. */

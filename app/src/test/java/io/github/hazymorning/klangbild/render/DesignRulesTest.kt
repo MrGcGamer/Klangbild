@@ -186,11 +186,11 @@ class DesignRulesTest {
         // the quiet lines hang inside the artwork's height, never above or below it
         assertThat(layout.statusTop).isAtLeast(layout.artRect.top)
         assertThat(layout.footerBaseline).isAtMost(layout.artRect.bottom)
-        // the group sits a little above the screen's centre (optical centre)
-        assertThat(screen.heightDp / 2f - layout.artRect.centerY).isWithin(0.01f).of(HaloLayout.LIFT)
-        // margins: the artwork 96 dp from the left, the column 80 dp from the right, 64 dp between
-        assertThat(layout.artRect.left).isWithin(0.01f).of(96f)
-        assertThat(screen.widthDp - (layout.columnLeft + layout.columnWidth)).isWithin(0.01f).of(80f)
+        // the group stands exactly in the screen's middle: as much room above as below …
+        assertThat(layout.artRect.centerY).isWithin(0.01f).of(screen.heightDp / 2f)
+        // … and as much left of the artwork as right of the column; 64 dp between
+        assertThat(layout.artRect.left).isWithin(0.01f).of(88f)
+        assertThat(screen.widthDp - (layout.columnLeft + layout.columnWidth)).isWithin(0.01f).of(layout.artRect.left)
         assertThat(layout.columnLeft - layout.artRect.right).isWithin(0.01f).of(64f)
     }
 

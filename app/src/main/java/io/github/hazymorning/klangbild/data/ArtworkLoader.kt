@@ -25,31 +25,45 @@ class ArtworkLoader(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?) = size > 4
     }
 
-    suspend fun load(track: TrackInfo): Bitmap? = withContext(Dispatchers.IO) {
+    /**
+     * The cover of [track], from the first address that gives one. Cancelling stops the
+     * download under way – a skipped song's cover is not fetched to the end.
+     */
+    suspend fun load(track: TrackInfo): Bitmap? {
         val candidates = ArtworkUrls.candidates(track.artworkUrl, track.artworkFallbackUrl)
         for (url in candidates) {
-            synchronized(cache) { cache[url] }?.let { return@withContext it }
-            val bmp = runCatching { fetch(url) }.getOrNull() ?: continue
+            synchronized(cache) { cache[url] }?.let { return it }
+            val bytes = try {
+                fetch(url)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            } ?: continue
+            val bmp = withContext(Dispatchers.Default) { decode(bytes) } ?: continue
             synchronized(cache) { cache[url] = bmp }
-            return@withContext bmp
+            return bmp
         }
-        null
+        return null
     }
 
-    private fun fetch(url: String): Bitmap? {
+    /** Forgets the decoded covers (the screen is gone, or memory is short). */
+    fun clear() = synchronized(cache) { cache.clear() }
+
+    private suspend fun fetch(url: String): ByteArray? {
         val builder = Request.Builder().url(url)
         val base = haBaseUrl()
         val token = haToken()
         if (base != null && token != null && HaUrls.isHaHost(base, url)) {
             builder.header("Authorization", "Bearer $token")
         }
-        http.newCall(builder.build()).execute().use { response ->
-            if (!response.isSuccessful) return null
+        return http.fetch(builder.build(), CALL_TIMEOUT_MS) { response ->
+            if (!response.isSuccessful) return@fetch null
             // A cover is a few megabytes at most; anything far larger is not read at all.
-            if (response.body.contentLength() > MAX_BYTES) return null
+            if (response.body.contentLength() > MAX_BYTES) return@fetch null
             val source = response.body.source()
-            if (source.request(MAX_BYTES + 1)) return null
-            return decode(source.readByteArray())
+            if (source.request(MAX_BYTES + 1)) return@fetch null
+            source.readByteArray()
         }
     }
 
@@ -59,6 +73,9 @@ class ArtworkLoader(
 
         /** The most a cover download may weigh (bytes). */
         const val MAX_BYTES = 16L * 1024 * 1024
+
+        /** One address gets this long, reading included. */
+        const val CALL_TIMEOUT_MS = 8_000L
 
         fun decode(bytes: ByteArray): Bitmap? {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

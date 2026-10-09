@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.data.ma
 
+import io.github.hazymorning.klangbild.data.fetch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -61,7 +62,8 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         MaLink.UNREACHABLE
     }
 
-    private suspend fun command(name: String, args: JsonObject): JsonElement = withContext(Dispatchers.IO) {
+    /** One command; cancelling the coroutine cancels the request. */
+    private suspend fun command(name: String, args: JsonObject): JsonElement {
         val body = buildJsonObject {
             put("message_id", name)
             put("command", name)
@@ -72,14 +74,14 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
             .header("Authorization", "Bearer $token")
             .post(body.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        val text = http.fetch(request, CALL_TIMEOUT_MS) { response ->
             if (response.code == 401 || response.code == 403) throw MaAuthException()
             if (!response.isSuccessful) throw IOException("Music Assistant answered ${response.code}")
-            val text = response.body.source().let { src ->
+            response.body.source().let { src ->
                 if (!src.request(MAX_ANSWER_BYTES)) src.readUtf8() else throw IOException("Answer too large")
             }
-            Json.parseToJsonElement(text)
         }
+        return withContext(Dispatchers.Default) { Json.parseToJsonElement(text) }
     }
 
     companion object {
@@ -92,5 +94,8 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
 
         /** A queue window is a few hundred kilobytes at most; anything far larger is not ours. */
         const val MAX_ANSWER_BYTES = 4L * 1024 * 1024
+
+        /** One command gets this long, reading included. */
+        const val CALL_TIMEOUT_MS = 10_000L
     }
 }

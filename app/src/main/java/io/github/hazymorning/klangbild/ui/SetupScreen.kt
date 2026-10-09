@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
@@ -86,7 +90,8 @@ object SetupArt {
 /**
  * Setup: the QR code hangs on the wall where the artwork would, in the same light; beside
  * it two sentences say what to do. The six-digit code is set large for typing the address by
- * hand.
+ * hand. Code and text stand as one group in the middle of the screen: as much room left of
+ * the code as right of the longest line.
  */
 @Composable
 fun SetupScreen(
@@ -100,69 +105,84 @@ fun SetupScreen(
     val balanced = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)
     val label = textType(15f, 500, p.inkQuiet.asColor(), tracking = 0.01f)
     val body = textType(19f, 420, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
+    val lead = when (reason) {
+        SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
+        SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das\u00A0Zugangstoken abgelehnt."
+        SetupReason.REQUESTED -> "Verbindung ändern"
+    }
+    // A short word that opens a sentence never ends a line ("Auf der Seite" stays
+    // together), and articles and adjectives stay with their noun.
+    val text = when (reason) {
+        SetupReason.AUTH_FAILED ->
+            "Erstelle in Home\u00A0Assistant ein\u00A0neues\u00A0langlebiges\u00A0Zugangstoken, scanne den\u00A0Code und füge es auf der Seite ein."
+        else ->
+            "Scanne den\u00A0Code mit\u00A0der\u00A0Kamera. Auf\u00A0der\u00A0Seite verbindest du Home\u00A0Assistant und wählst den\u00A0Lautsprecher."
+    }
+    val hint = if (reason == SetupReason.REQUESTED) "Zurück schließt" else null
+    val address = info?.url?.let { url ->
+        buildAnnotatedString {
+            append("oder im Browser: ")
+            // A little air between the figures, so the dots stay visible from the sofa.
+            withStyle(SpanStyle(letterSpacing = 0.03.em)) { append(SetupArt.shortUrl(url)) }
+        }
+    } ?: AnnotatedString("Keine Netzwerkverbindung")
+    val code = info?.code?.chunked(3)?.joinToString(" ") ?: "—"
+    val name = titleType(44f, 420, p.ink.asColor(), tracking = -0.005f)
+    val leadStyle = textType(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
+    val codeStyle = titleType(44f, 400, p.ink.asColor(), tracking = 0.01f)
+    val addressStyle = body.copy(color = p.inkQuiet.asColor())
+    // How wide the text really is: its longest line, as it breaks in the column.
+    val measurer = rememberTextMeasurer()
+    val local = LocalDensity.current
+    val widest = remember(reason, info, layout, local) {
+        val column = Constraints(maxWidth = with(local) { layout.columnWidth.dp.roundToPx() })
+        listOf(AnnotatedString("Klangbild") to name, AnnotatedString(lead) to leadStyle, AnnotatedString(text) to body, AnnotatedString(code) to codeStyle, address to addressStyle)
+            .maxOf { (t, style) ->
+                val r = measurer.measure(t, style, constraints = column)
+                (0 until r.lineCount).maxOf { r.getLineRight(it) - r.getLineLeft(it) }
+            }
+            .let { with(local) { it.toDp().value } }
+    }
+    // The group moves right by half of what the column leaves empty.
+    val shift = ((layout.columnWidth - widest) / 2f).coerceAtLeast(0f)
     Box(modifier.fillMaxSize()) {
         BaseWall(p.wall.asColor())
-        WallLayer(scene)
-        ArtworkLayer(scene)
-
-        val lead = when (reason) {
-            SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
-            SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das\u00A0Zugangstoken abgelehnt."
-            SetupReason.REQUESTED -> "Verbindung ändern"
-        }
-        // A short word that opens a sentence never ends a line ("Auf der Seite" stays
-        // together), and articles and adjectives stay with their noun.
-        val text = when (reason) {
-            SetupReason.AUTH_FAILED ->
-                "Erstelle in Home\u00A0Assistant ein\u00A0neues\u00A0langlebiges\u00A0Zugangstoken, scanne den\u00A0Code und füge es auf der Seite ein."
-            else ->
-                "Scanne den\u00A0Code mit\u00A0der\u00A0Kamera. Auf\u00A0der\u00A0Seite verbindest du Home\u00A0Assistant und wählst den\u00A0Lautsprecher."
-        }
-        val hint = if (reason == SetupReason.REQUESTED) "Zurück schließt" else null
-        // The block hangs from the card's top edge: the name's cap height on it.
-        Layout(
-            modifier = Modifier.fillMaxSize(),
-            content = {
-                Column(Modifier.width(layout.columnWidth.dp)) {
-                    BasicText("Klangbild", style = titleType(44f, 420, p.ink.asColor(), tracking = -0.005f))
-                    Spacer(Modifier.height(4.dp))
-                    BasicText(lead, style = textType(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced)))
-                    Spacer(Modifier.height(20.dp))
-                    BasicText(text, style = body)
-                    Spacer(Modifier.height(30.dp))
-                    BasicText("Code", style = label)
-                    Spacer(Modifier.height(2.dp))
-                    BasicText(
-                        info?.code?.chunked(3)?.joinToString(" ") ?: "—",
-                        style = titleType(44f, 400, p.ink.asColor(), tracking = 0.01f),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    BasicText(
-                        info?.url?.let { url ->
-                            buildAnnotatedString {
-                                append("oder im Browser: ")
-                                // A little air between the figures, so the dots stay visible from the sofa.
-                                withStyle(SpanStyle(letterSpacing = 0.03.em)) { append(SetupArt.shortUrl(url)) }
-                            }
-                        } ?: AnnotatedString("Keine Netzwerkverbindung"),
-                        style = body.copy(color = p.inkQuiet.asColor()),
-                    )
+        Box(Modifier.fillMaxSize().graphicsLayer { translationX = shift.dp.toPx() }) {
+            WallLayer(scene)
+            ArtworkLayer(scene)
+            // The block hangs from the card's top edge: the name's cap height on it.
+            Layout(
+                modifier = Modifier.fillMaxSize(),
+                content = {
+                    Column(Modifier.width(layout.columnWidth.dp)) {
+                        BasicText("Klangbild", style = name)
+                        Spacer(Modifier.height(4.dp))
+                        BasicText(lead, style = leadStyle)
+                        Spacer(Modifier.height(20.dp))
+                        BasicText(text, style = body)
+                        Spacer(Modifier.height(30.dp))
+                        BasicText("Code", style = label)
+                        Spacer(Modifier.height(2.dp))
+                        BasicText(code, style = codeStyle)
+                        Spacer(Modifier.height(8.dp))
+                        BasicText(address, style = addressStyle)
+                    }
+                },
+            ) { measurables, constraints ->
+                val block = measurables.first().measure(Constraints())
+                val first = block[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: 0
+                val baseline = (layout.artTop * density).roundToInt() + (44f * fontScale * density * Fonts.CAP_HEIGHT).roundToInt()
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    block.place((layout.columnLeft * density).roundToInt(), baseline - first)
                 }
-            },
-        ) { measurables, constraints ->
-            val block = measurables.first().measure(Constraints())
-            val first = block[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: 0
-            val baseline = (layout.artTop * density).roundToInt() + (44f * fontScale * density * Fonts.CAP_HEIGHT).roundToInt()
-            layout(constraints.maxWidth, constraints.maxHeight) {
-                block.place((layout.columnLeft * density).roundToInt(), baseline - first)
             }
-        }
-        if (hint != null) {
-            BasicText(
-                hint,
-                style = label,
-                modifier = Modifier.offset(layout.columnLeft.dp, (layout.artTop + layout.art - 18f).dp),
-            )
+            if (hint != null) {
+                BasicText(
+                    hint,
+                    style = label,
+                    modifier = Modifier.offset(layout.columnLeft.dp, (layout.artTop + layout.art - 18f).dp),
+                )
+            }
         }
     }
 }

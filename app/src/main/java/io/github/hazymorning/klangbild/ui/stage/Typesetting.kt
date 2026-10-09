@@ -40,6 +40,12 @@ class StageStyles(palette: ScenePalette) {
     val muted = palette.inkMuted.asColor()
     val quiet = palette.inkQuiet.asColor()
 
+    /** The progress bar's fill: the artist's level, or on the cover's colours their leading hue … */
+    val accent = palette.accent.asColor()
+
+    /** … and its track: the title's colour, or that hue, faint. */
+    val track = if (palette.accent == palette.inkMuted) ink.copy(alpha = 0.16f) else accent.copy(alpha = 0.24f)
+
     /** The title at one step of [titleLadder]; Japanese, Chinese and Korean a little smaller (their characters stand taller than capitals). */
     fun title(step: TitleStep, cjk: Boolean = false): TextStyle {
         val size = if (cjk) step.size * CJK_SCALE else step.size
@@ -134,7 +140,10 @@ class TextPlan(
 fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
-    return remember(model.text, model.year, model.next, model.scene.layout, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
+    return remember(
+        model.text, model.year, model.next, model.scene.layout, model.scene.palette, model.progress, model.line, model.durationMs == null,
+        model.chapter != null, localDensity,
+    ) {
         planText(model, measurer, localDensity)
     }
 }
@@ -166,7 +175,7 @@ private fun planText(
         if (t.work != null) rest += cap(normal.work) + linesHeight(t.work, normal.work, 2) + Gaps.WORK * d
         if (version != null) rest += Gaps.VERSION * d + cap(normal.version(step.size))
         rest += Gaps.ARTIST * d + cap(normal.artist)
-        if (t.album != null || model.year != null) rest += Gaps.ALBUM * d + cap(normal.album)
+        if (t.album != null || model.year != null || model.chapter != null) rest += Gaps.ALBUM * d + cap(normal.album)
         if (model.line != null || (model.progress && model.durationMs != null)) {
             rest += Gaps.BOTTOM * d + (4 + 10) * d + cap(normal.label)
         }

@@ -71,6 +71,8 @@ class CardMotion(
  * @param time how far the change has come (0..1, linear); each card eases its own stretch.
  * @param dim brightness of the cards (pause).
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
+ * @param edges the cards dissolve into the plain wall before the screen's edges; on the
+ *   cover's colours, which reach the edges, they simply pass them.
  */
 @Composable
 fun FlowStrip(
@@ -83,6 +85,7 @@ fun FlowStrip(
     time: () -> Float = { 1f },
     dim: () -> Float = { 1f },
     alpha: () -> Float = { 1f },
+    edges: Boolean = true,
 ) {
     val n = cards.size
     val pos = remember(cards) { FloatArray(n) }
@@ -138,6 +141,7 @@ fun FlowStrip(
         }
         // The cards dissolve into the wall before the screen's edges (on an OLED the band stays
         // black; on paper briefly, so a card leaving does not look bleached).
+        if (!edges) return@Canvas
         val band = WallGlow.EDGE_BLACK_DP * density
         val fadeDp = (if (appearance == Appearance.LIGHT) PAPER_EDGE_FADE_DP else EDGE_FADE_DP) * density
         val reach = band + fadeDp

@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.data.ha
 
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
@@ -43,14 +44,25 @@ object PlayerParser {
             val picture = HaUrls.resolve(baseUrl, entity.string("entity_picture"))
             val localPicture = HaUrls.resolve(baseUrl, entity.string("entity_picture_local"))
             val source = entity.string("media_channel") ?: entity.string("source")?.takeIf { entity.string("app_id") == "radio" }
+            val kind = MediaKind.fromUri(entity.string("media_content_id")) ?: if (source != null) MediaKind.RADIO else MediaKind.MUSIC
+            // Music Assistant puts an item's description where the album would be when it has
+            // none – for a book its blurb, paragraphs long. That is never an album line.
+            var album = entity.string("media_album_name")?.trim()?.takeIf { it.isNotEmpty() && !isDescription(it) && kind != MediaKind.AUDIOBOOK }
+            var artists = if (kind == MediaKind.AUDIOBOOK) splitAuthors(entity.string("media_artist")) else splitArtists(entity.string("media_artist"))
+            // An episode: the show's name (in the album's place) stands where an artist would.
+            if (kind == MediaKind.PODCAST && artists.isEmpty() && album != null) {
+                artists = listOf(album)
+                album = null
+            }
             TrackInfo(
                 title = title,
-                artists = splitArtists(entity.string("media_artist")),
-                album = entity.string("media_album_name")?.takeIf { it.isNotBlank() },
+                artists = artists,
+                album = album,
                 durationMs = entity.number("media_duration")?.takeIf { it > 0 }?.let { (it * 1000).roundToLong() },
                 artworkUrl = picture?.let { ArtworkUrls.upgrade(it) },
                 artworkFallbackUrl = localPicture ?: picture,
                 source = source,
+                kind = kind,
             )
         }
         val isMa = entity.string("app_id") == "music_assistant" || entity.attr("mass_player_type") != null
@@ -87,6 +99,16 @@ object PlayerParser {
         return s.split(" / ", "/ ", " /").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
+    /** A book's authors, which Music Assistant joins with a bare "/" (no band is called "AC/DC" here). */
+    fun splitAuthors(raw: String?): List<String> =
+        raw?.split("/")?.map { it.trim() }?.filter { it.isNotEmpty() }?.distinct().orEmpty()
+
+    /** Text too long, or in paragraphs, to be an album's name: a description in its place. */
+    fun isDescription(s: String): Boolean = s.length > MAX_ALBUM_CHARS || s.contains('\n')
+
+    /** Longer than any album name worth a line (they do reach a hundred characters). */
+    private const val MAX_ALBUM_CHARS = 160
+
     /**
      * Parses `music_assistant.get_queue` (with `return_response`). The response is keyed by
      * entity id: `{"media_player.x": {"current_item": {...}, "next_item": {...}}}`.
@@ -117,7 +139,8 @@ object PlayerParser {
         val image = media?.string("image") ?: album?.string("image")
         val resolved = HaUrls.resolve(baseUrl, image)
         val year = (album?.get("year") as? JsonPrimitive)?.intOrNull
-        val isRadio = media?.string("media_type") == "radio"
+        val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
+        val isRadio = kind == MediaKind.RADIO
         // Radio: the station is the source, the stream title (if any) is what plays now.
         val streamTitle = item.string("stream_title")?.takeIf { it.isNotBlank() }
         val title = when {
@@ -134,6 +157,7 @@ object PlayerParser {
             artworkUrl = resolved?.let { ArtworkUrls.upgrade(it) },
             artworkFallbackUrl = resolved,
             source = if (isRadio) name else null,
+            kind = kind,
         )
     }
 

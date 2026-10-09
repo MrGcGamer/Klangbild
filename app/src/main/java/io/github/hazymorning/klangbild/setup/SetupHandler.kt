@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.setup
 
 import io.github.hazymorning.klangbild.config.LaunchExtras
+import io.github.hazymorning.klangbild.config.LightBars
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
 import io.github.hazymorning.klangbild.data.ha.HaUrls
@@ -20,8 +21,11 @@ import java.security.SecureRandom
 /** One speaker offered on the setup page. */
 data class SpeakerOption(val entityId: String, val name: String, val state: String, val musicAssistant: Boolean)
 
+/** One colour light offered for the bars behind the TV. */
+data class LightOption(val entityId: String, val name: String, val state: String)
+
 sealed interface DiscoverResult {
-    data class Ok(val speakers: List<SpeakerOption>) : DiscoverResult
+    data class Ok(val speakers: List<SpeakerOption>, val lights: List<LightOption> = emptyList()) : DiscoverResult
     data class Failed(val message: String) : DiscoverResult
 }
 
@@ -114,6 +118,9 @@ class SetupHandler(
                 put("remote", s.remoteControl)
                 put("maUrl", s.maUrl ?: maGuess() ?: "")
                 put("hasMaToken", !s.maToken.isNullOrBlank())
+                put("barsLeft", s.bars.left ?: "")
+                put("barsCenter", s.bars.center ?: "")
+                put("barsRight", s.bars.right ?: "")
             }.toString(),
         )
     }
@@ -139,6 +146,15 @@ class SetupHandler(
                             put("name", sp.name)
                             put("state", sp.state)
                             put("ma", sp.musicAssistant)
+                        })
+                    }
+                })
+                put("lights", buildJsonArray {
+                    r.lights.forEach { l ->
+                        add(buildJsonObject {
+                            put("id", l.entityId)
+                            put("name", l.name)
+                            put("state", l.state)
                         })
                     }
                 })
@@ -176,6 +192,15 @@ class SetupHandler(
             "release" -> SleepAction.RELEASE
             else -> current.sleepAction
         }
+        // The light bars only when the page showed them (it found the lights); "" is none.
+        val barKeys = listOf("barsLeft", "barsCenter", "barsRight")
+        val bars = if (barKeys.none { it in body }) {
+            current.bars
+        } else {
+            val ids = barKeys.map { k -> body.str(k)?.trim().orEmpty() }
+            if (ids.any { it.isNotEmpty() && !LaunchExtras.isLightId(it) }) return MiniHttp.Response.json(400, error("Bitte nur Lichter als Lichtleisten wählen."))
+            LightBars(ids[0].ifEmpty { null }, ids[1].ifEmpty { null }, ids[2].ifEmpty { null })
+        }
         val updated = withMa.copy(
             entityId = entity,
             sleepAfterMinutes = minutes,
@@ -183,6 +208,7 @@ class SetupHandler(
             showClock = body.bool("clock") ?: current.showClock,
             dayNight = body.bool("dayNight") ?: current.dayNight,
             remoteControl = body.bool("remote") ?: current.remoteControl,
+            bars = bars,
         )
         save(updated)
         return MiniHttp.Response.json(200, buildJsonObject {

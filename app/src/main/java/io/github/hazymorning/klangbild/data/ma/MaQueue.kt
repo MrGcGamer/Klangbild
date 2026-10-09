@@ -1,8 +1,12 @@
 package io.github.hazymorning.klangbild.data.ma
 
 import io.github.hazymorning.klangbild.data.ha.ArtworkUrls
+import io.github.hazymorning.klangbild.domain.Chapter
+import io.github.hazymorning.klangbild.domain.Chapters
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -10,8 +14,11 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlin.math.roundToLong
 
-/** The part of a queue around its current item: what was played (most recent last) and what comes. */
-data class QueueWindow(val played: List<TrackInfo>, val current: TrackInfo?, val coming: List<TrackInfo>)
+/**
+ * The part of a queue around its current item: what was played (most recent last) and what
+ * comes – and how fast the current item plays (a book at 1.5×).
+ */
+data class QueueWindow(val played: List<TrackInfo>, val current: TrackInfo?, val coming: List<TrackInfo>, val speed: Float = 1f)
 
 /** Reads Music Assistant's queue items (`player_queues/items`). */
 object MaQueue {
@@ -35,36 +42,79 @@ object MaQueue {
             played = tracks.take(at.coerceIn(0, tracks.size)).filterNotNull(),
             current = tracks.getOrNull(at),
             coming = if (at < 0) emptyList() else tracks.drop(at + 1).filterNotNull(),
+            speed = (items.getOrNull(at) as? JsonObject)?.let(::speed) ?: 1f,
         )
     }
 
-    /** One queue item as a track: title (with its version), artists, album and year, picture. */
+    /** How fast an item plays: Music Assistant keeps a book's or an episode's speed with its queue item. */
+    fun speed(item: JsonObject): Float =
+        ((item["extra_attributes"] as? JsonObject)?.get("playback_speed") as? JsonPrimitive)?.doubleOrNull
+            ?.takeIf { it in MIN_SPEED..MAX_SPEED }?.toFloat() ?: 1f
+
+    /**
+     * One queue item as a track: title (with its version), artists, album and year, picture. A
+     * book names its authors and an episode its show where a song names its artists; both bring
+     * their chapters.
+     */
     fun track(item: JsonObject, baseUrl: String): TrackInfo? {
         val media = item["media_item"] as? JsonObject
         val name = media?.string("name") ?: item.string("name") ?: return null
         val version = media?.string("version")?.takeIf { it.isNotBlank() }
         val album = media?.get("album") as? JsonObject
-        val isRadio = media?.string("media_type") == "radio"
+        val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
+        val isRadio = kind == MediaKind.RADIO
         val streamTitle = (item["streamdetails"] as? JsonObject)?.string("stream_title")?.takeIf { it.isNotBlank() }
         val picture = image(item["image"] as? JsonObject, baseUrl)
             ?: image(media?.get("image") as? JsonObject, baseUrl)
             ?: image(album?.get("image") as? JsonObject, baseUrl)
+        val durationMs = (item["duration"] as? JsonPrimitive)?.doubleOrNull?.takeIf { it > 0 }?.let { (it * 1000).roundToLong() }
+        val artists = when (kind) {
+            MediaKind.AUDIOBOOK -> names(media?.get("authors"))
+            MediaKind.PODCAST -> listOfNotNull((media?.get("podcast") as? JsonObject)?.string("name")?.trim()?.takeIf { it.isNotEmpty() })
+            else -> names(media?.get("artists"))
+        }
         return TrackInfo(
             title = when {
                 isRadio -> streamTitle ?: name
                 version != null -> "$name ($version)"
                 else -> name
             },
-            artists = (media?.get("artists") as? JsonArray)
-                ?.mapNotNull { (it as? JsonObject)?.string("name")?.takeIf { n -> n.isNotBlank() } }
-                .orEmpty(),
+            artists = artists,
             album = album?.string("name")?.takeIf { it.isNotBlank() },
             year = (album?.get("year") as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 },
-            durationMs = (item["duration"] as? JsonPrimitive)?.doubleOrNull?.takeIf { it > 0 }?.let { (it * 1000).roundToLong() },
+            durationMs = durationMs,
             artworkUrl = picture?.first?.let { ArtworkUrls.upgrade(it) },
             artworkFallbackUrl = picture?.second,
             source = if (isRadio) name else null,
+            kind = kind,
+            chapters = if (kind.spoken) chapters(media, durationMs) else emptyList(),
         )
+    }
+
+    /** Names from a list of artists or authors: objects with a name, or plain strings (a book's authors may be either). */
+    private fun names(list: JsonElement?): List<String> =
+        (list as? JsonArray)?.mapNotNull { e ->
+            when (e) {
+                is JsonObject -> e.string("name")
+                is JsonPrimitive -> e.takeIf { it.isString }?.content
+                else -> null
+            }?.trim()?.takeIf { it.isNotEmpty() }
+        }?.distinct().orEmpty()
+
+    /** A book's or an episode's chapters (`metadata.chapters`: number, name, start and end in seconds). */
+    private fun chapters(media: JsonObject?, durationMs: Long?): List<Chapter> {
+        val list = ((media?.get("metadata") as? JsonObject)?.get("chapters") as? JsonArray) ?: return emptyList()
+        val raw = list.take(MAX_CHAPTERS).mapNotNull { e ->
+            val c = e as? JsonObject ?: return@mapNotNull null
+            val start = (c["start"] as? JsonPrimitive)?.doubleOrNull ?: return@mapNotNull null
+            Chapters.Raw(
+                position = (c["position"] as? JsonPrimitive)?.intOrNull ?: 0,
+                name = c.string("name"),
+                start = start,
+                end = (c["end"] as? JsonPrimitive)?.doubleOrNull,
+            )
+        }
+        return Chapters.of(raw, durationMs)
     }
 
     /**
@@ -85,6 +135,13 @@ object MaQueue {
 
     /** Size asked of the proxy; [ArtworkUrls.upgrade] asks for more first. */
     private const val PROXY_SIZE = 512
+
+    /** Music Assistant plays spoken word from half to three times as fast. */
+    private const val MIN_SPEED = 0.5
+    private const val MAX_SPEED = 3.0
+
+    /** More chapters than any book has; a list longer than this is cut, never trusted to be small. */
+    private const val MAX_CHAPTERS = 1_000
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 }

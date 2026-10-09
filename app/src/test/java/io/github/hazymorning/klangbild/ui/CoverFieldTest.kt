@@ -1,0 +1,88 @@
+package io.github.hazymorning.klangbild.ui
+
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.hazymorning.klangbild.art.SyntheticCover
+import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.ui.flow.FlowStage
+import io.github.hazymorning.klangbild.ui.stage.FieldTime
+import io.github.hazymorning.klangbild.ui.stage.LocalFieldTime
+import io.github.hazymorning.klangbild.ui.stage.Stage
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+/** "Coverfarben": the cover's colours as the wall – dark and light, single view and Cover Flow, and moving. */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
+class CoverFieldTest {
+    private val pärt = Fixtures.pärt
+
+    private fun stage(name: String, cover: SyntheticCover, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, at: Double = 0.0) {
+        val track = Fixtures.track(cover)
+        val scene = Fixtures.scene(track, appearance = appearance, lighting = lighting, coverField = true)
+        captureRoboImage("build/screenshots/cover_field/$name.png") {
+            Fixtures.Still {
+                CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) {
+                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
+                }
+            }
+        }
+    }
+
+    @Test fun synthwave() = stage("field_nachtfahrt", SyntheticCover.NACHTFAHRT)
+    @Test fun sea() = stage("field_salzwasser", SyntheticCover.SALZWASSER)
+    @Test fun terracotta() = stage("field_terrakotta", SyntheticCover.TERRAKOTTA)
+    @Test fun moss() = stage("field_moos", SyntheticCover.MOOS)
+    @Test fun bauhaus() = stage("field_bauhaus", SyntheticCover.BAUHAUS)
+    @Test fun pale() = stage("field_leerraum", SyntheticCover.LEERRAUM)
+    @Test fun night() = stage("field_night", SyntheticCover.NACHTFAHRT, lighting = Lighting.NIGHT)
+    @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALZWASSER, Appearance.LIGHT)
+    @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRAKOTTA, Appearance.LIGHT)
+
+    /** Every test cover once, on both walls: the field's range at a glance. */
+    @Test
+    fun gallery() {
+        val covers = Fixtures.tracks.distinctBy { it.artworkUrl }
+        for (appearance in Appearance.entries) for ((i, track) in covers.withIndex()) {
+            val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
+            captureRoboImage("build/screenshots/cover_field/gallery/${appearance.name.lowercase()}_%02d.png".format(i)) {
+                Fixtures.Still {
+                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, appearance = appearance))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun moving() {
+        for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NACHTFAHRT, at = i * 12.0)
+    }
+
+    @Test
+    fun flow() {
+        val strip: List<TrackInfo> = listOf(
+            Fixtures.track(SyntheticCover.TERRAKOTTA),
+            Fixtures.radio,
+            Fixtures.track(SyntheticCover.NACHTFAHRT),
+            Fixtures.track(SyntheticCover.LEERRAUM),
+            Fixtures.track(SyntheticCover.BAUHAUS),
+        )
+        for (appearance in Appearance.entries) {
+            val scenes = Fixtures.flowScenes(strip, appearance, coverField = true)
+            captureRoboImage("build/screenshots/cover_field/flow_${appearance.name.lowercase()}.png") {
+                Fixtures.Still {
+                    FlowStage(
+                        Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], appearance = appearance),
+                        Fixtures.restingCards(scenes, 2),
+                    )
+                }
+            }
+        }
+    }
+}

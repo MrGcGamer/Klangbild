@@ -2,11 +2,14 @@ package io.github.hazymorning.klangbild.dream
 
 import android.service.dreams.DreamService
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
@@ -16,11 +19,16 @@ import io.github.hazymorning.klangbild.app.graph
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.KlangbildRoot
 import io.github.hazymorning.klangbild.ui.RootHooks
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * Klangbild as the system screensaver: when the TV would otherwise show its ambient mode,
  * it shows what is playing – or the quiet clock. Any key ends the dream (non-interactive).
- * On Google TV this can only be selected via ADB, see the README.
+ * Once nothing has played for the "Ausschalten nach" time it ends itself and the TV may sleep:
+ * a clock that stays for hours would mark an OLED. On Google TV it can only be chosen via
+ * ADB: `adb shell settings put secure screensaver_components
+ * io.github.hazymorning.klangbild/.dream.KlangbildDream`.
  */
 class KlangbildDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
     private val registry = LifecycleRegistry(this)
@@ -50,7 +58,8 @@ class KlangbildDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                 setViewTreeSavedStateRegistryOwner(this@KlangbildDream)
                 setContent {
                     val ui by controller.ui.collectAsStateWithLifecycle()
-                    KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow))
+                    val hooks = remember { RootHooks(positionNow = controller::positionNow, fieldTime = controller::fieldTime) }
+                    KlangbildRoot(ui, spec, hooks)
                 }
             },
         )
@@ -61,6 +70,12 @@ class KlangbildDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         graph.controller.attach(screenSpec())
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                graph.controller.ui.first { it.asleep }
+                finish()
+            }
+        }
     }
 
     override fun onDreamingStopped() {

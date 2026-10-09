@@ -178,14 +178,29 @@ class SetupServer(
                 val display = (attrs?.get("device_class") as? JsonPrimitive)?.content == "tv" && ma
                 if (display) null else SpeakerOption(id, name, germanState(state), ma)
             }.sortedWith(compareByDescending<SpeakerOption> { it.musicAssistant }.thenBy { it.name.lowercase() })
-            return DiscoverResult.Ok(speakers)
+            // Lights that can show a colour: the candidates for the bars behind the TV.
+            val lights = arr.mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                val id = (o["entity_id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                if (!id.startsWith("light.")) return@mapNotNull null
+                val attrs = o["attributes"] as? JsonObject
+                val modes = (attrs?.get("supported_color_modes") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty()
+                if (modes.none { it in COLOUR_MODES }) return@mapNotNull null
+                val name = (attrs?.get("friendly_name") as? JsonPrimitive)?.content ?: id
+                LightOption(id, name, germanState((o["state"] as? JsonPrimitive)?.content ?: "unknown"))
+            }.sortedBy { it.name.lowercase() }
+            return DiscoverResult.Ok(speakers, lights)
         }
+
+        /** The colour modes a light needs to take the cover's colours. */
+        private val COLOUR_MODES = setOf("xy", "hs", "rgb", "rgbw", "rgbww")
 
         private fun germanState(state: String) = when (state) {
             "playing" -> "spielt"
             "paused" -> "pausiert"
             "idle" -> "bereit"
             "off" -> "aus"
+            "on" -> "an"
             "unavailable" -> "nicht erreichbar"
             "buffering" -> "lädt"
             else -> state

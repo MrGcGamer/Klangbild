@@ -23,6 +23,11 @@ data class PlayerSnapshot(
     val muted: Boolean = false,
     /** The entity is a Music Assistant group player ("Erdgeschoss"), not a speaker. */
     val isGroupPlayer: Boolean = false,
+    /**
+     * How fast the item plays (a book at 1.5×) – only Music Assistant itself knows; the position
+     * runs at this pace.
+     */
+    val speed: Float = 1f,
 )
 
 /** The speakers playing together with the configured one. */

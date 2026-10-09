@@ -14,6 +14,34 @@ object Catalogue {
 
     private fun cover(c: SyntheticCover) = SCHEME + c.name
 
+    /** An audiobook with chapters (named and numbered), read at its own pace or faster. */
+    val book = TrackInfo(
+        title = "Der Process",
+        artists = listOf("Franz Kafka"),
+        durationMs = 9_000_000L,
+        artworkUrl = cover(SyntheticCover.NEBELLAND),
+        kind = io.github.hazymorning.klangbild.domain.MediaKind.AUDIOBOOK,
+        chapters = io.github.hazymorning.klangbild.domain.Chapters.of(
+            listOf(
+                io.github.hazymorning.klangbild.domain.Chapters.Raw(1, "Verhaftung", 0.0, null),
+                io.github.hazymorning.klangbild.domain.Chapters.Raw(2, "Gespräch mit Frau Grubach – dann Fräulein Bürstner", 1_830.0, null),
+                io.github.hazymorning.klangbild.domain.Chapters.Raw(3, "003", 3_710.0, null),
+                io.github.hazymorning.klangbild.domain.Chapters.Raw(4, "004", 5_400.0, null),
+            ),
+            9_000_000L,
+        ),
+    )
+
+    /** A podcast episode without chapters, and the next one. */
+    val episode = TrackInfo(
+        title = "Folge 112: Wie Wolken entstehen und warum sie nicht herunterfallen",
+        artists = listOf("Zeit für Wissen"),
+        durationMs = 2_875_000L,
+        artworkUrl = cover(SyntheticCover.SALZWASSER),
+        kind = io.github.hazymorning.klangbild.domain.MediaKind.PODCAST,
+    )
+    val nextEpisode = TrackInfo("Folge 113: Der Mond", listOf("Zeit für Wissen"), kind = io.github.hazymorning.klangbild.domain.MediaKind.PODCAST)
+
     val tracks: List<TrackInfo> = listOf(
         TrackInfo(
             "Neonlicht über der A40", listOf("Lumen Drive"), "Nachtfahrt", 2024, 251_000,

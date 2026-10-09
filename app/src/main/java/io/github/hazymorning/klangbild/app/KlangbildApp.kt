@@ -35,6 +35,12 @@ class KlangbildApp : Application() {
     lateinit var graph: AppGraph
         private set
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // In the background the covers and scenes are only kept for a quick return.
+        if (level >= TRIM_MEMORY_UI_HIDDEN) graph.controller.releaseMemory()
+    }
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)

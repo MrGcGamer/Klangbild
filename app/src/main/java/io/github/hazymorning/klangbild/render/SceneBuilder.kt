@@ -48,6 +48,13 @@ class ArtworkScene(
     val wallTint: Float = 1f,
     /** The print as a card of the cover flow, with its mirror image; null in the single view. */
     val card: FlowCard? = null,
+    /**
+     * The cover's colours as a field ([CoverField]): with [coverField] it is the wall behind
+     * the picture; the light bars always take their colours from it.
+     */
+    val field: FieldScene? = null,
+    /** The cover's colours are the wall ("Coverfarben") instead of [wall]. */
+    val coverField: Boolean = false,
 ) {
     val screen: ScreenSpec get() = layout.screen
 
@@ -91,6 +98,7 @@ object SceneBuilder {
         appearance: Appearance = Appearance.DARK,
         wallTint: Float = 1f,
         view: StageView = StageView.SINGLE,
+        coverField: Boolean = false,
     ): ArtworkScene {
         val layout = HaloLayout(screen, view)
         val slotPx = (layout.art * screen.density).roundToInt()
@@ -125,19 +133,19 @@ object SceneBuilder {
         }
         val cover = Bitmap.createBitmap(coverPixels, coverSize, coverSize, Bitmap.Config.ARGB_8888)
         val analysis = CoverPalette.analyze(thumb)
-        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, matted, appearance, wallTint)
+        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, matted, appearance, wallTint, coverField)
     }
 
     /**
      * Re-light an existing scene (time of day, appearance or wall tint changed) without the
      * source image: only a small print's mat changes with the wall.
      */
-    fun relight(scene: ArtworkScene, lighting: Lighting, appearance: Appearance, wallTint: Float): ArtworkScene {
+    fun relight(scene: ArtworkScene, lighting: Lighting, appearance: Appearance, wallTint: Float, coverField: Boolean = scene.coverField): ArtworkScene {
         val sameWall = scene.appearance == appearance
         val cover = if (scene.matted && !sameWall) remat(scene, appearance) else scene.cover
         return assemble(
             scene.key, scene.layout, cover, scene.shape, scene.coverGenerated,
-            scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted, appearance, wallTint,
+            scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted, appearance, wallTint, coverField,
             // The card only changes with the wall (its mirror image, mat and hairline).
             card = scene.card.takeIf { sameWall },
         )
@@ -168,11 +176,19 @@ object SceneBuilder {
         matted: Boolean,
         appearance: Appearance,
         wallTint: Float,
+        coverField: Boolean,
         card: FlowCard? = null,
     ): ArtworkScene {
-        val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint)
+        val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint, cover = coverField)
         val flow = layout.view == StageView.FLOW
+        // The cover's colours: the wall itself with "Coverfarben", else only for the light bars.
+        val field = CoverField.build(
+            thumb, THUMB, analysis, lighting, appearance, strength = wallTint,
+            layout = layout.takeIf { coverField }, shape = shape.takeIf { !flow }, quietInk = palette.inkQuiet,
+        )
         val wall = when {
+            // The field is the wall; the plain one is only its colour underneath.
+            coverField -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
             flow && appearance == Appearance.DARK -> {
                 // The light above the cards takes the print's top edge: for a matted print the mat's.
                 val edge = if (matted) MAT else FlowLight.topEdge(thumb, THUMB)
@@ -211,6 +227,8 @@ object SceneBuilder {
             matted = matted,
             wallTint = wallTint,
             card = flowCard,
+            field = field,
+            coverField = coverField,
         )
     }
 
