@@ -108,9 +108,10 @@ Home-Assistant-Integration ohnehin).
 1. **APK holen.** Die signierte Release-APK liegt nach jedem Build auf `main` im
    [neuesten Release](../../releases/latest) (fester Link:
    `https://github.com/hazymorning/Music-Assistant-TV/releases/latest/download/klangbild.apk`;
-   das Repository ist privat, also im Browser angemeldet herunterladen). Für jeden Branch
-   gibt es die APK außerdem als Artifact `klangbild-apk` im jeweiligen
-   [Actions-Lauf](../../actions).
+   das Repository ist privat, also im Browser angemeldet herunterladen). Vorabversionen
+   stehen als Beta (Pre-Release) unter [Releases](../../releases) – ein Tag wie
+   `v0.1.0-beta.1` erzeugt eine. Für jeden Branch gibt es die APK außerdem als Artifact
+   `klangbild-apk` im jeweiligen [Actions-Lauf](../../actions).
 2. **Installieren** (vom Rechner im selben Netz):
    ```bash
    adb connect 192.168.1.50:5555          # IP des Streamers
@@ -328,7 +329,7 @@ Logs: `adb logcat | grep -i klangbild`
 - Plan und Entscheidungen: [`docs/PLAN.md`](docs/PLAN.md), [`docs/DECISIONS.md`](docs/DECISIONS.md)
 - CI (GitHub Actions): Tests, Screenshots als Artifact, signierte APK als Artifact,
   Smoke-Test der Release-APK auf einem Android-TV-14-Emulator im Demo-Modus (mit Screenshots
-  als Artifact), auf `main` zusätzlich ein Release.
+  als Artifact), auf `main` zusätzlich ein Release, für Tags `v*` eine Beta (Pre-Release).
 
 ## Lizenzen
 
