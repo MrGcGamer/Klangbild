@@ -31,6 +31,7 @@ import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.ScreenDecision
+import io.github.hazymorning.klangbild.domain.FlipGuard
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
 import io.github.hazymorning.klangbild.domain.SleepTimer
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
@@ -225,6 +226,10 @@ class NowPlayingController(
         setupJob?.cancel()
         setupServer.stop()
         sourceJob?.cancel()
+        // A report held back belongs to the source that sent it.
+        heldJob?.cancel()
+        heldJob = null
+        flips = FlipGuard()
         stopSource(source)
         source = null
         sourceKey = null
@@ -296,6 +301,8 @@ class NowPlayingController(
         val volume = command == RemoteCommand.VOLUME_UP || command == RemoteCommand.VOLUME_DOWN
         val allowed = if (volume) settings.value.volumeKeys else settings.value.remoteControl
         if (!allowed) return
+        // Back to the item before: that return is wanted at once.
+        if (command == RemoteCommand.PREVIOUS) synchronized(this) { flips.expectReturn(now()) }
         if (volume) {
             // Answer the key at once; the new value follows from Home Assistant.
             volumeFlashUntil = now() + VOLUME_FLASH_MS
@@ -507,6 +514,10 @@ class NowPlayingController(
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         sourceJob?.cancel()
+        // A report held back belongs to the source that sent it.
+        heldJob?.cancel()
+        heldJob = null
+        flips = FlipGuard()
         stopSource(source)
         // Another speaker (or another server) has its own history.
         strip.clear()
@@ -531,6 +542,18 @@ class NowPlayingController(
     private fun onSource(st: SourceState) {
         val p = st.player
         val t = now()
+        // A return to the item just left is usually the player catching up after a skip: it
+        // waits a moment, and is shown only if it is still what plays then.
+        heldJob?.cancel()
+        heldJob = null
+        if (!flips.admit(p?.track?.key, t)) {
+            val at = flips.passesAt ?: return
+            heldJob = scope.launch {
+                delay((at - now()).coerceAtLeast(0))
+                onSource(st)
+            }
+            return
+        }
         val reportKey = Triple(p?.track?.key, p?.positionMs, p?.status)
         if (reportKey != lastReportKey) {
             lastReportKey = reportKey
@@ -551,6 +574,9 @@ class NowPlayingController(
         _ui.value = _ui.value.copy(source = st)
         recompute()
     }
+
+    private var flips = FlipGuard()
+    private var heldJob: Job? = null
 
     private var lastVolume: Pair<Float, Boolean>? = null
     @Volatile private var volumeFlashUntil = 0L
