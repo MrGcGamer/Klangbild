@@ -15,8 +15,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -31,10 +33,12 @@ import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.StageModel
+import io.github.hazymorning.klangbild.ui.stage.StageTexts
+import io.github.hazymorning.klangbild.ui.stage.StatusLine
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import kotlinx.coroutines.delay
 
-/** A wall clock that ticks every [periodMs] (the UI needs minutes, the sun a few dp). */
+/** A wall clock that ticks every [periodMs] (the UI needs minutes, the drift whole pixels). */
 @Composable
 fun rememberWallClock(periodMs: Long = 5_000, now: () -> Long = System::currentTimeMillis): State<Long> =
     produceState(initialValue = now()) {
@@ -47,8 +51,8 @@ fun rememberWallClock(periodMs: Long = 5_000, now: () -> Long = System::currentT
 /** What the root needs from the outside world. */
 class RootHooks(
     val positionNow: () -> Long?,
-    /** Local time until which exact figures replace the time line (after a key press). */
-    val exactUntil: State<Long> = mutableLongStateOf(0L),
+    /** Local time until which hidden parts (time, place, progress) show again after a key press. */
+    val peekUntil: State<Long> = mutableLongStateOf(0L),
     val now: () -> Long = System::currentTimeMillis,
 )
 
@@ -153,51 +157,49 @@ private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s 
 private fun StageContentView(ui: UiState, key: Content.StageContent, screen: ScreenSpec, hooks: RootHooks, wall: State<Long>) {
     val stageScreen = ui.screen as? Screen.Stage
     // While a new cover loads, the previous stage stays; status follows the live state.
-    // A lost connection (after the grace period) dims the stage like a pause.
+    // A lost connection (after the grace period) or a muted speaker dims the stage.
     val linkDown = stageScreen?.linkDown == true
     val status = stageScreen?.status ?: PlayerStatus.PAUSED
-    val shownStatus = if (linkDown) PlayerStatus.PAUSED else status
     val display = ui.display
-    val next = stageScreen?.next?.takeIf { display.next }
-    val clock = if (display.clock) io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value) else null
     val player = ui.source.player
-    val volume = SpeakerLabel.volume(player?.volume, player?.muted == true)
-    // The dateline after the clock: where the music plays and, if wanted, how loud.
-    val capExtra = listOfNotNull(
-        SpeakerLabel.group(ui.source.group).takeIf { display.group },
-        volume.takeIf { display.volume == VolumeDisplay.ALWAYS },
-    ).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
-    val volumeLine = if (ui.volumeFlash) TimeLine.volume(player?.volume, player?.muted == true) else null
-    val exact = hooks.exactUntil.value > hooks.now()
-    val minuteBucket = wall.value / 15_000 // time line words change at most every 15 s
-    val stage = key.stage
-    val modelFor: (StageData) -> StageModel =
-        remember(stage, minuteBucket, exact, status, next, clock, ui.night, linkDown, display, capExtra, volumeLine) {
-            { s: StageData ->
-                val position = if (s.track.key == stage.track.key) hooks.positionNow() else null
-                val timeLine = volumeLine ?: TimeLine.compute(
-                    status = status,
-                    positionMs = position,
-                    durationMs = s.track.durationMs,
-                    next = next?.let { TrackText.from(it) },
-                    source = s.track.source,
-                    showExact = exact,
-                    linkDown = linkDown,
-                )?.takeIf { display.timeLine || linkDown || it.figures }
-                StageModel(
-                    scene = s.scene,
-                    text = TrackText.from(s.track).let { if (display.album) it else it.copy(album = null) },
-                    status = status,
-                    durationMs = s.track.durationMs,
-                    positionMs = { hooks.positionNow() },
-                    timeLine = timeLine,
-                    clock = clock,
-                    night = ui.night,
-                    capExtra = capExtra,
-                )
-            }
+    val muted = player?.muted == true
+    // A key press brings hidden parts back for a few seconds.
+    val peekUntil = hooks.peekUntil.value
+    var peek by remember { mutableStateOf(false) }
+    LaunchedEffect(peekUntil) {
+        val left = peekUntil - hooks.now()
+        if (left > 0) {
+            peek = true
+            delay(left)
         }
-    // Changing the lamp's strength in the menu turns it like a dimmer.
+        peek = false
+    }
+    val clock = if (display.clock || peek) RestTexts.time(wall.value) else null
+    val group = SpeakerLabel.group(ui.source.group).takeIf { display.group || peek }
+    val volume = SpeakerLabel.volume(player?.volume, muted)
+    val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS)
+    val statusLine = StatusLine(lead, clock)
+    val nextTrack = stageScreen?.next?.takeIf { display.next }
+    val stage = key.stage
+    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, ui.night, linkDown, display, peek) {
+        { s: StageData ->
+            val text = TrackText.from(s.track)
+            StageModel(
+                scene = s.scene,
+                text = if (display.album) text else text.copy(album = null),
+                status = status,
+                durationMs = s.track.durationMs,
+                positionMs = { if (s.track.key == stage.track.key) hooks.positionNow() else null },
+                year = s.track.year.takeIf { display.album },
+                progress = display.timeLine || peek,
+                line = StageTexts.line(linkDown, s.track),
+                next = StageTexts.next(nextTrack),
+                statusLine = statusLine,
+                night = ui.night,
+            )
+        }
+    }
+    // Changing the light's strength in the menu turns it like a dimmer.
     val lightFactor by animateFloatAsState(
         targetValue = display.light.factor,
         animationSpec = tween(1_200, easing = Motion.Dimmer),
@@ -205,14 +207,9 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
     )
     StageTheatre(
         stage = stage,
-        status = shownStatus,
+        status = status,
         modelFor = modelFor,
-        progressFor = { s ->
-            val d = s.track.durationMs
-            val p = hooks.positionNow()
-            if (d != null && d > 0 && p != null && s.track.key == stage.track.key) p.toFloat() / d else null
-        },
-        wallClock = { wall.value },
         lightFactor = { lightFactor },
+        dimmed = muted || linkDown,
     )
 }

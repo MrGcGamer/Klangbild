@@ -63,22 +63,22 @@ class LaunchExtrasTest {
     @Test
     fun `a link may set display options, never the connection`() {
         val extras = LaunchExtras.fromLink(
-            mapOf("light" to "dezent", "album" to "aus", "demo" to "ja", "ha_url" to "http://evil", "token" to "x", "entity" to "media_player.x", "setup" to "true"),
+            mapOf("light" to "dezent", "album" to "aus", "ha_url" to "http://evil", "token" to "x", "entity" to "media_player.x", "setup" to "true"),
         )
-        assertThat(extras.keys).containsExactly("light", "album", "demo")
+        assertThat(extras.keys).containsExactly("light", "album")
         val s = LaunchExtras.applyTo(Settings(), extras)
         assertThat(s.light).isEqualTo(LightLevel.SUBTLE)
         assertThat(s.showAlbum).isFalse()
         assertThat(s.haUrl).isNull()
-        assertThat(LaunchExtras.session(extras).demo).isTrue()
+        assertThat(LaunchExtras.session(extras)).isEqualTo(SessionOptions())
     }
 
     @Test
     fun `session options`() {
-        assertThat(LaunchExtras.session(mapOf("demo" to true))).isEqualTo(SessionOptions(demo = true))
-        assertThat(LaunchExtras.session(mapOf("demo" to "ja", "debug" to 1, "setup" to "true")))
-            .isEqualTo(SessionOptions(demo = true, showSetup = true, debugOverlay = true))
-        assertThat(LaunchExtras.hasStoredExtras(mapOf("demo" to true))).isFalse()
+        assertThat(LaunchExtras.session(mapOf("setup" to true))).isEqualTo(SessionOptions(showSetup = true))
+        assertThat(LaunchExtras.session(mapOf("debug" to 1, "setup" to "ja")))
+            .isEqualTo(SessionOptions(showSetup = true, debugOverlay = true))
+        assertThat(LaunchExtras.hasStoredExtras(mapOf("debug" to true))).isFalse()
         assertThat(LaunchExtras.hasStoredExtras(mapOf("entity" to "media_player.x"))).isTrue()
     }
 }

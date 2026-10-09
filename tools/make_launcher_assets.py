@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Renders the Google TV banner and the launcher icons from the bundled fonts.
+"""Renders the Google TV banner and the launcher icons from the bundled font.
 
 Usage: python3 tools/make_launcher_assets.py   (needs Pillow)
 
-The motif is the app itself: a small square "cover" lit from behind by warm lamp light,
-on a near-black wall, next to the wordmark set in Newsreader.
+The motif is the app itself: a small square "cover" with softly rounded corners whose own
+colours glow onto a black wall, next to the wordmark set in Mona Sans.
 """
 import math
 import os
@@ -14,22 +14,21 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(ROOT, "app", "src", "main", "res")
-FONT = os.path.join(RES, "font", "newsreader.ttf")
+FONT = os.path.join(RES, "font", "monasans.ttf")
 
-WALL = (13, 11, 10)
-INK = (232, 222, 208)
-GLOW = (214, 150, 82)
+WALL = (0, 0, 0)
+INK = (236, 234, 230)
 CARD_TOP = (190, 112, 58)
 CARD_BOTTOM = (92, 44, 26)
 
 
-def newsreader(size, weight=330, opsz=72):
+def mona(size, weight=460, opsz=72):
     f = ImageFont.truetype(FONT, size)
     axes = f.get_variation_axes()
     vals = []
     for a in axes:
         name = a["name"] if isinstance(a["name"], str) else a["name"].decode()
-        vals.append({"Weight": weight, "Optical size": opsz}.get(name, a["default"]))
+        vals.append({"Weight": weight, "Optical size": opsz, "Width": 100}.get(name, a["default"]))
     f.set_variation_by_axes(vals)
     return f
 
@@ -47,14 +46,18 @@ def dither(img, amount=1.6, seed=3):
 
 
 def lit_card(img, box, scale):
-    """A square 'cover' with a warm halo behind it."""
+    """A square 'cover' with rounded corners whose colours glow onto the wall around it."""
     x0, y0, x1, y1 = box
+    radius = max(2, int((x1 - x0) * 0.04))
+    # the glow: the card's own colours, blurred far beyond its edge and kept dim
     glow = Image.new("RGB", img.size, (0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.rectangle(box, fill=GLOW)
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=14 * scale))
-    base = Image.new("RGB", img.size, WALL)
-    img.paste(Image.blend(base, Image.composite(glow, base, glow.convert("L").point(lambda v: 255)), 0.55))
+    for yy in range(y0, y1):
+        t = (yy - y0) / max(1, (y1 - y0 - 1))
+        col = tuple(int(CARD_TOP[i] + (CARD_BOTTOM[i] - CARD_TOP[i]) * t) for i in range(3))
+        gd.line([(x0, yy), (x1, yy)], fill=col)
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=16 * scale))
+    img.paste(Image.blend(Image.new("RGB", img.size, WALL), glow, 0.62))
     # the card: a quiet gradient like a painted cover
     card = Image.new("RGB", (x1 - x0, y1 - y0))
     cd = ImageDraw.Draw(card)
@@ -67,7 +70,9 @@ def lit_card(img, box, scale):
     cx, cy = (x1 - x0) * 0.58, (y1 - y0) * 0.42
     cd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(236, 206, 160))
     cd.rectangle([0, (y1 - y0) * 0.62, x1 - x0, y1 - y0], fill=(70, 32, 20))
-    img.paste(card, (x0, y0))
+    mask = Image.new("L", card.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, card.size[0] - 1, card.size[1] - 1], radius=radius, fill=255)
+    img.paste(card, (x0, y0), mask)
 
 
 def banner(path, w=320, h=180):
@@ -78,12 +83,14 @@ def banner(path, w=320, h=180):
     y0 = (h * s - side) // 2
     lit_card(img, (x0, y0, x0 + side, y0 + side), s)
     d = ImageDraw.Draw(img)
-    f = newsreader(int(40 * s))
+    f = mona(int(38 * s))
     text = "Klangbild"
     tw = d.textlength(text, font=f)
     tx = x0 + side + int(22 * s)
     ascent, descent = f.getmetrics()
-    ty = (h * s) // 2 - ascent // 2 - int(6 * s)
+    # cap height (0.729 em) centred on the card
+    cap = 0.729 * 38 * s
+    ty = int((h * s) / 2 + cap / 2 - ascent)
     d.text((tx, ty), text, font=f, fill=INK)
     img = img.resize((w, h), Image.LANCZOS)
     dither(img)

@@ -17,9 +17,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Motion as a sequence of stills: the track change (old print goes dark, the wall holds
- * while the light changes colour, the new print comes up, text follows), the next song of
- * the same album (only the text changes), the pause (the lamp dims) and buffering.
+ * Motion as a sequence of stills: the track change (the new artwork settles over the old,
+ * its light morphs on the wall, the text follows line by line), the next song of the same
+ * album (only the text changes), the pause (the artwork recedes and dims) and buffering.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -41,8 +41,8 @@ class TransitionTest {
         compose.mainClock.advanceTimeBy(100)
         compose.onRoot().captureRoboImage("build/screenshots/transition/track_00.png")
         stage = b
-        for (i in 1..14) {
-            compose.mainClock.advanceTimeBy(200)
+        for (i in 1..12) {
+            compose.mainClock.advanceTimeBy(100)
             compose.onRoot().captureRoboImage("build/screenshots/transition/track_%02d.png".format(i))
         }
     }
@@ -57,7 +57,7 @@ class TransitionTest {
             nextSong,
             io.github.hazymorning.klangbild.render.SceneBuilder.build(
                 nextSong.key, io.github.hazymorning.klangbild.art.SyntheticCovers.render(SyntheticCover.SALZWASSER),
-                nextSong.artSeed, MDPI, io.github.hazymorning.klangbild.color.Lighting.DAY, layoutSeed = nextSong.album,
+                nextSong.artSeed, MDPI, io.github.hazymorning.klangbild.color.Lighting.DAY,
             ),
         )
         var stage by mutableStateOf(a)
@@ -65,8 +65,8 @@ class TransitionTest {
         compose.setContent { Fixtures.Theatre(stage, PlayerStatus.PLAYING) }
         compose.mainClock.advanceTimeBy(100)
         stage = b
-        for (i in 1..5) {
-            compose.mainClock.advanceTimeBy(380)
+        for (i in 1..6) {
+            compose.mainClock.advanceTimeBy(200)
             compose.onRoot().captureRoboImage("build/screenshots/transition/album_%02d.png".format(i))
         }
     }
@@ -81,7 +81,7 @@ class TransitionTest {
         compose.onRoot().captureRoboImage("build/screenshots/transition/pause_00.png")
         status = PlayerStatus.PAUSED
         for (i in 1..6) {
-            compose.mainClock.advanceTimeBy(500)
+            compose.mainClock.advanceTimeBy(120)
             compose.onRoot().captureRoboImage("build/screenshots/transition/pause_%02d.png".format(i))
         }
     }

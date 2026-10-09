@@ -14,23 +14,22 @@ enum class MenuSection(val title: String) {
 /** One line of the settings menu. */
 enum class MenuEntry(val section: MenuSection, val label: String) {
     CLOCK(MenuSection.DISPLAY, "Uhrzeit"),
-    TIME_LINE(MenuSection.DISPLAY, "Restzeit"),
+    TIME_LINE(MenuSection.DISPLAY, "Fortschritt"),
     NEXT(MenuSection.DISPLAY, "Als Nächstes"),
     ALBUM(MenuSection.DISPLAY, "Album"),
     GROUP(MenuSection.DISPLAY, "Lautsprechergruppe"),
     VOLUME(MenuSection.DISPLAY, "Lautstärke"),
-    LIGHT(MenuSection.LIGHT, "Lampe"),
+    LIGHT(MenuSection.LIGHT, "Wandlicht"),
     DAY_NIGHT(MenuSection.LIGHT, "Tag und Nacht"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
     UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
     SLEEP_AFTER(MenuSection.REST, "Ruhe nach"),
     SLEEP_ACTION(MenuSection.REST, "Danach"),
     CONNECTION(MenuSection.CONNECTION, "Home Assistant"),
-    DEMO(MenuSection.CONNECTION, "Demo"),
 }
 
 /** What the menu needs to know besides the settings. */
-data class MenuContext(val link: LinkState? = null, val demo: Boolean = false)
+data class MenuContext(val link: LinkState? = null)
 
 /** A line as the menu shows it: the value in words and what the option does. */
 data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
@@ -49,8 +48,8 @@ object SettingsMenu {
 
     fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx)) }
 
-    /** True for lines that do something (open the code, start the demo) rather than hold a value. */
-    fun isAction(e: MenuEntry) = e == MenuEntry.CONNECTION || e == MenuEntry.DEMO
+    /** True for lines that do something (open the setup code) rather than hold a value. */
+    fun isAction(e: MenuEntry) = e == MenuEntry.CONNECTION
 
     fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
         MenuEntry.CLOCK -> onOff(s.showClock)
@@ -71,33 +70,31 @@ object SettingsMenu {
         }
         MenuEntry.DAY_NIGHT -> onOff(s.dayNight)
         MenuEntry.REMOTE -> onOff(s.remoteControl)
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Genaue Zeit"
+        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Einblenden"
         MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
         MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) "App schließen" else "Bildschirm freigeben"
         MenuEntry.CONNECTION -> when {
             !s.isConfigured -> "Einrichten"
-            ctx.demo -> "Getrennt"
             ctx.link == LinkState.CONNECTED -> "Verbunden"
             ctx.link == LinkState.AUTH_FAILED -> "Token abgelehnt"
             else -> "Verbindet …"
         }
-        MenuEntry.DEMO -> if (ctx.demo) "Läuft" else "Aus"
     }
 
     fun description(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
-        MenuEntry.CLOCK -> "Die Uhrzeit über dem Titel."
+        MenuEntry.CLOCK -> "Die Uhrzeit oben neben dem Bild."
         MenuEntry.TIME_LINE ->
-            "„In drei Minuten“ unter dem Bild. Nach einem Tastendruck erscheint die genaue Zeit trotzdem."
-        MenuEntry.NEXT -> "Der nächste Titel aus der Warteschlange, neben der Restzeit."
-        MenuEntry.ALBUM -> "Der Name des Albums unter den Künstlern."
+            "Der Balken mit gespielter und verbleibender Zeit. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz."
+        MenuEntry.NEXT -> "Der nächste Titel aus der Warteschlange, unten neben dem Bild."
+        MenuEntry.ALBUM -> "Name und Jahr des Albums unter den Künstlern."
         MenuEntry.GROUP ->
-            "Spielen weitere Lautsprecher mit, steht neben der Uhrzeit zum Beispiel „Wohnzimmer + 5“."
+            "Spielen weitere Lautsprecher mit, steht neben der Uhrzeit etwa „Wohnzimmer + 5“ oder „Überall“."
         MenuEntry.VOLUME -> when (s.volumeDisplay) {
-            VolumeDisplay.ON_CHANGE -> "Ändert sich die Lautstärke, steht sie ein paar Sekunden lang unter dem Bild."
+            VolumeDisplay.ON_CHANGE -> "Ändert sich die Lautstärke, steht sie ein paar Sekunden lang neben der Uhrzeit."
             VolumeDisplay.ALWAYS -> "Die Lautstärke steht ständig neben der Uhrzeit."
             VolumeDisplay.OFF -> "Die Lautstärke erscheint nie."
         }
-        MenuEntry.LIGHT -> "Wie hell die Lampe hinter dem Bild die Wand anstrahlt. " + when (s.light) {
+        MenuEntry.LIGHT -> "Wie hell das Bild die Wand um sich herum anstrahlt. " + when (s.light) {
             LightLevel.STRONG -> "Kräftig passt zu hellen Räumen."
             LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
             LightLevel.SUBTLE -> "Dezent passt zu dunklen Abenden."
@@ -110,7 +107,7 @@ object SettingsMenu {
         MenuEntry.UP_DOWN -> if (s.volumeKeys) {
             "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers."
         } else {
-            "Pfeil hoch und runter zeigen kurz die genaue Zeit des Titels."
+            "Pfeil hoch und runter zeigen ausgeblendete Angaben wie Uhrzeit und Fortschritt kurz an."
         }
         MenuEntry.SLEEP_AFTER -> "So lange bleibt der Bildschirm ohne Musik an."
         MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) {
@@ -119,16 +116,9 @@ object SettingsMenu {
             "Danach übernimmt der Fernseher: Bildschirmschoner oder Standby."
         }
         MenuEntry.CONNECTION -> if (!s.isConfigured) {
-            "OK zeigt den QR-Code. Am Handy verbindest du Home Assistant und wählst den Lautsprecher."
-        } else if (ctx.demo) {
-            "Während der Demo ruht die Verbindung. OK zeigt den QR-Code zum Ändern."
+            "OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy verbindest du Home\u00A0Assistant und\u00A0wählst den\u00A0Lautsprecher."
         } else {
-            "OK zeigt den QR-Code. Am Handy änderst du Adresse, Zugangstoken und Lautsprecher."
-        }
-        MenuEntry.DEMO -> if (ctx.demo) {
-            "OK beendet die Demo und verbindet wieder mit Home Assistant."
-        } else {
-            "Zwölf erfundene Alben mit allen Sonderfällen, ohne Home Assistant."
+            "OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy änderst du Adresse, Zugangstoken und\u00A0Lautsprecher."
         }
     }
 
@@ -152,7 +142,7 @@ object SettingsMenu {
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION, MenuEntry.DEMO -> null
+        MenuEntry.CONNECTION -> null
     }
 
     /** From quiet to present: left means less, right means more. */

@@ -37,28 +37,25 @@ import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.MenuSection
+import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.render.HaloLayout
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
-import io.github.hazymorning.klangbild.ui.stage.SpacedLabel
 import io.github.hazymorning.klangbild.ui.theme.Fonts
+import io.github.hazymorning.klangbild.ui.theme.mona
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -129,7 +126,7 @@ private fun menuLines(rows: List<MenuRow>): List<MenuLine> {
     return out
 }
 
-/** The menu's voices: warm ivory on black, a little dimmer in the evening. */
+/** The menu's voices: near-neutral white on black, a little dimmer in the evening. */
 private class MenuColors(
     val heading: Color,
     val description: Color,
@@ -142,16 +139,16 @@ private class MenuColors(
 ) {
     companion object {
         fun of(lighting: Lighting): MenuColors {
-            fun c(l: Float, ch: Float) = Color(lighting.applyArgb(Lch(l, ch, HaloLight.LAMP_HUE).toArgb()))
+            fun c(l: Float) = Color(lighting.applyArgb(Lch(l, 0.004f, HaloLight.LAMP_HUE).toArgb()))
             return MenuColors(
-                heading = c(0.84f, 0.018f),
-                description = c(0.72f, 0.018f),
-                hint = c(0.54f, 0.014f),
-                header = c(0.52f, 0.014f),
-                label = c(0.60f, 0.014f),
-                labelFocus = c(0.88f, 0.02f),
-                value = c(0.55f, 0.016f),
-                valueFocus = c(0.78f, 0.03f),
+                heading = c(0.90f),
+                description = c(0.72f),
+                hint = c(0.60f),
+                header = c(0.60f),
+                label = c(0.64f),
+                labelFocus = c(0.93f),
+                value = c(0.60f),
+                valueFocus = c(0.82f),
             )
         }
     }
@@ -199,41 +196,32 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifie
         }
 
         // Left: the heading at the print's top edge, the explanation level with the chosen line.
-        BasicText(
-            "Einstellungen",
-            modifier = Modifier.offset(layout.margin.dp, (layout.slotTop - 12f).dp),
-            style = TextStyle(fontFamily = Fonts.Display, fontWeight = FontWeight(340), fontSize = 42.sp, color = colors.heading),
-        )
+        val headingStyle = mona(36f, 440, colors.heading)
+        BaselineAt(x = layout.margin, baseline = layout.artTop + 36f * Fonts.CAP_HEIGHT, width = layout.art) {
+            BasicText("Einstellungen", style = headingStyle)
+        }
         Crossfade(
             targetState = row.description,
             animationSpec = tween(320, easing = Motion.Dimmer),
             label = "menu-description",
         ) { text ->
-            BaselineAt(x = layout.margin, baseline = focusY + LABEL_BASELINE_FROM_CENTRE, width = layout.slot - 24f) {
+            BaselineAt(x = layout.margin, baseline = focusY + LABEL_BASELINE_FROM_CENTRE, width = layout.art - 24f) {
                 BasicText(
                     text,
-                    style = TextStyle(
-                        fontFamily = Fonts.Text,
-                        fontStyle = FontStyle.Italic,
-                        fontSize = 18.sp,
-                        lineHeight = 26.sp,
-                        color = colors.description,
-                        lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),
+                    style = mona(18f, 420, colors.description, lineHeight = 26f).merge(
+                        TextStyle(lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)),
                     ),
                 )
             }
         }
-        SpacedLabel(
-            "OK ändert · Zurück schließt",
-            TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 10.sp, color = colors.hint),
-            tracking = 0.22.em,
-            modifier = Modifier.offset(layout.margin.dp, (layout.timeLineBaseline - 10f).dp),
-        )
+        BaselineAt(x = layout.margin, baseline = layout.artTop + layout.art, width = layout.art) {
+            BasicText("OK ändert" + TimeLine.SEPARATOR + "Zurück schließt", style = mona(15f, 500, colors.hint, tracking = 0.01f))
+        }
 
         // Right: the lines in the text column.
-        val labelStyle = TextStyle(fontFamily = Fonts.Text, fontWeight = FontWeight(380), fontSize = 22.sp)
-        val valueStyle = TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 11.sp, fontFeatureSettings = "tnum")
-        val headerStyle = TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 10.sp, color = colors.header)
+        val labelStyle = mona(21f, 480)
+        val valueStyle = mona(17f, 440)
+        val headerStyle = mona(15f, 600, colors.header, tracking = 0.01f)
         for (line in lines) {
             val height = if (line is MenuLine.Header) MenuGrid.HEADER else MenuGrid.ROW
             Box(
@@ -249,10 +237,9 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifie
                 contentAlignment = if (line is MenuLine.Header) Alignment.BottomStart else Alignment.CenterStart,
             ) {
                 when (line) {
-                    is MenuLine.Header -> SpacedLabel(
+                    is MenuLine.Header -> BasicText(
                         line.section.title,
-                        headerStyle,
-                        tracking = 0.22.em,
+                        style = headerStyle,
                         modifier = Modifier.padding(bottom = 9.dp),
                     )
                     is MenuLine.Item -> MenuItem(menu.rows[line.index], line.index == cursor, labelStyle, valueStyle, colors)
@@ -275,7 +262,7 @@ private fun MenuItem(row: MenuRow, focused: Boolean, labelStyle: TextStyle, valu
             animationSpec = tween(260, easing = Motion.Dimmer),
             label = "menu-value",
         ) { value ->
-            SpacedLabel(value, valueStyle.copy(color = valueColor), tracking = 0.18.em)
+            BasicText(value, style = valueStyle.copy(color = valueColor), maxLines = 1)
         }
     }
 }
@@ -292,7 +279,7 @@ private fun BaselineAt(x: Float, baseline: Float, width: Float, content: @Compos
     }
 }
 
-/** From a line's centre to its label's baseline (22 sp Newsreader in a 40 dp line). */
+/** From a line's centre to its label's baseline (21 sp in a 40 dp line). */
 private const val LABEL_BASELINE_FROM_CENTRE = 7f
 
 private const val GLOW_MAP_W = 480

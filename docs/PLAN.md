@@ -50,7 +50,7 @@ Dieses Dokument ist der Arbeitsplan. Entscheidungen mit Begründung stehen in
 - URL-Auflösung (`entity_picture` relativ/absolut), Token nur an den HA-Host,
   Klartext nur im lokalen Netz.
 - Cover laden: höchste verfügbare Auflösung (bekannte CDNs), Vorab-Laden des nächsten Titels.
-- Demo-Quelle mit erzeugten Covern und wechselnden Titeln.
+- Demo-Quelle mit erzeugten Covern und wechselnden Titeln (in Version 2 entfernt; die Cover leben in den Tests weiter).
 
 ### Phase 4 – Zustandsmodell und Lebenszyklus
 - Ein reiner Reducer: Quelle + Zeit → Bildschirmzustand (spielt, pausiert, puffert,
@@ -79,7 +79,7 @@ Dieses Dokument ist der Arbeitsplan. Entscheidungen mit Begründung stehen in
 ### Phase 7 – Build, Signierung, CI
 - GitHub Actions: Unit- und Screenshot-Tests, signierte Release-APK als Artifact,
   fortlaufendes Release „latest“ für `main`, Smoke-Test auf einem Android-TV-Emulator
-  im Demo-Modus mit Screenshot.
+  im Demo-Modus mit Screenshot (seit Version 2 gegen einen Ersatz-Home-Assistant).
 - Eigener Keystore im (privaten) Repo, `versionCode` automatisch aus der Commit-Zeit.
 
 ### Phase 8 – Abschluss
@@ -91,7 +91,7 @@ Dieses Dokument ist der Arbeitsplan. Entscheidungen mit Begründung stehen in
 ## Definition of Done (aus dem Brief)
 - [ ] CI grün, signierte Release-APK als Artifact und Release
 - [ ] Screenshot-Tests decken alle Zustände ab, finale Renderings in der README
-- [ ] Demo-Modus funktioniert ohne Home Assistant
+- [x] ~~Demo-Modus funktioniert ohne Home Assistant~~ (in Version 2 entfernt)
 - [ ] README: Installation, Einrichtung, HA-Automationen, Fehlerbehebung
 - [ ] Keine Geheimnisse im Repo (außer dem bewusst eingecheckten Keystore)
 - [ ] Pull Request nach `main`

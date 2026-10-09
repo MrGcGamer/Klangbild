@@ -5,9 +5,7 @@ import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.art.stableHash
 import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverPalette
-import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
-import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.color.ScenePalette
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -21,7 +19,7 @@ class ArtworkScene(
     val layout: HaloLayout,
     /**
      * The print at its exact on-screen pixel size (drawn 1:1, no GPU scaling). A cover too
-     * small for the slot is matted (a dark passe-partout); a generated plate is round and
+     * small for the square is matted (a dark passe-partout); a generated plate is round and
      * transparent around the disc.
      */
     val cover: Bitmap,
@@ -30,20 +28,8 @@ class ArtworkScene(
     val coverGenerated: Boolean,
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
-    /** The lamp's pool of light: a greyscale disc, placed and stretched when drawn. */
-    val lamp: Bitmap,
-    /** Static wall mask with the print (dark behind it, clear of the screen edges). */
-    val holeMask: Bitmap,
-    /** The same without the print – for the moments when the print is taken down. */
-    val openMask: Bitmap,
-    /** The faint rim of light around a dark print (null when the print stands out anyway). */
-    val rim: Bitmap?,
-    /** Tint of the rim. */
-    val rimTint: Int,
-    /** The lamp's sRGB tint at its brightest (the lamp itself), time of day included. */
-    val lightTint: Int,
-    /** Daylight colour of the light, kept to re-light the scene. */
-    val lightColor: Lch,
+    /** The light around the print on the wall ([WallGlow]), the whole screen at 1 px per dp. */
+    val glow: Bitmap,
     val palette: ScenePalette,
     val analysis: CoverAnalysis,
     val lighting: Lighting,
@@ -53,7 +39,10 @@ class ArtworkScene(
     val screen: ScreenSpec get() = layout.screen
 
     /** The square the print bitmap occupies (dp). */
-    val coverRect: RectDp get() = layout.coverRect(layout.slot)
+    val coverRect: RectDp get() = layout.coverRect(layout.art)
+
+    /** Corner radius the artwork is drawn with (dp); none for a round plate. */
+    val corner: Float get() = if (shape.round) 0f else shape.corner
 }
 
 object SceneBuilder {
@@ -63,7 +52,7 @@ object SceneBuilder {
      * Passe-partout for small prints: charcoal mat board with a faint grain (a light board
      * would be the largest static bright area on the OLED and glare at night)…
      */
-    const val MAT = 0xFF221F1C.toInt()
+    const val MAT = 0xFF1E1C1A.toInt()
 
     /** …and the white core of the bevel around the window, as cut into real mat board. */
     const val BEVEL = 0xFFC8C1B6.toInt()
@@ -73,7 +62,6 @@ object SceneBuilder {
 
     /**
      * @param source decoded cover or null (radio, missing art) → generated Chladni figure.
-     * @param layoutSeed decides the side of the cover (album or station), against burn-in.
      */
     fun build(
         key: String,
@@ -81,12 +69,10 @@ object SceneBuilder {
         artSeed: String,
         screen: ScreenSpec,
         lighting: Lighting,
-        layoutSeed: String? = null,
-        mirrored: Boolean? = null,
     ): ArtworkScene {
-        val layout = HaloLayout(screen, mirrored = mirrored ?: layoutSeed?.let { mirrorFor(it) } ?: false)
-        val slotPx = (layout.slot * screen.density).roundToInt()
-        val slotRect = layout.coverRect(layout.slot)
+        val layout = HaloLayout(screen)
+        val slotPx = (layout.art * screen.density).roundToInt()
+        val slotRect = layout.coverRect(layout.art)
         val coverPixels: IntArray
         val coverSize: Int
         val nativePx: Int?
@@ -104,7 +90,7 @@ object SceneBuilder {
             coverPixels = if (mat) matted(print, coverPx, slotPx, screen.density) else print
             coverSize = if (mat) slotPx else coverPx
             thumb = ImageOps.thumbnail(square, side, side, THUMB)
-            shape = PrintShape(slotRect)
+            shape = PrintShape(slotRect, corner = layout.radius)
         } else {
             nativePx = null
             coverPixels = ChladniArt.render(ChladniArt.specFor(artSeed), slotPx, seed = stableHash(artSeed))
@@ -136,16 +122,8 @@ object SceneBuilder {
         thumb: IntArray,
     ): ArtworkScene {
         val palette = CoverPalette.derive(analysis, lighting)
-        val color = HaloLight.lightColor(analysis)
-        val printDp = nativePx?.let { HaloLayout.coverDp(layout, it) } ?: layout.slot
-        // glowPeak is the brightness where the light leaves the print; the lamp itself is brighter.
-        val peak = HaloLight.lampPeak(HaloLight.glowPeak(analysis, printDp, layout.slot))
-        val tint = HaloLight.lightTint(color, peak, lighting)
-        val rimLuminance = HaloLight.rimLuminance(edgeLuminance(thumb))
-        // The rim is the same lamp's light, a little less coloured – not a second light.
-        val rimColor = Lch(color.l, color.c / 2f, color.h)
-        val rimTint = if (rimLuminance > 0f) HaloLight.lightTint(rimColor, rimLuminance, lighting) else 0
-        val s = HaloLight.LAMP_SPRITE
+        // A matted print glows in the colours of its mat board's window, i.e. of the print.
+        val glow = WallGlow.field(thumb, THUMB, shape, layout.screen, lighting)
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -153,17 +131,7 @@ object SceneBuilder {
             shape = shape,
             coverGenerated = generated,
             coverNativePx = nativePx,
-            lamp = Bitmap.createBitmap(HaloLight.lampSprite(ditherFor(tint), seed = stableHash(key)), s, s, Bitmap.Config.ARGB_8888),
-            holeMask = Bitmap.createBitmap(HaloLight.holeMask(shape, layout.screen), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888),
-            openMask = openMask(layout.screen),
-            rim = if (rimLuminance > 0f) {
-                Bitmap.createBitmap(HaloLight.rimMap(shape, layout.screen), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888)
-            } else {
-                null
-            },
-            rimTint = rimTint,
-            lightTint = tint,
-            lightColor = color,
+            glow = Bitmap.createBitmap(glow, WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888),
             palette = palette,
             analysis = analysis,
             lighting = lighting,
@@ -171,28 +139,8 @@ object SceneBuilder {
         )
     }
 
-    /** Mean relative luminance of the outer ring of a 48 × 48 thumbnail (the print's edge). */
-    fun edgeLuminance(thumb: IntArray, size: Int = THUMB, ring: Int = 3): Float {
-        var sum = 0.0
-        var n = 0
-        for (y in 0 until size) for (x in 0 until size) {
-            if (x >= ring && x < size - ring && y >= ring && y < size - ring) continue
-            sum += Oklab.relativeLuminance(thumb[y * size + x])
-            n++
-        }
-        return if (n == 0) 0f else (sum / n).toFloat()
-    }
-
-    private val openMasks = HashMap<ScreenSpec, Bitmap>()
-
-    /** The wall mask without a print depends only on the screen: computed once. */
-    @Synchronized
-    fun openMask(screen: ScreenSpec): Bitmap = openMasks.getOrPut(screen) {
-        Bitmap.createBitmap(HaloLight.openMask(screen), HaloLight.MAP_W, HaloLight.MAP_H, Bitmap.Config.ARGB_8888)
-    }
-
     /**
-     * A small print (shown at its honest size) in a passe-partout that fills the slot, so
+     * A small print (shown at its honest size) in a passe-partout that fills the square, so
      * the grid holds: grained mat board, a 1 dp white bevel around the window, the print
      * centred.
      */
@@ -229,13 +177,10 @@ object SceneBuilder {
 
     /**
      * Dither amplitude (grey levels) for a map that is drawn multiplied by [tint]: about one
-     * output level of noise, so even the darkest stretch of the glow never shows bands.
+     * output level of noise, so even the darkest stretch of a glow never shows bands.
      */
     fun ditherFor(tint: Int): Float {
         val maxC = maxOf((tint shr 16) and 0xFF, (tint shr 8) and 0xFF, tint and 0xFF).coerceAtLeast(16)
         return (1.25f * 255f / maxC).coerceIn(1f, 6f)
     }
-
-    /** Stable per album/station: about half of all albums show the cover on the right. */
-    fun mirrorFor(seed: String): Boolean = (stableHash(seed) ushr 7) and 1 == 1
 }

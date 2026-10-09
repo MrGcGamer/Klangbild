@@ -17,7 +17,7 @@ import kotlin.random.Random
 
 /**
  * Procedurally painted album covers. No real artwork may live in the repository, yet the
- * demo and the screenshot tests need covers that look like the real thing – including
+ * screenshot tests need covers that look like the real thing – including
  * the nasty edge cases (almost black, almost white, monochrome, neon, low resolution,
  * visually busy). Deterministic for a given style and size.
  */

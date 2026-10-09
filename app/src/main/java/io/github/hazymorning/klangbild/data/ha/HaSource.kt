@@ -51,10 +51,11 @@ class HaSource(
 
     override fun start() {
         connection.start(config, listOf(playerEntity, sunEntity))
+        // How many Music Assistant speakers there are: a group of all of them is "everywhere".
+        connection.watchTemplate(SPEAKER_COUNT_TEMPLATE)
         collector = scope.launch {
-            combine(connection.status, connection.entities) { st, ents -> st to ents }.collect { (st, ents) ->
-                publish(st, ents)
-            }
+            combine(connection.status, connection.entities, connection.templateResult) { st, ents, _ -> st to ents }
+                .collect { (st, ents) -> publish(st, ents) }
         }
         queuePoller = scope.launch {
             // Light periodic refresh: the queue can change without the track changing.
@@ -131,7 +132,8 @@ class HaSource(
             receivedAtMs = receivedAt,
             skewMs = connection.clockSkew.offsetMs,
             linkDownSinceMs = linkDownSince,
-            group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) },
+            group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) }
+                ?.let { g -> if (isEverywhere(g)) g.copy(everywhere = true) else g },
         )
     }
 
@@ -178,10 +180,21 @@ class HaSource(
         publish(connection.status.value, connection.entities.value)
     }
 
+    /** All of the house's speakers play together (and there are at least three). */
+    private fun isEverywhere(g: SpeakerGroup): Boolean {
+        val all = connection.templateResult.value?.trim()?.toIntOrNull() ?: return false
+        return g.name == null && all >= 3 && g.others.size + 1 >= all
+    }
+
     private fun trackKey(t: TrackInfo) = norm(t.title) + "|" + norm(t.artists.joinToString())
 
     companion object {
         const val QUEUE_REFRESH_MS = 60_000L
+
+        /** Music Assistant speakers (not groups) that are not unavailable. */
+        const val SPEAKER_COUNT_TEMPLATE =
+            "{{ states.media_player | selectattr('attributes.mass_player_type', 'eq', 'player') " +
+                "| rejectattr('state', 'eq', 'unavailable') | list | count }}"
 
         fun norm(s: String): String =
             Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }

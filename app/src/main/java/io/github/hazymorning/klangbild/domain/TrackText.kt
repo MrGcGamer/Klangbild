@@ -12,7 +12,7 @@ package io.github.hazymorning.klangbild.domain
  *  - Spaced hyphens become en dashes that stay with the preceding word, so no line ever
  *    starts with a dash ("Presto – / Allegro assai", not "Presto / – Allegro assai").
  *  - Abbreviations keep their number: "Nr. 9", "op. 125", "KV 331" never break, with a
- *    narrow space after the abbreviation's full stop.
+ *    no-break space after the abbreviation's full stop.
  */
 data class TrackText(
     val title: String,
@@ -58,8 +58,8 @@ data class TrackText(
 
         const val MAX_ARTISTS_CHARS = 72
 
-        /** "und andere", with a narrow no-break space inside the abbreviation. */
-        const val OTHERS = " u. a."
+        /** "und andere", with a no-break space inside the abbreviation. */
+        const val OTHERS = " u. a."
 
         fun from(track: TrackInfo): TrackText {
             var title = Emoji.trimEdges(track.title.trim())
@@ -116,9 +116,9 @@ data class TrackText(
         private val dottedAbbreviation = Regex("""\b(Nr|No|Op|op|Hob|Bd|Vol|vol|Kap|Nº|L|K|D|S)\.\s+(?=\d|[IVXLC]+\b)""")
         private val catalogueSpace = Regex("""\b(BWV|KV|RV|HWV|WoO|TrV|FP|BB|Sz)\s+(?=\d)""")
 
-        /** "Nr. 9" → "Nr. 9" (narrow, no break); "KV 331" → "KV 331" (no break). */
+        /** "Nr. 9" → "Nr. 9" (no break); "KV 331" → "KV 331" (no break). */
         fun abbreviations(s: String): String = s
-            .replace(dottedAbbreviation) { it.groupValues[1] + ". " }
+            .replace(dottedAbbreviation) { it.groupValues[1] + ". " }
             .replace(catalogueSpace) { it.groupValues[1] + " " }
 
         /** "A", "A & B", "A, B & C"; lists longer than [limit] characters end with "u. a.". */

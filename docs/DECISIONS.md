@@ -60,7 +60,7 @@ kamen zum selben Ergebnis):
 Nur Halo wird ausgearbeitet. Die anderen Richtungen bleiben nicht wählbar, weil sie das
 Niveau nicht erreichen (siehe Brief: weitere Stile nur bei gleichem Niveau).
 
-Übernommen aus der Kritik:
+Übernommen aus der Kritik (Sonnenuhr und Zeit in Worten seit Version 2 abgelöst, siehe §23):
 - Kein Fortschrittsbalken, keine Zeitstempel. Stattdessen: **das Licht als Sonnenuhr** – eine
   gerichtete Lichtquelle hinter dem Cover wandert im Laufe des Titels von links unten über
   oben nach rechts unten (unmerklich langsam, nach Minuten deutlich). Dazu eine Zeile in
@@ -74,6 +74,8 @@ Niveau nicht erreichen (siehe Brief: weitere Stile nur bei gleichem Niveau).
 - Nachts werden Zeilen weggelassen statt nur gedimmt.
 
 ## 5. Schriften
+
+*Seit Version 2 abgelöst: eine Schrift, Mona Sans – siehe §23.*
 
 Newsreader (Production Type) für Titel – ruhig, literarisch, mit optischen Größen, sodass
 die Display-Variante fein und die Textvariante robust ist. Jost (indestructible type*) für
@@ -411,3 +413,83 @@ erscheinen.
   normales Release, das GitHub auf der Startseite als „Latest“ zeigt; nur ein Tag mit
   Bindestrich (`v1.1.0-beta.1`) wird eine Vorabversion. Der Versionsname der APK ist dann der
   des Tags („1.0.0“). Ein Release wartet auf den Smoke-Test im Emulator.
+
+## 23. Version 2: das Bild zuerst, ein Balken, eine Schrift
+
+Rückmeldung vom Gerät zu 1.0: Die Sonnenuhr war ein Fehlschlag – das Licht sprang sichtbar
+von Stelle zu Stelle, und vor allem verstand niemand, dass es die Zeit zeigt. Das Cover war
+niedriger als der Text daneben, obwohl es das schwerste Element ist. Der Demo-Modus ist für
+eine private App Ballast. Und Serifenschrift, gesperrte Versalien und Elfenbein auf Schwarz
+sahen nach „KI-Vorlage“ aus statt nach einer gestalteten App. Vor der Überarbeitung lagen
+zwei Recherchen: wie die besten Now-Playing-Ansichten gebaut sind (Apple Music und tvOS,
+Tidal, Spotify auf Google TV, Sonos, Naim, Roon, Plexamp – vermessen an offiziellen
+Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
+
+- **Warum die Sonnenuhr ruckelte:** Die Lage der Lampe wurde nur gelesen, wenn ohnehin neu
+  gezeichnet wurde – und das löste ein Fünf-Sekunden-Takt aus. Bei einem Vier-Minuten-Titel
+  sind das Sprünge von 5,6°. Die Ursache wäre behebbar gewesen, die Idee aber nicht: Eine
+  Zeit, die man erst deuten muss, ersetzt keinen Balken, den jeder ohne Nachdenken liest.
+- **Fortschritt als Balken**, wie bei Apple, Sonos und tvOS: 4 dp hoch, runde Enden, kein
+  Knopf (nichts wird berührt), Spur 20 %, Füllung 90 % der Textfarbe, darunter links die
+  gespielte Zeit, rechts die Restzeit mit echtem Minuszeichen. Er wird etwa 30-mal pro
+  Sekunde, im Takt des Bildschirms, neu gezeichnet – nur seine eigene Zeichenfläche, nichts
+  wird neu zusammengesetzt; die Zahlen ändern sich einmal pro Sekunde. Sprünge über 1,5 s
+  (Spulen) gleiten in 350 ms, kleine Korrekturen verschwinden wie bisher weich. Pausiert wird
+  die Füllung dunkler. Die Zeit in Worten entfällt.
+- **Raster v2.** Das Cover misst 368 dp, zwei Drittel der Höhe – mehr als bei allen
+  Referenzen (43–56 %), weil das Bild hier das Objekt ist. Der Textblock darf höchstens 62 %
+  der Coverhöhe einnehmen, gemessen von der Versalhöhe der ersten bis zur Grundlinie der
+  letzten Zeile (nicht an den Textkästen), und steht mittig neben dem Cover. Die Statuszeile
+  hängt mit ihrer Versalhöhe an der Oberkante, „Als Nächstes“ steht mit der Grundlinie auf der
+  Unterkante; alle Zeilen beginnen auf einer linken Kante. Die ganze Gruppe sitzt 8 dp über
+  der Mitte – die optische Mitte, aus demselben Grund, aus dem ein Passepartout unten breiter
+  ist. Abstände: 96 dp links, 64 dp zwischen Bild und Spalte, Spalte 352 dp, 80 dp rechts.
+  Das Spiegeln je Album entfällt: Ein festes Raster ist ruhiger, gegen Einbrennen genügt die
+  langsame Drift der ganzen Komposition.
+- **Eine Schrift: Mona Sans** (GitHubs variable Grotesk, Release 2.027, SIL OFL, unverändert
+  eingebunden). Newsreader steht auf Anthropics eigener Liste „unverwechselbarer“ Schriften
+  und ist dadurch zum Erkennungszeichen von KI-Oberflächen geworden; gesperrte
+  Versalien-Etiketten, große Kursive und Elfenbein auf Schwarz gelten Gestaltern inzwischen als
+  typische Merkmale. Die vermessenen Produkte setzen ihre Oberflächen ausnahmslos in einer
+  Grotesk im normalen Satz und stufen über Größe, Gewicht und Helligkeit ab. Mona Sans hat
+  als einzige der geprüften freien Schriften eine Achse für optische Größen (wie Apples SF
+  Text und Display): Große Titel bekommen den engeren Display-Schnitt, kleine Zeilen den
+  offeneren Text-Schnitt. Dazu eine Breitenachse – sehr lange Titel werden erst schmaler,
+  dann kleiner – und ein vollständiger deutscher Zeichensatz. Abgewogen: Schibsted Grotesk
+  (keine optischen Größen), TikTok Sans (zu bekannt aus Videos), Zalando Sans (Werbeschrift
+  eines Händlers), Host Grotesk; ausgeschlossen: Inter, Geist und Instrument Sans (die
+  Standardschriften generierter Oberflächen) und Google Sans Flex (die Stimme von Google TV
+  selbst). Keine Tabellenziffern: Monas Tabellen-Null ist durchgestrichen und die Eins hat
+  einen Fuß – Gewohnheiten einer Code-Schrift. Mona fehlen schmale Leerzeichen (U+202F,
+  U+2009, U+2002); wo vorher eines stand, steht ein geschütztes Leerzeichen.
+- **Schriftgrößen:** Titel 44 oder 40 sp in höchstens zwei Zeilen (Gewicht 440), sonst 36 bis
+  26 sp in drei Zeilen (450–460), danach schmaler (Breite 90, 82). Künstler 21 sp, Gewicht 520,
+  80 % Helligkeit; Album 17 sp; Zeiten, Statuszeile, „Als Nächstes“ 15 sp. Der große, leichte
+  Titel und der kleinere, etwas kräftigere Künstler halten sich die Waage. Nichts unter 15 sp.
+- **Textfarben** fast neutral – ein Hauch des Coverfarbtons (Chroma ≤ 0,009), abends etwas
+  wärmer – in den Stufen 100 / 80 / 63 / 59 / 55 % (Weiß auf Schwarz), nie reines Weiß.
+- **Licht v2:** Statt einer Lampe hinter dem Bild leuchtet das Bild selbst, in den Farben
+  seiner Ränder. Jeder Punkt der Wand nimmt die Farbe des nächsten Randpunkts, gemittelt über
+  eine Strecke des Randes, die mit der Entfernung wächst (wie diffuses Licht – ohne diese
+  Mittelung zeichneten sich Streifen ab). Am Rand 0,045 relative Leuchtdichte (≈ L* 25), dann
+  exp(−(d/σ)^1,7) mit σ = 0,19 × Bildgröße: Das Licht bleibt nah am Bild, der Text steht auf
+  dunkler Wand. Ein Test prüft, dass auch die leiseste Zeile auf dem hellsten Licht 4,5 : 1
+  Kontrast behält. Dunkle Ränder leuchten schwächer, Farbigkeit ist begrenzt, nachts gedämpft;
+  am Bildschirmrand bleibt es schwarz. Eine Bitmap je Szene, gezeichnet als ein Rechteck,
+  gedimmt über eine Farbmatrix – pro Frame passiert nichts.
+- **Abgerundete Ecken:** 8 dp, gut 2 % der Seitenlänge (gemessen bei Apple, Tidal, Sonos:
+  1,7–3,2 %).
+- **Bewegung:** Ein Titelwechsel dauert 1,1 s: Das neue Cover blendet in 600 ms über das alte
+  und setzt sich aus 2 % Übergröße, das Licht wandelt sich in 900 ms, die alten Zeilen gehen
+  in 250 ms, die neuen steigen ab 300 ms nacheinander an ihren Platz. Bei Pause tritt das
+  Cover auf 96,5 % zurück (wie bei Apple Music), Licht, Cover und Text werden gedimmt
+  (600 ms). Stumm und Verbindungsverlust dimmen nur.
+- **Statuszeile** „21:47 · Wohnzimmer + 5“ oben links in der Spalte, in normaler
+  Schreibweise; sie sagt auch „Pausiert“, „Stumm“ und für ein paar Sekunden die Lautstärke.
+- **Demo entfernt.** Die erzeugten Testcover leben nur noch in den Tests. Der Smoke-Test im
+  Emulator spricht stattdessen mit einem kleinen Ersatz-Home-Assistant (`ci/fake_ha.py`) –
+  das prüft den echten Weg der Daten statt einer Attrappe.
+- **Alltag** (aus [`IDEEN.md`](IDEEN.md)): „Überall“, wenn alle Lautsprecher spielen; Stumm
+  dimmt wie eine Pause; ein Tastendruck blendet Ausgeblendetes kurz ein. Was dort sonst steht,
+  braucht Entitäten aus dem eigenen Home Assistant oder Messungen am Gerät und bleibt
+  vorerst Idee (Begründung in `IDEEN.md`).

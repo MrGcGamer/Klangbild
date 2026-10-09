@@ -33,6 +33,8 @@ data class SpeakerGroup(
     val others: List<String?>,
     /** The group's own name, when it has one (a Music Assistant group player). */
     val name: String? = null,
+    /** Every speaker of the house plays along. */
+    val everywhere: Boolean = false,
 )
 
 /** What Music Assistant's queue adds on top of the player entity. */

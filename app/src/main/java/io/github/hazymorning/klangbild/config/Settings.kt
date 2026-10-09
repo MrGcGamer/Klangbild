@@ -30,7 +30,7 @@ enum class VolumeDisplay {
     OFF,
 }
 
-/** How strongly the lamp behind the print lights the wall (a factor on its luminance). */
+/** How strongly the artwork lights the wall around it (a factor on the light's luminance). */
 enum class LightLevel(val factor: Float) {
     STRONG(1.45f),
     NORMAL(1f),
@@ -41,9 +41,9 @@ enum class LightLevel(val factor: Float) {
 /** What the stage shows – the part of the settings the UI needs. */
 data class DisplayOptions(
     val clock: Boolean = true,
-    /** The time line under the print ("In drei Minuten …"). */
+    /** The progress bar (named after the time line it replaced; stored under that name). */
     val timeLine: Boolean = true,
-    /** What comes next, in the time line. */
+    /** What comes next, on the artwork's bottom edge. */
     val next: Boolean = true,
     val album: Boolean = true,
     /** "Wohnzimmer + 5" while other speakers play along. */
@@ -88,7 +88,6 @@ data class Settings(
 
 /** Per-launch options from `am start` extras that are not stored. */
 data class SessionOptions(
-    val demo: Boolean = false,
     val showSetup: Boolean = false,
     val debugOverlay: Boolean = false,
 )
@@ -164,12 +163,12 @@ class SettingsStore(private val context: Context) {
 
 /**
  * `am start` extras. Configuration extras (`ha_url`, `token`, `entity`, `sleep_minutes`,
- * `sleep_action`, `clock` and the display options) are stored; `demo`, `setup` and `debug`
- * only apply to this launch.
+ * `sleep_action`, `clock` and the display options) are stored; `setup` and `debug` only
+ * apply to this launch.
  *
  * ```
  * adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
- *     --es entity media_player.wohnzimmer --ez demo false --es light dezent
+ *     --es entity media_player.wohnzimmer --es light dezent
  * ```
  */
 object LaunchExtras {
@@ -188,7 +187,6 @@ object LaunchExtras {
     const val VOLUME_KEYS = "volume_keys"
     const val DAY_NIGHT = "day_night"
     const val REMOTE = "remote"
-    const val DEMO = "demo"
     const val SETUP = "setup"
     const val DEBUG = "debug"
 
@@ -239,7 +237,6 @@ object LaunchExtras {
     }
 
     fun session(extras: Map<String, Any?>) = SessionOptions(
-        demo = boolOf(extras[DEMO]) ?: false,
         showSetup = boolOf(extras[SETUP]) ?: false,
         debugOverlay = boolOf(extras[DEBUG]) ?: false,
     )
@@ -264,11 +261,11 @@ object LaunchExtras {
     const val DEEP_LINK_SCHEME = "klangbild"
 
     /**
-     * What a link may set: display options and the demo – never the address, token or
+     * What a link may set: display options and the sleep time – never the address, token or
      * speaker. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(
-        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION, DEMO,
+        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
     )
 
     /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */

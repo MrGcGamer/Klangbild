@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** How healthy the link to the music is – phrased for the UI, never as raw errors. */
 enum class LinkState {
-    /** Demo data, no network involved. */
-    DEMO,
     /** No Home Assistant configured yet. */
     UNCONFIGURED,
     CONNECTING,

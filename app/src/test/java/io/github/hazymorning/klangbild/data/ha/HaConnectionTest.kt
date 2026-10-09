@@ -94,6 +94,10 @@ class HaConnectionTest {
                     if (closeAfterSubscribe) webSocket.close(1001, "restart")
                 }
                 "unsubscribe_events" -> webSocket.send("""{"id":$id,"type":"result","success":true,"result":null}""")
+                "render_template" -> webSocket.send(
+                    """[{"id":$id,"type":"result","success":true,"result":null},
+                       {"id":$id,"type":"event","event":{"result":6,"listeners":{"all":false,"domains":["media_player"],"entities":[],"time":false}}}]""",
+                )
                 "call_service" -> webSocket.send(
                     """{"id":$id,"type":"result","success":true,"result":{"context":{"id":"c"},"response":{"media_player.wz":{"next_item":{"name":"Zweites Lied"}}}}}""",
                 )
@@ -162,6 +166,21 @@ class HaConnectionTest {
         assertThat(alone).containsKey("media_player.wz")
         withTimeout(5_000) { while (ofType("unsubscribe_events").isEmpty()) delay(20) }
         assertThat(ofType("unsubscribe_events").single()["subscription"]!!.jsonPrimitive.content).isEqualTo(extraId)
+        conn.stop()
+    }
+
+    @Test
+    fun `keeps a template rendered`() = runBlocking {
+        enqueueHa()
+        val conn = connection()
+        conn.watchTemplate("{{ 6 }}")
+        conn.start(config(), listOf("media_player.wz"))
+        val result = withTimeout(5_000) { conn.templateResult.first { it != null } }
+        assertThat(result).isEqualTo("6")
+        val sent = received.first { it["type"]?.jsonPrimitive?.content == "render_template" }
+        assertThat(sent["template"]!!.jsonPrimitive.content).isEqualTo("{{ 6 }}")
+        conn.watchTemplate(null)
+        withTimeout(5_000) { conn.templateResult.first { it == null } }
         conn.stop()
     }
 

@@ -79,6 +79,12 @@ class HaConnection(
     private var loop: Job? = null
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val extraIds = MutableStateFlow<Set<String>>(emptySet())
+    private val template = MutableStateFlow<String?>(null)
+
+    private val _templateResult = MutableStateFlow<String?>(null)
+
+    /** The latest rendering of the template set with [watchTemplate]; null until rendered or on error. */
+    val templateResult: StateFlow<String?> = _templateResult.asStateFlow()
 
     @Volatile private var session: Session? = null
 
@@ -95,6 +101,16 @@ class HaConnection(
     fun watch(ids: Set<String>) {
         extraIds.value = ids
     }
+
+    /**
+     * Keeps [text] rendered by Home Assistant (`render_template`); every new result appears in
+     * [templateResult]. Null stops it. Renewed after a reconnect like [watch].
+     */
+    fun watchTemplate(text: String?) {
+        template.value = text
+    }
+
+    private class TemplateChange(val text: String?)
 
     fun stop() {
         loop?.cancel()
@@ -277,6 +293,31 @@ class HaConnection(
             var extraFor: Set<String> = emptySet()
             val extraChanges = Channel<Set<String>>(Channel.CONFLATED)
             val extraWatcher = launch { extraIds.collect { extraChanges.send(it) } }
+            var templateSubId: Int? = null
+            var templateFor: String? = null
+            val templateChanges = Channel<TemplateChange>(Channel.CONFLATED)
+            val templateWatcher = launch { template.collect { templateChanges.send(TemplateChange(it)) } }
+            fun render(text: String?) {
+                templateSubId?.let { old ->
+                    s.send(buildJsonObject {
+                        put("id", s.nextId())
+                        put("type", "unsubscribe_events")
+                        put("subscription", old)
+                    })
+                }
+                templateSubId = null
+                templateFor = text
+                _templateResult.value = null
+                if (text != null) {
+                    val id = s.nextId()
+                    s.send(buildJsonObject {
+                        put("id", id)
+                        put("type", "render_template")
+                        put("template", text)
+                    })
+                    templateSubId = id
+                }
+            }
             fun publishEntities() {
                 _entities.value = extraStore.snapshot() + store.snapshot()
             }
@@ -308,10 +349,15 @@ class HaConnection(
                     val next = select<Any> {
                         events.onReceive { it }
                         extraChanges.onReceive { it }
+                        templateChanges.onReceive { it }
                     }
                     if (next is Set<*>) {
                         val ids = next.filterIsInstance<String>().toSet()
                         if (ids != extraFor) follow(ids)
+                        continue
+                    }
+                    if (next is TemplateChange) {
+                        if (next.text != templateFor || (next.text != null && templateSubId == null)) render(next.text)
                         continue
                     }
                     when (val ev = next as WsEvent) {
@@ -319,6 +365,11 @@ class HaConnection(
                             val id = (msg["id"] as? JsonPrimitive)?.intOrNull
                             when (msg.type()) {
                                 "event" -> {
+                                    if (id != null && id == templateSubId) {
+                                        val result = (msg["event"] as? JsonObject)?.get("result") as? JsonPrimitive
+                                        _templateResult.value = result?.content
+                                        continue
+                                    }
                                     val target = when {
                                         id == null -> continue
                                         id == subId -> store
@@ -346,6 +397,10 @@ class HaConnection(
                                         }
                                     } else if (id == subId && !ok) {
                                         return@coroutineScope SessionEnd.Lost("subscribe failed")
+                                    } else if (id != null && id == templateSubId && !ok) {
+                                        // Not allowed or broken: simply no result.
+                                        templateSubId = null
+                                        _templateResult.value = null
                                     }
                                 }
                                 "pong" -> s.lastPong = System.currentTimeMillis()
@@ -359,6 +414,7 @@ class HaConnection(
             } finally {
                 pinger.cancel()
                 extraWatcher.cancel()
+                templateWatcher.cancel()
                 s.pending.values.forEach { it.cancel() }
             }
         } finally {

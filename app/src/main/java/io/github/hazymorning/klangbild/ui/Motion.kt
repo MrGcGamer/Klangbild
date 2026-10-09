@@ -2,58 +2,63 @@ package io.github.hazymorning.klangbild.ui
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.runtime.staticCompositionLocalOf
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Motion vocabulary. Everything is slow and eased in and out; nothing bounces.
- * Durations are long on purpose – a track change is an event, not a page swipe.
+ * True while rendering a still (screenshots): nothing runs a loop of its own, so the
+ * composition can come to rest.
+ */
+val LocalStill = staticCompositionLocalOf { false }
+
+/**
+ * Motion vocabulary. Everything is driven by the display's frames and eased; nothing
+ * bounces, nothing slides, nothing jumps. A track change takes about a second – long enough
+ * to be seen, short enough to never be waited for.
  */
 object Motion {
     /** Soft in-out, like a dimmer turned by hand. */
     val Dimmer = CubicBezierEasing(0.45f, 0f, 0.25f, 1f)
 
-    /** A sine in-out: the gentlest way for a picture to go dark or come up. */
+    /** A sine in-out: the gentlest way for a picture to come up. */
     val Sine = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
 
+    /** Quick start, long settle: for things arriving at their place. */
+    val Decelerate = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+
     /**
-     * A full track change: the old print goes dark (700 ms), the empty wall holds for half a
-     * second while the lamp changes colour, the new print comes up (900 ms); the new text
-     * follows once the print is mostly there.
+     * A full track change: the new artwork fades in over the old one (600 ms) and settles
+     * from 2 % larger over the whole change while its light morphs on the wall (900 ms); the
+     * old text leaves (250 ms), the new lines rise into place one after another from 300 ms.
      */
-    const val TRACK_CHANGE_MS = 2_700
-    const val COVER_OUT_END_MS = 700
-    const val COVER_IN_START_MS = 1_200
-    const val COVER_IN_END_MS = 2_100
-    const val TEXT_IN_START_MS = COVER_IN_START_MS + (COVER_IN_END_MS - COVER_IN_START_MS) * 6 / 10
-    const val TEXT_IN_END_MS = TEXT_IN_START_MS + 900
-
-    /** Light level while the wall is empty during a track change (the pool's peak ≈ 1.6 %). */
-    const val SWAP_LIGHT = 0.22f
-
-    /** A fading print still hides the lamp while its opacity is above this share. */
-    const val PRINT_HIDES_LAMP = 0.12f
-
-    /** A clock that has to move holds at this alpha where it was until the new print comes. */
-    const val HELD_CLOCK = 0.6f
+    const val TRACK_CHANGE_MS = 1_100
+    const val ART_IN_MS = 600
+    const val GLOW_MS = 900
+    const val TEXT_OUT_MS = 250
+    const val TEXT_IN_MS = 300
 
     /** New track, same picture (next song of the album): only the text changes. */
-    const val TEXT_CHANGE_MS = 1_800
+    const val TEXT_CHANGE_MS = 1_100
 
     /** Same track, better cover or new time-of-day light. */
-    const val SOFT_SWAP_MS = 1_400
+    const val SOFT_SWAP_MS = 900
 
-    /** Light dims on pause, comes back on play. */
-    const val PAUSE_MS = 2_400
+    /** On pause the artwork recedes a little and dims with its light and the text. */
+    const val PAUSE_MS = 600
+
+    /** A line that changes its content (status, station, notice) cross-fades. */
+    const val LINE_FADE_MS = 400
 
     /** Switching between stage, rest and setup screens. */
-    const val SCREEN_CHANGE_MS = 2_200
+    const val SCREEN_CHANGE_MS = 1_600
 
-    /** Light level while paused. */
+    /** Light, artwork, its size and the text while paused. */
     const val PAUSED_LIGHT = 0.45f
-    const val PAUSED_COVER = 0.78f
-    const val PAUSED_TEXT = 0.85f
+    const val PAUSED_COVER = 0.72f
+    const val PAUSED_SCALE = 0.965f
+    const val PAUSED_TEXT = 0.7f
 
     /** Eased progress of a phase that runs from [start] to [end] of the overall 0..1 [t]. */
     fun phase(t: Float, start: Float, end: Float, easing: Easing = Dimmer): Float {
@@ -64,14 +69,6 @@ object Motion {
     /** [phase] with the window given in milliseconds of an animation lasting [totalMs]. */
     fun phaseMs(t: Float, startMs: Int, endMs: Int, totalMs: Int, easing: Easing = Dimmer): Float =
         phase(t, startMs.toFloat() / totalMs, endMs.toFloat() / totalMs, easing)
-
-    /** Interpolates angles (degrees) along the shorter arc. */
-    fun mixAngle(a: Float, b: Float, t: Float): Float {
-        var d = (b - a) % 360f
-        if (d > 180f) d -= 360f
-        if (d < -180f) d += 360f
-        return a + d * t
-    }
 
     /**
      * OLED care: the whole composition drifts on a slow Lissajous path (±[amplitudePx]),

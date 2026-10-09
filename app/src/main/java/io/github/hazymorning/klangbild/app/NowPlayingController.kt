@@ -17,7 +17,6 @@ import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
-import io.github.hazymorning.klangbild.data.demo.DemoSource
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
 import io.github.hazymorning.klangbild.domain.PlayerStatus
@@ -70,22 +69,21 @@ data class UiState(
     val stage: StageData? = null,
     val lighting: Lighting = Lighting.DAY,
     val night: Boolean = false,
-    /** What the stage shows (clock, time line, album …) and how strong its light is. */
+    /** What the stage shows (clock, progress, album …) and how strong its light is. */
     val display: DisplayOptions = DisplayOptions(),
     val source: SourceState = SourceState(LinkState.CONNECTING),
     val session: SessionOptions = SessionOptions(),
     val entityId: String? = null,
-    val demo: Boolean = false,
     /** Address, code and QR modules while the setup screen is open. */
     val setup: SetupInfo? = null,
     /** The settings menu, null while it is closed. */
     val menu: MenuState? = null,
-    /** The volume just changed: the time line shows it for a moment. */
+    /** The volume just changed: the status line shows it for a moment. */
     val volumeFlash: Boolean = false,
 )
 
 /**
- * The app's single source of truth: picks the data source (Home Assistant or demo), runs
+ * The app's single source of truth: runs the Home Assistant source, runs
  * the screen state machine on every update and once a second, prepares scenes (cover,
  * palette, light) off the main thread and pre-builds the next track's scene.
  */
@@ -126,7 +124,7 @@ class NowPlayingController(
         save = { updated ->
             settingsStore.update({ updated }, settings.value)
             // Leaving setup: the new settings start a fresh connection.
-            session.value = session.value.copy(demo = false, showSetup = false)
+            session.value = session.value.copy(showSetup = false)
             machine.requestSetup(false)
         },
     )
@@ -196,26 +194,13 @@ class NowPlayingController(
         recompute()
     }
 
-    fun startDemo() {
-        session.value = session.value.copy(demo = true)
-        machine.requestSetup(false)
-        reconcileSource()
-        recompute()
-    }
-
-    fun stopDemo() {
-        session.value = session.value.copy(demo = false)
-        reconcileSource()
-        recompute()
-    }
-
     fun networkAvailable() {
         (source as? HaSource)?.networkAvailable()
     }
 
     fun send(command: RemoteCommand) {
         val volume = command == RemoteCommand.VOLUME_UP || command == RemoteCommand.VOLUME_DOWN
-        val allowed = source is DemoSource || if (volume) settings.value.volumeKeys else settings.value.remoteControl
+        val allowed = if (volume) settings.value.volumeKeys else settings.value.remoteControl
         if (!allowed) return
         if (volume) {
             // Answer the key at once; the new value follows from Home Assistant.
@@ -266,7 +251,7 @@ class NowPlayingController(
 
     /**
      * Changes the line under the cursor: left (−1) or right (+1) along its scale, OK goes
-     * round ([wrap]). The two action lines open the setup code or start/stop the demo.
+     * round ([wrap]). The connection line opens the setup code.
      */
     fun menuChange(direction: Int, wrap: Boolean) {
         val c = menuCursor ?: return
@@ -274,11 +259,8 @@ class NowPlayingController(
         when (val entry = SettingsMenu.entries[c]) {
             MenuEntry.CONNECTION -> {
                 menuCursor = null
-                if (source is DemoSource) session.value = session.value.copy(demo = false)
-                reconcileSource()
                 requestSetup(true)
             }
-            MenuEntry.DEMO -> if (source is DemoSource) stopDemo() else startDemo()
             else -> {
                 val updated = SettingsMenu.step(entry, settings.value, direction, wrap) ?: return
                 localEdits.incrementAndGet()
@@ -308,7 +290,7 @@ class NowPlayingController(
 
     private fun menuState(s: Settings): MenuState? {
         val cursor = menuCursor ?: return null
-        val ctx = MenuContext(link = _ui.value.source.link, demo = source is DemoSource)
+        val ctx = MenuContext(link = _ui.value.source.link)
         return MenuState(SettingsMenu.rows(s, ctx), cursor)
     }
 
@@ -323,21 +305,13 @@ class NowPlayingController(
 
     private fun reconcileSource() {
         val s = settings.value
-        val demo = session.value.demo
-        val key = when {
-            demo -> "demo"
-            s.isConfigured -> "ha|${s.haUrl}|${s.haToken}|${s.entityId}|${s.sunEntity}"
-            else -> "unconfigured"
-        }
+        val key = if (s.isConfigured) "ha|${s.haUrl}|${s.haToken}|${s.entityId}|${s.sunEntity}" else "unconfigured"
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         sourceJob?.cancel()
         source?.stop()
-        val newSource: NowPlayingSource? = when {
-            demo -> DemoSource(scope, now)
-            s.isConfigured -> HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now)
-            else -> null
-        }
+        val newSource: NowPlayingSource? =
+            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now) else null
         source = newSource
         if (newSource == null) {
             _ui.value = _ui.value.copy(source = SourceState(LinkState.UNCONFIGURED))
@@ -393,7 +367,6 @@ class NowPlayingController(
             display = s.display,
             session = session.value,
             entityId = s.entityId,
-            demo = source is DemoSource,
             menu = menu,
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
         )
@@ -463,7 +436,6 @@ class NowPlayingController(
                 artSeed = track.artSeed,
                 screen = screenSpec,
                 lighting = lighting,
-                layoutSeed = track.album ?: track.source ?: track.title,
             )
         }
     }
@@ -494,7 +466,7 @@ class NowPlayingController(
     companion object {
         const val COVER_TIMEOUT_MS = 6_000L
 
-        /** How long a new volume stays in the time line. */
+        /** How long a new volume stays in the status line. */
         const val VOLUME_FLASH_MS = 3_500L
 
         /** An untouched menu closes after this long. */

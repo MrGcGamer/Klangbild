@@ -9,9 +9,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
-import io.github.hazymorning.klangbild.render.HaloLight
+import io.github.hazymorning.klangbild.render.WallGlow
 import io.github.hazymorning.klangbild.render.ScreenSpec
-import io.github.hazymorning.klangbild.ui.stage.HaloStage
+import io.github.hazymorning.klangbild.ui.stage.Stage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * OLED: the band next to the screen edges stays black – checked on the rendered pixels of
- * every demo scene at the start, middle and end of its track, not on the light model.
+ * every test scene at the start, middle and end of its track, not on the light model.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,8 +40,8 @@ class EdgeBandTest {
             }
         }
         var model by mutableStateOf(models.first())
-        compose.setContent { HaloStage(model, wallClockMs = { 0L }) }
-        val band = HaloLight.EDGE_CLEAR_DP.toInt()
+        compose.setContent { Fixtures.Still { Stage(model) } }
+        val band = WallGlow.EDGE_BLACK_DP.toInt()
         for (m in models) {
             model = m
             compose.waitForIdle()
@@ -52,7 +52,7 @@ class EdgeBandTest {
                 val p = bmp.getPixel(x, y)
                 brightest = maxOf(brightest, (p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF)
             }
-            assertWithMessage("${m.text.title} at ${m.progress()}").that(brightest).isEqualTo(0)
+            assertWithMessage("${m.text.title} at ${m.fraction()}").that(brightest).isEqualTo(0)
         }
     }
 }

@@ -7,11 +7,11 @@ import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.RestReason
 import io.github.hazymorning.klangbild.domain.SetupReason
-import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
-import io.github.hazymorning.klangbild.ui.stage.HaloStage
+import io.github.hazymorning.klangbild.ui.stage.Stage
+import io.github.hazymorning.klangbild.ui.stage.StageModel
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -22,35 +22,45 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class StatesTest {
-    private val pärt = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
+    private val pärt = Fixtures.pärt
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) =
-        captureRoboImage("build/screenshots/states/$name.png", content = content)
+        captureRoboImage("build/screenshots/states/$name.png") { Fixtures.Still(content) }
 
-    @Test fun playing() = shot("stage_playing") {
-        HaloStage(Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = pärt), wallClockMs = { 0L })
-    }
+    private fun stage(name: String, model: StageModel) = shot(name) { Stage(model) }
+
+    @Test fun playing() = stage("stage_playing", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = pärt, group = "Wohnzimmer + 5"))
 
     @Test fun paused() {
         val stage = Fixtures.stage(Fixtures.track(SyntheticCover.TERRAKOTTA))
-        shot("stage_paused") { Fixtures.Theatre(stage, PlayerStatus.PAUSED) }
+        shot("stage_paused") { Fixtures.Theatre(stage, PlayerStatus.PAUSED, group = "Wohnzimmer") }
     }
 
+    @Test fun everywhere() = stage("stage_everywhere", Fixtures.model(Fixtures.track(SyntheticCover.MOOS), next = pärt, group = "Überall"))
 
-    @Test fun exactTime() = shot("stage_exact_time") {
-        HaloStage(Fixtures.model(Fixtures.track(SyntheticCover.MOOS), next = pärt, exact = true), wallClockMs = { 0L })
+    @Test fun volume() = stage(
+        "stage_volume",
+        Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = pärt, lead = "Lautstärke 35\u00A0%"),
+    )
+
+    @Test fun muted() {
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.BAUHAUS))
+        shot("stage_muted") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, muted = true, group = "Küche") }
     }
 
-    @Test fun evening() = shot("stage_evening") {
-        HaloStage(Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = pärt, lighting = Lighting.EVENING), wallClockMs = { 0L })
-    }
+    @Test fun linkDown() = stage("stage_link_down", Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), linkDown = true))
 
-    @Test fun night() = shot("stage_night") {
-        HaloStage(
-            Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = pärt, lighting = Lighting.NIGHT, night = true),
-            wallClockMs = { 0L },
-        )
-    }
+    @Test fun minimal() = stage(
+        "stage_minimal",
+        Fixtures.model(Fixtures.track(SyntheticCover.KONFETTI), clock = null, album = false, progress = false),
+    )
+
+    @Test fun evening() = stage("stage_evening", Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = pärt, lighting = Lighting.EVENING))
+
+    @Test fun night() = stage(
+        "stage_night",
+        Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = pärt, lighting = Lighting.NIGHT, night = true),
+    )
 
     @Test fun restIdle() = shot("rest_idle") {
         RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(10, 12), zone = Fixtures.zone)
@@ -100,18 +110,15 @@ class StatesTest {
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xxxhdpi")
 class States4kTest {
-    @Test fun playing4k() = captureRoboImage("build/screenshots/states/4k_stage_classical.png") {
-        HaloStage(
-            Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt")), screen = ScreenSpec.TV_4K),
-            wallClockMs = { 0L },
-        )
-    }
+    private fun shot(name: String, model: StageModel) =
+        captureRoboImage("build/screenshots/states/$name.png") { Fixtures.Still { Stage(model) } }
 
-    @Test fun lowRes4k() = captureRoboImage("build/screenshots/states/4k_stage_lowres.png") {
-        HaloStage(Fixtures.model(Fixtures.track(SyntheticCover.PASTELL), screen = ScreenSpec.TV_4K), wallClockMs = { 0L })
-    }
+    @Test fun playing4k() = shot(
+        "4k_stage_classical",
+        Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = Fixtures.pärt, screen = ScreenSpec.TV_4K),
+    )
 
-    @Test fun radio4k() = captureRoboImage("build/screenshots/states/4k_stage_radio.png") {
-        HaloStage(Fixtures.model(Fixtures.radio, screen = ScreenSpec.TV_4K), wallClockMs = { 0L })
-    }
+    @Test fun lowRes4k() = shot("4k_stage_lowres", Fixtures.model(Fixtures.track(SyntheticCover.PASTELL), screen = ScreenSpec.TV_4K))
+
+    @Test fun radio4k() = shot("4k_stage_radio", Fixtures.model(Fixtures.radio, screen = ScreenSpec.TV_4K))
 }

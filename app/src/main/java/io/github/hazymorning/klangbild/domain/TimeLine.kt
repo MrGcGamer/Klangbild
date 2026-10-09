@@ -1,72 +1,11 @@
 package io.github.hazymorning.klangbild.domain
 
-import kotlin.math.roundToLong
-
-/**
- * The time line replaces a progress bar: time in words, set like a label, followed by
- * what comes next – "In drei Minuten · Spiegel im Spiegel · Arvo Pärt". It changes at most
- * once a minute. Exact figures appear only briefly after a key press.
- */
+/** Times as text, and the one separator every line uses. */
 object TimeLine {
-    /**
-     * [label] is set in spaced capitals, [detail] in italics. [figures] lines (exact times)
-     * keep their case; [atNight] lines answer a key press and also show at night.
-     */
-    data class Line(val label: String, val detail: String? = null, val figures: Boolean = false, val atNight: Boolean = figures)
-
-    /** The volume for a moment after it changed: "Lautstärke  35 %". */
-    fun volume(level: Float?, muted: Boolean): Line? =
-        SpeakerLabel.volume(level, muted)?.let { Line("Lautstärke", it, atNight = true) }
-
-    /** The one separator used everywhere: a middle dot between no-break-glued spaces. */
+    /** The one separator used everywhere: a middle dot, glued to the word before it. */
     const val SEPARATOR = " · "
 
-    private val words = listOf(
-        "", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf",
-    )
-
-    fun compute(
-        status: PlayerStatus,
-        positionMs: Long?,
-        durationMs: Long?,
-        next: TrackText?,
-        source: String?,
-        showExact: Boolean,
-        linkDown: Boolean = false,
-    ): Line? {
-        if (linkDown) return Line("Verbindung unterbrochen", "wird wiederhergestellt …")
-        val nextText = next?.let { listOfNotNull(it.title, it.shortArtists).joinToString(SEPARATOR) }
-        if (showExact && positionMs != null) {
-            val figures = if (durationMs != null) "${formatClock(positionMs)} / ${formatClock(durationMs)}" else formatClock(positionMs)
-            return Line(figures, figures = true)
-        }
-        when (status) {
-            PlayerStatus.PAUSED -> return Line("Pausiert")
-            PlayerStatus.BUFFERING -> return Line("Einen Moment")
-            else -> Unit
-        }
-        if (positionMs == null || durationMs == null || durationMs <= 0) {
-            return source?.let { Line(it) } ?: nextText?.let { Line("Danach", it) }
-        }
-        val remaining = (durationMs - positionMs).coerceAtLeast(0)
-        if (remaining <= 45_000) {
-            return if (nextText != null) Line("Gleich", nextText) else Line("Letzte Takte")
-        }
-        val minutes = (remaining / 60_000.0).roundToLong().coerceAtLeast(1)
-        return if (nextText != null) {
-            Line("In ${minutesPhrase(minutes, dative = true)}", nextText)
-        } else {
-            Line("Noch ${minutesPhrase(minutes, dative = false)}")
-        }
-    }
-
-    /** "einer Minute" / "drei Minuten" / "14 Minuten" – numbers up to twelve in words. */
-    fun minutesPhrase(minutes: Long, dative: Boolean): String = when {
-        minutes == 1L -> if (dative) "einer Minute" else "eine Minute"
-        minutes <= 12 -> "${words[minutes.toInt()]} Minuten"
-        else -> "$minutes Minuten"
-    }
-
+    /** "0:07", "3:41", "1:02:05" – as a clock shows it, no leading zero. */
     fun formatClock(ms: Long): String {
         val total = (ms / 1000).coerceAtLeast(0)
         val h = total / 3600

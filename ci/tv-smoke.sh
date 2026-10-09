@@ -1,30 +1,49 @@
 #!/usr/bin/env bash
-# Installs the release APK on the running Android TV emulator, starts it in demo mode and
-# checks that it is still alive after a while (no crash). Leaves a screenshot and logcat.
+# Starts a stand-in Home Assistant on the host (ci/fake_ha.py), installs the release APK on
+# the running Android TV emulator, points it at that server with ADB extras and walks through
+# the main states: playing, exact time on a key press, the settings menu, a track change and
+# new extras while running. Checks that the app is still alive and never crashed. Leaves
+# screenshots, logcat and gfxinfo in smoke/.
 set -u
 APK="$1"
 PKG=io.github.hazymorning.klangbild
+HERE="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p smoke
+
+python3 "$HERE/fake_ha.py" 8123 > smoke/fake_ha.log 2>&1 &
+FAKE=$!
+trap 'kill $FAKE 2>/dev/null || true' EXIT
 
 adb wait-for-device
 adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
 adb logcat -c || true
 
 adb install -r "$APK"
-adb shell am start -n "$PKG/.MainActivity" --ez demo true
+# The emulator reaches the host's loopback at 10.0.2.2 (a private address: cleartext allowed).
+adb shell am start -n "$PKG/.MainActivity" \
+  --es ha_url http://10.0.2.2:8123 --es token smoke --es entity media_player.wohnzimmer
 sleep 25
-adb exec-out screencap -p > smoke/demo-1.png
-# a key press shows exact times; then let the demo run into the next track
+adb exec-out screencap -p > smoke/1-playing.png
+# a key press brings hidden parts (time, place, progress) back for a moment
 adb shell input keyevent KEYCODE_DPAD_UP
-sleep 3
-adb exec-out screencap -p > smoke/demo-2-exact-time.png
-adb shell input keyevent KEYCODE_DPAD_RIGHT
-sleep 8
-adb exec-out screencap -p > smoke/demo-3-next-track.png
+sleep 2
+adb exec-out screencap -p > smoke/2-peek.png
+# the settings menu: open with a long press, move down, close with Back
+adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
+sleep 2
+adb shell input keyevent KEYCODE_DPAD_DOWN
+adb shell input keyevent KEYCODE_DPAD_DOWN
+sleep 2
+adb exec-out screencap -p > smoke/3-menu.png
+adb shell input keyevent KEYCODE_BACK
+# the stand-in server starts the next track 40 s after the app subscribed
+sleep 22
+adb exec-out screencap -p > smoke/4-next-track.png
 
 # new extras while running must not restart the app
-adb shell am start -n "$PKG/.MainActivity" --ez demo true --ez setup false
-sleep 3
+adb shell am start -n "$PKG/.MainActivity" --es light dezent
+sleep 4
+adb exec-out screencap -p > smoke/5-light-subtle.png
 
 PID="$(adb shell pidof "$PKG" | tr -d '\r')"
 adb logcat -d > smoke/logcat.txt
@@ -37,6 +56,11 @@ if grep -q "FATAL EXCEPTION" smoke/logcat.txt; then
 fi
 if [ -z "$PID" ]; then
   echo "App läuft nicht mehr."
+  exit 1
+fi
+if ! grep -q "subscribe_entities" smoke/fake_ha.log; then
+  echo "Klangbild hat sich nicht mit dem Ersatz-Home-Assistant verbunden:"
+  cat smoke/fake_ha.log
   exit 1
 fi
 echo "Smoke-Test bestanden (PID $PID)."

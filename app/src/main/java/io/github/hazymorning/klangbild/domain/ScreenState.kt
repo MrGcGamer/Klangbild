@@ -29,7 +29,7 @@ sealed interface Screen {
         val next: TrackInfo?,
         /**
          * The connection has been gone for longer than the grace period: the stage stays,
-         * dimmed like a pause, and the time line says so – until [Timing.linkGiveUpMs].
+         * dimmed like a pause, and the stage says so – until [Timing.linkGiveUpMs].
          */
         val linkDown: Boolean = false,
     ) : Screen

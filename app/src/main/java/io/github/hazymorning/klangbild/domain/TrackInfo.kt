@@ -1,7 +1,7 @@
 package io.github.hazymorning.klangbild.domain
 
 /**
- * What is playing, normalised from Home Assistant / Music Assistant (or the demo).
+ * What is playing, normalised from Home Assistant / Music Assistant.
  * Only plain data – presentation decisions live in [TrackText].
  */
 data class TrackInfo(

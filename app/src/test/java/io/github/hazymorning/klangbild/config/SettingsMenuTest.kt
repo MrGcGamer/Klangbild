@@ -47,7 +47,7 @@ class SettingsMenuTest {
     @Test
     fun `every line has a value and an explanation, actions have no step`() {
         for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true))) {
-            for (ctx in listOf(MenuContext(), MenuContext(LinkState.CONNECTED), MenuContext(LinkState.DEMO, demo = true))) {
+            for (ctx in listOf(MenuContext(), MenuContext(LinkState.CONNECTED), MenuContext(LinkState.AUTH_FAILED))) {
                 for (row in SettingsMenu.rows(s, ctx)) {
                     assertThat(row.value).isNotEmpty()
                     assertThat(row.description).endsWith(".")
@@ -57,7 +57,7 @@ class SettingsMenuTest {
         }
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, Settings(), MenuContext())).isEqualTo("Einrichten")
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, configured, MenuContext(LinkState.CONNECTED))).isEqualTo("Verbunden")
-        assertThat(SettingsMenu.value(MenuEntry.DEMO, configured, MenuContext(LinkState.DEMO, demo = true))).isEqualTo("Läuft")
+        assertThat(SettingsMenu.value(MenuEntry.CONNECTION, configured, MenuContext(LinkState.AUTH_FAILED))).isEqualTo("Token abgelehnt")
     }
 
     @Test

@@ -31,13 +31,13 @@ data class ScenePalette(
     val base: Int,
     /** Light colours for the halo (from the cover's most significant colours). */
     val glow: List<Int>,
-    /** Primary text. Warm ivory, never pure white. */
+    /** Primary text: near-neutral white with a breath of the cover's hue, never pure white. */
     val ink: Int,
     /** Secondary text (artist, album). */
     val inkMuted: Int,
     /** Tertiary details (album). */
     val inkFaint: Int,
-    /** Quiet labels (clock, time line). */
+    /** Quiet labels (times, status, station). */
     val inkQuiet: Int,
     /** The quietest voice (what comes next). */
     val inkHush: Int,
@@ -179,23 +179,28 @@ object CoverPalette {
         val lead = chromatic.firstOrNull()
         val tintHue = lead?.lab?.hue
         val hue = tintHue ?: WARM_HUE
-        // Neutrals: just a breath of the lead hue so text and wall belong to the cover.
-        val neutralChroma = if (tintHue == null) 0.012f else min(0.018f, lead.lab.chroma * 0.18f + 0.004f)
+        // Text is near-neutral: only a breath of the cover's hue so it belongs to the
+        // picture – never ivory. A neutral cover gets neutral text.
+        val neutralChroma = if (tintHue == null) 0.003f else min(0.009f, lead.lab.chroma * 0.08f + 0.002f)
 
         // At night the text must not outshine the dimmed cover: all text a little lower
-        // still than the lamp alone would make it – but the title keeps 4.5:1 on black.
+        // still than the light alone would make it – but the title keeps 4.5:1 on black.
         val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
         val t = 1f - 0.10f * nightness
         val base = Lch(0.115f, min(neutralChroma * 1.1f, 0.016f), hue).toLab()
-        // In the evening the text takes the lamp's hue rather than the cover's: a rosy tint
+        // In the evening the text takes the warm light's hue rather than the cover's: a rosy tint
         // under amber light reads as pink.
         val evening = ((lighting.warmth - Lighting.DAY.warmth) / (Lighting.EVENING.warmth - Lighting.DAY.warmth)).coerceIn(0f, 1f)
         val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
-        val ink = Lch(0.91f * t, min(neutralChroma * 1.2f, 0.018f), inkHue).toLab()
-        val inkMuted = Lch(0.79f * t, neutralChroma * 1.3f, inkHue).toLab()
-        val inkFaint = Lch(0.665f * t, neutralChroma * 1.2f, inkHue).toLab()
-        val inkQuiet = Lch(0.59f * t, neutralChroma * 1.1f, inkHue).toLab()
-        val inkHush = Lch(0.54f * t, neutralChroma, inkHue).toLab()
+        // In the evening the room's light is warm, and so is the text – a little.
+        val inkChroma = neutralChroma + 0.008f * evening
+        // Tiers like white at 100 / 80 / 63 / 59 / 55 % on black (lightness in Oklab); even the
+        // quietest keeps 4.5 : 1 on the artwork's light.
+        val ink = Lch(0.93f * t, inkChroma, inkHue).toLab()
+        val inkMuted = Lch(0.80f * t, inkChroma, inkHue).toLab()
+        val inkFaint = Lch(0.68f * t, inkChroma, inkHue).toLab()
+        val inkQuiet = Lch(0.645f * t, inkChroma, inkHue).toLab()
+        val inkHush = Lch(0.60f * t, inkChroma, inkHue).toLab()
 
         val accent = if (lead == null) {
             Lch(0.82f, 0.055f, WARM_HUE).toLab() // brass

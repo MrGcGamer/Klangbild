@@ -4,10 +4,9 @@
 
 Klangbild ist eine Android-TV-App für den Google TV Streamer. Sobald Music Assistant im
 Wohnzimmer Musik abspielt, weckt Home Assistant den Fernseher und Klangbild zeigt, was
-läuft: das Cover wie ein hinterleuchtetes Kunstwerk, sein Licht fällt in seiner eigenen
-Farbe auf eine dunkle Wand, daneben Titel und Künstler in ruhiger Typografie. Keine Knöpfe,
-keine Leisten, kein Fortschrittsbalken – die Zeit erzählt eine wandernde Lichtquelle hinter
-dem Cover und eine Zeile in Worten: *„In drei Minuten · Spiegel im Spiegel · Arvo Pärt“*.
+läuft: das Cover groß wie ein Bild an der Wand, sein Licht fällt in den Farben seiner Ränder
+auf die dunkle Wand, daneben Titel, Künstler und Album in klarer Typografie und ein
+schlichter Fortschrittsbalken. Keine Knöpfe, keine Symbole, nichts, was blinkt.
 
 > *Klangbild* (das): in der Hi-Fi-Sprache der Charakter eines Klangs – und wörtlich das Bild
 > des Klangs.
@@ -37,23 +36,22 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | | |
 |---|---|
 | ![Klassik mit Werk und Satz](docs/screens/02-klassik.jpg) | ![Japanisch, fast schwarzes Cover](docs/screens/03-japanisch.jpg) |
-| *Klassik: Werk über dem Satz, viele Mitwirkende auf einer Zeile mit „u. a.“* | *Japanisch, fast schwarzes Cover im warmweißen Lampenlicht* |
+| *Klassik: Werk über dem Satz, viele Mitwirkende auf einer Zeile mit „u. a.“* | *Japanisch, fast schwarzes Cover mit feiner Lichtkante* |
 | ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.jpg) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.jpg) |
 | *Radio ohne Cover: Sand auf einer schwingenden Platte, sanft gewellte Knotenkreise (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, im Passepartout statt groß und matschig* |
 | ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
-| *Pausiert: das Licht wird gedimmt wie eine Lampe* | *Abends wärmer und dunkler* |
+| *Pausiert: das Bild tritt ein wenig zurück, Licht und Text werden gedimmt* | *Abends wärmer und dunkler* |
 | ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
-| *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer Wand im Lampenlicht* |
+| *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer kaum beleuchteten Wand* |
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 | ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
-| *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht einer Lampe* |
+| *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht* |
 
-**Titelwechsel** – das alte Bild wird dunkel, die Lampe wird heruntergedreht, und wo das
-Bild hing, liegt für einen Moment nur ihr schwacher, runder Lichtkegel auf der leeren Wand;
-sie wechselt ihre Farbe, dann kommt das neue Bild mit dem Licht, der Text folgt. Uhr und
-unveränderte Zeilen bleiben stehen (wechselt das Bild die Seite, wartet die Uhr gedimmt an
-ihrem Platz); beim nächsten Titel desselben Albums wechselt nur der Text:
+**Titelwechsel** – in gut einer Sekunde: das neue Cover blendet über das alte und setzt sich
+aus einer Spur Größe an seinen Platz, sein Licht wandert in den neuen Farben über die Wand,
+die alten Zeilen gehen, die neuen steigen eine nach der anderen an ihren Platz. Beim
+nächsten Titel desselben Albums wechselt nur der Text:
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
@@ -63,56 +61,64 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 
 ## Was Klangbild kann
 
-- **Licht aus dem Bild.** Eine Lampe steht verdeckt hinter dem Cover, nah an seinem Rand,
-  und wirft einen runden, weichen Lichtkegel an die Wand – in der Leitfarbe des Covers
-  (Farbanalyse im Farbraum Oklab): der violette Himmel eines Synthwave-Covers, nicht seine
-  kleine orange Sonne. Warme Cover bekommen Glühlampenlicht (≈ 3300 K) statt rostbraunem
-  Schein, graue und weiße Cover warmweißes Licht; kühle Cover behalten tagsüber dezent ihren
-  Farbton, abends wird ihr Licht zu Glühlampenlicht. Weiße Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Fünftel
-  der Bildbreite weich aus; die abgewandte Seite bleibt dunkel, ein dunkles Cover
-  bekommt dort einen feinen Lichtsaum, damit seine Kanten nicht in der Wand verschwinden.
-  Weit weg vom Bild und am Bildschirmrand ist die Wand schwarz.
-- **Das Licht als Sonnenuhr.** Die Lampe hinter dem Bild wandert im Lauf des Titels von
-  links unten über oben nach rechts unten – unmerklich langsam, nach ein paar Minuten
-  deutlich; das Licht fällt jeweils auf dieser Seite an die Wand. Bei Radio pendelt sie
-  langsam mit der Uhrzeit. Ein feines Streiflicht liegt über dem Cover.
-- **Zeit in Worten.** „In drei Minuten · nächster Titel“, „Gleich“, „Letzte Takte“,
-  „Pausiert“. Genaue Zeiten erscheinen nur kurz nach einem Tastendruck.
-- **Typografie mit Haltung.** Newsreader für Titel, Jost für Kapitälchen und Ziffern.
+- **Das Bild ist die Hauptsache.** Das Cover nimmt zwei Drittel der Bildschirmhöhe ein und
+  ist immer das größte und schwerste Element; der Textblock daneben ist deutlich kleiner und
+  steht optisch mittig neben ihm (gemessen von der Versalhöhe der ersten bis zur Grundlinie
+  der letzten Zeile). Die Uhrzeit hängt an der Oberkante des Covers, „Als Nächstes“ steht auf
+  seiner Unterkante – alles auf einer linken Kante. Die ganze Gruppe sitzt eine Spur über der
+  Bildschirmmitte, wie ein gut gehängtes Bild.
+- **Licht aus dem Bild.** Das Cover leuchtet in den Farben seiner Ränder auf die schwarze
+  Wand: violett über einem Synthwave-Himmel, warmes Papierlicht um ein helles Cover, Türkis
+  neben dem Meer. Je weiter weg, desto mehr mischen sich die Farben – wie echtes, weiches
+  Licht. Das Licht bleibt nah am Bild, damit der Text auf dunkler Wand steht (auch die
+  leiseste Zeile behält einen Kontrast von mindestens 4,5 : 1), und ist am Bildschirmrand
+  immer schwarz. Weiße Cover blenden nie.
+- **Fortschritt, wie man ihn kennt.** Ein schmaler Balken mit gespielter Zeit links und
+  Restzeit rechts („1:23 … −2:48“). Er gleitet: Er wird etwa 30-mal pro Sekunde im Takt des
+  Bildschirms neu gezeichnet und wächst jedes Mal um Bruchteile eines Pixels, ein Sprung
+  (Spulen) gleitet in einer Drittelsekunde an die neue Stelle. Pausiert wird er etwas
+  dunkler, bleibt aber stehen. (Die Bildrate auf dem Streamer ist noch nicht am Gerät
+  gemessen.)
+- **Typografie.** Eine einzige Schrift, Mona Sans, mit optischen Größen: große Titel in
+  ihrem engeren Display-Schnitt, kleine Zeilen im offeneren Text-Schnitt. Rangfolge allein
+  über Größe, Gewicht und Helligkeit – keine Versalien, keine Sperrung, keine Kursive.
   Klassische Titel werden in Werk und Satz geteilt und brechen bevorzugt nach den
   Gedankenstrichen um (höchstens drei Zeilen), „(feat. …)“ wandert zu den Künstlern,
-  „– 2011 Remaster“ wird zur kleinen Notiz hinter dem Titel, „Nr. 9“ und „op. 125“ trennen
-  nie. Künstler stehen auf einer Zeile („… u. a.“). Japanisch, Arabisch (rechts nach links)
-  und Emoji werden korrekt gesetzt – ohne Versalien, Sperrung oder falsche Kursive; Emoji
-  am Rand eines Titels fallen weg, Emoji im Titel werden gedämpft.
+  „– 2011 Remaster“ wird zur leisen Notiz hinter dem Titel, „Nr. 9“ und „op. 125“ trennen
+  nie. Künstler stehen auf einer Zeile (erst etwas kleiner, dann etwas schmaler, zuletzt
+  „… u. a.“), passt das Jahr nicht mehr hinter das Album, fällt es weg. Japanisch, Arabisch
+  (rechts nach links) und Emoji werden korrekt gesetzt; Emoji am Rand eines Titels fallen
+  weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
   (Music Assistant, Spotify, Deezer, Apple Music, Tidal, Qobuz, YouTube Music) und zeigt sie
   nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout mit
   heller Schnittkante.
 - **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
-  noch Cover, Titel und Künstler. Ohne Home Assistant (Demo) nach der Uhrzeit.
-- **OLED-Schutz.** Die ganze Komposition wandert langsam um ein paar Pixel, das Layout
-  spiegelt sich je Album, das Licht bewegt sich, die Uhr im Ruhebildschirm wird jede
-  Viertelstunde umgehängt, nichts steht stundenlang still. Am Bildrand ist es immer schwarz.
-- **Jeder Zustand ist gestaltet:** spielt, pausiert, puffert, Titelwechsel, nichts läuft,
-  Verbindung weg, Lautsprecher nicht erreichbar oder unbekannt, Token abgelehnt, Einrichtung.
+  noch Cover, Titel und Künstler.
+- **OLED-Schutz.** Die ganze Komposition wandert unmerklich um ein paar Pixel, die Uhr im
+  Ruhebildschirm wird jede Viertelstunde umgehängt, am Bildschirmrand ist es immer schwarz.
+- **Jeder Zustand ist gestaltet:** spielt, pausiert (das Bild tritt ein wenig zurück),
+  puffert, stumm, Titelwechsel, nichts läuft, Verbindung weg, Lautsprecher nicht erreichbar
+  oder unbekannt, Token abgelehnt, Einrichtung.
 - **Als Nächstes** kommt aus der Music-Assistant-Warteschlange (`music_assistant.get_queue`);
   das Cover des nächsten Titels wird vorab berechnet, damit der Wechsel nahtlos ist.
 - **Lautsprechergruppe.** Spielen weitere Lautsprecher mit (Music Assistant, Attribut
   `group_members`), steht neben der Uhrzeit „Wohnzimmer + 5“ – so, wie Sonos und Spotify
-  Gruppen benennen; bei nur einem weiteren Lautsprecher beide Namen („Wohnzimmer + Küche“).
-  Spielt er in einem Gruppen-Player von Music Assistant mit, steht dessen Name da
-  („Erdgeschoss“). Gerätewörter wie „Lautsprecher“ oder „Sonos One“ fallen aus dem Namen
-  weg. Spielt der Lautsprecher allein, steht dort nichts.
+  Gruppen benennen; bei nur einem weiteren Lautsprecher beide Namen („Wohnzimmer + Küche“),
+  spielen alle Lautsprecher von Music Assistant zusammen, „Überall“. Spielt er in einem
+  Gruppen-Player von Music Assistant mit, steht dessen Name da („Erdgeschoss“).
+  Gerätewörter wie „Lautsprecher“ oder „Sonos One“ fallen aus dem Namen weg. Spielt der
+  Lautsprecher allein, steht dort nichts.
 - **Lautstärke.** Ändert sie sich – am Handy, in Home Assistant, egal wo –, steht sie ein paar
-  Sekunden unter dem Bild („Lautstärke 35 %“); auf Wunsch ständig neben der Uhrzeit oder nie.
+  Sekunden neben der Uhrzeit („Lautstärke 35 %“); auf Wunsch ständig oder nie. Ist der
+  Lautsprecher stumm, wird das Bild gedimmt wie bei einer Pause und oben steht „Stumm“.
+- **Ein Tastendruck zeigt, was ausgeblendet ist.** Sind Uhrzeit, Gruppe oder Fortschritt
+  ausgeschaltet, blendet ▲ oder ▼ sie für ein paar Sekunden ein.
 - **Einstellungen mit der Fernbedienung.** Jede Zeile lässt sich einzeln zeigen oder
-  verbergen, die Lampe kräftiger, dezenter oder ganz ausschalten (siehe
+  verbergen, das Wandlicht kräftiger, dezenter oder ganz ausschalten (siehe
   [Bedienung](#bedienung-mit-der-fernbedienung)).
 - **Ruhe.** Der Bildschirm bleibt nur an, solange Musik läuft. Nach einer einstellbaren
   Zeit ohne Musik gibt Klangbild den Bildschirm frei oder schließt sich.
-- **Demo-Modus** ohne Home Assistant: zwölf erfundene Veröffentlichungen mit erzeugten
-  Covern, die alle Grenzfälle zeigen.
 
 ## Installation
 
@@ -145,12 +151,6 @@ Home-Assistant-Integration ohnehin).
    ```bash
    adb shell am start -n io.github.hazymorning.klangbild/.MainActivity
    ```
-
-Direkt ausprobieren ohne Home Assistant:
-
-```bash
-adb shell am start -n io.github.hazymorning.klangbild/.MainActivity --ez demo true
-```
 
 ## Einrichtung
 
@@ -187,16 +187,15 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | `sleep_minutes` | Int/String | Minuten ohne Musik bis zur Ruhe (1–720, Standard 10) |
 | `sleep_action` | String | `release` (Bildschirm freigeben, Standard) oder `close` (App schließen) |
 | `clock` | Boolean | Uhr anzeigen (Standard `true`) |
-| `time_line` | Boolean | Restzeit unter dem Bild (Standard `true`) |
-| `next` | Boolean | „Als Nächstes“ in der Restzeit (Standard `true`) |
+| `time_line` | Boolean | Fortschrittsbalken (Standard `true`) |
+| `next` | Boolean | „Als Nächstes“ unten neben dem Bild (Standard `true`) |
 | `album` | Boolean | Albumtitel (Standard `true`) |
 | `group` | Boolean | Lautsprechergruppe neben der Uhr (Standard `true`) |
 | `volume` | String | Lautstärke: `bei_aenderung` (Standard), `immer` oder `aus` |
-| `light` | String | Lampe: `kraeftig`, `normal` (Standard), `dezent` oder `aus` |
+| `light` | String | Wandlicht: `kraeftig`, `normal` (Standard), `dezent` oder `aus` |
 | `day_night` | Boolean | Abends wärmer, nachts nur Bild und Titel (Standard `true`) |
 | `remote` | Boolean | Fernbedienung steuert die Musik (Standard `true`) |
 | `volume_keys` | Boolean | Pfeil hoch/runter ändern die Lautstärke (Standard `false`) |
-| `demo` | Boolean | Nur für diesen Start: Demo statt Home Assistant |
 | `setup` | Boolean | Nur für diesen Start: Einstellungen öffnen |
 | `debug` | Boolean | Nur für diesen Start: Bildrate einblenden (siehe Fehlerbehebung) |
 
@@ -229,12 +228,12 @@ data:
   activity: klangbild://open?light=dezent&album=aus
 ```
 
-Ein Link darf nur Anzeige-Optionen, Ruhezeit und `demo` setzen (dieselben Namen wie die
-ADB-Extras unten), nie Adresse, Token oder Lautsprecher – jede Webseite im Browser des
+Ein Link darf nur Anzeige-Optionen und die Ruhezeit setzen (dieselben Namen wie die
+ADB-Extras oben), nie Adresse, Token oder Lautsprecher – jede Webseite im Browser des
 Fernsehers könnte ihn öffnen.
 
 Mit der ADB-Integration (*Android Debug Bridge*) geht es auch mit allen Extras, etwa um den
-Lautsprecher mitzugeben oder für den Abend die Lampe zu dämpfen:
+Lautsprecher mitzugeben oder für den Abend das Wandlicht zu dämpfen:
 
 ```yaml
 action: androidtv.adb_command
@@ -348,31 +347,28 @@ Klangbild hat keine sichtbaren Bedienelemente. Die Fernbedienung wirkt trotzdem:
 |---|---|
 | OK | Pause / Weiter (der Lautsprecher in Home Assistant) |
 | ◀ / ▶ | Vorheriger / nächster Titel |
-| ▲ / ▼ | Zeigt für ein paar Sekunden die genaue Zeit – oder ändert die Lautstärke (einstellbar) |
+| ▲ / ▼ | Blendet Ausgeblendetes (Uhrzeit, Gruppe, Fortschritt) kurz ein – oder ändert die Lautstärke (einstellbar) |
 | OK lange drücken, Menü | Einstellungen |
 | Zurück | Klangbild schließen (bzw. Einstellungen schließen) |
-
-Beim ersten Start ohne Einrichtung startet OK die Demo.
 
 ### Einstellungen
 
 *OK lange drücken* (oder die Menütaste) öffnet die Einstellungen. ▲ / ▼ wählen eine Zeile –
-sie steht immer in der Mitte, im Licht einer Lampe –, ◀ / ▶ oder OK ändern sie. Jede
+sie steht immer in der Mitte, in einem ruhigen Lichtfleck –, ◀ / ▶ oder OK ändern sie. Jede
 Änderung gilt sofort, es gibt nichts zu bestätigen; *Zurück* schließt. Unbenutzt schließen
 sich die Einstellungen nach einer Minute von selbst.
 
 | Bereich | Zeile | Werte |
 |---|---|---|
-| Anzeige | Uhrzeit, Restzeit, Als Nächstes, Album, Lautsprechergruppe | an / aus |
+| Anzeige | Uhrzeit, Fortschritt, Als Nächstes, Album, Lautsprechergruppe | an / aus |
 | | Lautstärke | bei Änderung / immer / aus |
-| Licht | Lampe | kräftig / normal / dezent / aus |
+| Licht | Wandlicht | kräftig / normal / dezent / aus |
 | | Tag und Nacht | an / aus |
 | Fernbedienung | Musik steuern (OK, ◀ / ▶) | an / aus |
-| | Hoch und runter | genaue Zeit / Lautstärke |
+| | Hoch und runter | einblenden / Lautstärke |
 | Ruhe | Ruhe nach | fünf Minuten bis zwei Stunden |
 | | Danach | Bildschirm freigeben / App schließen |
 | Verbindung | Home Assistant | OK zeigt den QR-Code zum Einrichten |
-| | Demo | OK startet bzw. beendet die Demo |
 
 ## Bildschirmschoner (optional)
 
@@ -400,10 +396,10 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | QR-Code, „Einrichten mit dem Handy“ | Noch nicht eingerichtet. QR-Code scannen oder per ADB-Extras einrichten. |
 | „Home Assistant hat das Zugangstoken abgelehnt.“ | Token gelöscht oder falsch kopiert. Neues langlebiges Zugangstoken erstellen und über den QR-Code eintragen. |
 | „Verbindung wird hergestellt …“ bleibt stehen | Adresse prüfen (mit `http://` und Port `:8123`). Hostnamen wie `homeassistant.local` löst nicht jedes Gerät auf – im Zweifel die IP-Adresse nehmen. |
-| „Verbindung unterbrochen.“ | WLAN weg oder Home Assistant startet neu. Klangbild versucht es von selbst wieder (mit wachsendem Abstand, höchstens jede Minute) und sofort, sobald das Netz zurück ist. In den ersten zwei Minuten bleibt das Bild stehen und wird nur gedimmt. |
+| „Verbindung wird wiederhergestellt …“ bzw. „Verbindung unterbrochen.“ | WLAN weg oder Home Assistant startet neu. Klangbild versucht es von selbst wieder (mit wachsendem Abstand, höchstens jede Minute) und sofort, sobald das Netz zurück ist. In den ersten zwei Minuten bleibt das Bild stehen und wird nur gedimmt. |
 | „Home Assistant kennt „media_player.…“ nicht.“ | Entität falsch geschrieben oder umbenannt. In den Einstellungen neu wählen. |
 | „Gerade nicht erreichbar.“ | Der Lautsprecher meldet `unavailable` (z. B. Music Assistant läuft nicht). |
-| Kein „In … Minuten · nächster Titel“ | Der nächste Titel kommt aus Music Assistant. Bei anderen Playern oder Radio zeigt Klangbild nur die Restzeit bzw. den Sender. |
+| Kein „Als Nächstes“ | Der nächste Titel kommt aus der Warteschlange von Music Assistant. Bei anderen Playern fehlt er; bei Radio steht der Sender an der Stelle des Fortschrittsbalkens. |
 | Unverschlüsseltes `http://` wird abgelehnt | Klartext ist nur im Heimnetz erlaubt (private Adressen, `.local`, `.lan`, Namen ohne Punkt). Von außen bitte `https://` (z. B. Nabu Casa). |
 | Die Einrichtungsseite lädt nicht | Handy und Fernseher müssen im selben Netz sein; die Seite läuft nur, solange der QR-Code zu sehen ist. |
 | Ruckeln? | Mit `--ez debug true` starten: oben links stehen Bilder pro Sekunde, langsamster Frame und verspätete Frames. Außerdem: `adb shell dumpsys gfxinfo io.github.hazymorning.klangbild`. |
@@ -438,13 +434,13 @@ Logs: `adb logcat | grep -i klangbild`
 - Architektur, Design-Prinzipien und Build-Hinweise: [`CLAUDE.md`](CLAUDE.md)
 - Plan und Entscheidungen: [`docs/PLAN.md`](docs/PLAN.md), [`docs/DECISIONS.md`](docs/DECISIONS.md)
 - CI (GitHub Actions): Tests, Screenshots als Artifact, signierte APK als Artifact,
-  Smoke-Test der Release-APK auf einem Android-TV-14-Emulator im Demo-Modus (mit Screenshots
-  als Artifact), auf `main` zusätzlich ein Release, für Tags `v*` eine Beta (Pre-Release).
+  Smoke-Test der Release-APK auf einem Android-TV-14-Emulator gegen einen kleinen
+  Ersatz-Home-Assistant (`ci/fake_ha.py`, mit Screenshots als Artifact), auf `main`
+  zusätzlich ein Release, für Tags `v*` ein Release (mit Bindestrich eine Vorabversion).
 
 ## Lizenzen
 
-- Schriften: [Newsreader](app/src/main/assets/licenses/Newsreader-OFL.txt) (Production Type)
-  und [Jost](app/src/main/assets/licenses/Jost-OFL.txt) (indestructible type*), beide unter
-  der SIL Open Font License 1.1, in die App eingebunden.
+- Schrift: [Mona Sans](app/src/main/assets/licenses/MonaSans-OFL.txt) (GitHub, mit Degarism
+  Studio), SIL Open Font License 1.1, unverändert in die App eingebunden.
 - Bibliotheken: AndroidX/Jetpack Compose, Kotlin Coroutines und kotlinx.serialization,
   OkHttp, ZXing – Apache License 2.0.

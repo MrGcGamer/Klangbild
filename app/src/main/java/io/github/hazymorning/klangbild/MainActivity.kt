@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : ComponentActivity() {
     private val controller get() = graph.controller
-    private val exactUntil = mutableLongStateOf(0L)
+    private val peekUntil = mutableLongStateOf(0L)
     private var centerLongPressed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
         val spec = screenSpec()
         setContent {
             val ui by controller.ui.collectAsStateWithLifecycle()
-            KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, exactUntil = exactUntil))
+            KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil))
             if (ui.session.debugOverlay) DebugOverlay()
         }
         lifecycleScope.launch {
@@ -87,8 +87,8 @@ class MainActivity : ComponentActivity() {
         return ScreenSpec(w, h, m.density)
     }
 
-    private fun flashExactTime() {
-        exactUntil.longValue = System.currentTimeMillis() + EXACT_TIME_MS
+    private fun peek() {
+        peekUntil.longValue = System.currentTimeMillis() + PEEK_MS
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -104,27 +104,27 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
                 if (onStage()) {
                     controller.send(RemoteCommand.PREVIOUS)
-                    flashExactTime()
+                    peek()
                 }
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_NEXT -> {
                 if (onStage()) {
                     controller.send(RemoteCommand.NEXT)
-                    flashExactTime()
+                    peek()
                 }
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
                 controller.send(RemoteCommand.PLAY_PAUSE)
-                flashExactTime()
+                peek()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
                 if (controller.ui.value.screen !is Screen.Setup && controller.volumeKeys) {
                     controller.send(if (keyCode == KeyEvent.KEYCODE_DPAD_UP) RemoteCommand.VOLUME_UP else RemoteCommand.VOLUME_DOWN)
                 } else {
-                    flashExactTime()
+                    peek()
                 }
                 return true
             }
@@ -176,13 +176,13 @@ class MainActivity : ComponentActivity() {
         }
         when (val s = controller.ui.value.screen) {
             is Screen.Setup -> when (s.reason) {
-                SetupReason.FIRST_RUN -> controller.startDemo()
+                SetupReason.FIRST_RUN -> Unit
                 SetupReason.REQUESTED -> controller.requestSetup(false)
                 SetupReason.AUTH_FAILED -> Unit
             }
             is Screen.Stage -> {
                 controller.send(RemoteCommand.PLAY_PAUSE)
-                flashExactTime()
+                peek()
             }
             is Screen.Rest -> controller.send(RemoteCommand.PLAY_PAUSE)
         }
@@ -203,6 +203,6 @@ class MainActivity : ComponentActivity() {
     private fun onStage() = controller.ui.value.screen is Screen.Stage
 
     companion object {
-        const val EXACT_TIME_MS = 6_000L
+        const val PEEK_MS = 6_000L
     }
 }

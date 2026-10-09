@@ -16,6 +16,8 @@ class SpeakerLabelTest {
         // Alone: nothing to say – the screen hangs in that room.
         assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList()))).isNull()
         assertThat(SpeakerLabel.group(null)).isNull()
+        // Every speaker of the house: Sonos' "Überall".
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad"), everywhere = true))).isEqualTo("Überall")
     }
 
     @Test
@@ -47,11 +49,10 @@ class SpeakerLabelTest {
     }
 
     @Test
-    fun `volume in figures with a narrow space`() {
-        assertThat(SpeakerLabel.volume(0.35f, muted = false)).isEqualTo("35 %")
-        assertThat(SpeakerLabel.volume(1.2f, muted = false)).isEqualTo("100 %")
+    fun `volume in figures with a no-break space`() {
+        assertThat(SpeakerLabel.volume(0.35f, muted = false)).isEqualTo("35 %")
+        assertThat(SpeakerLabel.volume(1.2f, muted = false)).isEqualTo("100 %")
         assertThat(SpeakerLabel.volume(0.35f, muted = true)).isEqualTo("stumm")
         assertThat(SpeakerLabel.volume(null, muted = false)).isNull()
-        assertThat(TimeLine.volume(0.4f, muted = false)).isEqualTo(TimeLine.Line("Lautstärke", "40 %", atNight = true))
     }
 }

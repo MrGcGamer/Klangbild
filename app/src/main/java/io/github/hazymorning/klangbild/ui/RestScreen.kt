@@ -22,14 +22,10 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import io.github.hazymorning.klangbild.art.stableHash
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
@@ -41,8 +37,7 @@ import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
-import io.github.hazymorning.klangbild.ui.stage.SpacedLabel
-import io.github.hazymorning.klangbild.ui.theme.Fonts
+import io.github.hazymorning.klangbild.ui.theme.mona
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -50,15 +45,15 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-/** Quiet colours for screens without a cover: warm ivory on black, dimmed with the day. */
+/** Quiet colours for screens without a cover: soft white on black, dimmed with the day. */
 data class QuietColors(val primary: Color, val secondary: Color, val label: Color) {
     companion object {
         fun of(lighting: Lighting): QuietColors {
             fun c(l: Float, ch: Float) = Color(lighting.applyArgb(Lch(l, ch, HaloLight.LAMP_HUE).toArgb()))
             return QuietColors(
-                primary = c(0.80f, 0.016f),
-                secondary = c(0.66f, 0.018f),
-                label = c(0.60f, 0.016f),
+                primary = c(0.84f, 0.004f),
+                secondary = c(0.68f, 0.004f),
+                label = c(0.62f, 0.004f),
             )
         }
     }
@@ -67,7 +62,7 @@ data class QuietColors(val primary: Color, val secondary: Color, val label: Colo
 object RestTexts {
     /** What the rest screen says besides the time. */
     data class Lines(
-        /** Short label in spaced capitals ("WOHNZIMMER · PAUSIERT"). */
+        /** A short label ("Wohnzimmer · Pausiert"). */
         val label: String?,
         /** A calm sentence, only when something needs explaining. */
         val sentence: String?,
@@ -221,51 +216,28 @@ private fun RestBlock(time: String, date: String?, label: String?, sentence: Str
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         BasicText(
             time,
-            style = TextStyle(
-                fontFamily = Fonts.Display,
-                fontWeight = FontWeight(300),
-                fontSize = 48.sp,
-                letterSpacing = 0.01.em,
-                color = colors.primary,
-                fontFeatureSettings = "tnum",
-                textAlign = TextAlign.Center,
-            ),
+            style = mona(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.02f)
+                .merge(TextStyle(textAlign = TextAlign.Center)),
         )
         if (date != null) {
             Spacer(Modifier.height(4.dp))
-            BasicText(
-                date,
-                style = TextStyle(
-                    fontFamily = Fonts.Text,
-                    fontStyle = FontStyle.Italic,
-                    fontSize = 18.sp,
-                    color = colors.secondary,
-                    textAlign = TextAlign.Center,
-                ),
-            )
+            BasicText(date, style = mona(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))
         }
         if (label != null) {
-            Spacer(Modifier.height(26.dp))
-            SpacedLabel(
-                label,
-                TextStyle(fontFamily = Fonts.Sans, fontWeight = FontWeight(500), fontSize = 10.sp, color = colors.label),
-                tracking = 0.22.em,
-            )
+            Spacer(Modifier.height(28.dp))
+            BasicText(label, style = mona(16f, 500, colors.label).merge(TextStyle(textAlign = TextAlign.Center)))
         }
         if (sentence != null) {
-            Spacer(Modifier.height(if (label != null) 10.dp else 26.dp))
+            Spacer(Modifier.height(if (label != null) 10.dp else 28.dp))
             BasicText(
                 sentence,
-                style = TextStyle(
-                    fontFamily = Fonts.Text,
-                    fontStyle = FontStyle.Italic,
-                    fontSize = 16.sp,
-                    lineHeight = 23.sp,
-                    color = colors.secondary,
-                    textAlign = TextAlign.Center,
-                    lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),
+                style = mona(19f, 420, colors.secondary, lineHeight = 27f).merge(
+                    TextStyle(
+                        textAlign = TextAlign.Center,
+                        lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),
+                    ),
                 ),
-                modifier = Modifier.widthIn(max = 440.dp),
+                modifier = Modifier.widthIn(max = 480.dp),
             )
         }
     }

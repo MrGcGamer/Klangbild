@@ -115,7 +115,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Demo-Modus auf Android TV 14 starten
+      - name: Klangbild mit Ersatz-Home-Assistant auf Android TV 14
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34

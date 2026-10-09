@@ -2,9 +2,6 @@ package io.github.hazymorning.klangbild.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.art.SyntheticCovers
-import io.github.hazymorning.klangbild.data.demo.DemoSource
 import io.github.hazymorning.klangbild.data.ha.ArtworkUrls
 import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -40,11 +37,6 @@ class ArtworkLoader(
     }
 
     private fun fetch(url: String): Bitmap? {
-        if (url.startsWith(DemoSource.SCHEME)) {
-            val name = url.removePrefix(DemoSource.SCHEME)
-            val cover = SyntheticCover.entries.firstOrNull { it.name == name } ?: return null
-            return SyntheticCovers.render(cover)
-        }
         val builder = Request.Builder().url(url)
         val base = haBaseUrl()
         val token = haToken()

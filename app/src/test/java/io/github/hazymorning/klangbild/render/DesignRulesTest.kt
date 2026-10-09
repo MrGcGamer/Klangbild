@@ -8,6 +8,7 @@ import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
+import io.github.hazymorning.klangbild.ui.stage.BLOCK_SHARE
 import org.junit.Test
 import kotlin.random.Random
 
@@ -15,171 +16,129 @@ import kotlin.random.Random
 class DesignRulesTest {
     private val screen = ScreenSpec.TV_1080
     private val layout = HaloLayout(screen)
-    private val shape = PrintShape(layout.coverRect(layout.slot))
+    private val shape = PrintShape(layout.artRect, corner = layout.radius)
 
-    private fun thumb(vararg parts: Pair<Int, Float>): IntArray {
-        val out = IntArray(48 * 48)
-        var i = 0
-        for ((argb, share) in parts) {
-            val n = (share * out.size).toInt()
-            repeat(n) { if (i < out.size) out[i++] = argb }
-        }
-        while (i < out.size) out[i++] = parts.first().first
-        return out
+    /** A 48 × 48 thumbnail: the top [split] of the rows in [top], the rest in [bottom]. */
+    private fun thumb(top: Int, bottom: Int = top, split: Float = 0.5f): IntArray =
+        IntArray(48 * 48) { i -> if (i / 48 < (48 * split).toInt()) top else bottom }
+
+    private fun glow(thumb: IntArray, lighting: Lighting = Lighting.DAY) = WallGlow.field(thumb, 48, shape, screen, lighting)
+
+    /** The glow at (x, y) dp on the 960 × 540 map. */
+    private fun IntArray.at(xDp: Float, yDp: Float): Int = this[yDp.toInt() * WallGlow.MAP_W + xDp.toInt()]
+
+    private fun luminance(argb: Int) = Oklab.relativeLuminance(argb)
+
+    private fun contrast(a: Int, b: Int): Float {
+        val la = luminance(a)
+        val lb = luminance(b)
+        return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
     }
 
-    private fun grey(px: Int) = px and 0xFF
+    private val covers = listOf(
+        0xFFF2EEE6.toInt(), // white paper
+        0xFFE8C547.toInt(), // yellow
+        0xFFE0457B.toInt(), // pink
+        0xFF2A6FD6.toInt(), // blue
+        0xFF0E5A66.toInt(), // teal
+        0xFF101010.toInt(), // black
+    )
 
-    private fun forEachMapPixel(block: (x: Int, y: Int, xDp: Float, yDp: Float) -> Unit) {
-        for (y in 0 until HaloLight.MAP_H) for (x in 0 until HaloLight.MAP_W) {
-            block(x, y, (x + 0.5f) / HaloLight.MAP_W * screen.widthDp, (y + 0.5f) / HaloLight.MAP_H * screen.heightDp)
-        }
-    }
-
-    /** Light of the pool [d] dp outside the print, straight out in direction [deg] (maths angle). */
-    private fun lightOutside(pose: HaloLight.LampPose, deg: Float, d: Float): Float {
-        val rad = Math.toRadians(deg.toDouble())
-        val ux = kotlin.math.cos(rad).toFloat()
-        val uy = -kotlin.math.sin(rad).toFloat()
-        val boundary = shape.radius / maxOf(kotlin.math.abs(ux), kotlin.math.abs(uy))
-        val r = boundary + d
-        return HaloLight.lampAt(pose, shape.centerX + ux * r, shape.centerY + uy * r)
-    }
+    // --- The light on the wall ---------------------------------------------------------
 
     @Test
     fun `no light at all near the screen edges`() {
-        for (mask in listOf(HaloLight.holeMask(shape, screen), HaloLight.openMask(screen), HaloLight.rimMap(shape, screen))) {
-            forEachMapPixel { x, y, xDp, yDp ->
-                val edge = minOf(xDp, screen.widthDp - xDp, yDp, screen.heightDp - yDp)
-                if (edge < HaloLight.EDGE_CLEAR_DP - 1f) assertWithMessage("($x, $y)").that(grey(mask[y * HaloLight.MAP_W + x])).isEqualTo(0)
+        for (c in covers) {
+            val field = glow(thumb(c))
+            for (y in 0 until WallGlow.MAP_H) for (x in 0 until WallGlow.MAP_W) {
+                val edge = minOf(x + 0.5f, WallGlow.MAP_W - x - 0.5f, y + 0.5f, WallGlow.MAP_H - y - 0.5f)
+                if (edge < WallGlow.EDGE_BLACK_DP - 1f) assertWithMessage("($x, $y)").that(field[y * WallGlow.MAP_W + x] and 0xFFFFFF).isEqualTo(0)
             }
         }
     }
 
     @Test
-    fun `dark behind the print`() {
-        val hole = HaloLight.holeMask(shape, screen)
-        val rim = HaloLight.rimMap(shape, screen)
-        forEachMapPixel { x, y, xDp, yDp ->
-            if (shape.contains(xDp, yDp)) {
-                assertWithMessage("hole ($x, $y)").that(grey(hole[y * HaloLight.MAP_W + x])).isEqualTo(0)
-                assertWithMessage("rim ($x, $y)").that(grey(rim[y * HaloLight.MAP_W + x])).isEqualTo(0)
-            }
+    fun `the glow is brightest at the artwork's edge and gone well before the text column ends`() {
+        val field = glow(thumb(0xFFF2EEE6.toInt()))
+        val y = layout.artRect.centerY
+        val edge = layout.artRect.right
+        val near = luminance(field.at(edge + 2f, y))
+        val mid = luminance(field.at(edge + 40f, y))
+        val far = luminance(field.at(edge + 160f, y))
+        assertThat(near).isIn(Range.closed(WallGlow.EDGE_LUMINANCE * 0.8f, WallGlow.EDGE_LUMINANCE * 1.1f))
+        assertThat(mid).isLessThan(near)
+        assertThat(far).isLessThan(near * 0.12f)
+        // dark behind the artwork
+        assertThat(field.at(layout.artRect.centerX, y) and 0xFFFFFF).isEqualTo(0)
+    }
+
+    @Test
+    fun `the glow takes the colour of the nearest edge`() {
+        // violet above, teal below
+        val field = glow(thumb(0xFF6A2BC2.toInt(), 0xFF0E8A86.toInt()))
+        val above = Oklab.fromArgb(field.at(layout.artRect.centerX, layout.artRect.top - 6f))
+        val below = Oklab.fromArgb(field.at(layout.artRect.centerX, layout.artRect.bottom + 6f))
+        assertThat(above.hue).isIn(Range.closed(270f, 320f))
+        assertThat(below.hue).isIn(Range.closed(170f, 215f))
+    }
+
+    @Test
+    fun `dark edges glow less, and no glow is a neon sign`() {
+        val bright = luminance(glow(thumb(0xFFE0457B.toInt())).at(layout.artRect.right + 2f, layout.artRect.centerY))
+        val dark = luminance(glow(thumb(0xFF101010.toInt())).at(layout.artRect.right + 2f, layout.artRect.centerY))
+        assertThat(dark).isLessThan(bright * (WallGlow.DARK_EDGE_SHARE + 0.06f))
+        assertThat(dark).isGreaterThan(0f)
+        for (c in covers) {
+            val lab = Oklab.fromArgb(glow(thumb(c)).at(layout.artRect.right + 2f, layout.artRect.centerY))
+            // chroma at the glow's own (low) lightness stays modest
+            assertThat(lab.chroma).isAtMost(WallGlow.MAX_CHROMA)
         }
     }
 
     @Test
-    fun `the far wall is pure black`() {
-        assertThat(HaloLight.lampProfile(1f)).isEqualTo(0f)
-        val size = 128
-        val sprite = HaloLight.lampSprite(ditherLsb = 4f, seed = 1, size = size)
-        for (i in 0 until size) {
-            assertThat(grey(sprite[i])).isEqualTo(0) // top row
-            assertThat(grey(sprite[i * size])).isEqualTo(0) // left column
-        }
-        // The side away from the sun gets nothing at all.
-        val pose = HaloLight.lampPose(shape, 90f, screen)
-        assertThat(lightOutside(pose, -90f, 0f)).isEqualTo(0f)
+    fun `night turns the glow right down and takes its colour`() {
+        val c = thumb(0xFFE0457B.toInt())
+        val day = glow(c, Lighting.DAY).at(layout.artRect.right + 2f, layout.artRect.centerY)
+        val night = glow(c, Lighting.NIGHT).at(layout.artRect.right + 2f, layout.artRect.centerY)
+        assertThat(luminance(night)).isAtMost(luminance(day) * 0.3f)
+        assertThat(Oklab.fromArgb(night).chroma).isLessThan(Oklab.fromArgb(day).chroma)
     }
 
     @Test
-    fun `a round pool, brightest at the print's edge, about half at 25 dp, gone by 70 dp`() {
-        val pose = HaloLight.lampPose(shape, 90f, screen)
-        val edge = lightOutside(pose, 90f, 0f)
-        assertThat(edge).isWithin(0.001f).of(HaloLight.EDGE_STRENGTH)
-        // falls off steadily – no band, no ledge
-        var last = edge
-        for (d in 1..80) {
-            val v = lightOutside(pose, 90f, d.toFloat())
-            assertThat(v).isAtMost(last)
-            last = v
-        }
-        // the profile is lightness: on the wall it is multiplied by the tint in sRGB
-        val tint = Oklab.linearToSrgb(HaloLight.lampPeak(0.054f))
-        fun luminance(v: Float) = Oklab.srgbToLinear(v * tint)
-        assertThat(luminance(edge)).isWithin(0.001f).of(0.054f)
-        assertThat(luminance(lightOutside(pose, 90f, 25f)) / luminance(edge)).isIn(Range.closed(0.38f, 0.55f))
-        assertThat(luminance(lightOutside(pose, 90f, 50f)) / luminance(edge)).isLessThan(0.12f)
-        // it ends softly: almost nothing just before the end
-        assertThat(lightOutside(pose, 90f, 66f) / edge).isLessThan(0.03f)
-        assertThat(lightOutside(pose, 90f, 70f)).isEqualTo(0f)
-        // a pool, not a frame: the sides away from the sun get nothing
-        assertThat(lightOutside(pose, 0f, 0f)).isEqualTo(0f)
-    }
-
-    @Test
-    fun `the pool fits into the free wall, so the edge band never cuts it`() {
-        for (mirrored in listOf(false, true)) {
-            val l = HaloLayout(screen, mirrored = mirrored)
-            val print = PrintShape(l.coverRect(l.slot))
-            for (sun in 0 until 360 step 5) {
-                val pose = HaloLight.lampPose(print, sun.toFloat(), screen)
-                var y = 0f
-                while (y < screen.heightDp) {
-                    var x = 0f
-                    while (x < screen.widthDp) {
-                        val edge = minOf(x, screen.widthDp - x, y, screen.heightDp - y)
-                        if (edge < HaloLight.EDGE_CLEAR_DP + HaloLight.EDGE_FADE_DP) {
-                            assertWithMessage("sun $sun at ($x, $y)").that(HaloLight.lampAt(pose, x, y)).isEqualTo(0f)
-                        }
-                        x += 2f
-                    }
-                    y += 2f
-                }
-            }
+    fun `the quietest text stays readable on the glow`() {
+        for (c in covers) {
+            val field = glow(thumb(c))
+            val palette = CoverPalette.derive(CoverPalette.analyze(thumb(c)), Lighting.DAY)
+            // the brightest wall under the text column: its left edge, level with the artwork's centre
+            val wall = field.at(layout.columnLeft + 1f, layout.textCenter)
+            assertWithMessage("cover " + Integer.toHexString(c)).that(contrast(palette.inkQuiet, wall)).isAtLeast(4.5f)
+            assertWithMessage("cover " + Integer.toHexString(c)).that(contrast(palette.ink, wall)).isAtLeast(10f)
         }
     }
 
+    // --- Colour of the text -------------------------------------------------------------
+
     @Test
-    fun `the lamp follows the sun, and the sun's side is clearly the lit one`() {
-        for (sun in listOf(225f, 160f, 90f, 10f, -45f)) {
-            val pose = HaloLight.lampPose(shape, sun, screen)
-            val lit = lightOutside(pose, sun, 4f)
-            assertThat(lit).isGreaterThan(0.5f)
-            assertThat(lightOutside(pose, sun + 180f, 4f)).isEqualTo(0f)
-            assertThat(lit / maxOf(lightOutside(pose, sun + 90f, 4f), 1e-6f)).isAtLeast(3.8f)
-            assertThat(lit / maxOf(lightOutside(pose, sun - 90f, 4f), 1e-6f)).isAtLeast(3.8f)
-            // the lamp stands behind the print, inside its outline
-            assertThat(shape.contains(pose.x, pose.y)).isTrue()
+    fun `text is near-neutral, never pure white, never ivory`() {
+        for (c in covers) {
+            val p = CoverPalette.derive(CoverPalette.analyze(thumb(c)), Lighting.DAY)
+            val ink = Oklab.fromArgb(p.ink)
+            assertThat(p.ink and 0xFFFFFF).isNotEqualTo(0xFFFFFF)
+            assertThat(ink.l).isIn(Range.closed(0.88f, 0.95f))
+            assertThat(ink.chroma).isAtMost(0.015f)
         }
+        // a neutral cover gets neutral text
+        val grey = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF808080.toInt())), Lighting.DAY)
+        assertThat(Oklab.fromArgb(grey.ink).chroma).isAtMost(0.007f)
     }
 
     @Test
-    fun `a dark print gets a faint rim all around, a bright one none`() {
-        for (edge in listOf(0.002f, 0.006f, 0.03f)) assertThat(HaloLight.rimLuminance(edge)).isEqualTo(0.008f)
-        assertThat(HaloLight.rimLuminance(0.2f)).isEqualTo(0f)
-        // on the far side it fades to 0.35 %
-        assertThat(HaloLight.RIM_LUMINANCE * HaloLight.RIM_FAR).isWithin(1e-4f).of(0.0035f)
-        val rim = HaloLight.rimMap(shape, screen)
-        fun at(xDp: Float, yDp: Float): Int {
-            val x = (xDp / screen.widthDp * HaloLight.MAP_W).toInt()
-            val y = (yDp / screen.heightDp * HaloLight.MAP_H).toInt()
-            return grey(rim[y * HaloLight.MAP_W + x])
-        }
-        // all four sides, a wash gone by 8 dp
-        for ((x, y) in listOf(shape.rect.left - 1.5f to shape.centerY, shape.rect.right + 1.5f to shape.centerY, shape.centerX to shape.rect.top - 1.5f, shape.centerX to shape.rect.bottom + 1.5f)) {
-            assertThat(at(x, y)).isGreaterThan(150)
-        }
-        assertThat(at(shape.rect.right + 8.5f, shape.centerY)).isEqualTo(0)
-        // square corners like the print's, not a rounded band
-        assertThat(at(shape.rect.right + 4.5f, shape.rect.top - 4.5f)).isEqualTo(at(shape.rect.right + 4.5f, shape.centerY))
-    }
-
-    @Test
-    fun `the sun rises lower left, stands above at half time and sets lower right`() {
-        assertThat(HaloLight.sunAngle(0f, 0)).isEqualTo(225f)
-        assertThat(HaloLight.sunAngle(0.5f, 0)).isEqualTo(90f)
-        assertThat(HaloLight.sunAngle(1f, 0)).isEqualTo(-45f)
-    }
-
-    @Test
-    fun `night turns the lamp right down and takes its colour`() {
-        val vivid = CoverPalette.analyze(thumb(0xFFFF2E88.toInt() to 0.4f, 0xFF2B0A4A.toInt() to 0.6f))
-        val color = HaloLight.lightColor(vivid)
-        val day = HaloLight.lightTint(color, 0.05f, Lighting.DAY)
-        val night = HaloLight.lightTint(color, 0.05f, Lighting.NIGHT)
-        assertThat(Oklab.relativeLuminance(night)).isAtMost(Oklab.relativeLuminance(day) * 0.29f)
-        assertThat(HaloLight.hsvSaturation(night)).isAtMost(0.5f)
+    fun `text tiers step down clearly and the title keeps 4,5 to 1 at night`() {
+        val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY)
+        val tiers = listOf(p.ink, p.inkMuted, p.inkFaint, p.inkQuiet, p.inkHush).map { luminance(it) }
+        for (i in 1 until tiers.size) assertThat(tiers[i]).isLessThan(tiers[i - 1])
+        val night = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.NIGHT)
+        assertThat(contrast(night.ink, 0xFF000000.toInt())).isAtLeast(4.5f)
     }
 
     @Test
@@ -191,47 +150,70 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `a violet cover keeps its violet light`() {
-        // Mostly deep violet sky, a small orange sun, a pink horizon.
-        val a = CoverPalette.analyze(
-            thumb(0xFF2A1450.toInt() to 0.62f, 0xFFF4A340.toInt() to 0.12f, 0xFFE0457B.toInt() to 0.1f, 0xFF0A0610.toInt() to 0.16f),
-        )
-        assertThat(HaloLight.lightHue(a)!!).isIn(Range.closed(270f, 335f))
+    fun `night turns the lamp right down and takes its colour`() {
+        val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
+        val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
+        assertThat(Oklab.relativeLuminance(night)).isAtMost(Oklab.relativeLuminance(day) * 0.29f)
+        assertThat(HaloLight.hsvSaturation(night)).isAtMost(0.5f)
+    }
+
+    // --- The grid -------------------------------------------------------------------------
+
+    @Test
+    fun `the artwork is the heaviest element and sets the height`() {
+        // two thirds of the screen's height
+        assertThat(layout.art).isWithin(0.01f).of(368f)
+        // the text block takes clearly less height than the artwork
+        assertThat(BLOCK_SHARE).isAtMost(0.65f)
+        // the quiet lines hang inside the artwork's height, never above or below it
+        assertThat(layout.statusTop).isAtLeast(layout.artRect.top)
+        assertThat(layout.footerBaseline).isAtMost(layout.artRect.bottom)
+        // the group sits a little above the screen's centre (optical centre)
+        assertThat(screen.heightDp / 2f - layout.artRect.centerY).isWithin(0.01f).of(HaloLayout.LIFT)
+        // margins: the artwork 96 dp from the left, the column 80 dp from the right, 64 dp between
+        assertThat(layout.artRect.left).isWithin(0.01f).of(96f)
+        assertThat(screen.widthDp - layout.columnRight).isWithin(0.01f).of(80f)
+        assertThat(layout.columnLeft - layout.artRect.right).isWithin(0.01f).of(64f)
     }
 
     @Test
-    fun `warm light is tungsten, never rust, and warmer than a neutral cover's`() {
-        val a = CoverPalette.analyze(thumb(0xFFC2552A.toInt() to 0.7f, 0xFF3B2414.toInt() to 0.3f))
-        val c = HaloLight.lightColor(a)
-        assertThat(c.h).isIn(Range.closed(64f, 72f))
-        // about 3300 K: chroma relative to lightness as in rgb(76, 55, 33)
-        assertThat(c.c / c.l).isIn(Range.closed(0.08f, 0.13f))
-        val grey = CoverPalette.analyze(thumb(0xFF808080.toInt() to 1f))
-        val lamp = HaloLight.lightColor(grey)
-        assertThat(lamp).isEqualTo(HaloLight.LAMP)
-        assertThat(c.c / c.l).isAtLeast(lamp.c / lamp.l * 1.3f)
+    fun `the artwork has softly rounded corners`() {
+        val r = layout.radius
+        assertThat(r / layout.art).isIn(Range.closed(0.015f, 0.03f))
+        val rect = layout.artRect
+        // the very corner of the square is outside the rounded artwork …
+        assertThat(shape.contains(rect.left + 0.5f, rect.top + 0.5f)).isFalse()
+        // … the middle of an edge is not
+        assertThat(shape.contains(rect.centerX, rect.top + 0.5f)).isTrue()
+        assertThat(shape.distance(rect.left - 10f, rect.centerY)).isWithin(0.01f).of(10f)
     }
 
     @Test
-    fun `cool light keeps its hue at a modest chroma by day and turns to lamp light in the evening`() {
-        val teal = CoverPalette.analyze(thumb(0xFF0E5A66.toInt() to 0.7f, 0xFF0A2F36.toInt() to 0.3f))
-        val c = HaloLight.lightColor(teal)
-        // its own hue, never grey fog, never an LED strip
-        assertThat(c.c / c.l).isIn(Range.closed(0.035f, 0.06f))
-        val day = Oklab.fromArgb(HaloLight.lightTint(c, 0.05f, Lighting.DAY))
-        assertThat(day.chroma).isAtLeast(0.012f)
-        assertThat(kotlin.math.abs(day.hue - c.h)).isLessThan(20f)
-        // evening: plain tungsten white, not grey on the way there
-        val evening = Oklab.fromArgb(HaloLight.lightTint(c, 0.05f, Lighting.EVENING))
-        assertThat(evening.hue).isIn(Range.closed(60f, 85f))
-        assertThat(evening.chroma).isAtLeast(0.01f)
+    fun `covers are never shown larger than their resolution allows`() {
+        assertThat(HaloLayout.coverDp(layout, 300)).isWithin(0.01f).of(195f)
+        assertThat(HaloLayout.coverDp(layout, 640)).isWithin(0.01f).of(layout.art) // 416 → capped at 368
+        assertThat(HaloLayout.coverDp(layout, null)).isEqualTo(layout.art)
+        for (native in listOf(100, 240, 300, 500, 580, 640, 1000, 3000)) {
+            val dp = HaloLayout.coverDp(layout, native)
+            assertThat(dp * 2f / native).isAtMost(HaloLayout.MAX_SOURCE_SCALE_1080P + 1e-4f)
+        }
     }
 
     @Test
-    fun `yellow-green covers get warm white light, never olive`() {
-        val olive = CoverPalette.analyze(thumb(0xFF6E7A2A.toInt() to 0.7f, 0xFF2F3512.toInt() to 0.3f))
-        assertThat(HaloLight.lightColor(olive)).isEqualTo(HaloLight.LAMP)
+    fun `a small print gets a passe-partout that fills the square`() {
+        val print = IntArray(10 * 10) { 0xFFFF0000.toInt() }
+        val out = SceneBuilder.matted(print, 10, 30, density = 2f)
+        assertThat(out.size).isEqualTo(900)
+        assertThat(out[15 * 30 + 15]).isEqualTo(0xFFFF0000.toInt()) // the print, centred
+        // grained mat board
+        assertThat((out[0] shr 16) and 0xFF).isIn(Range.closed(((SceneBuilder.MAT shr 16) and 0xFF) - 2, ((SceneBuilder.MAT shr 16) and 0xFF) + 2))
+        assertThat(out[8 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
+        // optically centred: a little more mat below the print than above it
+        val rows = (0 until 30).filter { out[it * 30 + 15] == 0xFFFF0000.toInt() }
+        assertThat(29 - rows.last()).isGreaterThan(rows.first())
     }
+
+    // --- Generated art -------------------------------------------------------------------
 
     @Test
     fun `sand figures are mirror-symmetric, so none can look like a hooked cross`() {
@@ -262,50 +244,5 @@ class DesignRulesTest {
         }
         // variety: two or three circles, many lobe counts
         assertThat(seen.size).isAtLeast(8)
-    }
-
-    @Test
-    fun `a small print gets a passe-partout that fills the slot`() {
-        val print = IntArray(10 * 10) { 0xFFFF0000.toInt() }
-        val out = SceneBuilder.matted(print, 10, 30, density = 2f)
-        assertThat(out.size).isEqualTo(900)
-        assertThat(out[15 * 30 + 15]).isEqualTo(0xFFFF0000.toInt()) // the print, centred
-        // grained mat board
-        assertThat((out[0] shr 16) and 0xFF).isIn(Range.closed(((SceneBuilder.MAT shr 16) and 0xFF) - 2, ((SceneBuilder.MAT shr 16) and 0xFF) + 2))
-        assertThat(out[8 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
-        // optically centred: a little more mat below the print than above it
-        val rows = (0 until 30).filter { out[it * 30 + 15] == 0xFFFF0000.toInt() }
-        assertThat(29 - rows.last()).isGreaterThan(rows.first())
-    }
-
-    @Test
-    fun `covers are never shown larger than their resolution allows`() {
-        assertThat(HaloLayout.coverDp(layout, 300)).isWithin(0.01f).of(165f)
-        assertThat(HaloLayout.coverDp(layout, 640)).isWithin(0.01f).of(layout.slot) // 352 → capped at 320
-        assertThat(HaloLayout.coverDp(layout, null)).isEqualTo(layout.slot)
-        for (native in listOf(100, 240, 300, 500, 580, 640, 1000, 3000)) {
-            val dp = HaloLayout.coverDp(layout, native)
-            assertThat(dp * 2f / native).isAtMost(HaloLayout.MAX_SOURCE_SCALE_1080P + 1e-4f)
-        }
-    }
-
-    @Test
-    fun `the grid keeps equal outer margins and mirrors cleanly`() {
-        val l = HaloLayout(screen)
-        val m = HaloLayout(screen, mirrored = true)
-        assertThat(l.slotRect.left).isEqualTo(l.margin)
-        assertThat(screen.widthDp - (l.columnLeft + l.columnWidth)).isWithin(0.01f).of(l.margin)
-        assertThat(screen.widthDp - m.slotRect.right).isWithin(0.01f).of(m.margin)
-        assertThat(m.columnLeft).isEqualTo(m.margin)
-        assertThat(l.gutter).isWithin(0.01f).of(64f)
-    }
-
-    @Test
-    fun `light colours morph through OKLCH without going grey`() {
-        val violet = Lch(0.45f, 0.12f, 300f).toArgb()
-        val amber = Lch(0.45f, 0.12f, 50f).toArgb()
-        for (t in listOf(0.25f, 0.5f, 0.75f)) {
-            assertThat(Oklab.fromArgb(HaloLight.mixOklch(violet, amber, t)).chroma).isAtLeast(0.1f)
-        }
     }
 }

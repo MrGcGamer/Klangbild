@@ -3,10 +3,10 @@ package io.github.hazymorning.klangbild.domain
 import kotlin.math.roundToInt
 
 /**
- * Where the music plays and how loud – the place in the stage's dateline ("21:14 · Wohnzimmer
- * + 5"). A group is named the way Sonos and Spotify do it: this speaker plus the number of
- * the others, or both names when there is just one more. A speaker playing alone needs no
- * label – the screen hangs in its room.
+ * Where the music plays and how loud. A group is named the way Sonos and Spotify do it: this
+ * speaker plus the number of the others ("Wohnzimmer + 2"), both names when there is just
+ * one more, "Überall" when every speaker of the house plays. A speaker playing alone needs
+ * no label – the screen hangs in its room.
  */
 object SpeakerLabel {
 
@@ -16,6 +16,7 @@ object SpeakerLabel {
      */
     fun group(group: SpeakerGroup?): String? {
         group?.name?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        if (group?.everywhere == true) return EVERYWHERE
         val others = group?.others?.takeIf { it.isNotEmpty() } ?: return null
         val self = group.self?.let(::roomName)
         val single = others.singleOrNull()?.let(::roomName)
@@ -42,11 +43,14 @@ object SpeakerLabel {
     private fun key(s: String): String =
         java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }
 
+    /** What Sonos says when every speaker of the house plays. */
+    const val EVERYWHERE = "Überall"
+
     /** "35 %" with a narrow no-break space, or "stumm". */
     fun volume(level: Float?, muted: Boolean): String? = when {
         muted -> "stumm"
         level == null -> null
-        else -> "${(level * 100f).roundToInt().coerceIn(0, 100)} %"
+        else -> "${(level * 100f).roundToInt().coerceIn(0, 100)} %"
     }
 
     /** Words that name the device rather than the room: "Wohnzimmer Lautsprecher" → "Wohnzimmer". */

@@ -12,108 +12,112 @@ Docs for humans are German (`README.md`, `docs/`); code and comments are English
 ./gradlew :app:testDebugUnitTest --tests '*HaloStageTest*' -Proborazzi.test.record=true   # one class
 ./gradlew :app:assembleRelease                                 # signed, R8-minified APK
 python3 tools/make_launcher_assets.py                          # re-render banner + icons (Pillow)
+python3 tools/make_readme_images.py                            # docs/screens/ from the Readme* tests
 ```
 
 - Local SDK: `local.properties` → `sdk.dir=/opt/android-sdk` (not committed). compileSdk 37.
 - Maven Central rate-limits shared IPs (HTTP 429): Gradle and Robolectric use Google's
   mirror first (`settings.gradle.kts`, `robolectric.dependency.repo.url` in `app/build.gradle.kts`).
 - Screenshots are **not** committed as baselines; tests render to `app/build/screenshots/`
-  (CI uploads them as an artifact). Curated renderings for the README live in `docs/screens/`.
-- Tests with infinite animations (buffering) must use `createComposeRule()` with
-  `mainClock.autoAdvance = false` – `captureRoboImage { }` waits for idle forever.
+  (CI uploads them as an artifact; the plugin copies them there at the end of the task).
+  Curated renderings for the README live in `docs/screens/`.
+- The progress bar refreshes in a loop of its own, so a stage never goes idle: stills wrap
+  their content in `Fixtures.Still { }` (provides `LocalStill`), animated sequences use
+  `createComposeRule()` with `mainClock.autoAdvance = false`.
 - Look at renders with the Read tool; build contact sheets with Pillow for motion.
+- The emulator smoke test (CI) talks to a stand-in Home Assistant: `ci/fake_ha.py`.
 
 ## Architecture (data source → state model → UI)
 
 ```
 data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swappable one for
-                group members via watch(), call_service, ping, backoff)
-                EntityStore (compressed diff applier), PlayerParser (entity + MA get_queue),
-                HaUrls, LocalNetwork (cleartext only in LAN), ArtworkUrls (CDN hi-res rewrites)
-                HaSource (NowPlayingSource: player + sun.sun + MA queue enrichment)
-data/demo/      DemoSource (invented catalogue, synthetic covers via demo://cover/NAME)
+                group members via watch(), render_template via watchTemplate(), call_service,
+                ping, backoff), EntityStore (compressed diff applier), PlayerParser (entity +
+                MA get_queue), HaUrls, LocalNetwork (cleartext only in LAN), ArtworkUrls (CDN
+                hi-res rewrites), HaSource (NowPlayingSource: player + sun.sun + MA queue +
+                speaker count for "Überall")
 data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader, Backoff
-domain/         TrackInfo, PlayerSnapshot (+ group members, volume), SpeakerLabel ("Wohnzimmer + 5",
-                room names, "35 %"), TrackText (typographic cleanup), Progress + SmoothedPosition,
-                TimeLine (time in words), ScreenStateMachine (Screen + keep-on/sleep)
-color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette), Lighting (time of day)
-render/         HaloLayout (grid), HaloLight (light map, light colour/tint, sundial mask),
-                SceneBuilder (per-track precompute: Lanczos cover at exact px, light map, palette),
-                ImageOps
-art/            SyntheticCovers (test/demo covers), ChladniArt (missing-cover art), Noise
+domain/         TrackInfo, PlayerSnapshot (+ SpeakerGroup, volume), SpeakerLabel ("Wohnzimmer + 5",
+                "Überall", room names, "35 %"), TrackText (typographic cleanup), Progress +
+                SmoothedPosition, TimeLine (clock format, separator), ScreenStateMachine
+color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, text inks), Lighting (time of day)
+render/         HaloLayout (the grid), WallGlow (the artwork's light on the wall), HaloLight
+                (PrintShape; lamp tint for rest and menu), SceneBuilder (per-track precompute:
+                Lanczos cover at exact px, glow map, palette), ImageOps
+art/            ChladniArt (missing-cover art), Noise
 app/            NowPlayingController (single source of truth → StateFlow<UiState>), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API), SetupPage (HTML), SetupServer (+ QR, discovery)
-ui/             KlangbildRoot (screen switch, entrance fade, OLED drift, menu overlay), stage/ (HaloStage
-                layers, StageTheatre transitions), MenuScreen (settings by remote), RestScreen,
-                SetupScreen, Motion, DebugOverlay/FrameStats
+ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), stage/ (Stage layers,
+                StageTheatre transitions, ProgressBar, StageModel + StageTexts), theme/Type
+                (Mona Sans, `mona()`), MenuScreen, RestScreen, SetupScreen, Motion, DebugOverlay
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel) + SettingsStore (DataStore),
                 SettingsMenu (entries, values, German explanations, steps), LaunchExtras (am start extras)
+test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME)
 ```
 
 ## Design principles (do not regress)
 
-- **Object, not app.** No buttons, no bars, no icons for their own sake, no harsh white.
-  Progress is the sundial (the lamp's pool wanders around the cover) plus a time line in
-  words.
-- **One style: Halo.** A lamp hidden behind the print, 40 dp (0.125 × print size) inside its
-  edge on the sundial's side, throws a round pool whose *lightness* falls as (1 − (r/R)²)^1.5
-  (R = 110 dp; 1.25× along a side, not at corners) in the cover's leading colour (hue groups,
-  area over brightness; warm hues → ~3300 K tungsten, neutral and yellow-green (95–150°) →
-  warm white, cool hues keep their own hue at chroma 0.03 by day and become lamp light in
-  the evening – never grey or olive on the way). Brightest at the print's edge, about half
-  the luminance at 25 dp, gone at 70 dp – it fits the 72 dp of free wall; near an outer edge
-  the lamp moves deeper behind the print rather than being clipped. The 36 dp next to the
-  screen edges stay black in stage coordinates (`EdgeBandTest` checks rendered pixels; the
-  OLED drift moves the stage up to 12 dp). The far side gets nothing – a dark print gets an
-  8 dp wash with square corners in the lamp's hue (`rimMap`, 0.8 %, fading to 0.35 % away
-  from the lamp). Night 0.28× day, saturation ≤ 50 %; dimmed light loses chroma; a cover at
-  night gains at most 0.004 chroma; white prints top out near L* 88; evening text takes the
-  lamp's hue. `render/DesignRulesTest` guards these numbers.
-- **Light per frame:** lamp sprite (moved, rotated, stretched by its local matrix) × static
-  wall mask × tint colour filter – one rectangle (two while a print is taken down), plus the
-  rim drawn with `Lighten` (never `Plus`: sums of sRGB values overshoot). Shaders are made
-  once per scene. Never add per-frame image processing.
-- **Grid** (960 × 540 dp): cover slot 320 dp at 108 dp margin; text column 360 dp; clock cap
-  on the cover top, title grows upward from 44 dp above the artist baseline (350 dp), time
-  line on the cover bottom. Layout mirrors per album (burn-in), whole stage drifts ±12 dp.
-- **Dateline:** the clock line carries where the music plays – "21:14 · Wohnzimmer + 5"
-  (Sonos' pattern; both names for a group of two; nothing while the speaker plays alone) –
-  and, if chosen, the volume, all in the clock's spaced caps and colour. Only the place
-  cross-fades when the group changes. Volume changes show 3.5 s in the time line's place
-  ("Lautstärke 35 %", also at night). Never chips, icons or bars.
+- **Object, not app – but a well-made one.** No buttons, no icons, no chips, no harsh white.
+  The artwork is the heaviest element and always the tallest: the text block beside it takes
+  at most 62 % of its height (`BLOCK_SHARE`, measured from the first cap height to the last
+  baseline, never from text boxes).
+- **Grid** (960 × 540 dp, `HaloLayout`): artwork 368 dp at 96 dp from the left, group lifted
+  8 dp above the centre (optical centre); 64 dp gap; text column 352 dp; 80 dp right margin.
+  Text block centred on the artwork; the status line ("21:47 · Wohnzimmer + 5") hangs with its
+  cap height from the artwork's top edge, "Als Nächstes" stands with its baseline on the
+  bottom edge; every line starts on the column's left edge. No mirroring; the whole stage
+  drifts ±12 dp against burn-in. Square artwork has 8 dp corners.
+- **One typeface: Mona Sans** (GitHub release with the optical-size axis, OFL, shipped
+  unmodified), via `mona(size, weight, …)` – optical size = size in sp. Sentence case only:
+  no capitals, no letter-spaced labels, no italics, no second family (those read as "AI
+  template"). Title 44/40 sp (2 lines, weight 440), then 36–26 sp (3 lines, 450–460), then
+  narrower (wdth 90, 82); artist 21 sp/520; album, work 17 sp; labels, times, status, next
+  15 sp – nothing smaller. No tabular figures (Mona's slash the zero). Mona lacks U+202F,
+  U+2009 and U+2002 – use U+00A0. Titles ≤ 3 lines, prefer breaks after section dashes, no
+  mid-word breaks (`breaksInsideWord`); artists on one line (smaller, then narrower, then
+  "u. a."); the year leaves the album line before anything is cut; edge emoji dropped
+  (`Emoji.trimEdges`), inner ones dimmed; one separator `TimeLine.SEPARATOR`;
+  `TrackText.typeset` for dashes and no-break spaces after abbreviations; CJK/Arabic fall back
+  to system fonts (RTL lines isolated); in UI prose a short word opening a sentence never ends
+  a line, and articles and adjectives stay with their noun.
+- **Text colour:** near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
+  warmer in the evening), tiers like white at 100 / 80 / 63 / 59 / 55 % – never #FFF, never
+  ivory. Even the quietest line keeps 4.5 : 1 on the brightest glow (`DesignRulesTest`).
+- **Light (`WallGlow`):** the artwork glows onto the black wall in the colours of its own
+  edges; each wall point takes the nearest edge colour averaged over a stretch that grows
+  with distance (diffuse, no streaks). 0.045 relative luminance at the edge, falling as
+  exp(−(d/σ)^1.7), σ = 0.19 × artwork size, so the text stands on dark wall; dark edges glow
+  at 32 %, chroma ≤ 0.13, night dimmer and paler; the 36 dp next to the screen edges stay
+  black (`EdgeBandTest` checks rendered pixels). One bitmap per scene, drawn as one rectangle,
+  dimmed through a colour matrix.
+- **Progress:** a classic bar – 4 dp, round ends, no knob, track 20 %, fill 90 % of the ink,
+  elapsed left, "−remaining" right. Refreshed ~30×/s aligned to frames (only its own draw);
+  jumps > 1.5 s glide in 350 ms; paused, the fill dims. Hidden by setting, back on a key press.
+- **Per frame only cheap work:** blur/palette/resampling/glow happen once per track in
+  `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
+- **Honest resolution:** ≤ 1.3 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
+  small covers sit optically centred in a charcoal mat with grain and a 1 dp white bevel.
+- **Calm motion** (`Motion`): track change 1.1 s – the new artwork fades over the old in
+  600 ms and settles from 2 % larger, its light morphs in 900 ms, old text leaves in 250 ms,
+  new lines rise one after another from 300 ms; same picture (album) → only text; same track
+  in new light → quiet cross-fade. Pause (600 ms): the artwork recedes to 96.5 % with its
+  light, light 45 %, artwork 72 %, text 70 %; mute and a lost link only dim. Opaque pictures
+  never cross-fade against the wall; nothing slides, nothing bounces. Screens switch by
+  fading through dark.
+- **States say it in words**, in the status line: "Pausiert", "Stumm", "Lautstärke 35 %"
+  (3.5 s), "Überall"; "Verbindung wird wiederhergestellt …" in the progress bar's place.
 - **Settings menu** (OK long-press / Menu): the stage's grid, heading and the chosen line's
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
-  a static lamp pool, the list glides through it and fades with distance. Values are words,
-  changes apply at once (left/right clamp, OK wraps), closes itself after 60 s. Options show
-  or hide parts and dim the lamp – no fonts, colours or layout variants.
-- **Honest resolution:** ≤ 1.1 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
-  small covers sit optically centred in a charcoal mat with grain and a 1 dp white bevel (a
-  light mat would be the largest static bright area on the OLED).
-- **Per frame only cheap work:** blur/palette/resampling happen once per track in
-  `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
-- **Typography:** Newsreader (titles, italics), Jost (spaced caps, figures). No caps, tracking
-  or italics for CJK/Arabic (`isSpacingFriendly`); there the artist outranks the album.
-  Titles ≤ 3 lines, prefer breaks after section dashes; artists on one line ("u. a." in
-  italics); no mid-word breaks (`breaksInsideWord`); edge emoji dropped (`Emoji.trimEdges`),
-  inner ones dimmed; one separator `TimeLine.SEPARATOR` (its dot lifted next to RTL text; an
-  all-RTL up-next line is one right-to-left run); `TrackText.typeset` for dashes and narrow
-  no-break spaces after abbreviations; in UI prose a short word opening a sentence never ends
-  a line, and articles and adjectives stay with their noun.
-- **Calm motion:** track change 2.7 s in sequence (old print out 700 ms while the lamp goes
-  down to 22 % → empty wall 500 ms, a dim round pool ≈ 1.6 %, colour morphs in OKLCH → new
-  print in 900 ms with the light → text). A fading print hides the lamp while its opacity is
-  above 12 % (never tracing paper). Unchanged lines stay, each compared on
-  its own (same text, place and colour); a clock that has to move holds at 60 % through the
-  dark moment and cross-dissolves to its new place (never below 60 %). Same picture (album)
-  → only text; same track in new light → old text fades on top. Pause dims lamp, cover and text over 2.4 s; time line cross-fades 600 ms. Screens
-  switch by fading through dark.
+  a static pool of light, the list glides through it and fades with distance. Values are
+  words, changes apply at once (left/right clamp, OK wraps), closes itself after 60 s.
+  Options show or hide parts and dim the light – no fonts, colours or layout variants.
 - **Generated art:** Chladni plates are ring modes – two or three nodal circles inside 0.64 of
   the radius – made wavy by a second mode (3–6 lobes, rounded: amplitude ≤ 1.5 r/(n² − 1),
   share capped so circles never touch), mirror-symmetric, no sand beyond 0.74–0.84 of the
   radius. No nodal diameters (crosses, wheels, rosettes), no single circle or two lobes ("O").
-- **Rest screen:** serif clock ("H:mm") under a dim lamp that moves with it; re-hung every
-  15 min; night: black wall, only the time.
-- **German UI texts**, 24 h clock, numbers up to twelve in words in the time line.
+- **Rest screen:** large light clock ("H:mm", 132 sp) under a dim pool of light that moves
+  with it; re-hung every 15 min; night: black wall, only the time.
+- **German UI texts**, 24 h clock.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,
   dream on Google TV) – mark it as unverified.
