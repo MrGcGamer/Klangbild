@@ -101,14 +101,14 @@ fun SetupScreen(
 
         val lead = when (reason) {
             SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
-            SetupReason.AUTH_FAILED -> "Der Zugangsschlüssel wurde abgelehnt."
+            SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das Zugangstoken abgelehnt."
             SetupReason.REQUESTED -> "Einstellungen"
         }
         val text = when (reason) {
             SetupReason.AUTH_FAILED ->
-                "Scanne den Code und füge in Home Assistant einen neuen langlebigen Zugangsschlüssel ein."
+                "Erstelle in Home\u00A0Assistant ein neues langlebiges Zugangstoken, scanne den Code und füge es auf der Seite ein."
             else ->
-                "Scanne den Code mit der Kamera. Auf der Seite verbindest du Home Assistant und wählst den Lautsprecher."
+                "Scanne den Code mit der Kamera. Auf der Seite verbindest du Home\u00A0Assistant und wählst den Lautsprecher."
         }
         val hint = when (reason) {
             SetupReason.FIRST_RUN -> "OK drücken: Demo ansehen"

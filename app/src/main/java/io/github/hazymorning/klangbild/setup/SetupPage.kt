@@ -72,7 +72,7 @@ object SetupPage {
     <h2>1 · Home Assistant</h2>
     <label for="url">Adresse</label>
     <input id="url" type="url" inputmode="url" placeholder="http://192.168.1.10:8123" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <label for="token">Langlebiger Zugangsschlüssel</label>
+    <label for="token">Langlebiges Zugangstoken</label>
     <textarea id="token" placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOi…" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
     <p class="hint" id="tokenHint">In Home Assistant: Profil → Sicherheit → „Langlebige Zugangstoken“ → Token erstellen.</p>
     <button id="find">Lautsprecher suchen</button>
@@ -134,7 +134,7 @@ object SetupPage {
     if (s.ok === false) { status(s.message, 'bad'); return; }
     ${'$'}('url').value = s.url || '';
     hasToken = !!s.hasToken;
-    if (hasToken) ${'$'}('token').placeholder = 'Gespeicherter Schlüssel bleibt erhalten – nur zum Ändern neu einfügen';
+    if (hasToken) ${'$'}('token').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
     ${'$'}('entity').value = s.entity || '';
     ${'$'}('sleep').value = s.sleepMinutes || 10;
     document.querySelectorAll('input[name=action]').forEach((r) => r.checked = (r.value === s.sleepAction));

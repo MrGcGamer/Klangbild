@@ -38,7 +38,7 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Klassik mit Werk und Satz](docs/screens/02-klassik.jpg) | ![Japanisch, fast schwarzes Cover](docs/screens/03-japanisch.jpg) |
 | *Klassik: Werk über dem Satz, viele Mitwirkende auf einer Zeile mit „u. a.“* | *Japanisch, fast schwarzes Cover im warmweißen Lampenlicht* |
 | ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.jpg) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.jpg) |
-| *Radio ohne Cover: Sand auf einer schwingenden Platte (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, statt groß und matschig* |
+| *Radio ohne Cover: Sand auf einer schwingenden Platte (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, im Passepartout statt groß und matschig* |
 | ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
 | *Pausiert: das Licht wird gedimmt wie eine Lampe* | *Abends wärmer und dunkler* |
 | ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
@@ -46,9 +46,10 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 
-**Titelwechsel** – das alte Bild wird dunkel, die Lampe dimmt und wechselt in der leeren
-Wand ihre Farbe, dann kommt das neue Bild; der Text folgt, die Uhr bleibt stehen. Beim
-nächsten Titel desselben Albums wechselt nur der Text:
+**Titelwechsel** – das alte Bild wird dunkel, und wo es hing, liegt für einen Moment nur
+das Licht der Lampe auf der leeren Wand; die Lampe dimmt und wechselt ihre Farbe, dann kommt
+das neue Bild, der Text folgt. Uhr und unveränderte Zeilen bleiben stehen; beim nächsten
+Titel desselben Albums wechselt nur der Text:
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
@@ -58,16 +59,16 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 
 ## Was Klangbild kann
 
-- **Licht aus dem Bild.** Eine Lampe hinter dem Cover beleuchtet die Wand in der
-  Leitfarbe des Covers (Farbanalyse im Farbraum Oklab): der violette Himmel eines
-  Synthwave-Covers, nicht seine kleine orange Sonne. Orange wird zu Bernsteinrot statt zu
-  Braun, graue und weiße Cover bekommen warmweißes Lampenlicht (≈ 2700 K), weiße Cover
-  blenden nie. Direkt am Bild ist das Licht etwas schwächer, ein Stück weiter am hellsten –
-  wie bei hinterleuchteten Buchstaben. Weit weg vom Bild ist die Wand schwarz.
-- **Das Licht als Sonnenuhr.** Eine Seite des Lichtsaums ist deutlich heller, und diese
-  Seite wandert im Lauf des Titels von links unten über oben nach rechts unten –
-  unmerklich langsam, nach ein paar Minuten deutlich. Bei Radio pendelt sie langsam mit
-  der Uhrzeit. Ein feines Streiflicht liegt über dem Cover, die beleuchtete Kante glänzt.
+- **Licht aus dem Bild.** Eine Lampe hängt leicht versetzt hinter dem Cover und beleuchtet
+  die Wand in der Leitfarbe des Covers (Farbanalyse im Farbraum Oklab): der violette Himmel
+  eines Synthwave-Covers, nicht seine kleine orange Sonne. Warme Cover bekommen
+  Glühlampenlicht statt rostbraunem Schein, graue und weiße Cover warmweißes Licht
+  (≈ 2700 K), weiße Cover blenden nie. Direkt am Bild ist das Licht etwas schwächer, ein
+  Stück weiter am hellsten. Weit weg vom Bild ist die Wand schwarz.
+- **Das Licht als Sonnenuhr.** Die Lampe hinter dem Bild wandert im Lauf des Titels von
+  links unten über oben nach rechts unten – unmerklich langsam, nach ein paar Minuten
+  deutlich; das Licht fällt jeweils auf dieser Seite weit, auf der anderen kaum. Bei Radio
+  pendelt sie langsam mit der Uhrzeit. Ein feines Streiflicht liegt über dem Cover.
 - **Zeit in Worten.** „In drei Minuten · nächster Titel“, „Gleich“, „Letzte Takte“,
   „Pausiert“. Genaue Zeiten erscheinen nur kurz nach einem Tastendruck.
 - **Typografie mit Haltung.** Newsreader für Titel, Jost für Kapitälchen und Ziffern.
@@ -79,7 +80,7 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   am Rand eines Titels fallen weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
   (Music Assistant, Spotify, Deezer, Apple Music, Tidal, Qobuz, YouTube Music) und zeigt sie
-  nie größer, als sie es verträgt.
+  nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout.
 - **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
   noch Cover, Titel und Künstler. Ohne Home Assistant (Demo) nach der Uhrzeit.
 - **OLED-Schutz.** Die ganze Komposition wandert langsam um ein paar Pixel, das Layout
@@ -131,7 +132,7 @@ Beim ersten Start zeigt Klangbild einen QR-Code und einen sechsstelligen Code.
    Fernseher selbst im Heimnetz bereitstellt (z. B. `http://192.168.1.50:8765`).
 2. **Home-Assistant-Adresse** eintragen, z. B. `http://192.168.1.10:8123` oder die
    Nabu-Casa-Adresse `https://….ui.nabu.casa`.
-3. **Langlebigen Zugangsschlüssel** einfügen. In Home Assistant: *Profil → Sicherheit →
+3. **Langlebiges Zugangstoken** einfügen. In Home Assistant: *Profil → Sicherheit →
    Langlebige Zugangstoken → Token erstellen*.
 4. *Lautsprecher suchen* – Klangbild fragt Home Assistant nach allen `media_player`-Entitäten,
    Music-Assistant-Player stehen oben. Den Wohnzimmer-Lautsprecher wählen.
@@ -152,7 +153,7 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | Extra | Typ | Wirkung |
 |---|---|---|
 | `ha_url` | String | Adresse von Home Assistant (wird gespeichert) |
-| `token` | String | Langlebiger Zugangsschlüssel (wird gespeichert) |
+| `token` | String | Langlebiges Zugangstoken (wird gespeichert) |
 | `entity` | String | `media_player`-Entität (wird gespeichert) |
 | `sleep_minutes` | Int/String | Minuten ohne Musik bis zur Ruhe (1–720, Standard 10) |
 | `sleep_action` | String | `release` (Bildschirm freigeben, Standard) oder `close` (App schließen) |
@@ -283,10 +284,10 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | Was du siehst | Ursache und Abhilfe |
 |---|---|
 | QR-Code, „Einrichten mit dem Handy“ | Noch nicht eingerichtet. QR-Code scannen oder per ADB-Extras einrichten. |
-| „Der Zugangsschlüssel wurde abgelehnt.“ | Token gelöscht oder falsch kopiert. Neuen langlebigen Token erstellen und über den QR-Code eintragen. |
+| „Home Assistant hat das Zugangstoken abgelehnt.“ | Token gelöscht oder falsch kopiert. Neues langlebiges Zugangstoken erstellen und über den QR-Code eintragen. |
 | „Verbindung wird hergestellt …“ bleibt stehen | Adresse prüfen (mit `http://` und Port `:8123`). Hostnamen wie `homeassistant.local` löst nicht jedes Gerät auf – im Zweifel die IP-Adresse nehmen. |
 | „Verbindung unterbrochen.“ | WLAN weg oder Home Assistant startet neu. Klangbild versucht es von selbst wieder (mit wachsendem Abstand, höchstens jede Minute) und sofort, sobald das Netz zurück ist. In den ersten zwei Minuten bleibt das Bild stehen und wird nur gedimmt. |
-| „„media_player.…“ kennt Home Assistant nicht.“ | Entität falsch geschrieben oder umbenannt. In den Einstellungen neu wählen. |
+| „Home Assistant kennt „media_player.…“ nicht.“ | Entität falsch geschrieben oder umbenannt. In den Einstellungen neu wählen. |
 | „Gerade nicht erreichbar.“ | Der Lautsprecher meldet `unavailable` (z. B. Music Assistant läuft nicht). |
 | Kein „In … Minuten · nächster Titel“ | Der nächste Titel kommt aus Music Assistant. Bei anderen Playern oder Radio zeigt Klangbild nur die Restzeit bzw. den Sender. |
 | Unverschlüsseltes `http://` wird abgelehnt | Klartext ist nur im Heimnetz erlaubt (private Adressen, `.local`, `.lan`, Namen ohne Punkt). Von außen bitte `https://` (z. B. Nabu Casa). |

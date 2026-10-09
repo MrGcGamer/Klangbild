@@ -232,3 +232,37 @@ Nicht übernommen (bewusst): monochrome Emoji-Schrift (Größe, Lizenzpflege –
 entfallen ohnehin), Mincho/Naskh-Schriften für Japanisch und Arabisch (mehrere MB; die
 Systemschriften bleiben), animierte Sandfiguren beim Titelwechsel (schön, aber erst nach
 einer Messung auf dem echten Gerät).
+
+## 18. Vierte Runde: die Lampe hinter dem Bild
+
+Die dritte Kritik (wieder ohne Kenntnis des Codes) fand das Licht noch immer „wie einen
+UI-Effekt“: überall derselbe abgerundete Rahmen, nur heller oder dunkler. Umgesetzt:
+
+- **Eine Lampe, keine Aura.** Das Licht ist jetzt ein Lichtfleck der Lampe hinter dem Bild,
+  um etwa 24 dp zur Sonne versetzt: auf der Sonnenseite fällt es weit, auf der anderen kaum
+  (cos³-Keule, im 8-Bit-Bild etwa 4:1). Technisch: ein Graustufen-Sprite pro Szene, pro Frame
+  nur verschoben und mit der gedrehten Maske multipliziert; die statische Wandmaske (Schatten
+  des Bildes, Abstand zum Rand) bleibt am Bild.
+- **Kein schwarzes Feld beim Wechsel.** Während das alte Bild verblasst, verschwindet auch
+  sein Schatten: die leere Wand ist ein ruhiger Lichtfleck. Wechselt das Bild die Seite,
+  geht das alte Licht, bevor das neue kommt. Zeiten: 700 ms aus (Sinus), 500 ms leere Wand
+  mit Farbwechsel, 900 ms ein, Text ab 60 % des Einblendens. Zeilen, die gleich bleiben
+  (Künstler, Album, Zeitzeile), bewegen sich nicht.
+- **Glühlampe statt Rost:** warme Farbtöne werden zu wenig gesättigtem Glühlampenlicht
+  (Farbton ≥ 64°, Chroma ≤ 0,045); gedimmtes Licht verliert zusätzlich Farbe (Chroma fällt
+  mit dem Quadrat der Helligkeit).
+- **Sandfiguren ohne Drehsinn:** beide Schwingungsmoden teilen eine Achse, jede Figur ist
+  spiegelsymmetrisch – keine Figur kann wie ein Hakenkreuz wirken (eine tat es; ein Test
+  sichert das ab). Die Platte hängt frei an der Wand, mit rundem Licht.
+- **Kleine Cover im Passepartout:** dunkler Karton mit heller Schnittkante füllt den Platz,
+  das Bild bleibt in ehrlicher Größe; das Raster hält.
+- **Stimmen der Textspalte:** Album, Uhr/Zeitzeile und „als Nächstes“ in drei leiseren Stufen;
+  nachts etwas dunklerer Text (bei 4,5:1 Kontrast als Untergrenze).
+- **Ruhebildschirm:** das Lampenlicht hängt über der Uhr und zieht mit ihr um; nachts ist die
+  Wand schwarz. Uhr ohne führende Null („2:13“).
+- **Texte:** „Home Assistant kennt „…“ nicht.“, „Zugangstoken“ wie in Home Assistant, kein
+  Umbruch in „Home Assistant“ und in kurzen Klammern, feinere Größenstufen für lange Titel.
+
+Weiterhin bewusst nicht übernommen: eigene Serifenschriften für Japanisch und Arabisch (mehrere
+MB; auf dem Gerät greifen die System-Noto-Schriften).
+

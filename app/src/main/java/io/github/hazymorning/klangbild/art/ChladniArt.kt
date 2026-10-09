@@ -15,9 +15,11 @@ import kotlin.random.Random
  * sand forms on a vibrating plate. Literally a picture of sound, which is what the app's
  * name means. Every station or album gets its own stable figure and colours.
  *
- * The plate is round, seen from above, lying on a dark ground: two nearly equal vibration
- * modes (Bessel functions in the radius, cosines around it) are superposed, which gives the
- * curved, flower-like figures of real sand photographs instead of a grid of lines.
+ * The plate is round, seen from above, hung on the wall like the prints (outside the disc
+ * the image is transparent): two nearly equal vibration modes (Bessel functions in the
+ * radius, cosines around it) are superposed, which gives the curved, flower-like figures of
+ * real sand photographs instead of a grid of lines. Both modes share the same axis, so
+ * every figure is mirror-symmetric – no figure can turn into a hooked, pinwheel-like sign.
  *
  * Pure Kotlin (returns ARGB pixels), so it renders identically on the JVM and the device
  * and can be produced at the exact on-screen pixel size – no upscaling, ever.
@@ -30,7 +32,6 @@ object ChladniArt {
         val n2: Int,
         val k2: Float,
         val mix: Float,
-        val turn: Float,
         val plate: Int,
         val sand: Int,
     )
@@ -53,13 +54,21 @@ object ChladniArt {
         val k1 = ((rings + n1 / 2f - 0.25f) * PI).toFloat()
         val k2 = k1 * (0.94f + 0.12f * rnd.nextFloat())
         val mix = (0.45f + 0.4f * rnd.nextFloat()) * (if (rnd.nextBoolean()) 1f else -1f)
-        val turn = rnd.nextFloat() * (PI / n2).toFloat()
+        rnd.nextFloat() // (formerly a rotation between the modes – it made chiral figures)
         val (plate, sand) = palettes[rnd.nextInt(palettes.size)]
-        return Spec(n1, k1, n2, k2, mix, turn, plate, sand)
+        return Spec(n1, k1, n2, k2, mix, plate, sand)
     }
 
+    /**
+     * The plate's vibration at radius [r] (0..1) and angle [theta]: sand gathers where it is
+     * zero. Both terms are cosines around the same axis – mirror-symmetric by construction.
+     */
+    fun field(spec: Spec, r: Float, theta: Float): Float =
+        besselTable(spec.n1).at(spec.k1 * r) * cos(spec.n1 * theta) +
+            spec.mix * besselTable(spec.n2).at(spec.k2 * r) * cos(spec.n2 * theta)
+
     /** Plate radius as a share of half the image. */
-    private const val PLATE = 0.84f
+    const val PLATE = 0.84f
 
     /** Radius of the central clamp (plate units). */
     private const val MOUNT = 0.035f
@@ -69,7 +78,6 @@ object ChladniArt {
         val rnd = Random(seed)
         val j1 = besselTable(spec.n1)
         val j2 = besselTable(spec.n2)
-        val phase2 = spec.n2 * spec.turn
 
         val pr = (spec.plate shr 16) and 0xFF
         val pg = (spec.plate shr 8) and 0xFF
@@ -87,12 +95,10 @@ object ChladniArt {
                 val r = hypot(u, v) / PLATE
                 val o = y * size + x
                 if (r >= 1f) {
-                    // The ground: darker than the plate, with the plate's soft shadow.
-                    val sd = hypot(u - 0.025f, v - 0.035f) / PLATE
-                    val shadow = 1f - 0.45f * exp(-((sd - 1f) / 0.05f).let { it * it }) * (if (sd > 1f) 1f else 0f)
-                    val tex = 1f + (rnd.nextFloat() - 0.5f) * 0.04f
-                    val k = 0.52f * shadow * tex
-                    out[o] = argb(pr * k, pg * k, pb * k)
+                    // Off the plate: nothing – the wall (and its light) shows through. One
+                    // pixel of anti-aliasing keeps the rim smooth.
+                    val edge = ((1f - (r - 1f) * PLATE * size / 2f)).coerceIn(0f, 1f)
+                    out[o] = if (edge <= 0f) 0 else argb(pr * 1.2f, pg * 1.2f, pb * 1.2f, edge)
                     continue
                 }
                 if (r < MOUNT) {
@@ -103,15 +109,15 @@ object ChladniArt {
                     continue
                 }
                 val theta = atan2(v, u)
-                // f = A(r)·cos(n₁θ) + mix·B(r)·cos(n₂θ + φ) and its gradient in polar form
+                // f = A(r)·cos(n₁θ) + mix·B(r)·cos(n₂θ) and its gradient in polar form
                 val a = j1.at(spec.k1 * r)
                 val b = j2.at(spec.k2 * r)
                 val da = spec.k1 * j1.slope(spec.k1 * r)
                 val db = spec.k2 * j2.slope(spec.k2 * r)
                 val c1 = cos(spec.n1 * theta)
                 val s1 = sin(spec.n1 * theta)
-                val c2 = cos(spec.n2 * theta + phase2)
-                val s2 = sin(spec.n2 * theta + phase2)
+                val c2 = cos(spec.n2 * theta)
+                val s2 = sin(spec.n2 * theta)
                 val f = a * c1 + spec.mix * b * c2
                 val fr = da * c1 + spec.mix * db * c2
                 val ft = (-spec.n1 * a * s1 - spec.mix * spec.n2 * b * s2) / max(r, 1e-3f)
@@ -138,8 +144,9 @@ object ChladniArt {
         return out
     }
 
-    private fun argb(r: Float, g: Float, b: Float): Int =
-        (0xFF shl 24) or (r.toInt().coerceIn(0, 255) shl 16) or (g.toInt().coerceIn(0, 255) shl 8) or b.toInt().coerceIn(0, 255)
+    private fun argb(r: Float, g: Float, b: Float, alpha: Float = 1f): Int =
+        ((alpha * 255f).toInt().coerceIn(0, 255) shl 24) or (r.toInt().coerceIn(0, 255) shl 16) or
+            (g.toInt().coerceIn(0, 255) shl 8) or b.toInt().coerceIn(0, 255)
 
     /** J_n on 0..[MAX_X] in steps of [STEP], from Bessel's integral (Simpson's rule). */
     private class BesselTable(val values: FloatArray) {

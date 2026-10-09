@@ -9,6 +9,7 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -17,19 +18,48 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * The light of a Halo scene: a lamp hidden behind the print, like halo-lit lettering.
+ * The outline of the print on the wall: a square, or a disc (generated sand plates hang on
+ * the wall without a square around them).
+ */
+data class PrintShape(val rect: RectDp, val round: Boolean = false) {
+    val centerX get() = rect.centerX
+    val centerY get() = rect.centerY
+
+    /** Half the size (dp): for a disc its radius. */
+    val radius get() = rect.width / 2f
+
+    /** Distance (dp) of a point from the outline; 0 inside. */
+    fun distance(xDp: Float, yDp: Float): Float =
+        if (round) {
+            max(0f, hypot(xDp - centerX, yDp - centerY) - radius)
+        } else {
+            val dx = max(max(rect.left - xDp, xDp - rect.right), 0f)
+            val dy = max(max(rect.top - yDp, yDp - rect.bottom), 0f)
+            sqrt(dx * dx + dy * dy)
+        }
+
+    fun contains(xDp: Float, yDp: Float): Boolean =
+        if (round) hypot(xDp - centerX, yDp - centerY) < radius
+        else xDp > rect.left && xDp < rect.right && yDp > rect.top && yDp < rect.bottom
+}
+
+/**
+ * The light of a Halo scene: a lamp hidden behind the print, a little off centre towards
+ * the sundial's sun, lighting the wall around it.
  *
- *  - The **light map** is greyscale intensity, precomputed once per track at 960 × 540:
- *    the light is a little weaker right at the print's edge (the print shades it), peaks
- *    12–16 dp out and is gone long before the screen edge; a faint, wide layer leans
- *    towards the open wall. Far from the print the wall is pure black (OLED: no grey
- *    mura, no posterised near-black).
- *  - The **colour** ([lightTint]) is applied when drawing, so a track change can morph it.
- *  - The **sundial** is an angular mask ([maskStops]) rotated around the print at draw
- *    time: one side of the halo is lit about three times brighter than the other, and that
- *    side wanders around the print over the course of the track ([sunAngle]).
+ *  - The **pool** ([glowSprite]) is the lamp's light on the wall: flat behind the print,
+ *    fading out a little beyond it. It is drawn shifted towards the sun ([lampOffset]), so
+ *    the lit side reaches further than the unlit one.
+ *  - The **sundial mask** ([maskStops]) makes the light clearly come from one direction:
+ *    a cos³ lobe, rotated around the print at draw time.
+ *  - The **wall mask** ([holeMask]) is static: the print hides the wall behind it and
+ *    shades its own edge a little (the light peaks 8–14 dp out), and no light comes
+ *    closer than 36 dp to the screen edges. While a print fades out, the hole fades with
+ *    it ([openMask]) – the empty wall is one continuous pool of light.
+ *  - The **colour** ([lightTint]) is applied when drawing, so it can morph and dim.
  *
- * Per frame this costs one textured rectangle with a sweep gradient – no image processing.
+ * Far from the print the wall is pure black (OLED: no grey mura, no posterised near-black).
+ * Per frame this is one rectangle with a composed shader – no image processing.
  */
 object HaloLight {
     const val MAP_W = 960
@@ -42,38 +72,45 @@ object HaloLight {
     const val EDGE_FADE_DP = 48f
 
     /**
-     * Brightness of the unlit side relative to the lit side (sundial mask, linear light):
-     * in 8-bit values the lit side is about 2.5 × brighter, clearly a light from one side.
+     * Floor of the sundial mask (linear light): the side away from the sun keeps only this
+     * much – in 8-bit values the lit side is about four times brighter.
      */
-    const val UNLIT = 0.14f
+    const val UNLIT = 0.05f
 
-    /** Narrowness of the lit side: the light clearly comes from one direction. */
-    private const val LOBE = 2.5
+    /** Exponent of the cos lobe: the light clearly comes from one direction. */
+    private const val LOBE = 3.0
 
-    /** The halo's shape for a cover of [coverDp]: where it peaks and how fast it fades. */
-    data class Profile(val peakDp: Float, val decayDp: Float, val wide: Float)
+    /** Margin of the pool sprite around the print (dp); the light is gone well before. */
+    const val GLOW_MARGIN_DP = 150f
 
-    fun profile(coverDp: Float, night: Float): Profile = Profile(
-        peakDp = (0.045f * coverDp).coerceIn(8f, 14f),
-        decayDp = (0.05f * coverDp).coerceIn(8f, 16f) * (1f - 0.5f * night),
-        wide = 0.32f * (1f - night),
+    /** Where the light peaks (dp from the print's edge) and how fast it fades. */
+    data class Profile(val peakDp: Float, val decayDp: Float)
+
+    fun profile(sizeDp: Float, night: Float): Profile = Profile(
+        peakDp = (0.045f * sizeDp).coerceIn(8f, 14f),
+        decayDp = (0.032f * sizeDp).coerceIn(6f, 10.5f) * (1f - 0.4f * night),
     )
+
+    /** How far the lamp sits off the print's centre, towards the sun (dp). */
+    fun lampOffset(sizeDp: Float): Float = 0.075f * sizeDp
 
     /** Share of the peak right at the print's edge (the print shades its own light). */
     const val EDGE_SHADE = 0.5f
 
     /**
-     * Halo intensity at [d] dp from the print's edge, 0..1: half strength at the edge,
-     * rising to the peak, then an exponential fall-off with a rounded start – in sRGB that
-     * fades steadily instead of looking like a flat band with a soft rim.
+     * The lamp's pool at [d] dp from the print's outline: full strength behind the print
+     * and up to the peak, then an exponential fall-off with a rounded start.
      */
-    fun halo(d: Float, p: Profile): Float {
-        if (d <= 0f) return EDGE_SHADE
-        if (d <= p.peakDp) return EDGE_SHADE + (1f - EDGE_SHADE) * smoothstep(0f, p.peakDp, d)
+    fun pool(d: Float, p: Profile): Float {
+        if (d <= p.peakDp) return 1f
         val x = d - p.peakDp
         val soft = 6f
         return exp(-(sqrt(x * x + soft * soft) - soft) / p.decayDp)
     }
+
+    /** The print's shading of its own light: 0 behind it, half at its edge, full at the peak. */
+    fun shade(d: Float, inside: Boolean, p: Profile): Float =
+        if (inside) 0f else EDGE_SHADE + (1f - EDGE_SHADE) * smoothstep(0f, p.peakDp, d)
 
     /** 0 within [EDGE_CLEAR_DP] of any screen edge, 1 from [EDGE_CLEAR_DP] + [EDGE_FADE_DP] on. */
     fun edgeWindow(xDp: Float, yDp: Float, screen: ScreenSpec): Float {
@@ -81,76 +118,70 @@ object HaloLight {
         return smoothstep(EDGE_CLEAR_DP, EDGE_CLEAR_DP + EDGE_FADE_DP, e)
     }
 
-    /** Light map plus the factor it was normalised by (its brightest value before scaling). */
-    class LightMap(val pixels: IntArray, val gain: Float)
+    /** Side of the square pool sprite in pixels (1 px per dp). */
+    fun glowSize(shape: PrintShape): Int = (2f * (shape.radius + GLOW_MARGIN_DP)).roundToInt()
 
     /**
-     * Greyscale intensity around [cover], normalised to 0..1 and sRGB-encoded (so that
-     * multiplying by an sRGB tint on the GPU gives the right result). [ditherLsb] maps the
-     * normalisation gain to the dither amplitude in grey levels: the tint scales the map
-     * down, so the dither must be proportionally stronger to still break up bands in the
-     * final 8-bit output.
+     * The lamp's pool as a greyscale sprite centred on the print (1 px per dp), sRGB-encoded
+     * so that multiplying by an sRGB tint on the GPU gives the right result. [ditherLsb] is
+     * the dither amplitude in grey levels: the tint scales the sprite down, so the dither
+     * must be proportionally stronger to still break up bands in the final 8-bit output.
      */
-    fun lightMap(
-        cover: RectDp,
-        screen: ScreenSpec,
-        openToRight: Boolean,
-        night: Float,
-        seed: Int,
-        ditherLsb: (gain: Float) -> Float = { 1f },
-        outW: Int = MAP_W,
-        outH: Int = MAP_H,
-    ): LightMap {
-        val p = profile(cover.width, night)
-        val sx = screen.widthDp / outW
-        val sy = screen.heightDp / outH
-        // The wide layer leans towards the open wall (the side of the text column).
-        val wideCx = cover.centerX + (if (openToRight) 1f else -1f) * 0.15f * cover.width
-        val wideCy = cover.centerY
-        val wideR = 0.4f * cover.width
-        val values = FloatArray(outW * outH)
-        var maxV = 0f
-        for (y in 0 until outH) {
-            val py = (y + 0.5f) * sy
-            val dy = max(max(cover.top - py, py - cover.bottom), 0f)
-            for (x in 0 until outW) {
-                val px = (x + 0.5f) * sx
-                val dx = max(max(cover.left - px, px - cover.right), 0f)
-                // Behind the print the wall stays dark, so a fading print never reveals a
-                // glowing patch.
-                val inside = px > cover.left + 0.5f && px < cover.right - 0.5f && py > cover.top + 0.5f && py < cover.bottom - 0.5f
-                val v = if (inside) {
-                    0f
-                } else {
-                    val d = sqrt(dx * dx + dy * dy)
-                    val wx = (px - wideCx) / wideR
-                    val wy = (py - wideCy) / wideR
-                    (halo(d, p) + p.wide * exp(-(wx * wx + wy * wy))) * edgeWindow(px, py, screen)
-                }
-                values[y * outW + x] = v
-                if (v > maxV) maxV = v
+    fun glowSprite(shape: PrintShape, night: Float, seed: Int, ditherLsb: Float = 1f): IntArray {
+        val p = profile(shape.rect.width, night)
+        val size = glowSize(shape)
+        val origin = size / 2f
+        val local = PrintShape(RectDp(origin - shape.radius, origin - shape.radius, shape.rect.width, shape.rect.height), shape.round)
+        val out = IntArray(size * size)
+        val rnd = Dither(seed)
+        for (y in 0 until size) {
+            val py = y + 0.5f
+            for (x in 0 until size) {
+                val v = pool(local.distance(x + 0.5f, py), p)
+                out[y * size + x] = grey(v, rnd, ditherLsb)
             }
         }
-        val gain = if (maxV > 0f) maxV else 1f
-        val amplitude = ditherLsb(gain)
-        val out = IntArray(values.size)
-        var state = seed * 0x9E3779B9.toInt() or 1
-        fun rnd(): Float {
+        return out
+    }
+
+    /**
+     * The static wall mask for a print (960 × 540, smooth, no dither): the print's shadow on
+     * its own light and the clearance at the screen edges.
+     */
+    fun holeMask(shape: PrintShape, screen: ScreenSpec, night: Float): IntArray {
+        val p = profile(shape.rect.width, night)
+        return mask(screen) { x, y -> shade(shape.distance(x, y), shape.contains(x, y), p) * edgeWindow(x, y, screen) }
+    }
+
+    /** The wall mask without a print: only the clearance at the screen edges. */
+    fun openMask(screen: ScreenSpec): IntArray = mask(screen) { x, y -> edgeWindow(x, y, screen) }
+
+    private inline fun mask(screen: ScreenSpec, value: (Float, Float) -> Float): IntArray {
+        val sx = screen.widthDp / MAP_W
+        val sy = screen.heightDp / MAP_H
+        val out = IntArray(MAP_W * MAP_H)
+        for (y in 0 until MAP_H) for (x in 0 until MAP_W) {
+            val v = value((x + 0.5f) * sx, (y + 0.5f) * sy)
+            val g = (Oklab.linearToSrgb(v.coerceIn(0f, 1f)) * 255f).roundToInt()
+            out[y * MAP_W + x] = (0xFF shl 24) or (g shl 16) or (g shl 8) or g
+        }
+        return out
+    }
+
+    private class Dither(seed: Int) {
+        private var state = seed * 0x9E3779B9.toInt() or 1
+        fun next(): Float {
             state = state xor (state shl 13)
             state = state xor (state ushr 17)
             state = state xor (state shl 5)
             return (state ushr 8) / 16777216f
         }
-        for (i in values.indices) {
-            val v = values[i] / gain
-            val g = if (v < 0.0005f) {
-                0 // the far wall is pure black – no dither noise out there
-            } else {
-                (Oklab.linearToSrgb(v) * 255f + (rnd() - rnd()) * amplitude).roundToInt().coerceIn(0, 255)
-            }
-            out[i] = (0xFF shl 24) or (g shl 16) or (g shl 8) or g
-        }
-        return LightMap(out, gain)
+    }
+
+    /** Opaque grey for linear [v]; pure black (no dither noise) where there is no light. */
+    private fun grey(v: Float, rnd: Dither, amplitude: Float): Int {
+        val g = if (v < 0.0005f) 0 else (Oklab.linearToSrgb(v) * 255f + (rnd.next() - rnd.next()) * amplitude).roundToInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (g shl 16) or (g shl 8) or g
     }
 
     /**
@@ -200,47 +231,48 @@ object HaloLight {
 
     /**
      * Daylight colour of the light (reference lightness; only its chromaticity matters, the
-     * brightness comes from [glowPeak]). Coloured light reads as light only when it is
-     * fairly saturated – a dull dark orange reads as brown paint. Orange and yellow hues are
-     * pulled towards a saturated red-amber; everything else keeps the cover's hue.
+     * brightness comes from [glowPeak]). At the low brightness of a glow, any saturated warm
+     * colour reads as rust or tobacco, not as light: warm hues become tungsten light (hue
+     * 64–85°, little chroma). Cool and violet hues keep the cover's colour.
      */
     fun lightColor(analysis: CoverAnalysis): Lch {
         val lead = leadGroup(analysis) ?: return LAMP
         val hue = lead.hue
-        return if (hue in 25f..105f) {
-            Lch(0.64f, (lead.chroma * 1.3f).coerceIn(0.06f, 0.14f), LAMP_HUE + (hue - LAMP_HUE) * 0.45f)
+        return if (hue in 20f..105f) {
+            Lch(0.70f, (lead.chroma * 0.4f).coerceIn(0.03f, 0.045f), hue.coerceIn(64f, 85f))
         } else {
-            Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.05f, 0.13f), hue)
+            Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.05f, 0.12f), hue)
         }
     }
 
     /** Light for neutral covers (black and white, greys): warm white, like a 2700 K bulb. */
-    val LAMP = Lch(0.70f, 0.05f, 70f)
+    val LAMP = Lch(0.70f, 0.038f, 74f)
 
-    /** Hue of plain lamp light (~2700 K on a dark wall: amber, never brown). */
-    const val LAMP_HUE = 52f
+    /** Hue of plain lamp light. */
+    const val LAMP_HUE = 74f
 
     /**
-     * Peak brightness (relative luminance) of the halo by day. Bright covers throw light
-     * themselves and get less; small covers get less, so they don't become light bulbs.
+     * Peak brightness (relative luminance) of the light by day. Bright covers throw light
+     * themselves and get a little less; small prints get less. Never so dim that it turns
+     * from light into a dark stain.
      */
     fun glowPeak(analysis: CoverAnalysis, coverDp: Float, slotDp: Float): Float {
-        val byCover = (0.052f - 0.024f * analysis.meanL).coerceIn(0.024f, 0.052f)
-        return byCover * (0.7f + 0.3f * (coverDp / slotDp).coerceIn(0f, 1f))
+        val byCover = (0.054f - 0.016f * analysis.meanL).coerceIn(0.04f, 0.054f)
+        return byCover * (0.75f + 0.25f * (coverDp / slotDp).coerceIn(0f, 1f))
     }
 
     /**
-     * The sRGB tint for the light map: [color] at [peak] luminance, adjusted for the time
-     * of day. The lamp gets warmer only after sunset; at night it is turned right down
-     * (≤ 0.3 × daylight) and loses saturation (≤ 50 %), so a grey picture never gets an
-     * orange neon frame.
+     * The sRGB tint for the pool: [color] at [peak] luminance, adjusted for the time of
+     * day. The lamp gets warmer only after sunset; at night it is turned right down
+     * (0.28 × daylight) and loses saturation (≤ 50 %), so a grey picture never gets an
+     * orange frame.
      */
-    fun lightTint(color: Lch, peak: Float, gain: Float, lighting: Lighting): Int {
+    fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
         val night = nightOf(lighting)
         val warm = lighting.warmth.coerceIn(0f, 1f)
         val hue = mixHue(color.h, LAMP_HUE, 0.35f * warm)
         var chroma = color.c * (1f - 1.25f * night)
-        val luminance = peak * gain * (1f - 1.75f * night).coerceAtLeast(0.3f)
+        val luminance = peak * (1f - 1.8f * night).coerceAtLeast(0.28f)
         val maxSaturation = 1f - 1.25f * night
         var argb = scaledTo(Lch(color.l, chroma, hue), luminance)
         repeat(12) {
@@ -249,6 +281,19 @@ object HaloLight {
             argb = scaledTo(Lch(color.l, chroma, hue), luminance)
         }
         return argb
+    }
+
+    /**
+     * [tint] dimmed to [k] of its brightness (linear light). Dim light also loses colour –
+     * chroma falls with lightness squared – so a dimmed warm lamp never turns brown.
+     */
+    fun dimTint(tint: Int, k: Float): Int {
+        if (k >= 0.999f) return tint
+        if (k <= 0.001f) return 0xFF000000.toInt()
+        val lab = Oklab.fromArgb(tint)
+        val f = Math.cbrt(k.toDouble()).toFloat()
+        val c = lab.chroma * f * f
+        return Lch(lab.l * f, c, lab.hue).toArgb()
     }
 
     /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
@@ -300,23 +345,21 @@ object HaloLight {
 
     /**
      * The sundial mask as sweep-gradient stops (sRGB grey, opaque), lit side at angle 0
-     * (pointing right). Multiplying the light map by it leaves the lit side at full
-     * strength and the opposite side at [UNLIT].
+     * (pointing right): a cos³ lobe over a floor of [UNLIT].
      */
-    fun maskStops(steps: Int = 36): IntArray = IntArray(steps + 1) { i ->
-        val a = 2.0 * PI * i / steps
-        val lobe = ((1.0 + cos(a)) / 2.0).pow(LOBE).toFloat()
-        val m = UNLIT + (1f - UNLIT) * lobe
+    fun maskStops(steps: Int = 72): IntArray = IntArray(steps + 1) { i ->
+        val m = maskValue(2.0 * PI * i / steps)
         val g = (Oklab.linearToSrgb(m) * 255f).roundToInt().coerceIn(0, 255)
         (0xFF shl 24) or (g shl 16) or (g shl 8) or g
     }
 
-    /** The mask value (linear light) for a point at maths angle [pointDeg] with the sun at [sunDeg]. */
-    fun maskAt(pointDeg: Float, sunDeg: Float): Float {
-        val a = Math.toRadians((pointDeg - sunDeg).toDouble())
-        val lobe = ((1.0 + cos(a)) / 2.0).pow(LOBE).toFloat()
+    private fun maskValue(radians: Double): Float {
+        val lobe = max(0.0, cos(radians)).pow(LOBE).toFloat()
         return UNLIT + (1f - UNLIT) * lobe
     }
+
+    /** The mask value (linear light) for a point at maths angle [pointDeg] with the sun at [sunDeg]. */
+    fun maskAt(pointDeg: Float, sunDeg: Float): Float = maskValue(Math.toRadians((pointDeg - sunDeg).toDouble()))
 
     /** Maths angle (degrees, 0 = right, 90 = up) of a point relative to [cover]'s centre. */
     fun angleOf(cover: RectDp, xDp: Float, yDp: Float): Float =
@@ -343,9 +386,5 @@ object HaloLight {
     }
 
     /** Distance (dp) of a point from [cover]'s edge; 0 inside. */
-    fun distanceTo(cover: RectDp, xDp: Float, yDp: Float): Float {
-        val dx = max(max(cover.left - xDp, xDp - cover.right), 0f)
-        val dy = max(max(cover.top - yDp, yDp - cover.bottom), 0f)
-        return sqrt(dx * dx + dy * dy)
-    }
+    fun distanceTo(cover: RectDp, xDp: Float, yDp: Float): Float = PrintShape(cover).distance(xDp, yDp)
 }

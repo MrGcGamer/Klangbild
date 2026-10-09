@@ -71,9 +71,12 @@ fun BaseWall(modifier: Modifier = Modifier) {
 }
 
 /**
- * The light on the wall: the scene's greyscale light map, multiplied by the sundial mask
- * (rotated to [sunAngle]) and tinted with [tint]. [alpha] fades the layer during
- * transitions, [lightLevel] dims it (pause, link loss).
+ * The light on the wall: the lamp's pool behind the print, shifted towards the sundial's
+ * sun ([sunAngle]), shaped by the sundial mask, held off the screen edges and hidden behind
+ * the print by the static wall mask, tinted with [tint]. [alpha] fades the layer during
+ * transitions; [lightLevel] dims the lamp (pause, link loss) – dim light also loses colour.
+ * [holeOpen] 0..1 takes the print's shadow away while the print itself fades out, so the
+ * empty wall is one continuous pool of light.
  */
 @Composable
 fun HaloLightLayer(
@@ -83,40 +86,75 @@ fun HaloLightLayer(
     alpha: () -> Float = { 1f },
     lightLevel: () -> Float = { 1f },
     tint: () -> Int = { scene.lightTint },
+    holeOpen: () -> Float = { 0f },
 ) {
-    val mapShader = remember(scene) {
-        android.graphics.BitmapShader(scene.lightMap, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
-    }
-    val rect = scene.coverRect
+    val clamp = android.graphics.Shader.TileMode.CLAMP
+    val glowShader = remember(scene) { android.graphics.BitmapShader(scene.glow, clamp, clamp) }
+    val holeShader = remember(scene) { android.graphics.BitmapShader(scene.holeMask, clamp, clamp) }
+    val openShader = remember(scene) { android.graphics.BitmapShader(scene.openMask, clamp, clamp) }
+    val shape = scene.shape
     Canvas(modifier.fillMaxSize()) {
-        val a = (alpha() * lightLevel()).coerceIn(0f, 1f)
-        if (a <= 0.002f) return@Canvas
-        mapShader.setLocalMatrix(
-            android.graphics.Matrix().apply { setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H) },
+        val a = alpha().coerceIn(0f, 1f)
+        val level = lightLevel().coerceIn(0f, 1f)
+        if (a <= 0.002f || level <= 0.002f) return@Canvas
+        val d = density
+        val cx = shape.centerX * d
+        val cy = shape.centerY * d
+        val sun = sunAngle()
+        val rad = Math.toRadians(sun.toDouble())
+        val offset = HaloLight.lampOffset(shape.rect.width) * d
+        val gx = cx + (kotlin.math.cos(rad) * offset).toFloat()
+        val gy = cy - (kotlin.math.sin(rad) * offset).toFloat()
+        val glowPx = scene.glow.width * d // the sprite has 1 px per dp
+        glowShader.setLocalMatrix(
+            android.graphics.Matrix().apply {
+                setScale(d, d)
+                postTranslate(gx - glowPx / 2f, gy - glowPx / 2f)
+            },
         )
-        val cx = rect.centerX * density
-        val cy = rect.centerY * density
+        // The sundial: a lobe towards the sun; it fades out towards the print's centre, so
+        // an empty wall shows a calm pool, not a pie chart.
         val sweep = android.graphics.SweepGradient(cx, cy, maskStops, null).apply {
             // Sweep angles run clockwise on screen, the sun's angle counter-clockwise.
-            setLocalMatrix(android.graphics.Matrix().apply { setRotate(-sunAngle(), cx, cy) })
+            setLocalMatrix(android.graphics.Matrix().apply { setRotate(-sun, cx, cy) })
         }
-        val shader = android.graphics.ComposeShader(mapShader, sweep, android.graphics.BlendMode.MODULATE)
-        drawRect(
-            brush = ShaderBrush(shader),
-            alpha = a,
-            colorFilter = ColorFilter.tint(Color(tint()), BlendMode.Modulate),
+        val core = android.graphics.RadialGradient(
+            cx, cy, shape.radius * d, coreColors, coreStops, clamp,
         )
+        val angular = android.graphics.ComposeShader(sweep, core, android.graphics.BlendMode.SRC_OVER)
+        val lamp = android.graphics.ComposeShader(glowShader, angular, android.graphics.BlendMode.MODULATE)
+        val maskMatrix = android.graphics.Matrix().apply { setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H) }
+        holeShader.setLocalMatrix(maskMatrix)
+        openShader.setLocalMatrix(maskMatrix)
+        val filter = ColorFilter.tint(Color(HaloLight.dimTint(tint(), level)), BlendMode.Modulate)
+        val open = holeOpen().coerceIn(0f, 1f)
+        if (open > 0.001f) {
+            drawRect(
+                brush = ShaderBrush(android.graphics.ComposeShader(lamp, openShader, android.graphics.BlendMode.MODULATE)),
+                alpha = a,
+                colorFilter = filter,
+            )
+        }
+        if (open < 0.999f) {
+            drawRect(
+                brush = ShaderBrush(android.graphics.ComposeShader(lamp, holeShader, android.graphics.BlendMode.MODULATE)),
+                alpha = a * (1f - open),
+                colorFilter = filter,
+            )
+        }
     }
 }
 
 private val maskStops: IntArray by lazy { HaloLight.maskStops() }
+private val coreColors = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), 0x00FFFFFF)
+private val coreStops = floatArrayOf(0f, 0.55f, 1f)
 
 /**
- * The cover, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
+ * The print, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
  * size), like a print a few centimetres off the wall: a faint raking light across it from
- * the sundial's side (±4 %), a hairline highlight on the lit edges and a darker hairline
- * on the far ones. [dim] (pause) darkens it through the colour matrix rather than
- * transparency, so the light behind never shines through.
+ * the sundial's side (±4 %) and the faintest catch of light on the lit edge. [dim] (pause)
+ * darkens it through the colour matrix rather than transparency, so the light behind
+ * never shines through.
  */
 @Composable
 fun HaloCoverLayer(
@@ -133,7 +171,7 @@ fun HaloCoverLayer(
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
     val ink = scene.palette.ink.asColor()
-    val darkCover = scene.analysis.meanL < 0.25f
+    val round = scene.shape.round
     Canvas(
         modifier
             .fillMaxSize()
@@ -158,7 +196,8 @@ fun HaloCoverLayer(
         val h = scene.cover.height
         coverShader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(x.toFloat(), y.toFloat()) })
 
-        val theta = Math.toRadians(sunAngle().toDouble())
+        val sun = sunAngle()
+        val theta = Math.toRadians(sun.toDouble())
         val ux = kotlin.math.cos(theta).toFloat()
         val uy = -kotlin.math.sin(theta).toFloat()
         val cx = x + w / 2f
@@ -175,20 +214,20 @@ fun HaloCoverLayer(
             colorFilter = filter,
         )
 
-        // Edges: lit sides catch a hairline of light, far sides a hairline of shade.
-        val line = (density / 2f).coerceAtLeast(1f)
-        val sides = listOf(0f to Pair(Offset(x + w - line / 2, y.toFloat()), Offset(x + w - line / 2, (y + h).toFloat())),
-            90f to Pair(Offset(x.toFloat(), y + line / 2), Offset((x + w).toFloat(), y + line / 2)),
-            180f to Pair(Offset(x + line / 2, y.toFloat()), Offset(x + line / 2, (y + h).toFloat())),
-            270f to Pair(Offset(x.toFloat(), y + h - line / 2), Offset((x + w).toFloat(), y + h - line / 2)))
-        val sun = sunAngle()
-        for ((normal, ends) in sides) {
-            val c = kotlin.math.cos(Math.toRadians((sun - normal).toDouble())).toFloat()
-            val lit = (c.coerceAtLeast(0f)).let { it * it }
-            val shade = ((-c).coerceAtLeast(0f)).let { it * it }
-            val base = if (darkCover) 0.07f else 0.04f
-            drawLine(ink.copy(alpha = base + 0.20f * lit), ends.first, ends.second, strokeWidth = line)
-            if (shade > 0.01f) drawLine(Color.Black.copy(alpha = 0.22f * shade), ends.first, ends.second, strokeWidth = line)
+        // Only the edges facing the sun catch a breath of light; no line anywhere else.
+        if (!round) {
+            val line = (density / 2f).coerceAtLeast(1f)
+            val sides = listOf(
+                0f to Pair(Offset(x + w - line / 2, y.toFloat()), Offset(x + w - line / 2, (y + h).toFloat())),
+                90f to Pair(Offset(x.toFloat(), y + line / 2), Offset((x + w).toFloat(), y + line / 2)),
+                180f to Pair(Offset(x + line / 2, y.toFloat()), Offset(x + line / 2, (y + h).toFloat())),
+                270f to Pair(Offset(x.toFloat(), y + h - line / 2), Offset((x + w).toFloat(), y + h - line / 2)),
+            )
+            for ((normal, ends) in sides) {
+                val c = kotlin.math.cos(Math.toRadians((sun - normal).toDouble())).toFloat()
+                val lit = c.coerceAtLeast(0f).let { it * it * it }
+                if (lit > 0.02f) drawLine(ink.copy(alpha = 0.10f * lit), ends.first, ends.second, strokeWidth = line)
+            }
         }
     }
 }
@@ -201,7 +240,7 @@ private const val RAKE_LIFT = 1.04f
 
 /** Title sizes from large to small, each with the most lines it may take. */
 private val titleLadder = listOf(
-    52f to 2, 42f to 3, 34f to 3, 29f to 3, 25f to 4,
+    52f to 2, 49f to 2, 46f to 2, 42f to 3, 39f to 3, 36f to 3, 34f to 3, 32f to 3, 30f to 3, 28f to 3, 26f to 4, 24f to 4,
 )
 
 /** Distance from the clock's baseline to the top of the text block below it (dp). */
@@ -227,6 +266,8 @@ private class ColumnStyles(model: StageModel) {
     val ink = p.ink.asColor()
     val muted = p.inkMuted.asColor()
     val faint = p.inkFaint.asColor()
+    val quiet = p.inkQuiet.asColor()
+    val hush = p.inkHush.asColor()
     private val latinTitle = isSpacingFriendly(t.title)
     val cjkTitle = isMostlyCjk(t.title)
 
@@ -288,7 +329,7 @@ private class ColumnStyles(model: StageModel) {
         fontWeight = FontWeight(400),
         fontSize = 12.sp,
         letterSpacing = 0.2.em,
-        color = faint,
+        color = quiet,
         fontFeatureSettings = "tnum",
     )
 
@@ -392,6 +433,10 @@ fun HaloTextLayer(
     alpha: () -> Float = { 1f },
     dim: () -> Float = { 1f },
     offsetY: () -> Float = { 0f },
+    /** Lines that stay as they are during a change: drawn steadily, they don't fade. */
+    steady: Set<TextLine> = emptySet(),
+    /** Lines not drawn at all (the other layer of a change draws them). */
+    hidden: Set<TextLine> = emptySet(),
 ) {
     val layout = model.scene.layout
     val t = model.text
@@ -400,26 +445,36 @@ fun HaloTextLayer(
     val localDensity = LocalDensity.current
     val colW = (layout.columnWidth * localDensity.density).roundToInt()
 
+    // Each line fades on its own, so a line that stays the same can simply stay.
+    fun line(which: TextLine): Modifier = Modifier.graphicsLayer {
+        this.alpha = when (which) {
+            in hidden -> 0f
+            in steady -> 1f
+            else -> alpha().coerceIn(0f, 1f)
+        }
+        translationY = if (which in steady) 0f else (offsetY() * density).roundToInt().toFloat()
+    }
+    // At night only an explicit request for the exact time shows a time line.
+    val timeLine = model.timeLine?.takeIf { !night || it.figures }
+
     Layout(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer {
-                this.alpha = (alpha() * dim()).coerceIn(0f, 1f)
-                translationY = (offsetY() * density).roundToInt().toFloat()
-            },
+            .graphicsLayer { this.alpha = dim().coerceIn(0f, 1f) },
         content = {
             // 0: work line
             if (t.work != null) {
-                BasicText(t.work, style = styles.work, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                BasicText(t.work, line(TextLine.WORK), style = styles.work, maxLines = 2, overflow = TextOverflow.Ellipsis)
             } else {
                 Box(Modifier)
             }
             // 1: title
-            BasicText(plan.title, style = plan.titleStyle, maxLines = plan.titleLines, overflow = TextOverflow.Ellipsis)
+            BasicText(plan.title, line(TextLine.TITLE), style = plan.titleStyle, maxLines = plan.titleLines, overflow = TextOverflow.Ellipsis)
             // 2: artist
             if (plan.artists != null) {
                 BasicText(
                     artistLine(plan.artists, styles),
+                    line(TextLine.ARTIST),
                     style = styles.artist,
                     maxLines = plan.artistLines,
                     overflow = TextOverflow.Ellipsis,
@@ -429,17 +484,18 @@ fun HaloTextLayer(
             }
             // 3: album
             if (t.album != null && !night) {
-                BasicText(t.album, style = styles.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(t.album, line(TextLine.ALBUM), style = styles.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
                 Box(Modifier)
             }
             // 4: time line – changes cross-fade instead of jumping
             Crossfade(
-                targetState = if (night) null else model.timeLine,
+                targetState = timeLine,
+                modifier = line(TextLine.TIME),
                 animationSpec = tween(TIME_LINE_FADE_MS, easing = Motion.Dimmer),
                 label = "time-line",
-            ) { line ->
-                if (line != null) TimeLineText(line, styles.faint) else Box(Modifier)
+            ) { l ->
+                if (l != null) TimeLineText(l, styles.quiet, styles.hush) else Box(Modifier)
             }
         },
     ) { measurables, constraints ->
@@ -474,6 +530,28 @@ fun HaloTextLayer(
             }
         }
     }
+}
+
+/** The lines of the text column, for changes that keep some of them. */
+enum class TextLine { WORK, TITLE, ARTIST, ALBUM, TIME }
+
+/**
+ * Lines that look exactly the same before and after a change (same text in the same
+ * place): they stay while the others fade.
+ */
+fun steadyLines(before: StageModel, beforePlan: TextPlan, after: StageModel, afterPlan: TextPlan): Set<TextLine> {
+    if (before.scene.layout.columnLeft != after.scene.layout.columnLeft || before.night != after.night) return emptySet()
+    val out = HashSet<TextLine>()
+    val sameTitleBlock = beforePlan.title.text == afterPlan.title.text && beforePlan.titleStyle.fontSize == afterPlan.titleStyle.fontSize
+    if (sameTitleBlock) out += TextLine.TITLE
+    if (before.text.work == after.text.work && beforePlan.titleStyle.fontSize == afterPlan.titleStyle.fontSize &&
+        beforePlan.titleLines == afterPlan.titleLines && sameTitleBlock
+    ) out += TextLine.WORK
+    val sameArtists = beforePlan.artists == afterPlan.artists && beforePlan.artistLines == afterPlan.artistLines
+    if (sameArtists) out += TextLine.ARTIST
+    if (sameArtists && before.text.album == after.text.album) out += TextLine.ALBUM
+    if (before.timeLine == after.timeLine) out += TextLine.TIME
+    return out
 }
 
 /** The clock at the top of the text column, its cap height on the cover's top edge. */
@@ -520,17 +598,36 @@ private fun pickTitleSize(
     maxW: Int,
     maxH: Int,
 ): TitleChoice? {
-    val glued = glueBetweenDashes(text)
+    val base = glueParentheses(text)
+    val glued = glueBetweenDashes(base)
     for ((size, lines) in titleLadder) {
         val style = styles.titleAt(size)
         if (glued != null) {
             val g = measurer.measure(glued, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
             if (g.lineCount <= lines && g.size.height <= maxH && breaksOnlyAfterDashes(g)) return TitleChoice(size, lines, glued)
         }
-        val r = measurer.measure(text, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
-        if (r.lineCount <= lines && r.size.height <= maxH && !breaksInsideWord(r)) return TitleChoice(size, lines, text)
+        val r = measurer.measure(base, style = style, constraints = Constraints(maxWidth = maxW), maxLines = lines + 1)
+        if (r.lineCount <= lines && r.size.height <= maxH && !breaksInsideWord(r)) return TitleChoice(size, lines, base)
     }
     return null
+}
+
+/** Short parentheses never break inside: "(alla marcia)" stays one piece. */
+private fun glueParentheses(text: AnnotatedString): AnnotatedString {
+    val s = text.text
+    if (!s.contains('(')) return text
+    val chars = s.toCharArray()
+    var open = -1
+    for (i in chars.indices) {
+        when (chars[i]) {
+            '(' -> open = i
+            ')' -> {
+                if (open >= 0 && i - open <= 28) for (j in open until i) if (chars[j] == ' ') chars[j] = '\u00A0'
+                open = -1
+            }
+        }
+    }
+    return AnnotatedString(String(chars), spanStyles = text.spanStyles, paragraphStyles = text.paragraphStyles)
 }
 
 /** The title with every space that is not right after a dash made non-breaking; null without dashes. */
@@ -581,7 +678,7 @@ fun isMostlyCjk(text: String): Boolean {
 }
 
 @Composable
-private fun TimeLineText(line: TimeLine.Line, color: Color) {
+private fun TimeLineText(line: TimeLine.Line, labelColor: Color, detailColor: Color) {
     val label = line.label
     val friendly = isSpacingFriendly(label)
     val text = buildAnnotatedString {
@@ -592,22 +689,30 @@ private fun TimeLineText(line: TimeLine.Line, color: Color) {
                 fontSize = 10.sp,
                 letterSpacing = if (line.figures) 0.12.em else if (friendly) 0.22.em else 0.em,
                 fontFeatureSettings = "tnum",
+                color = labelColor,
             ),
         ) { append(if (friendly && !line.figures) label.uppercase() else label) }
         line.detail?.let { detail ->
-            append("   ")
-            withStyle(
-                SpanStyle(
-                    fontFamily = Fonts.Text,
-                    fontStyle = if (isSpacingFriendly(detail)) FontStyle.Italic else FontStyle.Normal,
-                    fontSize = 15.sp,
-                ),
-            ) { append(detail) }
+            append("\u00A0\u00A0 ")
+            // Each part in its own direction (a title in Arabic, an artist in Latin…), and
+            // the separator always in the Latin face, so it never turns into a full stop.
+            val parts = detail.split(TimeLine.SEPARATOR)
+            parts.forEachIndexed { i, part ->
+                if (i > 0) withStyle(SpanStyle(fontFamily = Fonts.Sans, fontSize = 12.sp, color = detailColor)) { append(TimeLine.SEPARATOR) }
+                withStyle(
+                    SpanStyle(
+                        fontFamily = Fonts.Text,
+                        fontStyle = if (isSpacingFriendly(part)) FontStyle.Italic else FontStyle.Normal,
+                        fontSize = 15.sp,
+                        color = detailColor,
+                    ),
+                ) { append(if (isSpacingFriendly(part)) part else "\u2068$part\u2069") }
+            }
         }
     }
     BasicText(
         text,
-        style = TextStyle(color = color, textDirection = TextDirection.Content, textAlign = TextAlign.Left),
+        style = TextStyle(color = labelColor, textDirection = TextDirection.Ltr, textAlign = TextAlign.Left),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )

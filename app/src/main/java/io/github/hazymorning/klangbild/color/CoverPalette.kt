@@ -35,8 +35,12 @@ data class ScenePalette(
     val ink: Int,
     /** Secondary text (artist, album). */
     val inkMuted: Int,
-    /** Tertiary details (clock, small labels, hairlines). */
+    /** Tertiary details (album). */
     val inkFaint: Int,
+    /** Quiet labels (clock, time line). */
+    val inkQuiet: Int,
+    /** The quietest voice (what comes next). */
+    val inkHush: Int,
     /** One restrained colour accent, e.g. for the progress line. */
     val accent: Int,
     val kind: CoverKind,
@@ -170,10 +174,16 @@ object CoverPalette {
         // Neutrals: just a breath of the lead hue so text and wall belong to the cover.
         val neutralChroma = if (tintHue == null) 0.012f else min(0.018f, lead.lab.chroma * 0.18f + 0.004f)
 
+        // At night the text must not outshine the dimmed cover: all text a little lower
+        // still than the lamp alone would make it – but the title keeps 4.5:1 on black.
+        val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
+        val t = 1f - 0.10f * nightness
         val base = Lch(0.115f, min(neutralChroma * 1.1f, 0.016f), hue).toLab()
-        val ink = Lch(0.91f, min(neutralChroma * 1.2f, 0.018f), hue).toLab()
-        val inkMuted = Lch(0.79f, neutralChroma * 1.3f, hue).toLab()
-        val inkFaint = Lch(0.64f, neutralChroma * 1.2f, hue).toLab()
+        val ink = Lch(0.91f * t, min(neutralChroma * 1.2f, 0.018f), hue).toLab()
+        val inkMuted = Lch(0.79f * t, neutralChroma * 1.3f, hue).toLab()
+        val inkFaint = Lch(0.665f * t, neutralChroma * 1.2f, hue).toLab()
+        val inkQuiet = Lch(0.59f * t, neutralChroma * 1.1f, hue).toLab()
+        val inkHush = Lch(0.54f * t, neutralChroma, hue).toLab()
 
         val accent = if (lead == null) {
             Lch(0.82f, 0.055f, WARM_HUE).toLab() // brass
@@ -196,6 +206,8 @@ object CoverPalette {
             ink = lighting.apply(ink).toArgb(),
             inkMuted = lighting.apply(inkMuted).toArgb(),
             inkFaint = lighting.apply(inkFaint).toArgb(),
+            inkQuiet = lighting.apply(inkQuiet).toArgb(),
+            inkHush = lighting.apply(inkHush).toArgb(),
             accent = lighting.apply(accent).toArgb(),
             kind = analysis.kind,
             tintHue = tintHue,

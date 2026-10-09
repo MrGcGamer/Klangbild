@@ -148,7 +148,7 @@ class SetupServer(
             return try {
                 http.newCall(request).execute().use { r ->
                     when {
-                        r.code == 401 || r.code == 403 -> DiscoverResult.Failed("Home Assistant hat den Zugangsschlüssel abgelehnt.")
+                        r.code == 401 || r.code == 403 -> DiscoverResult.Failed("Home Assistant hat das Zugangstoken abgelehnt.")
                         !r.isSuccessful -> DiscoverResult.Failed("Home Assistant antwortet nicht wie erwartet (HTTP ${r.code}).")
                         else -> parseSpeakers(r.body.string())
                     }

@@ -14,21 +14,20 @@ object Motion {
     /** Soft in-out, like a dimmer turned by hand. */
     val Dimmer = CubicBezierEasing(0.45f, 0f, 0.25f, 1f)
 
-    /** Starts slowly, leaves quickly: a picture going dark. */
-    val Out = CubicBezierEasing(0.5f, 0f, 0.9f, 0.6f)
-
-    /** Arrives quickly, settles slowly: a picture coming up. */
-    val In = CubicBezierEasing(0.1f, 0.4f, 0.3f, 1f)
+    /** A sine in-out: the gentlest way for a picture to go dark or come up. */
+    val Sine = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
 
     /**
-     * A full track change: the old print goes dark (700 ms), the empty wall holds for a
-     * moment while the light changes colour (250 ms), the new print comes up (1200 ms);
-     * the text follows.
+     * A full track change: the old print goes dark (700 ms), the empty wall holds for half a
+     * second while the lamp changes colour, the new print comes up (900 ms); the new text
+     * follows once the print is mostly there.
      */
-    const val TRACK_CHANGE_MS = 2_600
+    const val TRACK_CHANGE_MS = 2_700
     const val COVER_OUT_END_MS = 700
-    const val COVER_IN_START_MS = 950
-    const val COVER_IN_END_MS = 2_150
+    const val COVER_IN_START_MS = 1_200
+    const val COVER_IN_END_MS = 2_100
+    const val TEXT_IN_START_MS = COVER_IN_START_MS + (COVER_IN_END_MS - COVER_IN_START_MS) * 6 / 10
+    const val TEXT_IN_END_MS = TEXT_IN_START_MS + 900
 
     /** New track, same picture (next song of the album): only the text changes. */
     const val TEXT_CHANGE_MS = 1_800

@@ -39,7 +39,7 @@ class SetupHandlerTest {
         assertThat(r.status).isEqualTo(200)
         val html = String(r.body)
         assertThat(html).contains("value=\"123456\"")
-        assertThat(html).contains("Langlebiger Zugangsschlüssel")
+        assertThat(html).contains("Langlebiges Zugangstoken")
         val bad = handler.handle(MiniHttp.Request("GET", "/", mapOf("code" to "<script>"), emptyMap(), ByteArray(0)))
         assertThat(String(bad.body)).doesNotContain("<script>\"")
     }

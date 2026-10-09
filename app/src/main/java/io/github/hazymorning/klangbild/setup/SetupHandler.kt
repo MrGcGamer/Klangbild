@@ -114,7 +114,7 @@ class SetupHandler(
             ?: return MiniHttp.Response.json(400, error("Bitte die Adresse von Home Assistant angeben, z. B. http://192.168.1.10:8123."))
         val token = body.str("token")?.trim()?.takeIf { it.isNotEmpty() }
             ?: settings().haToken?.takeIf { settings().haUrl == url }
-            ?: return MiniHttp.Response.json(400, error("Bitte einen langlebigen Zugangsschlüssel einfügen."))
+            ?: return MiniHttp.Response.json(400, error("Bitte ein langlebiges Zugangstoken einfügen."))
         return when (val r = discover(url, token)) {
             is DiscoverResult.Failed -> MiniHttp.Response.json(200, buildJsonObject {
                 put("ok", false)
@@ -142,7 +142,7 @@ class SetupHandler(
         val url = body.str("url")?.let { HaUrls.normalizeBase(it) }
             ?: return MiniHttp.Response.json(400, error("Die Adresse von Home Assistant fehlt oder ist ungültig."))
         val token = body.str("token")?.trim()?.takeIf { it.isNotEmpty() } ?: current.haToken
-            ?: return MiniHttp.Response.json(400, error("Der Zugangsschlüssel fehlt."))
+            ?: return MiniHttp.Response.json(400, error("Das Zugangstoken fehlt."))
         val entity = body.str("entity")?.trim()?.takeIf { LaunchExtras.isEntityId(it) }
             ?: return MiniHttp.Response.json(400, error("Bitte einen Lautsprecher auswählen."))
         val minutes = (body["sleepMinutes"] as? JsonPrimitive)?.intOrNull ?: body.str("sleepMinutes")?.toIntOrNull()
