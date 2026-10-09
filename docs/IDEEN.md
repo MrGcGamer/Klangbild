@@ -157,7 +157,7 @@ Messungen am Gerät?
 | # | Idee | Entscheidung | Warum |
 |---|---|---|---|
 | – | Fortschrittsbalken statt Sonnenuhr | **umgesetzt** | Die Sonnenuhr war weder ruhig noch verständlich; einen Balken liest jeder ohne Nachdenken. |
-| 7 | Stummschaltung dimmt wie eine Pause | **umgesetzt** | Ein ehrlicher Zustand, oben steht „Stumm“ (mit der Gruppe). |
+| 7 | Stummschaltung zeigen | **umgesetzt, als Wort** | Oben steht „Küche · Stumm“. Gedimmt wie eine Pause sah es aus wie eine Pause – dabei läuft die Musik weiter. |
 | 8 | „Überall“ | **umgesetzt** | Spielen alle Lautsprecher von Music Assistant zusammen, steht „Überall“ statt „Wohnzimmer + 7“ – sofort verständlich, wie bei Sonos. |
 | – | Ein Tastendruck blendet Ausgeblendetes ein | **umgesetzt** | Wer Uhrzeit, Gruppe oder Fortschritt ausblendet, sieht sie mit ▲/▼ trotzdem kurz. |
 | 1 | Am Gerät messen | **bleibt Nummer 1** | Geht nur am Streamer (`--ez debug true`). Die neue Bühne ist leichter als die alte: ein ruhendes Lichtbild statt einer wandernden Lampe, dazu ein kleiner Balken. |

@@ -211,6 +211,6 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
         status = status,
         modelFor = modelFor,
         lightFactor = { lightFactor },
-        dimmed = muted || linkDown,
+        dimmed = linkDown,
     )
 }

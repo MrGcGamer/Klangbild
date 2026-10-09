@@ -37,12 +37,11 @@ enum class Change {
 }
 
 /**
- * The stage with its transitions. On a track change the new artwork fades in over the old
- * one and settles from a hair larger to its size, while its light morphs on the wall; the
- * old text leaves first, then the new lines rise into place one after another. Opaque
- * pictures are never cross-faded against each other (that would let the wall shine through
- * half-way) – the new one simply covers the old. On pause the artwork recedes a little and
- * dims with its light and the text.
+ * The stage with its transitions. On a track change the old artwork goes dark first, then
+ * the new one comes up and settles from a hair larger to its size – the two only overlap
+ * while both are faint, so no double image – while the light on the wall turns from the old
+ * colours to the new. The old text leaves first; the new lines rise into place one after
+ * another once the new picture stands. A pause dims light, artwork and text; nothing moves.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
@@ -56,7 +55,7 @@ fun StageTheatre(
     modelFor: (StageData) -> StageModel,
     modifier: Modifier = Modifier,
     lightFactor: () -> Float = { 1f },
-    /** Muted or the link is down: the stage dims like a pause. */
+    /** The link is down: the stage dims like a pause. */
     dimmed: Boolean = false,
 ) {
     var current by remember { mutableStateOf(stage) }
@@ -90,13 +89,6 @@ fun StageTheatre(
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
         label = "pause-cover",
     )
-    // Paused, the artwork recedes a little with its light – only a real pause, not a muted
-    // or disconnected stage, which merely dims.
-    val recede by animateFloatAsState(
-        targetValue = if (status == PlayerStatus.PAUSED) Motion.PAUSED_SCALE else 1f,
-        animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Decelerate),
-        label = "pause-scale",
-    )
     val textDim by animateFloatAsState(
         targetValue = if (quiet) Motion.PAUSED_TEXT else 1f,
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
@@ -127,14 +119,19 @@ fun StageTheatre(
 
     val level: () -> Float = { pausedLevel * breathing.value * lightFactor() }
     val pictureChanges = prev != null && kind != Change.TEXT
+    // A new picture: the old one goes dark, then the new one comes up (a soft swap of the same
+    // track's picture simply cross-fades).
+    val oldPicture: () -> Float = {
+        if (kind == Change.FULL) 1f - p(0, Motion.ART_OUT_MS, Motion.Accelerate) else 1f
+    }
     val newPicture: () -> Float = {
         when {
             !pictureChanges -> 1f
-            kind == Change.FULL -> p(0, Motion.ART_IN_MS, Motion.Sine)
+            kind == Change.FULL -> p(Motion.ART_IN_START_MS, Motion.ART_IN_END_MS, Motion.Decelerate)
             else -> p(0, total, Motion.Sine)
         }
     }
-    // The light on the wall morphs a little slower than the picture changes.
+    // The light on the wall turns from the old colours to the new over the whole change.
     val newGlow: () -> Float = {
         when {
             !pictureChanges -> 1f
@@ -142,10 +139,13 @@ fun StageTheatre(
             else -> p(0, total, Motion.Sine)
         }
     }
-    val settle: () -> Float = { if (prev == null || kind != Change.FULL) 1f else 1f + 0.02f * (1f - p(0, total, Motion.Decelerate)) }
+    val settle: () -> Float = {
+        if (prev == null || kind != Change.FULL) 1f else 1f + 0.015f * (1f - p(Motion.ART_IN_START_MS, total, Motion.Decelerate))
+    }
     // The text: the old block leaves first, the new lines follow one after another.
+    val textStart = if (kind == Change.FULL) Motion.TEXT_IN_MS else Motion.TEXT_IN_SAME_PICTURE_MS
     val textIn: (TextLine) -> Float = { line ->
-        if (prev == null || kind == Change.SOFT) 1f else p(Motion.TEXT_IN_MS + stagger(line), Motion.TEXT_IN_MS + stagger(line) + 500, Motion.Decelerate)
+        if (prev == null || kind == Change.SOFT) 1f else p(textStart + stagger(line), textStart + stagger(line) + Motion.TEXT_LINE_MS, Motion.Decelerate)
     }
     val textRise: (TextLine) -> Float = { line ->
         if (prev == null || kind == Change.SOFT) 0f else 10f * (1f - textIn(line))
@@ -153,15 +153,10 @@ fun StageTheatre(
 
     Box(modifier.fillMaxSize()) {
         BaseWall()
-        if (prev != null && pictureChanges) GlowLayer(prev.scene, level = level, scale = { recede })
-        GlowLayer(cur.scene, alpha = newGlow, level = level, scale = { recede })
-        if (prev != null && pictureChanges) ArtworkLayer(prev.scene, dim = { coverDim }, scale = { recede })
-        ArtworkLayer(
-            cur.scene,
-            alpha = newPicture,
-            dim = { coverDim },
-            scale = { settle() * recede },
-        )
+        if (prev != null && pictureChanges) GlowLayer(prev.scene, level = level)
+        GlowLayer(cur.scene, alpha = newGlow, level = level)
+        if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
+        ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim }, scale = settle)
         if (prevModel != null && prevPlan != null) {
             val out: () -> Float = { if (kind == Change.SOFT) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS) }
             TextLayer(
@@ -181,10 +176,11 @@ fun StageTheatre(
 /** Each line of the new text starts a little after the one above it. */
 private fun stagger(line: TextLine): Int = when (line) {
     TextLine.WORK, TextLine.TITLE -> 0
-    TextLine.ARTIST -> 70
-    TextLine.ALBUM -> 130
-    TextLine.BOTTOM -> 190
-    TextLine.NEXT -> 240
+    TextLine.VERSION -> 50
+    TextLine.ARTIST -> 80
+    TextLine.ALBUM -> 140
+    TextLine.BOTTOM -> 200
+    TextLine.NEXT -> 260
 }
 
 private fun durationOf(change: Change) = when (change) {

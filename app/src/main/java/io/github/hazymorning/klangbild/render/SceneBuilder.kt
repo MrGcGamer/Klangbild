@@ -35,6 +35,8 @@ class ArtworkScene(
     val lighting: Lighting,
     /** 48 × 48 thumbnail of the cover, kept to re-light the scene without the source. */
     val thumb: IntArray,
+    /** A small cover in its mat: the light comes from the mat's edge (barely any). */
+    val matted: Boolean = false,
 ) {
     val screen: ScreenSpec get() = layout.screen
 
@@ -49,10 +51,10 @@ object SceneBuilder {
     const val THUMB = 48
 
     /**
-     * Passe-partout for small prints: charcoal mat board with a faint grain (a light board
+     * Passe-partout for small prints: near-black mat board with a faint grain (a light board
      * would be the largest static bright area on the OLED and glare at night)…
      */
-    const val MAT = 0xFF1E1C1A.toInt()
+    const val MAT = 0xFF141312.toInt()
 
     /** …and the white core of the bevel around the window, as cut into real mat board. */
     const val BEVEL = 0xFFC8C1B6.toInt()
@@ -78,6 +80,7 @@ object SceneBuilder {
         val nativePx: Int?
         val thumb: IntArray
         val shape: PrintShape
+        var matted = false
         if (source != null) {
             val side = min(source.width, source.height)
             val square = IntArray(side * side)
@@ -87,6 +90,7 @@ object SceneBuilder {
             val coverPx = (coverDp * screen.density).roundToInt()
             val print = ImageOps.resize(square, side, side, coverPx, coverPx)
             val mat = coverPx < slotPx - 1
+            matted = mat
             coverPixels = if (mat) matted(print, coverPx, slotPx, screen.density) else print
             coverSize = if (mat) slotPx else coverPx
             thumb = ImageOps.thumbnail(square, side, side, THUMB)
@@ -101,13 +105,13 @@ object SceneBuilder {
         }
         val cover = Bitmap.createBitmap(coverPixels, coverSize, coverSize, Bitmap.Config.ARGB_8888)
         val analysis = CoverPalette.analyze(thumb)
-        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb)
+        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, matted)
     }
 
     /** Re-light an existing scene (time of day changed) without touching the cover. */
     fun relight(scene: ArtworkScene, lighting: Lighting): ArtworkScene = assemble(
         scene.key, scene.layout, scene.cover, scene.shape, scene.coverGenerated,
-        scene.coverNativePx, scene.analysis, lighting, scene.thumb,
+        scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted,
     )
 
     private fun assemble(
@@ -120,10 +124,12 @@ object SceneBuilder {
         analysis: CoverAnalysis,
         lighting: Lighting,
         thumb: IntArray,
+        matted: Boolean,
     ): ArtworkScene {
         val palette = CoverPalette.derive(analysis, lighting)
-        // A matted print glows in the colours of its mat board's window, i.e. of the print.
-        val glow = WallGlow.field(thumb, THUMB, shape, layout.screen, lighting)
+        // The wall sees the outside of the picture: for a matted print that is the mat board.
+        val edges = if (matted) IntArray(THUMB * THUMB) { MAT } else thumb
+        val glow = WallGlow.field(edges, THUMB, shape, layout.screen, lighting)
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -136,6 +142,7 @@ object SceneBuilder {
             analysis = analysis,
             lighting = lighting,
             thumb = thumb,
+            matted = matted,
         )
     }
 

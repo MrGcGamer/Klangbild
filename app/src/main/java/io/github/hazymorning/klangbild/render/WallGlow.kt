@@ -9,34 +9,36 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * The light around the artwork: the print glows onto the black wall in the colours of its
- * own edges, like a backlit picture – violet above a synthwave sky, warm paper light around
- * a pale print, teal beside the sea. The colour at each point of the wall is the colour of
- * the nearest point of the artwork's edge (blurred), so it changes softly around the print;
- * its brightness falls off smoothly and is gone well before the screen's edge.
+ * The light around the artwork: a tight halo in the colours of the artwork's own edges, like
+ * a picture lit from behind – warm paper light around a pale print, pink below a synthwave
+ * horizon, teal beside the sea. The colour at each point of the wall is the colour of the
+ * nearest stretch of the artwork's edge, mixed more with distance (as diffuse light is); its
+ * brightness falls off as a Gaussian, the same on every side, and is gone before the text
+ * column begins. A picture lights the wall at most as much as it is bright itself: a dark
+ * edge gives little light, a black one none.
  *
  * Computed once per scene as a dithered bitmap; drawing it is one textured rectangle that
  * never moves – nothing per frame, nothing that could step.
  */
 object WallGlow {
-    /** Glow brightness (relative luminance) right at the edge of a bright print, by day. */
-    const val EDGE_LUMINANCE = 0.045f
+    /** Glow brightness (relative luminance, ≈ L* 17) right at the edge of a bright print, by day. */
+    const val EDGE_LUMINANCE = 0.022f
 
-    /**
-     * Width of the fall-off as a share of the print's size (σ of exp(−(d/σ)^p)): the light
-     * hugs the artwork, so the text column beside it stands on a dark wall.
-     */
-    const val SPREAD = 0.19f
+    /** …but never more than this share of the edge's own luminance. */
+    const val SHARE_OF_EDGE = 0.4f
 
-    /** Shape of the fall-off: between a Gaussian (2) and an exponential (1). */
-    const val FALLOFF_POWER = 1.7f
+    /** Width of the halo as a share of the print's size: σ of exp(−(d/σ)²), 26 dp at 368 dp. */
+    const val SPREAD = 0.0707f
+
+    /** Shape of the fall-off: a Gaussian. */
+    const val FALLOFF_POWER = 2f
 
     /** The black band along the screen's edges (dp) and the stretch over which the light fades into it. */
     const val EDGE_BLACK_DP = 36f
-    const val EDGE_FADE_DP = 80f
+    const val EDGE_FADE_DP = 30f
 
-    /** Dark edges still glow – in their own hue, but weaker (share of the full light). */
-    const val DARK_EDGE_SHARE = 0.32f
+    /** The light also fills this far under the artwork's edge (dp), so its anti-aliased rim never shows black. */
+    private const val UNDER_EDGE_DP = 2f
 
     /** Colourfulness of the glow is capped (Oklab chroma): a backlight, not a neon sign. */
     const val MAX_CHROMA = 0.13f
@@ -63,14 +65,16 @@ object WallGlow {
             val py = (y + 0.5f) * sy
             for (x in 0 until MAP_W) {
                 val px = (x + 0.5f) * sx
-                val d = shape.distance(px, py)
-                if (d <= 0f) continue // behind the print: dark
+                val signed = shape.signedDistance(px, py)
+                if (signed <= -UNDER_EDGE_DP) continue // behind the print: dark
+                val d = max(signed, 0f)
+                val under = if (signed >= 0f) 1f else smoothstep(-UNDER_EDGE_DP, 0f, signed)
                 // Horizontal and vertical fades multiplied: smooth everywhere. (The minimum of
                 // the four edge distances would crease along the diagonals, like a mitre.)
                 val fade = smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(px, screen.widthDp - px)) *
                     smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(py, screen.heightDp - py))
                 if (fade <= 0f) continue
-                val fall = exp(-(d / sigma).toDouble().pow(FALLOFF_POWER.toDouble())).toFloat() * fade
+                val fall = exp(-(d / sigma).toDouble().pow(FALLOFF_POWER.toDouble())).toFloat() * fade * under
                 if (fall < 1e-4f) continue
                 // The nearest point of the outline, as a position 0..1 along its four sides.
                 val qx = px.coerceIn(rect.left, rect.right)
@@ -137,7 +141,7 @@ object WallGlow {
     /**
      * The colours along the print's outline, clockwise from the top-left corner, as linear
      * RGB light at the glow's edge brightness: each sample is the blurred edge region of the
-     * artwork, normalised to the same luminance (a dark edge gets [DARK_EDGE_SHARE] of it),
+     * artwork at [EDGE_LUMINANCE] – or [SHARE_OF_EDGE] of its own luminance, if that is less –
      * its colourfulness capped, then dimmed and warmed for the time of day.
      */
     fun edgeColours(thumb: IntArray, size: Int, lighting: Lighting): Array<FloatArray> {
@@ -169,7 +173,6 @@ object WallGlow {
     /** One edge colour as glow light (linear RGB). */
     private fun light(r: Float, g: Float, b: Float, night: Float, warm: Float): FloatArray {
         val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
-        val share = (lum / 0.05f).coerceIn(DARK_EDGE_SHARE, 1f)
         var lab = Oklab.fromLinear(r, g, b)
         // Cap the colour, then let the evening pull it a little towards warm lamp light and
         // the night take most of its colour away – dim light is never vivid.
@@ -178,7 +181,7 @@ object WallGlow {
         lab = lab.lerp(Lab(lab.l, 0.012f, 0.045f), 0.3f * warm)
         val lin = Oklab.toLinear(Oklab.gamutMap(Lab(0.7f, lab.a, lab.b)))
         val y = 0.2126f * lin[0] + 0.7152f * lin[1] + 0.0722f * lin[2]
-        val target = EDGE_LUMINANCE * share * (1f - 1.8f * night).coerceAtLeast(0.28f)
+        val target = min(EDGE_LUMINANCE, SHARE_OF_EDGE * lum) * (1f - 1.8f * night).coerceAtLeast(0.28f)
         val k = if (y > 1e-5f) target / y else 0f
         return floatArrayOf(lin[0] * k, lin[1] * k, lin[2] * k)
     }

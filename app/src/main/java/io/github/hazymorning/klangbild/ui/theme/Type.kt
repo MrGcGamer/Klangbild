@@ -1,7 +1,15 @@
 package io.github.hazymorning.klangbild.ui.theme
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
@@ -58,9 +66,9 @@ object Fonts {
 
 /**
  * A text style in Mona Sans at [size] sp: line height [lineHeight] sp (default 1.25 ×),
- * tracking [tracking] em. Figures stay proportional: Mona's tabular figures bring a slashed
- * zero and a footed one – a code font's habits. Layouts align the result by its baselines
- * and [Fonts.CAP_HEIGHT], never by the boxes.
+ * tracking [tracking] em. No tabular figures: Mona's bring a slashed zero and a footed one –
+ * a code font's habits; times use [Figures]. Layouts align the result by its baselines and
+ * [Fonts.CAP_HEIGHT], never by the boxes.
  */
 fun mona(
     size: Float,
@@ -78,3 +86,38 @@ fun mona(
     color = color,
     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
 )
+
+/**
+ * Times set like a clock face. Every digit stands in a cell as wide as the widest digit and
+ * centred in it (letter-spacing is split evenly on both sides of a glyph), so a ticking time
+ * never shifts the line – Mona's own tabular figures would bring a slashed zero. The colon is
+ * raised to the middle of the figures; set on the baseline it sags below them.
+ */
+class Figures internal constructor(private val cell: Float, private val advance: FloatArray, private val tracking: Float) {
+    fun of(text: String): AnnotatedString = buildAnnotatedString {
+        for (ch in text) {
+            when {
+                ch in '0'..'9' -> withStyle(SpanStyle(letterSpacing = (tracking + cell - advance[ch - '0']).em)) { append(ch) }
+                ch == ':' -> withStyle(SpanStyle(baselineShift = BaselineShift(COLON_RAISE))) { append(ch) }
+                else -> append(ch)
+            }
+        }
+    }
+
+    companion object {
+        /** How far the colon is raised (em): from the baseline to the figures' middle. */
+        const val COLON_RAISE = 0.095f
+    }
+}
+
+/** [Figures] for [style], measured once. */
+@Composable
+fun rememberFigures(style: TextStyle): Figures {
+    val measurer = rememberTextMeasurer(cacheSize = 12)
+    return remember(style) {
+        val plain = style.copy(letterSpacing = 0.em)
+        val sizePx = measurer.measure("0", plain).let { r -> r.layoutInput.density.run { plain.fontSize.toPx() } }
+        val advance = FloatArray(10) { d -> measurer.measure(d.toString(), plain, softWrap = false).getLineRight(0) / sizePx }
+        Figures(advance.max(), advance, if (style.letterSpacing.isEm) style.letterSpacing.value else 0f)
+    }
+}

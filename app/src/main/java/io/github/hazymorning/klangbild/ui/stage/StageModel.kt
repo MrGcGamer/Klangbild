@@ -30,7 +30,7 @@ class StageModel(
     val progress: Boolean = true,
     /**
      * A line in the progress bar's place: the station of a radio without duration, or a
-     * notice ("Verbindung unterbrochen …"). Wins over the bar.
+     * notice ("Verbindung wird wiederhergestellt …"). Wins over the bar.
      */
     val line: String? = null,
     /** "Spiegel im Spiegel · Arvo Pärt": what comes next … */
@@ -64,8 +64,9 @@ object StageTexts {
     const val LINK_DOWN = "Verbindung wird wiederhergestellt …"
 
     /**
-     * The status line's lead: a passing volume change wins, then mute and pause (each with
-     * the place), otherwise the place – and the volume, if it is always shown.
+     * The status line's lead: a passing volume change wins, then mute and pause (after the
+     * place: "Wohnzimmer · Pausiert"), otherwise the place – and the volume, if it is always
+     * shown.
      */
     fun lead(
         status: PlayerStatus,
@@ -76,8 +77,8 @@ object StageTexts {
         volumeAlways: Boolean,
     ): String? = when {
         volumeFlash && !muted && volume != null -> "Lautstärke $volume"
-        muted -> listOfNotNull("Stumm", group).joinToString(TimeLine.SEPARATOR)
-        status == PlayerStatus.PAUSED -> listOfNotNull("Pausiert", group).joinToString(TimeLine.SEPARATOR)
+        muted -> listOfNotNull(group, "Stumm").joinToString(TimeLine.SEPARATOR)
+        status == PlayerStatus.PAUSED -> listOfNotNull(group, "Pausiert").joinToString(TimeLine.SEPARATOR)
         else -> listOfNotNull(group, volume.takeIf { volumeAlways }).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
     }
 

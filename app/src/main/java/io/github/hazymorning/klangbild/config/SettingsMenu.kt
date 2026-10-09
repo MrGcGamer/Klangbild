@@ -94,11 +94,11 @@ object SettingsMenu {
             VolumeDisplay.ALWAYS -> "Die Lautstärke steht ständig neben der Uhrzeit."
             VolumeDisplay.OFF -> "Die Lautstärke erscheint nie."
         }
-        MenuEntry.LIGHT -> "Wie hell das Bild die Wand um sich herum anstrahlt. " + when (s.light) {
-            LightLevel.STRONG -> "Kräftig passt zu hellen Räumen."
-            LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-            LightLevel.SUBTLE -> "Dezent passt zu dunklen Abenden."
-            LightLevel.OFF -> "Aus: nur das Bild, ohne Licht."
+        MenuEntry.LIGHT -> "Wie hell das Bild die Wand um sich herum anstrahlt. " + when (s.light) {
+            LightLevel.STRONG -> "Kräftig passt zu hellen Räumen."
+            LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
+            LightLevel.SUBTLE -> "Dezent passt zu dunklen Abenden."
+            LightLevel.OFF -> "Aus: nur das Bild, ohne Licht."
         }
         MenuEntry.DAY_NIGHT ->
             "Abends wärmer und dunkler, nachts nur Bild, Titel und Künstler – nach dem Stand der Sonne."

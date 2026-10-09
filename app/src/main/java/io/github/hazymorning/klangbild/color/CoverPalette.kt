@@ -194,13 +194,14 @@ object CoverPalette {
         val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
         // In the evening the room's light is warm, and so is the text – a little.
         val inkChroma = neutralChroma + 0.008f * evening
-        // Tiers like white at 100 / 80 / 63 / 59 / 55 % on black (lightness in Oklab); even the
-        // quietest keeps 4.5 : 1 on the artwork's light.
+        // Three levels, like white at 100 / 80 / 62 % on black (lightness in Oklab): the title;
+        // artist, clock and the progress bar's fill; everything else. Greys closer than that
+        // read as a mistake side by side, not as a level.
         val ink = Lch(0.93f * t, inkChroma, inkHue).toLab()
         val inkMuted = Lch(0.80f * t, inkChroma, inkHue).toLab()
-        val inkFaint = Lch(0.68f * t, inkChroma, inkHue).toLab()
-        val inkQuiet = Lch(0.645f * t, inkChroma, inkHue).toLab()
-        val inkHush = Lch(0.60f * t, inkChroma, inkHue).toLab()
+        val inkFaint = Lch(0.665f * t, inkChroma, inkHue).toLab()
+        val inkQuiet = inkFaint
+        val inkHush = inkFaint
 
         val accent = if (lead == null) {
             Lch(0.82f, 0.055f, WARM_HUE).toLab() // brass

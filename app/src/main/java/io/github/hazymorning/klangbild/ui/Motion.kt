@@ -28,24 +28,32 @@ object Motion {
     /** Quick start, long settle: for things arriving at their place. */
     val Decelerate = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
-    /**
-     * A full track change: the new artwork fades in over the old one (600 ms) and settles
-     * from 2 % larger over the whole change while its light morphs on the wall (900 ms); the
-     * old text leaves (250 ms), the new lines rise into place one after another from 300 ms.
-     */
-    const val TRACK_CHANGE_MS = 1_100
-    const val ART_IN_MS = 600
-    const val GLOW_MS = 900
-    const val TEXT_OUT_MS = 250
-    const val TEXT_IN_MS = 300
+    /** Slow start, quick end: for things leaving. */
+    val Accelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
-    /** New track, same picture (next song of the album): only the text changes. */
-    const val TEXT_CHANGE_MS = 1_100
+    /**
+     * A full track change: the old artwork goes dark (0–320 ms), the new one comes up
+     * (300–900 ms) and settles from 1.5 % larger; the light on the wall turns to the new
+     * colours (0–900 ms). The old text leaves (200 ms); the new lines rise into place one
+     * after another from 560 ms, 420 ms each.
+     */
+    const val TRACK_CHANGE_MS = 1_250
+    const val ART_OUT_MS = 320
+    const val ART_IN_START_MS = 300
+    const val ART_IN_END_MS = 900
+    const val GLOW_MS = 900
+    const val TEXT_OUT_MS = 200
+    const val TEXT_IN_MS = 560
+    const val TEXT_LINE_MS = 420
+
+    /** New track, same picture (next song of the album): only the text changes, sooner. */
+    const val TEXT_CHANGE_MS = 950
+    const val TEXT_IN_SAME_PICTURE_MS = 250
 
     /** Same track, better cover or new time-of-day light. */
     const val SOFT_SWAP_MS = 900
 
-    /** On pause the artwork recedes a little and dims with its light and the text. */
+    /** On pause the light, the artwork and the text dim; nothing moves. */
     const val PAUSE_MS = 600
 
     /** A line that changes its content (status, station, notice) cross-fades. */
@@ -54,10 +62,9 @@ object Motion {
     /** Switching between stage, rest and setup screens. */
     const val SCREEN_CHANGE_MS = 1_600
 
-    /** Light, artwork, its size and the text while paused. */
+    /** Light, artwork and text while paused. */
     const val PAUSED_LIGHT = 0.45f
     const val PAUSED_COVER = 0.72f
-    const val PAUSED_SCALE = 0.965f
     const val PAUSED_TEXT = 0.7f
 
     /** Eased progress of a phase that runs from [start] to [end] of the overall 0..1 [t]. */

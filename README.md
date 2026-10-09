@@ -40,7 +40,7 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Radio ohne Cover: Chladni-Figur](docs/screens/04-radio.jpg) | ![Kleines Cover, ehrlich klein](docs/screens/05-niedrig-aufgeloest.jpg) |
 | *Radio ohne Cover: Sand auf einer schwingenden Platte, sanft gewellte Knotenkreise (Chladni-Figur) – buchstäblich ein Bild des Klangs* | *Ein 300-px-Cover bleibt klein und scharf, im Passepartout statt groß und matschig* |
 | ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
-| *Pausiert: das Bild tritt ein wenig zurück, Licht und Text werden gedimmt* | *Abends wärmer und dunkler* |
+| *Pausiert: Licht, Bild und Text werden gedimmt* | *Abends wärmer und dunkler* |
 | ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
 | *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer kaum beleuchteten Wand* |
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
@@ -48,10 +48,10 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
 | *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht* |
 
-**Titelwechsel** – in gut einer Sekunde: das neue Cover blendet über das alte und setzt sich
-aus einer Spur Größe an seinen Platz, sein Licht wandert in den neuen Farben über die Wand,
-die alten Zeilen gehen, die neuen steigen eine nach der anderen an ihren Platz. Beim
-nächsten Titel desselben Albums wechselt nur der Text:
+**Titelwechsel** – in gut einer Sekunde: das alte Cover verlischt, das neue kommt aus dem
+Dunkel und setzt sich aus einer Spur Größe an seinen Platz, das Licht wechselt in die neuen
+Farben, die alten Zeilen gehen, die neuen steigen eine nach der anderen an ihren Platz – nie
+zwei Bilder übereinander. Beim nächsten Titel desselben Albums wechselt nur der Text:
 
 ![Titelwechsel als Bildfolge](docs/screens/titelwechsel.gif)
 
@@ -67,26 +67,28 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   der letzten Zeile). Die Uhrzeit hängt an der Oberkante des Covers, „Als Nächstes“ steht auf
   seiner Unterkante – alles auf einer linken Kante. Die ganze Gruppe sitzt eine Spur über der
   Bildschirmmitte, wie ein gut gehängtes Bild.
-- **Licht aus dem Bild.** Das Cover leuchtet in den Farben seiner Ränder auf die schwarze
-  Wand: violett über einem Synthwave-Himmel, warmes Papierlicht um ein helles Cover, Türkis
-  neben dem Meer. Je weiter weg, desto mehr mischen sich die Farben – wie echtes, weiches
-  Licht. Das Licht bleibt nah am Bild, damit der Text auf dunkler Wand steht (auch die
-  leiseste Zeile behält einen Kontrast von mindestens 4,5 : 1), und ist am Bildschirmrand
-  immer schwarz. Weiße Cover blenden nie.
-- **Fortschritt, wie man ihn kennt.** Ein schmaler Balken mit gespielter Zeit links und
-  Restzeit rechts („1:23 … −2:48“). Er gleitet: Er wird etwa 30-mal pro Sekunde im Takt des
+- **Licht aus dem Bild.** Das Cover leuchtet als enger, weicher Hof in den Farben seiner
+  Ränder auf die schwarze Wand – warmes Papierlicht um ein helles Cover, Rosa unter einem
+  Synthwave-Horizont, Türkis neben dem Meer –, auf allen Seiten gleich. Je weiter weg, desto
+  mehr mischen sich die Farben, wie bei echtem, weichem Licht. Ein Bild wirft höchstens so
+  viel Licht, wie es hell ist: Ein dunkles Cover leuchtet kaum. Der Text steht auf Schwarz,
+  der Bildschirmrand bleibt immer schwarz, weiße Cover blenden nie.
+- **Fortschritt, wie man ihn kennt.** Ein schmaler Balken mit gespielter Zeit links und der
+  Länge des Titels rechts („1:23 … 4:11“) – es tickt nur eine Zahl, und ihre Ziffern stehen in
+  festen Zellen, nichts zittert. Er gleitet: Er wird etwa 30-mal pro Sekunde im Takt des
   Bildschirms neu gezeichnet und wächst jedes Mal um Bruchteile eines Pixels, ein Sprung
   (Spulen) gleitet in einer Drittelsekunde an die neue Stelle. Pausiert wird er etwas
-  dunkler, bleibt aber stehen. (Die Bildrate auf dem Streamer ist noch nicht am Gerät
-  gemessen.)
+  dunkler. (Die Bildrate auf dem Streamer ist noch nicht am Gerät gemessen.)
 - **Typografie.** Eine einzige Schrift, Mona Sans, mit optischen Größen: große Titel in
   ihrem engeren Display-Schnitt, kleine Zeilen im offeneren Text-Schnitt. Rangfolge allein
   über Größe, Gewicht und Helligkeit – keine Versalien, keine Sperrung, keine Kursive.
   Klassische Titel werden in Werk und Satz geteilt und brechen bevorzugt nach den
   Gedankenstrichen um (höchstens drei Zeilen), „(feat. …)“ wandert zu den Künstlern,
   „– 2011 Remaster“ wird zur leisen Notiz hinter dem Titel, „Nr. 9“ und „op. 125“ trennen
-  nie. Künstler stehen auf einer Zeile (erst etwas kleiner, dann etwas schmaler, zuletzt
-  „… u. a.“), passt das Jahr nicht mehr hinter das Album, fällt es weg. Japanisch, Arabisch
+  nie, ein kurzes Wort bleibt beim nächsten („Spiegel / im Spiegel“). Künstler stehen auf
+  einer Zeile (erst etwas kleiner, dann „… u. a.“), passt das Jahr nicht mehr hinter das
+  Album, fällt es weg; nur sehr lange Titel setzen den ganzen Block etwas schmaler. Uhrzeit
+  und Zeiten stehen in festen Ziffernzellen, der Doppelpunkt mittig. Japanisch, Arabisch
   (rechts nach links) und Emoji werden korrekt gesetzt; Emoji am Rand eines Titels fallen
   weg, Emoji im Titel werden gedämpft.
 - **Ehrlich mit der Auflösung.** Klangbild holt sich die größte verfügbare Coverversion
@@ -97,8 +99,7 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   noch Cover, Titel und Künstler.
 - **OLED-Schutz.** Die ganze Komposition wandert unmerklich um ein paar Pixel, die Uhr im
   Ruhebildschirm wird jede Viertelstunde umgehängt, am Bildschirmrand ist es immer schwarz.
-- **Jeder Zustand ist gestaltet:** spielt, pausiert (das Bild tritt ein wenig zurück),
-  puffert, stumm, Titelwechsel, nichts läuft, Verbindung weg, Lautsprecher nicht erreichbar
+- **Jeder Zustand ist gestaltet:** spielt, pausiert, puffert, stumm, Titelwechsel, nichts läuft, Verbindung weg, Lautsprecher nicht erreichbar
   oder unbekannt, Token abgelehnt, Einrichtung.
 - **Als Nächstes** kommt aus der Music-Assistant-Warteschlange (`music_assistant.get_queue`);
   das Cover des nächsten Titels wird vorab berechnet, damit der Wechsel nahtlos ist.
@@ -111,7 +112,7 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   Lautsprecher allein, steht dort nichts.
 - **Lautstärke.** Ändert sie sich – am Handy, in Home Assistant, egal wo –, steht sie ein paar
   Sekunden neben der Uhrzeit („Lautstärke 35 %“); auf Wunsch ständig oder nie. Ist der
-  Lautsprecher stumm, wird das Bild gedimmt wie bei einer Pause und oben steht „Stumm“.
+  Lautsprecher stumm, steht oben „Stumm“.
 - **Ein Tastendruck zeigt, was ausgeblendet ist.** Sind Uhrzeit, Gruppe oder Fortschritt
   ausgeschaltet, blendet ▲ oder ▼ sie für ein paar Sekunden ein.
 - **Einstellungen mit der Fernbedienung.** Jede Zeile lässt sich einzeln zeigen oder

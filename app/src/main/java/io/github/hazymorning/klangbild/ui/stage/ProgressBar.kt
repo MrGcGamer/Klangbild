@@ -28,6 +28,7 @@ import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Fonts
+import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -37,8 +38,9 @@ class ProgressColors(val track: Color, val fill: Color, val label: Color)
 
 /**
  * A classic progress bar: a thin track with round ends, the played part filled (no knob –
- * nothing here is touched), elapsed time under its left end and the remaining time under
- * its right end ("1:35" … "−2:36").
+ * nothing here is touched), the elapsed time under its left end and the track's length under
+ * its right end ("1:35" … "4:11") – only one number ticks, and its figures sit in fixed
+ * cells, so nothing jitters.
  *
  * It glides: while playing only the bar's own drawing is refreshed, about 30 times a second
  * and aligned to the display's frames – the fill grows by a fraction of a pixel each time,
@@ -83,6 +85,7 @@ fun ProgressBar(
         }
     }
     val label = labelStyle.copy(color = colors.label)
+    val figures = rememberFigures(labelStyle)
     Layout(
         modifier = modifier.fillMaxWidth(),
         content = {
@@ -99,8 +102,8 @@ fun ProgressBar(
                     drawRoundRect(colors.fill.copy(alpha = colors.fill.alpha * fillLevel), Offset.Zero, Size(w, size.height), r)
                 }
             }
-            BasicText(TimeLine.formatClock(second * 1000L), style = label, maxLines = 1)
-            BasicText("−" + TimeLine.formatClock((durationMs / 1000L - second).coerceAtLeast(0L) * 1000L), style = label, maxLines = 1)
+            BasicText(figures.of(TimeLine.formatClock(second * 1000L)), style = label, maxLines = 1)
+            BasicText(figures.of(TimeLine.formatClock(durationMs)), style = label, maxLines = 1)
         },
     ) { measurables, constraints ->
         val bar = measurables[0].measure(constraints)

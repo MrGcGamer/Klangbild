@@ -41,7 +41,7 @@ class TransitionTest {
         compose.mainClock.advanceTimeBy(100)
         compose.onRoot().captureRoboImage("build/screenshots/transition/track_00.png")
         stage = b
-        for (i in 1..12) {
+        for (i in 1..14) {
             compose.mainClock.advanceTimeBy(100)
             compose.onRoot().captureRoboImage("build/screenshots/transition/track_%02d.png".format(i))
         }

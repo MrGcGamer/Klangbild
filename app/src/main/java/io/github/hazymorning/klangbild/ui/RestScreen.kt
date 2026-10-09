@@ -38,6 +38,7 @@ import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
 import io.github.hazymorning.klangbild.ui.theme.mona
+import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -72,7 +73,7 @@ object RestTexts {
         RestReason.IDLE -> Lines(speaker, null)
         RestReason.PAUSED -> Lines(listOfNotNull(speaker, "Pausiert").joinToString(TimeLine.SEPARATOR), null)
         RestReason.CONNECTING -> Lines(speaker, "Verbindung wird hergestellt …")
-        RestReason.OFFLINE -> Lines("Home\u00A0Assistant", "Verbindung unterbrochen.")
+        RestReason.OFFLINE -> Lines(null, "Home\u00A0Assistant ist nicht erreichbar.")
         RestReason.UNAVAILABLE -> Lines(speaker ?: "Lautsprecher", "Gerade nicht erreichbar.")
         RestReason.ENTITY_MISSING -> Lines(
             null,
@@ -214,11 +215,9 @@ fun RestScreen(
 @Composable
 private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        BasicText(
-            time,
-            style = mona(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.02f)
-                .merge(TextStyle(textAlign = TextAlign.Center)),
-        )
+        val clock = mona(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.02f).merge(TextStyle(textAlign = TextAlign.Center))
+        // Figures in fixed cells: the clock does not shift as the minutes change.
+        BasicText(rememberFigures(clock).of(time), style = clock)
         if (date != null) {
             Spacer(Modifier.height(4.dp))
             BasicText(date, style = mona(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))

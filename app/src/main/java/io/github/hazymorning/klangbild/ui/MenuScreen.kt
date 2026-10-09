@@ -58,7 +58,7 @@ import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.mona
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
+import kotlin.math.exp
 
 /** Geometry of the menu (dp): the line under the cursor always sits at the screen's middle. */
 object MenuGrid {
@@ -74,10 +74,13 @@ object MenuGrid {
     /** … and are gone well before the black band along the screen's edges. */
     const val FADE_TO = 226f
 
-    /** The lamp behind the cursor's line: half-axes of its oval pool and its brightest point. */
-    const val GLOW_RX = 240f
-    const val GLOW_RY = 52f
-    const val GLOW_PEAK = 0.024f
+    /**
+     * The light behind the cursor's line: a soft, low band (Gaussian σ across and along the
+     * line, dp) that lights this line only, and its brightest point (≈ L* 10).
+     */
+    const val GLOW_SIGMA_X = 120f
+    const val GLOW_SIGMA_Y = 12f
+    const val GLOW_PEAK = 0.011f
 
     /** Opacity of a line at [distance] dp from the cursor's line. */
     fun fade(distance: Float): Float = 1f - HaloLight.smoothstep(FADE_FROM, FADE_TO, abs(distance))
@@ -286,19 +289,18 @@ private const val GLOW_MAP_W = 480
 private const val GLOW_MAP_H = 270
 
 /**
- * The menu lamp's light on the wall: an oval pool around ([cx], [cy]) dp with the stage
- * lamp's profile – lightness falling as (1 − r²)^1.5 – greyscale, dithered, tinted when
- * drawn. It never moves; the list moves through it.
+ * The light behind the chosen line: a soft, low band around ([cx], [cy]) dp that lights
+ * this line and not its neighbours – greyscale, dithered, tinted when drawn. It never moves;
+ * the list moves through it.
  */
 fun glowField(cx: Float, cy: Float, widthDp: Float, heightDp: Float, ditherLsb: Float): IntArray {
     val img = LinearImage(GLOW_MAP_W, GLOW_MAP_H)
     val sx = widthDp / GLOW_MAP_W
     val sy = heightDp / GLOW_MAP_H
     for (y in 0 until GLOW_MAP_H) for (x in 0 until GLOW_MAP_W) {
-        val u = ((x + 0.5f) * sx - cx) / MenuGrid.GLOW_RX
-        val v = ((y + 0.5f) * sy - cy) / MenuGrid.GLOW_RY
-        val q = 1f - (u * u + v * v)
-        val value = if (q <= 0f) 0f else q * sqrt(q)
+        val u = ((x + 0.5f) * sx - cx) / MenuGrid.GLOW_SIGMA_X
+        val v = ((y + 0.5f) * sy - cy) / MenuGrid.GLOW_SIGMA_Y
+        val value = exp(-0.5f * (u * u + v * v))
         val o = y * GLOW_MAP_W + x
         img.r[o] = value
         img.g[o] = value

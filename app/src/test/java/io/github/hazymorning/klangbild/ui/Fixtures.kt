@@ -92,6 +92,7 @@ object Fixtures {
         lightFactor: Float = 1f,
         group: String? = null,
         muted: Boolean = false,
+        linkDown: Boolean = false,
     ) {
         val lead = StageTexts.lead(status, muted, volumeFlash = false, volume = null, group = group, volumeAlways = false)
         StageTheatre(
@@ -99,7 +100,7 @@ object Fixtures {
             status = status,
             modelFor = { s -> model(s.track, next = next, status = status, night = night, scene = s.scene, lead = lead) },
             lightFactor = { lightFactor },
-            dimmed = muted,
+            dimmed = linkDown,
         )
     }
 }

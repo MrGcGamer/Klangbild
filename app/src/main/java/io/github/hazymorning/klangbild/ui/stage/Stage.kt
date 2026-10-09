@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.em
 import io.github.hazymorning.klangbild.color.CoverKind
 import io.github.hazymorning.klangbild.color.ScenePalette
 import io.github.hazymorning.klangbild.domain.PlayerStatus
@@ -49,6 +50,7 @@ import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.mona
+import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -77,8 +79,8 @@ fun BaseWall(modifier: Modifier = Modifier) {
 /**
  * The artwork's light on the wall ([io.github.hazymorning.klangbild.render.WallGlow]): one
  * static bitmap, scaled softly to the screen. [level] is its brightness in linear light
- * (pause, the "Licht" setting: 0 = off, 1 = as designed, 1.45 = strong); [alpha] fades the
- * layer during a change; [scale] follows the artwork when it recedes on pause.
+ * (pause, the "Wandlicht" setting: 0 = off, 1 = as designed, 1.45 = strong); [alpha] fades
+ * the layer during a change.
  */
 @Composable
 fun GlowLayer(
@@ -86,21 +88,10 @@ fun GlowLayer(
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
     level: () -> Float = { 1f },
-    scale: () -> Float = { 1f },
 ) {
     val image = remember(scene) { scene.glow.asImageBitmap() }
     val filters = remember { HashMap<Int, ColorFilter?>() }
-    val rect = scene.coverRect
-    Canvas(
-        modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val s = scale()
-                scaleX = s
-                scaleY = s
-                transformOrigin = TransformOrigin(rect.centerX / scene.screen.widthDp, rect.centerY / scene.screen.heightDp)
-            },
-    ) {
+    Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
         val l = level().coerceIn(0f, 2f)
         if (a <= 0.002f || l <= 0.002f) return@Canvas
@@ -124,7 +115,7 @@ private fun scaleFilter(k: Float) = ColorFilter.colorMatrix(
 /**
  * The artwork, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
  * size) with softly rounded corners. [dim] (pause) darkens it through the colour matrix, not
- * through transparency; [scale] lets it settle during a change and recede on pause. A
+ * through transparency; [scale] lets it settle during a change. A
  * hairline of light inside a dark artwork's edge keeps it from dissolving into the black wall.
  */
 @Composable
@@ -179,67 +170,76 @@ private fun edgeLine(scene: ArtworkScene): Color? =
     if (!scene.shape.round && scene.palette.kind == CoverKind.DARK) Color.White.copy(alpha = 0.07f) else null
 
 /**
- * The stage's typography: one family, sentence case; hierarchy from size, weight and
- * opacity. The title is large and light, the artist smaller but a little heavier – the two
- * balance each other; everything else is quiet.
+ * The stage's typography: one family, sentence case; hierarchy from size, weight and three
+ * levels of brightness. The title is large and light, the artist smaller but a little heavier
+ * – the two balance each other; everything else is quiet. [width] narrows the whole block,
+ * never a single line, when a very long title needs it.
  */
-class StageStyles(palette: ScenePalette) {
+class StageStyles(palette: ScenePalette, val width: Float = 100f) {
     val ink = palette.ink.asColor()
     val muted = palette.inkMuted.asColor()
-    val faint = palette.inkFaint.asColor()
     val quiet = palette.inkQuiet.asColor()
-    val hush = palette.inkHush.asColor()
 
-    /** The title at one step of [titleLadder]. */
-    fun title(step: TitleStep): TextStyle = mona(
-        size = step.size,
-        weight = step.weight,
-        color = ink,
-        lineHeight = step.size * step.leading,
-        tracking = if (step.size >= 40f) -0.005f else 0f,
-        width = step.width,
-    ).merge(TextStyle(lineBreak = LineBreak.Heading, textDirection = TextDirection.Content, textAlign = TextAlign.Left))
+    /** The title at one step of [titleLadder]; Japanese, Chinese and Korean a little smaller (their characters stand taller than capitals). */
+    fun title(step: TitleStep, cjk: Boolean = false): TextStyle {
+        val size = if (cjk) step.size * CJK_SCALE else step.size
+        return mona(
+            size = size,
+            weight = step.weight,
+            color = ink,
+            lineHeight = size * step.leading + if (cjk) 6f else 0f,
+            tracking = if (!cjk && size >= 40f) -0.005f else 0f,
+            width = width,
+        ).merge(TextStyle(lineBreak = LineBreak.Heading, textDirection = TextDirection.Content, textAlign = TextAlign.Left))
+    }
 
-    /** A version note after the title ("Radio Edit"): lighter and quieter. */
-    val version = SpanStyle(fontWeight = FontWeight(400), color = faint)
+    /** The version under the title ("Radio Edit"): a quiet subtitle at 60 % of the title's size. */
+    fun version(titleSize: Float): TextStyle = mona((titleSize * 0.6f).coerceIn(17f, 26f), 440, quiet, width = width).text()
 
-    val work = mona(17f, 480, faint, lineHeight = 23f).text()
-    val artist = mona(21f, 520, muted, lineHeight = 27f).text()
-    val artistSmall = mona(19f, 520, muted, lineHeight = 25f).text()
-    val artistNarrow = mona(19f, 520, muted, lineHeight = 25f, width = 88f).text()
-    val album = mona(17f, 420, faint, lineHeight = 23f, tracking = 0.005f).text()
+    val work = mona(17f, 480, quiet, lineHeight = 23f, width = width).text()
+    val artist = mona(21f, 520, muted, lineHeight = 27f, width = width).text()
+    val artistSmall = mona(19f, 520, muted, lineHeight = 25f, width = width).text()
+    val album = mona(17f, 420, quiet, lineHeight = 23f, tracking = 0.005f, width = width).text()
 
-    /** Times, status, station: small and calm. */
+    /** Times, status, station: small and calm, always at normal width. */
     val label = mona(15f, 500, quiet, lineHeight = 20f, tracking = 0.01f)
-    val next = mona(15f, 420, faint, lineHeight = 20f).merge(TextStyle(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left))
-    val nextLead = SpanStyle(fontWeight = FontWeight(520), color = quiet)
+    val next = mona(15f, 440, quiet, lineHeight = 20f).merge(TextStyle(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left))
+
+    /** "Als Nächstes" differs from what follows by weight alone. */
+    val nextLead = SpanStyle(fontWeight = FontWeight(560))
 
     private fun TextStyle.text() = merge(TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Left))
+
+    companion object {
+        const val CJK_SCALE = 0.88f
+
+        /** The whole block's width when a title only fits narrower. */
+        const val NARROW = 87.5f
+    }
 }
 
-/** One size of the title: [size] sp, at most [lines] lines, [width] of the font's width axis. */
-class TitleStep(val size: Float, val lines: Int, val weight: Int, val leading: Float, val width: Float = 100f)
+/** One size of the title: [size] sp, at most [lines] lines; [narrow] sets the whole block narrower. */
+class TitleStep(val size: Float, val lines: Int, val weight: Int, val leading: Float, val narrow: Boolean = false)
 
 /**
  * Title sizes from large to small: two lines at display size, then three lines a little
- * smaller and (slightly) heavier so they stay as strong; very long titles narrow the
- * letters before they shrink further.
+ * smaller and (slightly) heavier so they stay as strong. Only when three lines at the smallest
+ * size are not enough does the whole block become narrower.
  */
 val titleLadder = listOf(
     TitleStep(44f, 2, 440, 1.06f),
     TitleStep(40f, 2, 440, 1.06f),
-    TitleStep(36f, 3, 450, 1.1f),
-    TitleStep(32f, 3, 450, 1.1f),
-    TitleStep(29f, 3, 460, 1.1f),
+    TitleStep(34f, 3, 450, 1.1f),
+    TitleStep(30f, 3, 450, 1.1f),
     TitleStep(26f, 3, 460, 1.12f),
-    TitleStep(26f, 3, 460, 1.12f, width = 90f),
-    TitleStep(26f, 3, 460, 1.12f, width = 82f),
-    TitleStep(24f, 4, 460, 1.12f, width = 82f),
+    TitleStep(26f, 3, 460, 1.12f, narrow = true),
+    TitleStep(24f, 4, 460, 1.12f, narrow = true),
 )
 
 /** Vertical rhythm of the text block: space from a line's baseline to the next one's cap height (dp). */
 private object Gaps {
     const val WORK = 14f
+    const val VERSION = 14f
     const val ARTIST = 16f
     const val ALBUM = 10f
     const val BOTTOM = 26f
@@ -252,11 +252,16 @@ private object Gaps {
  */
 const val BLOCK_SHARE = 0.62f
 
-/** The measured decisions for the text block: title step and breaks, the artists fitted onto one line. */
+/** The measured decisions for the text block: title step and breaks, the artists fitted onto one line … */
 class TextPlan(
     val title: AnnotatedString,
     val titleStyle: TextStyle,
     val titleLines: Int,
+    /** The styles of the block's lines (narrower when the title needs it). */
+    val styles: StageStyles,
+    /** "Radio Edit" under the title. */
+    val version: String?,
+    val versionStyle: TextStyle,
     val artists: String?,
     val artistStyle: TextStyle,
     /** "Album · 2024", or only the album when both don't fit. */
@@ -271,13 +276,12 @@ fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
     return remember(model.text, model.year, model.next, model.scene.layout, model.night, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
-        planText(model, StageStyles(model.scene.palette), measurer, localDensity)
+        planText(model, measurer, localDensity)
     }
 }
 
 private fun planText(
     model: StageModel,
-    styles: StageStyles,
     measurer: androidx.compose.ui.text.TextMeasurer,
     density: androidx.compose.ui.unit.Density,
 ): TextPlan {
@@ -285,16 +289,12 @@ private fun planText(
     val layout = model.scene.layout
     val d = density.density
     val colW = (layout.columnWidth * d).roundToInt()
+    val normal = StageStyles(model.scene.palette)
+    val narrow = StageStyles(model.scene.palette, StageStyles.NARROW)
+    val cjk = isMostlyCjk(t.title)
+    val version = t.version?.takeUnless { model.night }
 
-    val title = buildAnnotatedString {
-        append(EmojiText.annotate(t.title, dimTo = styles.ink.copy(alpha = 0.62f)))
-        // A version note ("Radio Edit") belongs to the title: lighter, after it – kept in
-        // one piece, and when it wraps it starts its line flush (an ordinary space before it).
-        t.version?.let { v ->
-            append(" ")
-            withStyle(styles.version) { append(v.replace(' ', '\u00A0')) }
-        }
-    }
+    val title = EmojiText.annotate(t.title, dimTo = normal.ink.copy(alpha = 0.62f))
 
     // Everything but the title, from the title's last baseline down (or the work line above
     // it), to know how much height the title may take.
@@ -303,26 +303,30 @@ private fun planText(
         val r = measurer.measure(AnnotatedString(text), style, constraints = Constraints(maxWidth = colW), maxLines = lines)
         return r.getLineBaseline(r.lineCount - 1) - r.getLineBaseline(0)
     }
-    var rest = 0f
-    if (t.work != null) rest += cap(styles.work) + linesHeight(t.work, styles.work, 2) + Gaps.WORK * d
-    rest += Gaps.ARTIST * d + cap(styles.artist)
-    if (!model.night && (t.album != null || model.year != null)) rest += Gaps.ALBUM * d + cap(styles.album)
-    if (!model.night && (model.line != null || (model.progress && model.durationMs != null))) {
-        rest += Gaps.BOTTOM * d + (4 + 10) * d + cap(styles.label)
+    fun budget(step: TitleStep): Float {
+        var rest = 0f
+        if (t.work != null) rest += cap(normal.work) + linesHeight(t.work, normal.work, 2) + Gaps.WORK * d
+        if (version != null) rest += Gaps.VERSION * d + cap(normal.version(step.size))
+        rest += Gaps.ARTIST * d + cap(normal.artist)
+        if (!model.night && (t.album != null || model.year != null)) rest += Gaps.ALBUM * d + cap(normal.album)
+        if (!model.night && (model.line != null || (model.progress && model.durationMs != null))) {
+            rest += Gaps.BOTTOM * d + (4 + 10) * d + cap(normal.label)
+        }
+        return layout.art * BLOCK_SHARE * d - rest
     }
-    val budget = layout.art * BLOCK_SHARE * d - rest
 
-    val choice = pickTitleSize(title, styles, measurer, colW, budget, d)
+    val choice = pickTitleSize(title, { step -> (if (step.narrow) narrow else normal).title(step, cjk) }, measurer, colW, ::budget, d)
         ?: TitleChoice(titleLadder.last(), title)
+    val block = if (choice.step.narrow) narrow else normal
 
     // Artists on one line: the most complete form that fits – at the artist's size, then a
-    // step smaller, then a little narrower, before anything is cut.
+    // step smaller, before anything is cut.
     val options = t.artistOptions()
     fun fits(option: String, style: TextStyle) =
         measurer.measure(AnnotatedString(option), style, maxLines = 1, softWrap = false).size.width <= colW
-    var artistStyle = styles.artist
+    var artistStyle = block.artist
     var artists: String? = null
-    for (style in listOf(styles.artist, styles.artistSmall, styles.artistNarrow)) {
+    for (style in listOf(block.artist, block.artistSmall)) {
         artists = options.firstOrNull { fits(it, style) }
         if (artists != null) {
             artistStyle = style
@@ -331,16 +335,16 @@ private fun planText(
     }
     if (artists == null && options.isNotEmpty()) {
         artists = options.last()
-        artistStyle = styles.artistNarrow
+        artistStyle = block.artistSmall
     }
     // The album with its year; the year goes first when both don't fit.
     val album = if (model.night) null else {
         val full = listOfNotNull(t.album, model.year?.toString()).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
-        if (full != null && t.album != null && model.year != null && !fits(full, styles.album)) t.album else full
+        if (full != null && t.album != null && model.year != null && !fits(full, block.album)) t.album else full
     }
     // What comes next: title and artist, or the title alone rather than a cut-off artist.
     val next = if (model.night) null else model.next?.let { full ->
-        if (model.nextTitle == null || measurer.measure(nextText(full, styles), styles.next, maxLines = 1, softWrap = false).size.width <= colW) {
+        if (model.nextTitle == null || measurer.measure(nextText(full, normal), normal.next, maxLines = 1, softWrap = false).size.width <= colW) {
             full
         } else {
             model.nextTitle
@@ -348,8 +352,11 @@ private fun planText(
     }
     return TextPlan(
         title = choice.text,
-        titleStyle = styles.title(choice.step),
+        titleStyle = block.title(choice.step, cjk),
         titleLines = choice.step.lines,
+        styles = block,
+        version = version,
+        versionStyle = block.version(choice.step.size),
         artists = artists,
         artistStyle = artistStyle,
         album = album,
@@ -358,13 +365,19 @@ private fun planText(
 }
 
 /** The lines of the text block, for transitions that treat them one by one. */
-enum class TextLine { WORK, TITLE, ARTIST, ALBUM, BOTTOM, NEXT }
+enum class TextLine { WORK, TITLE, VERSION, ARTIST, ALBUM, BOTTOM, NEXT }
+
+/**
+ * Large type has more room before its first stem than small type; left as it is, a title
+ * looks indented against the lines below it. Pulled left by the difference (dp).
+ */
+private fun opticalIndent(size: Float): Float = -(0.065f * (size - 15f)).coerceAtLeast(0f)
 
 /**
  * The text block beside the artwork, centred on it from the first line's cap height to the
- * last baseline: (work), title, artist, album · year, then the progress bar (or the station,
- * or a notice). What comes next sits apart on the artwork's bottom edge. [alpha] and [rise]
- * animate a change line by line; [dim] darkens the text while paused.
+ * last baseline: (work), title, (version), artist, album · year, then the progress bar (or the
+ * station, or a notice). What comes next sits apart on the artwork's bottom edge. [alpha] and
+ * [rise] animate a change line by line; [dim] darkens the text while paused.
  */
 @Composable
 fun TextLayer(
@@ -379,6 +392,7 @@ fun TextLayer(
     val t = model.text
     val night = model.night
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
+    val block = plan.styles
     val localDensity = LocalDensity.current
     val colW = (layout.columnWidth * localDensity.density).roundToInt()
     val playing = model.status == PlayerStatus.PLAYING || model.status == PlayerStatus.BUFFERING
@@ -387,10 +401,8 @@ fun TextLayer(
         this.alpha = alpha(which).coerceIn(0f, 1f)
         translationY = (rise(which) * density).roundToInt().toFloat()
     }
-    val albumText = plan.album
     val showBar = !night && model.line == null && model.progress && model.durationMs != null
     val bottomLine = if (night) null else model.line
-    val next = plan.next
 
     Layout(
         modifier = modifier
@@ -398,18 +410,20 @@ fun TextLayer(
             .graphicsLayer { this.alpha = dim().coerceIn(0f, 1f) },
         content = {
             // 0: work line
-            if (t.work != null) BasicText(t.work, line(TextLine.WORK), style = styles.work, maxLines = 2, overflow = TextOverflow.Ellipsis) else Box(Modifier)
+            if (t.work != null) BasicText(t.work, line(TextLine.WORK), style = block.work, maxLines = 2, overflow = TextOverflow.Ellipsis) else Box(Modifier)
             // 1: title
             BasicText(plan.title, line(TextLine.TITLE), style = plan.titleStyle, maxLines = plan.titleLines, overflow = TextOverflow.Ellipsis)
-            // 2: artist
+            // 2: version
+            if (plan.version != null) BasicText(plan.version, line(TextLine.VERSION), style = plan.versionStyle, maxLines = 1, overflow = TextOverflow.Ellipsis) else Box(Modifier)
+            // 3: artist
             if (plan.artists != null) {
                 BasicText(plan.artists, line(TextLine.ARTIST), style = plan.artistStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
                 Box(Modifier)
             }
-            // 3: album · year
-            if (albumText != null) BasicText(albumText, line(TextLine.ALBUM), style = styles.album, maxLines = 1, overflow = TextOverflow.Ellipsis) else Box(Modifier)
-            // 4: progress bar, station or notice – changes cross-fade
+            // 4: album · year
+            if (plan.album != null) BasicText(plan.album, line(TextLine.ALBUM), style = block.album, maxLines = 1, overflow = TextOverflow.Ellipsis) else Box(Modifier)
+            // 5: progress bar, station or notice – changes cross-fade
             Crossfade(
                 targetState = when {
                     bottomLine != null -> bottomLine
@@ -426,40 +440,43 @@ fun TextLayer(
                         durationMs = model.durationMs ?: 1L,
                         positionMs = model.positionMs,
                         playing = playing,
-                        colors = ProgressColors(track = styles.ink.copy(alpha = 0.2f), fill = styles.ink.copy(alpha = 0.9f), label = styles.quiet),
+                        colors = ProgressColors(track = styles.ink.copy(alpha = 0.16f), fill = styles.muted, label = styles.quiet),
                         labelStyle = styles.label,
                     )
                     else -> BasicText(content, style = styles.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            // 5: what comes next, on the artwork's bottom edge
-            if (next != null) NextLine(next, styles, line(TextLine.NEXT)) else Box(Modifier)
+            // 6: what comes next, on the artwork's bottom edge
+            if (plan.next != null) NextLine(plan.next, styles, line(TextLine.NEXT)) else Box(Modifier)
         },
     ) { measurables, constraints ->
         val c = Constraints(maxWidth = colW)
         val cBottom = Constraints(minWidth = colW, maxWidth = colW)
         val work = measurables[0].measure(c)
         val title = measurables[1].measure(c)
-        val artist = measurables[2].measure(c)
-        val album = measurables[3].measure(c)
-        val bottom = measurables[4].measure(cBottom)
-        val nextLine = measurables[5].measure(c)
+        val version = measurables[2].measure(c)
+        val artist = measurables[3].measure(c)
+        val album = measurables[4].measure(c)
+        val bottom = measurables[5].measure(cBottom)
+        val nextLine = measurables[6].measure(c)
         fun px(dp: Float) = (dp * density).roundToInt()
         fun capOf(style: TextStyle) = (style.fontSize.toPx() * Fonts.CAP_HEIGHT).roundToInt()
 
-        // Each part: where its cap height is (from its top) and where its last baseline is.
-        class Part(val p: Placeable, val capTop: Int, val baseline: Int, val gap: Int)
+        // Each part: where its cap height is (from its top), where its last baseline is, and
+        // its optical indent.
+        class Part(val p: Placeable, val capTop: Int, val baseline: Int, val gap: Int, val dx: Int = 0)
         val parts = ArrayList<Part>()
         fun text(p: Placeable, style: TextStyle, gap: Float) {
             if (p.height == 0) return
             val first = p[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: p.height
             val last = p[LastBaseline].takeIf { it != AlignmentLine.Unspecified } ?: p.height
-            parts += Part(p, first - capOf(style), last, if (parts.isEmpty()) 0 else px(gap))
+            parts += Part(p, first - capOf(style), last, if (parts.isEmpty()) 0 else px(gap), px(opticalIndent(style.fontSize.value)))
         }
-        text(work, styles.work, 0f)
+        text(work, block.work, 0f)
         text(title, plan.titleStyle, Gaps.WORK)
+        text(version, plan.versionStyle, Gaps.VERSION)
         text(artist, plan.artistStyle, Gaps.ARTIST)
-        text(album, styles.album, Gaps.ALBUM)
+        text(album, block.album, Gaps.ALBUM)
         if (bottom.height > 0) {
             // The bar block measures from the bar's top to the labels' baseline; a line of
             // text in its place is aligned by its own cap height.
@@ -487,7 +504,7 @@ fun TextLayer(
         val top = (layout.textCenter * density).roundToInt() - blockH / 2
         val footer = (layout.footerBaseline * density).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
-            parts.forEachIndexed { i, part -> part.p.place(x, top + capY[i] - part.capTop) }
+            parts.forEachIndexed { i, part -> part.p.place(x + part.dx, top + capY[i] - part.capTop) }
             if (nextLine.height > 0) {
                 val b = nextLine[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: nextLine.height
                 nextLine.place(x, footer - b)
@@ -503,18 +520,19 @@ private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
     BasicText(nextText(text, styles), modifier, style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
-/** "Als Nächstes" in a heavier weight, then what comes next (isolated if right-to-left). */
+/** "Als Nächstes" in a heavier weight, 12 dp, then what comes next (isolated if right-to-left). */
 private fun nextText(text: String, styles: StageStyles): AnnotatedString = buildAnnotatedString {
     withStyle(styles.nextLead) { append("Als Nächstes") }
-    append("\u00A0\u00A0")
-    append(if (isRightToLeft(text)) "\u2067$text\u2069" else text)
+    // A no-break space widened to about 12 dp.
+    withStyle(SpanStyle(letterSpacing = 0.55.em)) { append(" ") }
+    append(if (isRightToLeft(text)) "⁧$text⁩" else text)
 }
 
 /**
- * The status line at the top of the column: the time, then where the music plays (or
- * "Pausiert", or a passing volume) – cap height on the artwork's top edge, on the column's
- * left edge like everything else. The place cross-fades when it changes; the clock just
- * ticks.
+ * The status line at the top of the column: the time, then where the music plays and what
+ * it is doing ("Wohnzimmer · Pausiert", or a passing volume) – cap height on the artwork's top
+ * edge, on the column's left edge like everything else. The place cross-fades when it changes;
+ * the clock just ticks, its figures in fixed cells.
  */
 @Composable
 fun StatusLayer(
@@ -526,13 +544,14 @@ fun StatusLayer(
     if (status == null || status.isEmpty || model.night) return
     val layout = model.scene.layout
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
+    val figures = rememberFigures(styles.label)
     val clockText = status.clock
     Layout(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
         content = {
-            if (clockText != null) BasicText(clockText, style = styles.label.copy(color = styles.muted), maxLines = 1) else Box(Modifier)
+            if (clockText != null) BasicText(figures.of(clockText), style = styles.label.copy(color = styles.muted), maxLines = 1) else Box(Modifier)
             Crossfade(
                 targetState = status.lead,
                 animationSpec = tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer),
@@ -569,33 +588,33 @@ private class TitleChoice(val step: TitleStep, val text: AnnotatedString)
 
 /**
  * The title at the largest step of the ladder that fits its line limit and the height it is
- * given (from its first cap height to its last baseline); balanced line breaks. At each
- * step, a version that may only break after the dashes between a movement's sections is
+ * given ([budget], from its first cap height to its last baseline); balanced line breaks. At
+ * each step, a version that may only break after the dashes between a movement's sections is
  * tried first ("Presto – / Allegro assai", never "Allegro / assai"); if only the free version
  * fits, one step smaller is still worth it when the dash version fits there. Returns null if
  * nothing fits.
  */
 private fun pickTitleSize(
     text: AnnotatedString,
-    styles: StageStyles,
+    styleOf: (TitleStep) -> TextStyle,
     measurer: androidx.compose.ui.text.TextMeasurer,
     maxW: Int,
-    maxH: Float,
+    budget: (TitleStep) -> Float,
     density: Float,
 ): TitleChoice? {
     val base = glueShortWords(glueParentheses(text))
     val glued = glueBetweenDashes(base)
-    fun height(r: TextLayoutResult, step: TitleStep): Float =
-        step.size * Fonts.CAP_HEIGHT * density + (r.getLineBaseline(r.lineCount - 1) - r.getLineBaseline(0))
+    fun height(r: TextLayoutResult): Float =
+        r.layoutInput.style.fontSize.value * Fonts.CAP_HEIGHT * density + (r.getLineBaseline(r.lineCount - 1) - r.getLineBaseline(0))
     fun gluedFits(step: TitleStep): Boolean {
         if (glued == null) return false
-        val g = measurer.measure(glued, style = styles.title(step), constraints = Constraints(maxWidth = maxW), maxLines = step.lines + 1)
-        return g.lineCount <= step.lines && height(g, step) <= maxH && breaksOnlyAfterDashes(g)
+        val g = measurer.measure(glued, style = styleOf(step), constraints = Constraints(maxWidth = maxW), maxLines = step.lines + 1)
+        return g.lineCount <= step.lines && height(g) <= budget(step) && breaksOnlyAfterDashes(g)
     }
     for ((i, step) in titleLadder.withIndex()) {
         if (gluedFits(step)) return TitleChoice(step, glued!!)
-        val r = measurer.measure(base, style = styles.title(step), constraints = Constraints(maxWidth = maxW), maxLines = step.lines + 1)
-        if (r.lineCount <= step.lines && height(r, step) <= maxH && !breaksInsideWord(r)) {
+        val r = measurer.measure(base, style = styleOf(step), constraints = Constraints(maxWidth = maxW), maxLines = step.lines + 1)
+        if (r.lineCount <= step.lines && height(r) <= budget(step) && !breaksInsideWord(r)) {
             val smaller = titleLadder.getOrNull(i + 1)
             if (smaller != null && gluedFits(smaller)) return TitleChoice(smaller, glued!!)
             return TitleChoice(step, base)

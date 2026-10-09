@@ -58,18 +58,25 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `the glow is brightest at the artwork's edge and gone well before the text column ends`() {
+    fun `a tight halo, the same on every side, gone before the text column`() {
         val field = glow(thumb(0xFFF2EEE6.toInt()))
-        val y = layout.artRect.centerY
-        val edge = layout.artRect.right
-        val near = luminance(field.at(edge + 2f, y))
-        val mid = luminance(field.at(edge + 40f, y))
-        val far = luminance(field.at(edge + 160f, y))
+        val r = layout.artRect
+        val near = luminance(field.at(r.right + 2f, r.centerY))
         assertThat(near).isIn(Range.closed(WallGlow.EDGE_LUMINANCE * 0.8f, WallGlow.EDGE_LUMINANCE * 1.1f))
-        assertThat(mid).isLessThan(near)
-        assertThat(far).isLessThan(near * 0.12f)
-        // dark behind the artwork
-        assertThat(field.at(layout.artRect.centerX, y) and 0xFFFFFF).isEqualTo(0)
+        // the same at 12 dp on all four sides (no side cut short by the screen's edge)
+        val sides = listOf(
+            field.at(r.right + 12f, r.centerY),
+            field.at(r.left - 12f, r.centerY),
+            field.at(r.centerX, r.top - 12f),
+            field.at(r.centerX, r.bottom + 12f),
+        ).map { luminance(it) }
+        for (s in sides) assertThat(s).isWithin(near * 0.12f).of(sides.first())
+        assertThat(sides.first()).isLessThan(near)
+        // the text column stands on black
+        assertThat(field.at(layout.columnLeft + 1f, r.centerY) and 0xFFFFFF).isEqualTo(0)
+        // dark behind the artwork, lit just under its edge (no dark rim around it)
+        assertThat(field.at(r.centerX, r.centerY) and 0xFFFFFF).isEqualTo(0)
+        assertThat(luminance(field.at(r.right - 1f, r.centerY))).isGreaterThan(near * 0.2f)
     }
 
     @Test
@@ -83,11 +90,11 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `dark edges glow less, and no glow is a neon sign`() {
+    fun `dark edges glow little, and no glow is a neon sign`() {
         val bright = luminance(glow(thumb(0xFFE0457B.toInt())).at(layout.artRect.right + 2f, layout.artRect.centerY))
         val dark = luminance(glow(thumb(0xFF101010.toInt())).at(layout.artRect.right + 2f, layout.artRect.centerY))
-        assertThat(dark).isLessThan(bright * (WallGlow.DARK_EDGE_SHARE + 0.06f))
-        assertThat(dark).isGreaterThan(0f)
+        // a picture lights the wall at most as much as it is bright itself
+        assertThat(dark).isLessThan(bright * 0.2f)
         for (c in covers) {
             val lab = Oklab.fromArgb(glow(thumb(c)).at(layout.artRect.right + 2f, layout.artRect.centerY))
             // chroma at the glow's own (low) lightness stays modest
@@ -133,10 +140,14 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `text tiers step down clearly and the title keeps 4,5 to 1 at night`() {
+    fun `three clear text levels and the title keeps 4,5 to 1 at night`() {
         val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY)
-        val tiers = listOf(p.ink, p.inkMuted, p.inkFaint, p.inkQuiet, p.inkHush).map { luminance(it) }
-        for (i in 1 until tiers.size) assertThat(tiers[i]).isLessThan(tiers[i - 1])
+        val tiers = listOf(p.ink, p.inkMuted, p.inkFaint).map { Oklab.fromArgb(it).l }
+        // each level clearly below the one above it …
+        for (i in 1 until tiers.size) assertThat(tiers[i - 1] - tiers[i]).isAtLeast(0.1f)
+        // … and no in-between greys
+        assertThat(p.inkQuiet).isEqualTo(p.inkFaint)
+        assertThat(p.inkHush).isEqualTo(p.inkFaint)
         val night = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.NIGHT)
         assertThat(contrast(night.ink, 0xFF000000.toInt())).isAtLeast(4.5f)
     }

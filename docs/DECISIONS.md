@@ -429,13 +429,19 @@ Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
   gezeichnet wurde – und das löste ein Fünf-Sekunden-Takt aus. Bei einem Vier-Minuten-Titel
   sind das Sprünge von 5,6°. Die Ursache wäre behebbar gewesen, die Idee aber nicht: Eine
   Zeit, die man erst deuten muss, ersetzt keinen Balken, den jeder ohne Nachdenken liest.
-- **Fortschritt als Balken**, wie bei Apple, Sonos und tvOS: 4 dp hoch, runde Enden, kein
-  Knopf (nichts wird berührt), Spur 20 %, Füllung 90 % der Textfarbe, darunter links die
-  gespielte Zeit, rechts die Restzeit mit echtem Minuszeichen. Er wird etwa 30-mal pro
-  Sekunde, im Takt des Bildschirms, neu gezeichnet – nur seine eigene Zeichenfläche, nichts
-  wird neu zusammengesetzt; die Zahlen ändern sich einmal pro Sekunde. Sprünge über 1,5 s
-  (Spulen) gleiten in 350 ms, kleine Korrekturen verschwinden wie bisher weich. Pausiert wird
-  die Füllung dunkler. Die Zeit in Worten entfällt.
+- **Fortschritt als Balken**, wie bei Apple, Sonos, Spotify und tvOS: 4 dp hoch, runde
+  Enden, kein Knopf (nichts wird berührt), Spur 16 %, Füllung in der Helligkeit des Künstlers,
+  darunter links die gespielte Zeit, rechts die Länge des Titels – so tickt nur eine Zahl
+  (eine Restzeit rechts hätte eine zweite ticken lassen). Er wird etwa 30-mal pro Sekunde, im
+  Takt des Bildschirms, neu gezeichnet – nur seine eigene Ebene, nichts wird neu
+  zusammengesetzt; die Zahlen ändern sich einmal pro Sekunde. Sprünge über 1,5 s (Spulen)
+  gleiten in 350 ms, kleine Korrekturen verschwinden wie bisher weich. Pausiert wird die
+  Füllung dunkler. Die Zeit in Worten entfällt.
+- **Ziffern:** Jede Ziffer steht in einer Zelle so breit wie die breiteste und mittig darin
+  (über die Laufweite, die Android gleichmäßig links und rechts verteilt) – Monas eigene
+  Tabellenziffern kommen nicht in Frage (durchgestrichene Null). Der Doppelpunkt wird um
+  0,095 em angehoben; auf der Grundlinie hängt er unter der Mitte der Ziffern. So verrutscht
+  weder die laufende Zeit noch die Uhr.
 - **Raster v2.** Das Cover misst 368 dp, zwei Drittel der Höhe – mehr als bei allen
   Referenzen (43–56 %), weil das Bild hier das Objekt ist. Der Textblock darf höchstens 62 %
   der Coverhöhe einnehmen, gemessen von der Versalhöhe der ersten bis zur Grundlinie der
@@ -465,36 +471,58 @@ Screenshots) und welche Schrift hochwertig wirkt, ohne nach KI auszusehen.
 - **Satz:** Ein Wort aus ein bis drei Buchstaben bleibt im Titel beim folgenden Wort
   („Spiegel / im Spiegel“, nie „Spiegel im / Spiegel“); passt „Als Nächstes“ mit Künstler
   nicht in die Zeile, steht nur der Titel da, statt den Künstler abzuschneiden.
-- **Schriftgrößen:** Titel 44 oder 40 sp in höchstens zwei Zeilen (Gewicht 440), sonst 36 bis
-  26 sp in drei Zeilen (450–460), danach schmaler (Breite 90, 82). Künstler 21 sp, Gewicht 520,
-  80 % Helligkeit; Album 17 sp; Zeiten, Statuszeile, „Als Nächstes“ 15 sp. Der große, leichte
-  Titel und der kleinere, etwas kräftigere Künstler halten sich die Waage. Nichts unter 15 sp.
+- **Schriftgrößen:** Titel 44 oder 40 sp in höchstens zwei Zeilen (Gewicht 440), sonst 34,
+  30, 26 sp in drei Zeilen (450–460). Erst wenn auch das nicht reicht, wird der ganze Block
+  schmaler (Breite 87,5) – nie eine einzelne Zeile, sonst sähe er nach zwei Schriften aus.
+  Japanische, chinesische und koreanische Titel stehen 12 % kleiner (ihre Zeichen sind höher
+  als Versalien). Eine Version („Radio Edit“) ist eine leise Unterzeile unter dem Titel statt
+  eines Anhangs in Titelgröße. Künstler 21 sp, Gewicht 520; Album 17 sp; Zeiten,
+  Statuszeile, „Als Nächstes“ 15 sp. Der große, leichte Titel und der kleinere, etwas
+  kräftigere Künstler halten sich die Waage. Nichts unter 15 sp. Große Zeilen rücken um
+  ihren größeren Vorbreitenabstand nach links, damit alle Zeilen optisch auf einer Kante
+  stehen.
 - **Textfarben** fast neutral – ein Hauch des Coverfarbtons (Chroma ≤ 0,009), abends etwas
-  wärmer – in den Stufen 100 / 80 / 63 / 59 / 55 % (Weiß auf Schwarz), nie reines Weiß.
+  wärmer – in drei Stufen: Titel; Künstler, Uhr und Füllung des Balkens; alles andere (wie
+  Weiß zu 100 / 80 / 62 % auf Schwarz). Feinere Stufen nebeneinander sehen nach Versehen aus,
+  nicht nach Ordnung. Nie reines Weiß.
 - **Licht v2:** Statt einer Lampe hinter dem Bild leuchtet das Bild selbst, in den Farben
-  seiner Ränder. Jeder Punkt der Wand nimmt die Farbe des nächsten Randpunkts, gemittelt über
-  eine Strecke des Randes, die mit der Entfernung wächst (wie diffuses Licht – ohne diese
-  Mittelung zeichneten sich Streifen ab). Am Rand 0,045 relative Leuchtdichte (≈ L* 25), dann
-  exp(−(d/σ)^1,7) mit σ = 0,19 × Bildgröße: Das Licht bleibt nah am Bild, der Text steht auf
-  dunkler Wand. Ein Test prüft, dass auch die leiseste Zeile auf dem hellsten Licht 4,5 : 1
-  Kontrast behält. Dunkle Ränder leuchten schwächer, Farbigkeit ist begrenzt, nachts gedämpft;
-  am Bildschirmrand bleibt es schwarz – eingeblendet als Produkt einer waagerechten und einer
-  senkrechten Rampe (das Minimum der Randabstände knickte sichtbar entlang der Diagonalen,
-  wie eine Gehrung). Eine Bitmap je Szene, gezeichnet als ein Rechteck,
-  gedimmt über eine Farbmatrix – pro Frame passiert nichts.
+  seiner Ränder, als enger Hof – auf allen Seiten gleich. Jeder Punkt der Wand nimmt die
+  Farbe des nächsten Randpunkts, gemittelt über eine Strecke des Randes, die mit der
+  Entfernung wächst (wie diffuses Licht – ohne diese Mittelung zeichneten sich Streifen ab).
+  Am Rand höchstens 0,022 relative Leuchtdichte (≈ L* 17) und nie mehr als 40 % der
+  Leuchtdichte des Randes selbst: Ein Bild wirft höchstens so viel Licht, wie es hell ist –
+  ein dunkles Cover fast keins, ein kleines im Passepartout nur das des dunklen Kartons.
+  Dann fällt es als Gauß-Kurve mit σ = 26 dp und ist vor der Textspalte verschwunden, die
+  Schrift steht auf Schwarz. Das Licht reicht 2 dp unter die Kante des Bildes, damit dessen
+  geglätteter Rand nie dunkel umrandet wirkt. Am Bildschirmrand bleibt es schwarz –
+  eingeblendet als Produkt einer waagerechten und einer senkrechten Rampe (das Minimum der
+  Randabstände knickte sichtbar entlang der Diagonalen, wie eine Gehrung). Eine erste Fassung
+  (heller, σ = 0,19 × Bildgröße) wirkte wie ein grauer Rahmen: zur Seite der Textspalte weit,
+  zu den nahen Bildschirmrändern abgeschnitten. Eine Bitmap je Szene, gezeichnet als ein
+  Rechteck, gedimmt über eine Farbmatrix – pro Frame passiert nichts.
 - **Abgerundete Ecken:** 8 dp, gut 2 % der Seitenlänge (gemessen bei Apple, Tidal, Sonos:
   1,7–3,2 %).
-- **Bewegung:** Ein Titelwechsel dauert 1,1 s: Das neue Cover blendet in 600 ms über das alte
-  und setzt sich aus 2 % Übergröße, das Licht wandelt sich in 900 ms, die alten Zeilen gehen
-  in 250 ms, die neuen steigen ab 300 ms nacheinander an ihren Platz. Bei Pause tritt das
-  Cover auf 96,5 % zurück (wie bei Apple Music), Licht, Cover und Text werden gedimmt
-  (600 ms). Stumm und Verbindungsverlust dimmen nur.
+- **Bewegung:** Ein Titelwechsel (1,25 s) geht kurz durchs Dunkle, statt zwei Bilder
+  übereinanderzublenden: Das alte Cover verlischt in 320 ms, das neue kommt von 300 bis
+  900 ms und setzt sich aus 1,5 % Übergröße, das Licht wechselt über 900 ms in die neuen
+  Farben; die alten Zeilen gehen in 200 ms, die neuen steigen ab 560 ms nacheinander an ihren
+  Platz. Eine Pause dimmt Licht, Bild und Text (600 ms) – nichts bewegt sich, damit die an
+  den Kanten des Bildes hängenden Zeilen bündig bleiben. Stumm ist nur ein Wort,
+  Verbindungsverlust dimmt wie eine Pause.
 - **Statuszeile** „21:47 · Wohnzimmer + 5“ oben links in der Spalte, in normaler
-  Schreibweise; sie sagt auch „Pausiert“, „Stumm“ und für ein paar Sekunden die Lautstärke.
+  Schreibweise; erst der Ort, dann der Zustand: „Wohnzimmer · Pausiert“, „Küche · Stumm“, für
+  ein paar Sekunden die Lautstärke.
 - **Demo entfernt.** Die erzeugten Testcover leben nur noch in den Tests. Der Smoke-Test im
   Emulator spricht stattdessen mit einem kleinen Ersatz-Home-Assistant (`ci/fake_ha.py`) –
   das prüft den echten Weg der Daten statt einer Attrappe.
-- **Alltag** (aus [`IDEEN.md`](IDEEN.md)): „Überall“, wenn alle Lautsprecher spielen; Stumm
-  dimmt wie eine Pause; ein Tastendruck blendet Ausgeblendetes kurz ein. Was dort sonst steht,
+- **Alltag** (aus [`IDEEN.md`](IDEEN.md)): „Überall“, wenn alle Lautsprecher spielen; „Stumm“
+  in der Statuszeile; ein Tastendruck blendet Ausgeblendetes kurz ein. Was dort sonst steht,
   braucht Entitäten aus dem eigenen Home Assistant oder Messungen am Gerät und bleibt
   vorerst Idee (Begründung in `IDEEN.md`).
+- **Unabhängige Kritik.** Ein Prüfer, der nur die Bilder kannte, bestätigte Raster,
+  Mittelung und Satz und benannte, was den „Wow“-Eindruck verhinderte: das Licht als grauer
+  Rahmen, das Doppelbild beim Titelwechsel, zitternde Zahlen, zu viele Graustufen, gemischte
+  Laufweiten, das Zurückweichen bei Pause, das die Kanten-Zeilen verrutschen ließ. Alles davon
+  ist oben eingearbeitet, dazu: ein kleinerer, weicherer Lichtstreifen hinter der gewählten
+  Menüzeile, der nur sie beleuchtet, und ein Satz statt Etikett, wenn Home Assistant nicht
+  erreichbar ist.
