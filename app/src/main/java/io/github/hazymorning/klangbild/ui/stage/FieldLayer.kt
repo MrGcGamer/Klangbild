@@ -13,7 +13,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -27,19 +29,20 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.CoverField
+import io.github.hazymorning.klangbild.render.FieldBlob
 import io.github.hazymorning.klangbild.render.FieldMotion
 import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.TICK_MS
 import kotlinx.coroutines.delay
-import kotlin.math.hypot
+import kotlin.math.ceil
 import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /** The colour field's clock as the stage reads it: its time ([now], seconds) and whether it runs. */
@@ -54,12 +57,14 @@ class FieldTime(val now: () -> Double, val moving: Boolean) {
 val LocalFieldTime = staticCompositionLocalOf { FieldTime.STILL }
 
 /**
- * The cover's colours as the wall ([CoverField], [FieldMotion]). The layers are drawn into a
- * layer a quarter of the screen's size and scaled up – they are nothing but soft shapes –, so
- * even while they move a frame costs a few small textured quads and one scaled copy. Over it,
- * at full resolution, a grain of a level or two (soft dark ramps would otherwise show bands)
- * and the veil: the wall towards the edges, the shade under the text, the artwork's shadow.
- * While the field moves it is redrawn about 30 times a second, nothing else.
+ * The cover's colours as the wall ([CoverField], [FieldMotion]), edge to edge and
+ * [CoverField.OVERSCAN_DP] beyond, so the stage's drift never shows a border. The ground and
+ * the soft pools are drawn into a layer a quarter of the screen's size and scaled up – they
+ * are nothing but soft shapes –, each pool one quad with its own radial gradient, turned and
+ * stretched where [FieldMotion] puts it: a frame costs a dozen small quads and one scaled
+ * copy. Over it, at full resolution, a grain of a level or two (soft dark ramps would
+ * otherwise show bands) and the veil: the shade under the text and the artwork's shadow.
+ * While the field moves it is redrawn with the stage's tick (~30 times a second), nothing else.
  *
  * [alpha] fades it during a change, [level] dims it (pause, a lost link).
  */
@@ -71,10 +76,11 @@ fun FieldLayer(
     level: () -> Float = { 1f },
 ) {
     val field = scene.field ?: return
-    val texture = remember(field) { field.texture?.asImageBitmap() } ?: return
     val veil = remember(field) { field.veil?.asImageBitmap() }
     val base = remember(field) { Color(field.base) }
-    val dark = scene.appearance == Appearance.DARK
+    val brushes = remember(field) { field.blobs.map(::brush) }
+    val places = remember(field) { FloatArray(field.blobs.size * FieldMotion.STRIDE) }
+    val dark = field.dark
     val time = LocalFieldTime.current
     // The stage's one tick, shared with the progress bar; alone (in a test) a loop of its own.
     val shared = LocalStageTick.current
@@ -88,25 +94,28 @@ fun FieldLayer(
         }
     }
     val frame = shared?.frame ?: own
-    val places = remember { FloatArray(FieldMotion.LAYERS * FieldMotion.STRIDE) }
     val grain = remember { ShaderBrush(ImageShader(Grain.image, TileMode.Repeated, TileMode.Repeated)) }
-    val side = CoverField.SIZE.toFloat()
+    val density = LocalDensity.current.density
     BoxWithConstraints(modifier.fillMaxSize()) {
         val w = constraints.maxWidth
         val h = constraints.maxHeight
-        val lw = max(1, (w + DOWN - 1) / DOWN)
-        val lh = max(1, (h + DOWN - 1) / DOWN)
+        // The field reaches beyond the screen on every side.
+        val m = ceil(CoverField.OVERSCAN_DP * density).toInt()
+        val fw = w + 2 * m
+        val fh = h + 2 * m
+        val lw = max(1, (fw + DOWN - 1) / DOWN)
+        val lh = max(1, (fh + DOWN - 1) / DOWN)
         Canvas(
             Modifier
                 .layout { measurable, _ ->
                     val p = measurable.measure(Constraints.fixed(lw, lh))
-                    layout(lw, lh) { p.place(0, 0) }
+                    layout(lw, lh) { p.place(-m, -m) }
                 }
                 .graphicsLayer {
-                    scaleX = w / lw.toFloat()
-                    scaleY = h / lh.toFloat()
+                    scaleX = fw / lw.toFloat()
+                    scaleY = fh / lh.toFloat()
                     transformOrigin = TransformOrigin(0f, 0f)
-                    // Drawn small, then scaled: the layers never touch the full resolution.
+                    // Drawn small, then scaled: the pools never touch the full resolution.
                     compositingStrategy = CompositingStrategy.Offscreen
                     this.alpha = alpha().coerceIn(0f, 1f)
                     // A little more vivid once mixed: where opposite colours meet they stay colour, not grey.
@@ -114,38 +123,61 @@ fun FieldLayer(
                 },
         ) {
             if (time.moving) frame.value // a new frame while the field moves
-            FieldMotion.layers(time.now(), places)
-            drawRect(base)
-            val diagonal = hypot(size.width, size.height)
-            for (i in 0 until FieldMotion.LAYERS) {
-                val o = i * FieldMotion.STRIDE
-                val scale = places[o + 3] * diagonal / side
-                withTransform({
-                    translate(places[o] * size.width, places[o + 1] * size.height)
-                    rotate(places[o + 2], pivot = Offset.Zero)
-                    scale(scale, scale, pivot = Offset.Zero)
-                    translate(-side / 2f, -side / 2f)
-                }) {
-                    drawImage(texture, alpha = places[o + 4], filterQuality = FilterQuality.Low)
+            val t = time.now()
+            // From here on in screen pixels: (0, 0) is the screen's top left corner.
+            withTransform({
+                scale(size.width / fw, size.height / fh, pivot = Offset.Zero)
+                translate(m.toFloat(), m.toFloat())
+            }) {
+                drawRect(base, topLeft = Offset(-m.toFloat(), -m.toFloat()), size = Size(fw.toFloat(), fh.toFloat()))
+                for ((i, blob) in field.blobs.withIndex()) {
+                    val o = i * FieldMotion.STRIDE
+                    FieldMotion.place(blob, t, places, o)
+                    val r = places[o + 3] * w
+                    withTransform({
+                        translate(places[o] * w, places[o + 1] * h)
+                        rotate(places[o + 2], pivot = Offset.Zero)
+                        scale(r, r * blob.aspect, pivot = Offset.Zero)
+                    }) {
+                        drawRect(brushes[i], topLeft = UNIT_TOP_LEFT, size = UNIT_SIZE, blendMode = if (blob.glow) BlendMode.Screen else BlendMode.SrcOver)
+                    }
                 }
             }
         }
         Canvas(Modifier.fillMaxSize()) {
             val a = alpha().coerceIn(0f, 1f)
             if (a <= 0.002f) return@Canvas
-            drawRect(grain, alpha = a, blendMode = BlendMode.Plus)
-            veil?.let { drawImage(it, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), alpha = a, filterQuality = FilterQuality.Low) }
-            // In the dark a pause (or a lower light setting) dims the colours; paper stays paper, like the plain wall.
+            val topLeft = Offset(-m.toFloat(), -m.toFloat())
+            val all = Size(fw.toFloat(), fh.toFloat())
+            drawRect(grain, topLeft, all, alpha = a, blendMode = BlendMode.Plus)
+            veil?.let { drawImage(it, dstOffset = IntOffset(-m, -m), dstSize = IntSize(fw, fh), alpha = a, filterQuality = FilterQuality.Low) }
+            // In the dark a pause (or a lost link) dims the colours; paper stays paper, like the plain wall.
             val dim = if (dark) 1f - level().coerceIn(0f, 1f) else 0f
-            if (dim > 0.002f) drawRect(Color.Black, alpha = a * dim)
+            if (dim > 0.002f) drawRect(Color.Black, topLeft, all, alpha = a * dim)
         }
     }
 }
 
-/** How much smaller than the screen the layers are drawn. */
+/** How much smaller than the screen the pools are drawn. */
 private const val DOWN = 4
 
-/** Saturation after the layers have mixed ([CoverField.SATURATION]). */
+/** Stops of a pool's gradient: its falloff, piecewise linear. */
+private const val STOPS = 24
+
+private val UNIT_TOP_LEFT = Offset(-1f, -1f)
+private val UNIT_SIZE = Size(2f, 2f)
+
+/** A pool as a radial gradient on the unit circle: its colour, its strength falling off as [CoverField.falloff]. */
+private fun brush(b: FieldBlob): Brush {
+    val colour = Color(b.colour)
+    val stops = Array(STOPS + 1) { i ->
+        val rho = i / STOPS.toFloat()
+        rho to colour.copy(alpha = b.alpha * CoverField.falloff(rho, b.focus))
+    }
+    return Brush.radialGradient(*stops, center = Offset.Zero, radius = 1f)
+}
+
+/** Saturation after the pools have mixed ([CoverField.SATURATION]). */
 private val VIVID = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(CoverField.SATURATION) })
 
 /** A tile of fine noise (0–2 levels): added to the field, it breaks up the bands of dark ramps. */

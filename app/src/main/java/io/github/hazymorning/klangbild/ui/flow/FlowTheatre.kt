@@ -210,7 +210,7 @@ fun FlowTheatre(
         if (prev != null && restrip) {
             // A new look of the same strip: the old cards stay underneath while the new ones come up.
             val old = prev.middle.scene
-            FlowStrip(resting(prev), geometry, old.appearance, old.lighting, old.palette.wall.asColor(), dim = { cardDim })
+            FlowStrip(resting(prev), geometry, old.appearance, old.lighting, old.palette.wall.asColor(), dim = { cardDim }, edges = !old.coverField)
         }
         FlowStrip(
             cards = motions,
@@ -221,6 +221,7 @@ fun FlowTheatre(
             time = { if (softText) 1f else t.value },
             dim = { cardDim },
             alpha = { if (restrip) p(0, total, Motion.Sine) else 1f },
+            edges = !middle.scene.coverField,
         )
         if (prevModel != null && prevPlan != null && kind != FlowChange.SIDES) {
             TextLayer(

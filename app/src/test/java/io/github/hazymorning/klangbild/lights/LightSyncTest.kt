@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.lights
 
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.BarLevel
 import io.github.hazymorning.klangbild.config.LightBars
@@ -37,7 +38,15 @@ class LightSyncTest {
     private fun field(): FieldScene {
         val n = 48
         val thumb = IntArray(n * n) { i -> if (i % n < n / 2) 0xFFC8321E.toInt() else 0xFF1E46B4.toInt() }
-        return CoverField.build(thumb, n, Lighting.DAY, Appearance.DARK, 1f, layout = null)
+        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Lighting.DAY, Appearance.DARK, 1f, layout = null)
+    }
+
+    /** A cover of four colours, one per quarter: the field at the edges keeps changing as it moves. */
+    private fun fourColours(): FieldScene {
+        val n = 48
+        val quarters = intArrayOf(0xFFC8321E.toInt(), 0xFF1E46B4.toInt(), 0xFFE0B020.toInt(), 0xFF2E8B57.toInt())
+        val thumb = IntArray(n * n) { i -> quarters[(if (i % n < n / 2) 0 else 1) + (if (i / n < n / 2) 0 else 2)] }
+        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Lighting.DAY, Appearance.DARK, 1f, layout = null)
     }
 
     private class Call(val at: Long, val service: String, val id: String, val data: JsonObject?) {
@@ -137,7 +146,8 @@ class LightSyncTest {
         s.update(target("a"))
         testScheduler.advanceTimeBy(5_000)
         val before = ha.calls.size
-        val other = CoverField.build(IntArray(48 * 48) { 0xFF2E8B57.toInt() }, 48, Lighting.DAY, Appearance.DARK, 1f, null)
+        val green = IntArray(48 * 48) { 0xFF2E8B57.toInt() }
+        val other = CoverField.build(green, 48, CoverPalette.analyze(green), Lighting.DAY, Appearance.DARK, 1f, null)
         for ((i, song) in listOf("b", "c", "d").withIndex()) {
             s.update(target(song, f = if (i == 2) other else field))
             testScheduler.advanceTimeBy(400)
@@ -173,19 +183,21 @@ class LightSyncTest {
         val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = true)))
         val s = sync()
         s.attach(ha)
-        s.update(target("a"))
+        val four = fourColours()
+        s.update(target("a", f = four))
         testScheduler.advanceTimeBy(60_000)
         assertThat(ha.to(left)).hasSize(1)
 
         var t = 0.0
-        val moving = LightSync.Target(bars, BarLevel.NORMAL, field, "a", true, 0f, 0.06f, 1f) { t }
+        val moving = LightSync.Target(bars, BarLevel.NORMAL, four, "a", true, 0f, 0.06f, 1f) { t }
         s.update(moving)
-        repeat(120) {
+        // Five minutes: the colour at a screen edge changes slowly, and only visible steps are sent.
+        repeat(600) {
             t += 0.5
             testScheduler.advanceTimeBy(500)
         }
         val drift = ha.to(left).drop(1)
-        assertThat(drift.size).isAtMost(7)
+        assertThat(drift.size).isAtMost(31)
         assertThat(drift).isNotEmpty()
         assertThat(drift.map { it.transition }.toSet()).containsExactly(LightSync.DRIFT_TRANSITION_MS / 1000.0)
         assertThat(ha.to(left).zipWithNext { a, b -> b.at - a.at }.minOrNull()!!).isAtLeast(LightSync.MIN_GAP_MS)

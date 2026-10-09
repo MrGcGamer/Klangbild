@@ -34,42 +34,61 @@ python3 tools/make_readme_images.py                            # docs/screens/ f
 
 ```
 data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swappable one for
-                group members via watch(), render_template via watchTemplate(), call_service,
-                ping, backoff), EntityStore (compressed diff applier), PlayerParser (entity +
-                MA get_queue), HaUrls, LocalNetwork (cleartext only in LAN, every redirect hop),
-                ArtworkUrls (CDN hi-res rewrites), HaSource (NowPlayingSource: player + sun.sun +
-                MA queue + speaker count for "Überall" + the optional MA queue window)
+                group members and light bars via watch(), render_template via watchTemplate(),
+                call_service (+ the call's context id), ping, backoff), EntityStore (compressed
+                diff applier, keeps each state's context), PlayerParser (entity + MA get_queue;
+                MediaKind from the MA URI, a book's description never an album), HaUrls,
+                LocalNetwork (cleartext only in LAN, every redirect hop), ArtworkUrls (CDN hi-res
+                rewrites), HaSource (NowPlayingSource + LightBridge: player + sun.sun + MA queue
+                (one read at a time, only for MA players with a queue) + speaker count for
+                "Überall" + the optional MA queue window, seek, the light bars' states and calls)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
-                MaQueue (queue items around the current one → QueueWindow, pictures via imageproxy)
-data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader (size limits), Backoff
-domain/         TrackInfo (+ pictureKey), PlayerSnapshot (+ SpeakerGroup, QueueInfo), SpeakerLabel
-                ("Wohnzimmer + 5", "Überall", room names, "35 %"), TrackText (typographic cleanup),
-                Progress + SmoothedPosition, TimeLine (clock format, separator), ScreenStateMachine,
-                StageView (SINGLE / FLOW), CoverStrip (the cover flow's cards: one per picture, ids kept)
+                MaQueue (queue items around the current one → QueueWindow with the current item's
+                speed; books' authors, episodes' shows, chapters; pictures via imageproxy)
+data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader (size limits), Backoff,
+                Http (cancellable OkHttp fetch with a call timeout)
+domain/         TrackInfo (+ pictureKey, kind, chapters), PlayerSnapshot (+ SpeakerGroup, QueueInfo,
+                speed), SpeakerLabel ("Wohnzimmer + 5", "Überall", room names, "35 %"), TrackText
+                (typographic cleanup), Progress (runs at the item's speed) + SmoothedPosition,
+                TimeLine (clock format, separator, "Tempo 1,5×"), ScreenStateMachine, StageView
+                (SINGLE / FLOW), CoverStrip (the cover flow's cards: one per picture, ids kept),
+                Spoken (MediaKind, Chapter/Chapters/ChapterPlace: chapters, labels, jumps),
+                SleepTimer ("Einschlafen": minutes or an end reached by playing), FieldClock (the
+                colour field's own time, shared by screen and light bars)
 color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, inks, both walls), Lighting
                 (time of day), Appearance (LIGHT / DARK, by the sun)
-render/         HaloLayout (the grid, per view), WallGlow (the artwork's light on the dark wall),
+render/         HaloLayout (the grid, per view), CoverField ("Coverfarben": ground + soft pools in
+                the cover's colours, the veil with text shade and cast shadow) + FieldMotion (where
+                each pool stands at a field time) + FieldModel (the field on the CPU: text shade,
+                the bars' colours), WallGlow (the artwork's light on the dark wall),
                 WallShade (its shadow on paper), HaloLight (PrintShape; lamp tint for rest and
                 menu), SceneBuilder (per-track precompute: Lanczos cover at exact px, wall, palette,
                 flow card; relight), FlowGeometry (the shared perspective), FlowCards (baked card
                 textures), FlowLight (the pool of light above the cards), ImageOps
 art/            ChladniArt (missing-cover art), StableHash
-app/            NowPlayingController (single source of truth → StateFlow<UiState>), Scenes (scene
-                cache + builds off the main thread), KlangbildApp/AppGraph
+lights/         LightSync (the colour lights behind the TV via Home Assistant: the field's colour
+                at the screen edge next to each bar, snapshot/restore, rate limits, takeover by others), HueColor (xy in
+                gamut C, greys as warm white, brightness floor)
+app/            NowPlayingController (single source of truth → StateFlow<UiState>; chapters, jumps
+                with the remote, sleep timer, light bars), Scenes (scene cache + builds off the
+                main thread), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API, token bound to its address), SetupPage
                 (HTML), SetupServer (+ QR, discovery)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), stage/ (Stage layers,
-                Typesetting, StageTheatre transitions, ProgressBar, StageModel + StageTexts),
+                Typesetting, StageTheatre transitions, ProgressBar (a range: the chapter),
+                StageModel + StageTexts, FieldLayer: the pools as gradient quads, drawn small and scaled),
+                Motion (+ StageTick: one frame tick for bar and field), OffMain (bitmaps off the
+                main thread, at once in stills),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
                 RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
                 at a time, hurrying, held lines), DebugOverlay
 dream/          KlangbildDream (DreamService with ComposeView)
-config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode) + SettingsStore
-                (DataStore), SettingsMenu (entries, values, German explanations, steps), LaunchExtras
-                (am start extras)
-test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME),
-                Fixtures, the static stages for stills
+config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
+                MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
+                (entries, values, German explanations, steps; "Effekte"), LaunchExtras (am start extras)
+test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME, a book
+                and an episode), Fixtures, the static stages for stills
 ```
 
 ## Design principles (do not regress)
@@ -175,6 +194,47 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   through it and fades with distance. Values are words, changes apply at once (left/right
   clamp, OK wraps), closes itself after 60 s. Options show or hide parts, choose the view and
   the wall, and dim the light – no fonts, colours or layout variants.
+- **Coverfarben** (setting "Hintergrund", `BackgroundMode.COVER`): the cover's own colours as the
+  wall, edge to edge and 18 dp beyond (`OVERSCAN_DP`: the ±12 dp drift never shows a border; the
+  only wall without the black edge band, `EdgeBandTest` checks the edges are filled). A deep
+  ground plus one mass per cover colour (up to 5), placed where the colour sits in the cover and
+  pushed ≥ 0.42 screen widths apart; lit cores in the 3 most characteristic masses; 1–2 soft
+  pools of light in front, on the picture's side only (never under the text). Far = large and
+  soft, near = smaller, lighter, a little firmer (depth of field). Dark tones L 0.15–0.56 (rich,
+  chroma ≤ ~0.5 × L), paper L 0.86–0.975 (pale washes). Each pool is one quad with a radial
+  gradient in a quarter-size layer (`FieldLayer`), saturation 1.2 after mixing; grain against
+  banding; a veil with a shade under the text worked out per cover (sampled over 20 min of
+  motion, aiming at 4.8:1 so the quietest text keeps 4.5:1 – tested on rendered pixels) and
+  the artwork's shadow. No vignette. `FieldModel` computes the same field on the CPU (text
+  shade, light bars). On colour the lower inks stand a little lighter (0.82 / 0.71, night floors
+  0.71 / 0.62); the progress bar takes the cover's leading hue. "Wandlicht" sets how strong the
+  colours are. Cover Flow on the field: the cards pass the screen's edges (`FlowStrip(edges = false)`).
+- **Bewegung** (Aus / Sanft / Mittel / Lebhaft = speed 0 / 0.3 / 0.6 / 1.0; the main layer turns
+  once in ≈ 470 / 230 / 140 s): only while music plays, on the field's own clock (`FieldClock`) –
+  a pause freezes it, nothing jumps; screen and light bars read the same clock. One frame tick
+  (~30/s) for the field and the progress bar, never two loops out of step.
+- **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus / Dezent /
+  Normal / Kräftig = 10 / 20 / 40 % brightness): each bar takes the field's colour at the screen
+  edge next to it (left and right edge, the middle bar the top edge), as xy within gamut C, greys as warm white (2700 K, evening
+  2300 K), dark covers softly; night × 0.6, pause × 0.5 (after 2 s). Before taking the bars over
+  their state is noted; it is given back after the music has ended for 5 minutes, when the
+  option goes off and when the app closes (bars that were off: dimmed, then off without a fade).
+  At most one call per bar a second, none for invisible changes, a new song after 1.5 s
+  (quick skips cost nothing) in a 2.5 s fade, drift every 10 s in 8 s fades. A bar someone else
+  switches off, sets to white or changes a lot is theirs until the next session.
+- **Hörbücher und Podcasts** are told by Music Assistant's URI (`…://audiobook/…`,
+  `…://podcast_episode/…`): a book's description (where an album would be) never shows, an
+  episode's show stands where an artist would. With Music Assistant: the chapter in the album's
+  place (a number-only name as "Kapitel 7", a long one cut after a whole word), the bar spans
+  the chapter, "Als Nächstes" the next chapter, the speed in words ("Tempo 1,25×") and the
+  position running at that speed. Left / right jump back 15 / ahead 30 s (presses add up, the bar
+  shows it at once), held they go by chapters; setting "Hörbücher und Podcasts": Springen /
+  Wechseln. A held key never repeats a command.
+- **Einschlafen** (menu, no setting): Aus / 15 / 30 / 45 Minuten / eine Stunde / Ende des
+  Kapitels / Ende der Folge (des Titels, des Hörbuchs); the status line says "Pause um 23:10".
+  An end counts only when playing reaches it (a jump across moves the timer on); the item's end
+  is paused 1.5 s early so the queue never moves on first. It lives in the app: only while
+  Klangbild runs.
 - **Music Assistant** is optional: without it Klangbild works from Home Assistant alone; with
   it (address + long-lived token on the setup page, checked before storing) the cover flow
   shows the whole queue and the album line its year. Tokens only ever go to the address they

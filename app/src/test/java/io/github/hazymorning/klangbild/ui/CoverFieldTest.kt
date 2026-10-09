@@ -45,6 +45,20 @@ class CoverFieldTest {
     @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALZWASSER, Appearance.LIGHT)
     @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRAKOTTA, Appearance.LIGHT)
 
+    /** Every test cover once, on both walls: the field's range at a glance. */
+    @Test
+    fun gallery() {
+        val covers = Fixtures.tracks.distinctBy { it.artworkUrl }
+        for (appearance in Appearance.entries) for ((i, track) in covers.withIndex()) {
+            val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
+            captureRoboImage("build/screenshots/cover_field/gallery/${appearance.name.lowercase()}_%02d.png".format(i)) {
+                Fixtures.Still {
+                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, appearance = appearance))
+                }
+            }
+        }
+    }
+
     @Test
     fun moving() {
         for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NACHTFAHRT, at = i * 12.0)

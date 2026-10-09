@@ -171,7 +171,7 @@ object SettingsMenu {
             "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
                 "OK zeigt den QR-Code; am Handy wählst du sie aus Home Assistant aus."
         } else {
-            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben des Covers; nach der Musik sind sie wieder wie vorher. " + when (s.barLevel) {
+            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben des Covers; nach der Musik sind sie wieder wie vorher. " + when (s.barLevel) {
                 BarLevel.OFF -> "Aus: Sie behalten ihr eigenes Licht."
                 BarLevel.SUBTLE -> "Dezent: ein Schimmer an der Wand."
                 BarLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."

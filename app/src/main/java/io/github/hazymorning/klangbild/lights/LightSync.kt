@@ -3,7 +3,7 @@ package io.github.hazymorning.klangbild.lights
 import io.github.hazymorning.klangbild.config.BarLevel
 import io.github.hazymorning.klangbild.config.LightBars
 import io.github.hazymorning.klangbild.data.ha.EntityState
-import io.github.hazymorning.klangbild.render.FieldMotion
+import io.github.hazymorning.klangbild.render.FieldModel
 import io.github.hazymorning.klangbild.render.FieldScene
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +42,8 @@ interface LightBridge {
 
 /**
  * The bars behind the TV in the cover's colours. Each bar takes the colour of the field
- * ([FieldMotion]) where it stands – left, middle, right – so with "Bewegung" they drift with
- * the screen; without it they change only with the music. Gentle on the Zigbee network and
+ * ([FieldModel]) at the screen's edge it stands by – left, top, right – so with "Bewegung" they
+ * drift with the screen; without it they change only with the music. Gentle on the Zigbee network and
  * on whoever else uses the lights:
  *
  *  - before it takes the bars over it notes how they were, and gives that back when the
@@ -123,7 +123,6 @@ class LightSync(
     private var shownPaused = false
     private var lastStepAt = 0L
     private var shownShare = 0f
-    private val places = FloatArray(FieldMotion.LAYERS * FieldMotion.STRIDE)
     private val rgb = FloatArray(3)
 
 
@@ -243,14 +242,14 @@ class LightSync(
 
     /** The colour and brightness for each bar, sent where they differ enough from what it shows. */
     private fun send(b: LightBridge, target: Target, t: Long, transitionMs: Long, force: Boolean, paused: Boolean) {
+        // Where the field will stand when the fade has ended.
         val ft = target.fieldTime() + transitionMs / 1000.0 * target.motion
-        FieldMotion.layers(ft, places)
         val share = share(target, paused)
         for (bar in bars.values) {
             if (bar.takenOver) continue
             val state = b.lights.value[bar.id]
             if (state == null || state.state == "unavailable") continue
-            FieldMotion.light(target.field, bar.position.first, bar.position.second, ASPECT, places, rgb)
+            FieldModel.light(target.field, bar.position.first, bar.position.second, ft, rgb)
             val xy = HueColor.of(rgb, target.warmth)
             val bri = HueColor.brightness(share * HueColor.dimFor(rgb))
             val small = bar.sentXy?.let { it.distance(xy) < MIN_XY_STEP && abs(bri - bar.sentBri) < MIN_BRI_STEP } == true
@@ -389,14 +388,17 @@ class LightSync(
     private fun followed(t: Target?): Set<String> = if (t == null || t.level == BarLevel.OFF) emptySet() else t.bars.ids.toSet()
 
     companion object {
-        /** Where each bar takes its colour from (shares of the screen): left, behind, right. */
+        /**
+         * Where each bar takes its colour from (shares of the screen): the screen's edge next to
+         * it – the left and right edges, and for the bar behind the middle the top edge, where
+         * its light shows above the TV.
+         */
         fun positions(bars: LightBars): Map<String, Pair<Float, Float>> = buildMap {
-            bars.left?.let { put(it, 0.08f to 0.5f) }
-            bars.center?.let { if (it !in this) put(it, 0.5f to 0.55f) }
-            bars.right?.let { if (it !in this) put(it, 0.92f to 0.5f) }
+            bars.left?.let { put(it, 0.02f to 0.5f) }
+            bars.center?.let { if (it !in this) put(it, 0.5f to 0.04f) }
+            bars.right?.let { if (it !in this) put(it, 0.98f to 0.5f) }
         }
 
-        private const val ASPECT = 16f / 9f
         const val TICK_MS = 1_000L
         const val MIN_GAP_MS = 1_000L
         const val SETTLE_MS = 1_500L

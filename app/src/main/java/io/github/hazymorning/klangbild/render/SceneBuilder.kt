@@ -183,8 +183,8 @@ object SceneBuilder {
         val flow = layout.view == StageView.FLOW
         // The cover's colours: the wall itself with "Coverfarben", else only for the light bars.
         val field = CoverField.build(
-            thumb, THUMB, lighting, appearance, strength = wallTint,
-            layout = layout.takeIf { coverField }, wall = palette.wall, shape = shape.takeIf { !flow }, quietInk = palette.inkQuiet,
+            thumb, THUMB, analysis, lighting, appearance, strength = wallTint,
+            layout = layout.takeIf { coverField }, shape = shape.takeIf { !flow }, quietInk = palette.inkQuiet,
         )
         val wall = when {
             // The field is the wall; the plain one is only its colour underneath.

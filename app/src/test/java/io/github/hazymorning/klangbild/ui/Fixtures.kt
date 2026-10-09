@@ -100,6 +100,36 @@ object Fixtures {
         )
     }
 
+    /**
+     * A book or an episode at [position] (ms in its own time): the chapter in the album's place,
+     * the bar over the chapter, the next chapter – or [next] – after it; [pace] in the status line.
+     */
+    fun spokenModel(
+        track: TrackInfo,
+        position: Long,
+        pace: String?,
+        appearance: Appearance = Appearance.DARK,
+        view: StageView = StageView.SINGLE,
+        next: TrackInfo? = null,
+        coverField: Boolean = false,
+        group: String? = "Wohnzimmer",
+    ): StageModel {
+        val chapter = io.github.hazymorning.klangbild.domain.ChapterPlace.at(track, position)
+        val lead = StageTexts.lead(PlayerStatus.PLAYING, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, pace = pace)
+        return StageModel(
+            scene = scene(track, appearance = appearance, view = view, coverField = coverField),
+            text = TrackText.from(track),
+            status = PlayerStatus.PLAYING,
+            durationMs = chapter?.let { it.endMs - it.startMs } ?: track.durationMs,
+            positionMs = { position },
+            next = chapter?.next ?: StageTexts.next(next),
+            nextTitle = if (chapter?.next != null) null else StageTexts.nextTitle(next),
+            statusLine = StatusLine(lead, "21:47"),
+            chapter = chapter?.label,
+            rangeStartMs = chapter?.startMs ?: 0L,
+        )
+    }
+
     /** Content rendered as a still: no loops of its own, so the capture can wait for idle. */
     @Composable
     fun Still(content: @Composable () -> Unit) {

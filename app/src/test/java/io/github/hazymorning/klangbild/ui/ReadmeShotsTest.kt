@@ -132,6 +132,59 @@ class ReadmeShotsTest {
         "16-tag",
         Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = pärt, group = "Wohnzimmer", clock = "11:24", appearance = Appearance.LIGHT),
     )
+
+    private fun field(name: String, cover: SyntheticCover, appearance: Appearance, clock: String) {
+        val track = Fixtures.track(cover)
+        val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
+        stage(name, Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, clock = clock, appearance = appearance))
+    }
+
+    @Test fun s17() = field("17-coverfarben", SyntheticCover.TERRAKOTTA, Appearance.DARK, "21:47")
+
+    @Test fun s18() = field("18-coverfarben-hell", SyntheticCover.SALZWASSER, Appearance.LIGHT, "11:24")
+
+    @Test fun s19() = shot("19-coverfarben-cover-flow") {
+        val strip = listOf(
+            Fixtures.track(SyntheticCover.TERRAKOTTA),
+            Fixtures.track(SyntheticCover.MOOS),
+            Fixtures.track(SyntheticCover.NACHTFAHRT),
+            Fixtures.track(SyntheticCover.LEERRAUM),
+            Fixtures.track(SyntheticCover.BAUHAUS),
+        )
+        val scenes = Fixtures.flowScenes(strip, coverField = true)
+        FlowStage(Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2]), Fixtures.restingCards(scenes, 2))
+    }
+
+    @Test fun s20() = stage(
+        "20-hoerbuch",
+        Fixtures.spokenModel(Catalogue.book, 2_554_000L, io.github.hazymorning.klangbild.domain.TimeLine.speed(1.25f)),
+    )
+
+    @Test fun s21() = stage(
+        "21-podcast",
+        Fixtures.spokenModel(
+            Catalogue.episode, 1_163_000L,
+            io.github.hazymorning.klangbild.ui.stage.StageTexts.sleep(Fixtures.at(22, 30), Fixtures.zone),
+            next = Catalogue.nextEpisode,
+        ),
+    )
+
+    @Test fun s22() = shot("22-einstellungen-effekte") {
+        val settings = io.github.hazymorning.klangbild.config.Settings(
+            haUrl = "http://192.168.1.10:8123",
+            haToken = "t",
+            entityId = "media_player.wohnzimmer",
+            background = io.github.hazymorning.klangbild.config.BackgroundMode.COVER,
+            motion = io.github.hazymorning.klangbild.config.MotionLevel.GENTLE,
+            bars = io.github.hazymorning.klangbild.config.LightBars("light.play_links", "light.play_mitte", "light.play_rechts"),
+        )
+        val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(
+            settings,
+            io.github.hazymorning.klangbild.config.MenuContext(io.github.hazymorning.klangbild.data.LinkState.CONNECTED),
+        )
+        val cursor = io.github.hazymorning.klangbild.config.SettingsMenu.entries.indexOf(io.github.hazymorning.klangbild.config.MenuEntry.BARS)
+        MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), Lighting.DAY)
+    }
 }
 
 /** The track change as frames for the README animation (960 × 540). */
