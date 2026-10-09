@@ -9,6 +9,7 @@ import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.data.ma.MaQueue
 import io.github.hazymorning.klangbild.data.ma.QueueWindow
+import io.github.hazymorning.klangbild.lights.LightBridge
 import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
@@ -45,7 +47,7 @@ class HaSource(
     private val ma: MaClient? = null,
     /** How often the queue is read again while music plays (shorter in tests). */
     private val queueRefreshMs: Long = QUEUE_REFRESH_MS,
-) : NowPlayingSource {
+) : NowPlayingSource, LightBridge {
 
     private val connection = HaConnection(http, scope)
     private val _state = MutableStateFlow(SourceState(link = LinkState.CONNECTING))
@@ -72,6 +74,25 @@ class HaSource(
     private var lastSnapshot: PlayerSnapshot? = null
     private var receivedAt = 0L
     private var watched: Set<String> = emptySet()
+
+    /** The colour lights behind the TV, followed for [LightSync] alongside the group's speakers. */
+    @Volatile private var lightIds: Set<String> = emptySet()
+    private val _lights = MutableStateFlow<Map<String, EntityState>>(emptyMap())
+    override val lights: StateFlow<Map<String, EntityState>> = _lights.asStateFlow()
+
+    override fun follow(ids: Set<String>) {
+        if (ids == lightIds) return
+        lightIds = ids
+        publish(connection.status.value, connection.entities.value)
+    }
+
+    override suspend fun callLight(service: String, entityId: String, data: JsonObject?): String? = try {
+        connection.callServiceForContext("light", service, entityId, data)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
 
     override fun start() {
         connection.start(config, listOf(playerEntity, sunEntity))
@@ -155,12 +176,15 @@ class HaSource(
 
         val enriched = player?.let { enrich(it) }
         val sun = entities[sunEntity]?.number("elevation")
-        // The other speakers of a group are followed too, for their names.
+        // The other speakers of a group are followed too, for their names – and the light bars.
         val others = player?.groupMembers.orEmpty()
-        if (others.toSet() != watched) {
-            watched = others.toSet()
+        val follow = others.toSet() + lightIds
+        if (follow != watched) {
+            watched = follow
             connection.watch(watched)
         }
+        val lightStates = lightIds.mapNotNull { id -> entities[id]?.let { id to it } }.toMap()
+        if (lightStates != _lights.value) _lights.value = lightStates
         val queueKnown = key != null && queueForKey == key
         val currentQueue = queue?.takeIf { queueKnown }
         val currentWindow = window?.takeIf { queueKnown }

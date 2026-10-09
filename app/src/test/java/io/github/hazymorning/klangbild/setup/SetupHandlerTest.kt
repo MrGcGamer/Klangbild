@@ -24,7 +24,10 @@ class SetupHandlerTest {
         settings = { stored },
         discover = { url, token ->
             discovered += url to token
-            DiscoverResult.Ok(listOf(SpeakerOption("media_player.wz", "Wohnzimmer", "spielt", true)))
+            DiscoverResult.Ok(
+                listOf(SpeakerOption("media_player.wz", "Wohnzimmer", "spielt", true)),
+                listOf(LightOption("light.play_links", "Play links", "an"), LightOption("light.play_rechts", "Play rechts", "aus")),
+            )
         },
         save = { stored = it },
         checkMa = { url, token ->
@@ -172,6 +175,38 @@ class SetupHandlerTest {
         ) as DiscoverResult.Ok
         assertThat(r.speakers.map { it.entityId }).containsExactly("media_player.wz", "media_player.kueche").inOrder()
         assertThat(r.speakers.first().state).isEqualTo("spielt")
+    }
+
+    @Test
+    fun `the light bars are offered, stored when the page showed them and kept when it did not`() {
+        val found = json(post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}"""))
+        assertThat(found["lights"].toString()).contains("light.play_links")
+        val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
+        assertThat(post("/api/save", """{$base,"barsLeft":"light.play_links","barsCenter":"","barsRight":"light.play_rechts"}""").status).isEqualTo(200)
+        assertThat(stored.bars).isEqualTo(io.github.hazymorning.klangbild.config.LightBars("light.play_links", null, "light.play_rechts"))
+        val state = json(post("/api/state", """{"code":"${handler.code}"}"""))
+        assertThat(state["barsRight"]!!.jsonPrimitive.content).isEqualTo("light.play_rechts")
+        // Saved without the lights section (nothing found yet): the bars stay.
+        assertThat(post("/api/save", """{$base}""").status).isEqualTo(200)
+        assertThat(stored.bars.ids).containsExactly("light.play_links", "light.play_rechts")
+        // Only lights.
+        assertThat(post("/api/save", """{$base,"barsLeft":"switch.steckdose"}""").status).isEqualTo(400)
+        assertThat(post("/api/save", """{$base,"barsLeft":"","barsCenter":"","barsRight":""}""").status).isEqualTo(200)
+        assertThat(stored.bars.isSet).isFalse()
+    }
+
+    @Test
+    fun `only lights that show colours are offered for the bars`() {
+        val r = SetupServer.parseSpeakers(
+            """[
+              {"entity_id":"light.play_links","state":"off","attributes":{"friendly_name":"Play links","supported_color_modes":["color_temp","xy"]}},
+              {"entity_id":"light.flur","state":"on","attributes":{"friendly_name":"Flur","supported_color_modes":["brightness"]}},
+              {"entity_id":"light.band","state":"on","attributes":{"friendly_name":"Band","supported_color_modes":["rgbww"]}},
+              {"entity_id":"switch.x","state":"on","attributes":{"supported_color_modes":["xy"]}}
+            ]""",
+        ) as DiscoverResult.Ok
+        assertThat(r.lights.map { it.entityId }).containsExactly("light.band", "light.play_links").inOrder()
+        assertThat(r.lights.last().state).isEqualTo("aus")
     }
 
     @Test

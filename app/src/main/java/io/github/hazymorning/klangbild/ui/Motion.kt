@@ -2,7 +2,15 @@ package io.github.hazymorning.klangbild.ui
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -12,6 +20,36 @@ import kotlin.math.sin
  * composition can come to rest.
  */
 val LocalStill = staticCompositionLocalOf { false }
+
+/**
+ * One clock for what moves by itself on the stage – the progress bar and the colour field – so
+ * both are redrawn in the same frame: two loops out of step would double the frames drawn.
+ * [frame] changes about 30 times a second while something moves, twice a second otherwise.
+ */
+@Stable
+class StageTick(val frame: State<Long>)
+
+/** The stage's tick; null where nobody provides one (a lone bar then keeps its own loop). */
+val LocalStageTick = staticCompositionLocalOf<StageTick?> { null }
+
+/** A tick for the stage: [fast] while music plays or the colours move. */
+@Composable
+fun rememberStageTick(fast: Boolean): StageTick {
+    val frame = remember { mutableLongStateOf(0L) }
+    if (!LocalStill.current) {
+        LaunchedEffect(fast) {
+            while (true) {
+                withFrameNanos { frame.longValue = it }
+                delay(if (fast) TICK_MS else SLOW_TICK_MS)
+            }
+        }
+    }
+    return remember(frame) { StageTick(frame) }
+}
+
+/** About 30 frames a second, aligned to the display's: plenty for a bar and a field this slow. */
+const val TICK_MS = 24L
+private const val SLOW_TICK_MS = 500L
 
 /**
  * Motion vocabulary. Everything is driven by the display's frames and eased; nothing

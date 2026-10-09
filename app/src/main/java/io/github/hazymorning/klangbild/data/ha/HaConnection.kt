@@ -137,9 +137,19 @@ class HaConnection(
         returnResponse: Boolean = false,
         data: JsonObject? = null,
         timeoutMs: Long = 10_000,
-    ): JsonObject? {
+    ): JsonObject? = (call(domain, service, entityId, returnResponse, data, timeoutMs) as? JsonObject)?.get("response") as? JsonObject
+
+    /**
+     * Calls a service and returns the id of the context Home Assistant gave the call: the
+     * states it changes carry it, so they can be told from changes made by anyone else.
+     */
+    suspend fun callServiceForContext(domain: String, service: String, entityId: String?, data: JsonObject? = null, timeoutMs: Long = 10_000): String? =
+        (((call(domain, service, entityId, false, data, timeoutMs) as? JsonObject)?.get("context") as? JsonObject)?.get("id") as? JsonPrimitive)
+            ?.takeIf { it.isString }?.content
+
+    private suspend fun call(domain: String, service: String, entityId: String?, returnResponse: Boolean, data: JsonObject?, timeoutMs: Long): JsonElement? {
         val s = session ?: error("not connected")
-        val result = s.command(timeoutMs) { id ->
+        return s.command(timeoutMs) { id ->
             buildJsonObject {
                 put("id", id)
                 put("type", "call_service")
@@ -150,7 +160,6 @@ class HaConnection(
                 if (returnResponse) put("return_response", true)
             }
         }
-        return (result as? JsonObject)?.get("response") as? JsonObject
     }
 
     private suspend fun runLoop(config: HaConfig, entityIds: List<String>) {

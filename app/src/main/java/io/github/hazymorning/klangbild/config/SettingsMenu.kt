@@ -171,7 +171,7 @@ object SettingsMenu {
             "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
                 "OK zeigt den QR-Code; am Handy wählst du sie aus Home Assistant aus."
         } else {
-            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben des Covers, bei Pause gedämpft. " + when (s.barLevel) {
+            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben des Covers; nach der Musik sind sie wieder wie vorher. " + when (s.barLevel) {
                 BarLevel.OFF -> "Aus: Sie behalten ihr eigenes Licht."
                 BarLevel.SUBTLE -> "Dezent: ein Schimmer an der Wand."
                 BarLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
@@ -184,7 +184,16 @@ object SettingsMenu {
             AppearanceMode.LIGHT -> "Immer hell: eine Wand wie Papier, dunkle Schrift."
             AppearanceMode.DARK -> "Immer dunkel: das Bild leuchtet auf schwarzer Wand."
         }
-        MenuEntry.LIGHT -> if (ctx.appearance == Appearance.LIGHT) {
+        MenuEntry.LIGHT -> if (s.background == BackgroundMode.COVER) {
+            // With the cover's colours the light setting is how strong they are.
+            (if (ctx.appearance == Appearance.LIGHT) "Wie\u00A0kräftig die\u00A0Farben des\u00A0Covers das\u00A0Papier tönen. "
+            else "Wie\u00A0kräftig die\u00A0Farben des\u00A0Covers den\u00A0Hintergrund füllen. ") + when (s.light) {
+                LightLevel.STRONG -> "Kräftig:\u00A0satte\u00A0Farben."
+                LightLevel.NORMAL -> "Normal\u00A0ist so, wie Klangbild gedacht\u00A0ist."
+                LightLevel.SUBTLE -> "Dezent:\u00A0gedeckte\u00A0Farben."
+                LightLevel.OFF -> if (ctx.appearance == Appearance.LIGHT) "Aus:\u00A0fast\u00A0reines\u00A0Papier." else "Aus:\u00A0nur das\u00A0Bild auf\u00A0Schwarz."
+            }
+        } else if (ctx.appearance == Appearance.LIGHT) {
             "Wie stark die helle Wand die Farbe des Bildes annimmt. " + when (s.light) {
                 LightLevel.STRONG -> "Kräftig: ein deutlicher Hauch."
                 LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."

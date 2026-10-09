@@ -37,6 +37,8 @@ import io.github.hazymorning.klangbild.domain.SmoothedPosition
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.lights.LightBridge
+import io.github.hazymorning.klangbild.lights.LightSync
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupHandler
@@ -55,6 +57,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicInteger
@@ -148,6 +151,9 @@ class NowPlayingController(
     /** The colour field's time, shared by the screen and the light bars. */
     private val fieldClock = FieldClock(now)
 
+    /** The light bars behind the TV in the cover's colours (through Home Assistant). */
+    private val lightSync = LightSync(scope, now)
+
     /** The colour field's time now (seconds): it runs while music plays, at the motion setting's speed. */
     fun fieldTime(): Double = fieldClock.now()
 
@@ -219,7 +225,7 @@ class NowPlayingController(
         setupJob?.cancel()
         setupServer.stop()
         sourceJob?.cancel()
-        source?.stop()
+        stopSource(source)
         source = null
         sourceKey = null
         sleepJob?.cancel()
@@ -501,7 +507,7 @@ class NowPlayingController(
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         sourceJob?.cancel()
-        source?.stop()
+        stopSource(source)
         // Another speaker (or another server) has its own history.
         strip.clear()
         val ma = if (s.hasMusicAssistant) MaClient(http, s.maUrl!!, s.maToken!!) else null
@@ -513,6 +519,7 @@ class NowPlayingController(
             return
         }
         newSource.start()
+        lightSync.attach(newSource as? LightBridge)
         lastVolume = null
         sourceJob = scope.launch {
             newSource.state.collect { st -> onSource(st) }
@@ -547,6 +554,20 @@ class NowPlayingController(
 
     private var lastVolume: Pair<Float, Boolean>? = null
     @Volatile private var volumeFlashUntil = 0L
+
+    /**
+     * Stops [old] – once the light bars it was lighting have been given back through it (a few
+     * seconds at most): the connection must still be there for that.
+     */
+    private fun stopSource(old: NowPlayingSource?) {
+        if (old == null) return
+        val releasing = lightSync.release()
+        lightSync.attach(null)
+        scope.launch {
+            withTimeoutOrNull(LIGHTS_RELEASE_MS) { releasing.join() }
+            old.stop()
+        }
+    }
 
     private fun timingFor(s: Settings) = Timing(sleepAfterMs = s.sleepAfterMinutes * 60_000L)
 
@@ -590,11 +611,30 @@ class NowPlayingController(
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)
+        lightSync.update(barTarget(s, stage, playing, lighting))
         if (stage != null) {
             if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
         }
         // The setup page is only reachable while the setup screen is visible.
         if (decision.screen is Screen.Setup && viewers > 0) setupServer.start() else setupServer.stop()
+    }
+
+    /** What the light bars are to show: the shown scene's colours while something is on stage. */
+    private fun barTarget(s: Settings, stage: Screen.Stage?, playing: Boolean, lighting: Lighting): LightSync.Target? {
+        if (stage == null || !s.bars.isSet) return null
+        val shown = if (s.view == StageView.FLOW) _ui.value.flow?.middle?.stage else _ui.value.stage
+        val field = shown?.scene?.field ?: return null
+        return LightSync.Target(
+            bars = s.bars,
+            level = s.barLevel,
+            field = field,
+            song = shown.track.key,
+            playing = playing,
+            night = ((1f - lighting.brightness) / (1f - Lighting.NIGHT.brightness)).coerceIn(0f, 1f),
+            warmth = lighting.warmth,
+            motion = s.motion.speed,
+            fieldTime = fieldClock::now,
+        )
     }
 
     private fun lightingFor(s: Settings, src: SourceState): Lighting {
@@ -692,5 +732,8 @@ class NowPlayingController(
 
         /** A stop shorter than this is a hand-over between the app and the screensaver. */
         const val HANDOVER_MS = 10_000L
+
+        /** How long a closing connection waits for the light bars to be given back. */
+        const val LIGHTS_RELEASE_MS = 4_000L
     }
 }

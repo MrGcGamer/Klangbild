@@ -261,7 +261,9 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     // The cover's colours move only while music plays (a pause holds them, like everything else).
     val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
     val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
-    CompositionLocalProvider(LocalFieldTime provides fieldTime) {
+    // One tick for the bar and the colours: they are redrawn in the same frames.
+    val tick = rememberStageTick(fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING)
+    CompositionLocalProvider(LocalFieldTime provides fieldTime, LocalStageTick provides tick) {
         theatre(status, modelFor, { lightFactor }, linkDown)
     }
 }

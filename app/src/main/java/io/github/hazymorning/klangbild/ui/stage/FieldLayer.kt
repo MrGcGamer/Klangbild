@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageShader
@@ -31,7 +33,9 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.CoverField
 import io.github.hazymorning.klangbild.render.FieldMotion
+import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
+import io.github.hazymorning.klangbild.ui.TICK_MS
 import kotlinx.coroutines.delay
 import kotlin.math.hypot
 import kotlin.math.max
@@ -72,15 +76,18 @@ fun FieldLayer(
     val base = remember(field) { Color(field.base) }
     val dark = scene.appearance == Appearance.DARK
     val time = LocalFieldTime.current
-    val frame = remember { mutableLongStateOf(0L) }
-    if (time.moving && !LocalStill.current) {
+    // The stage's one tick, shared with the progress bar; alone (in a test) a loop of its own.
+    val shared = LocalStageTick.current
+    val own = remember { mutableLongStateOf(0L) }
+    if (time.moving && shared == null && !LocalStill.current) {
         LaunchedEffect(time) {
             while (true) {
-                withFrameNanos { frame.longValue = it }
-                delay(FRAME_MS)
+                withFrameNanos { own.longValue = it }
+                delay(TICK_MS)
             }
         }
     }
+    val frame = shared?.frame ?: own
     val places = remember { FloatArray(FieldMotion.LAYERS * FieldMotion.STRIDE) }
     val grain = remember { ShaderBrush(ImageShader(Grain.image, TileMode.Repeated, TileMode.Repeated)) }
     val side = CoverField.SIZE.toFloat()
@@ -102,9 +109,11 @@ fun FieldLayer(
                     // Drawn small, then scaled: the layers never touch the full resolution.
                     compositingStrategy = CompositingStrategy.Offscreen
                     this.alpha = alpha().coerceIn(0f, 1f)
+                    // A little more vivid once mixed: where opposite colours meet they stay colour, not grey.
+                    colorFilter = VIVID
                 },
         ) {
-            frame.longValue // a new frame while the field moves
+            if (time.moving) frame.value // a new frame while the field moves
             FieldMotion.layers(time.now(), places)
             drawRect(base)
             val diagonal = hypot(size.width, size.height)
@@ -126,8 +135,9 @@ fun FieldLayer(
             if (a <= 0.002f) return@Canvas
             drawRect(grain, alpha = a, blendMode = BlendMode.Plus)
             veil?.let { drawImage(it, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), alpha = a, filterQuality = FilterQuality.Low) }
-            val dim = 1f - level().coerceIn(0f, 1f)
-            if (dim > 0.002f) drawRect(Color.Black, alpha = a * dim * if (dark) 1f else 0.45f)
+            // In the dark a pause (or a lower light setting) dims the colours; paper stays paper, like the plain wall.
+            val dim = if (dark) 1f - level().coerceIn(0f, 1f) else 0f
+            if (dim > 0.002f) drawRect(Color.Black, alpha = a * dim)
         }
     }
 }
@@ -135,8 +145,8 @@ fun FieldLayer(
 /** How much smaller than the screen the layers are drawn. */
 private const val DOWN = 4
 
-/** About 30 frames a second while the field moves: plenty for something this slow and soft. */
-private const val FRAME_MS = 25L
+/** Saturation after the layers have mixed ([CoverField.SATURATION]). */
+private val VIVID = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(CoverField.SATURATION) })
 
 /** A tile of fine noise (0–2 levels): added to the field, it breaks up the bands of dark ramps. */
 private object Grain {

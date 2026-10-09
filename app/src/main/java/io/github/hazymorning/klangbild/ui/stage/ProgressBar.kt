@@ -25,6 +25,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Face
@@ -67,15 +68,18 @@ fun ProgressBar(
     thickness: Dp = 4.dp,
     labelGap: Dp = 10.dp,
 ) {
-    val frame = remember { mutableLongStateOf(0L) }
-    if (!LocalStill.current) {
+    // The stage's one tick, shared with the colour field; alone (in a test) a loop of its own.
+    val shared = LocalStageTick.current
+    val own = remember { mutableLongStateOf(0L) }
+    if (shared == null && !LocalStill.current) {
         LaunchedEffect(playing) {
             while (true) {
-                withFrameNanos { frame.longValue = it }
+                withFrameNanos { own.longValue = it }
                 delay(if (playing) REFRESH_MS else PAUSED_REFRESH_MS)
             }
         }
     }
+    val frame = shared?.frame ?: own
     val fillLevel by animateFloatAsState(
         targetValue = if (playing) 1f else 0.6f,
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
@@ -86,7 +90,7 @@ fun ProgressBar(
     // The labels only change when the displayed second does.
     val second by remember(startMs, durationMs) {
         derivedStateOf {
-            frame.longValue // re-read every refresh
+            frame.value // re-read every refresh
             elapsed() / 1000L
         }
     }
@@ -97,7 +101,7 @@ fun ProgressBar(
         content = {
             // Its own layer: the refresh re-records only the bar, not the labels.
             Canvas(Modifier.fillMaxWidth().height(thickness).graphicsLayer()) {
-                val now = frame.longValue // redraw on every refresh
+                val now = frame.value // redraw on every refresh
                 val target = (elapsed().toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
                 val f = glide.at(target, now, durationMs)
                 val r = CornerRadius(size.height / 2f)

@@ -203,10 +203,11 @@ object CoverPalette {
         // steps down from near-black. Greys closer than that read as a mistake side by side.
         val levels = if (appearance == Appearance.DARK) {
             // At night the text must not outshine the dimmed cover: a little lower still than
-            // the light alone would make it – but never below [NIGHT_INK_FLOOR].
+            // the light alone would make it – but never below [NIGHT_INK_FLOOR]. On the cover's
+            // own colours the lower two levels stand a little lighter: they are read against colour, not black.
             val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
             val t = 1f - 0.10f * nightness
-            floatArrayOf(0.93f * t, 0.80f * t, 0.665f * t)
+            if (cover) floatArrayOf(0.94f * t, 0.82f * t, 0.71f * t) else floatArrayOf(0.93f * t, 0.80f * t, 0.665f * t)
         } else {
             floatArrayOf(LIGHT_INK, LIGHT_INK + 0.13f, LIGHT_INK + 0.25f)
         }
@@ -239,7 +240,7 @@ object CoverPalette {
         fun ink(level: Int): Int {
             val lit = lighting.apply(Lch(levels[level], inkChroma, inkHue).toLab()).toLch()
             val l = if (appearance == Appearance.DARK) {
-                maxOf(lit.l, NIGHT_INK_FLOOR[level])
+                maxOf(lit.l, (if (cover) FIELD_INK_FLOOR else NIGHT_INK_FLOOR)[level])
             } else {
                 minOf(lit.l, paperLimit - INK_STEP * (2 - level))
             }
@@ -283,6 +284,9 @@ object CoverPalette {
      * the quietest still 4.5:1, the steps between the levels kept.
      */
     val NIGHT_INK_FLOOR = floatArrayOf(0.79f, 0.68f, 0.57f)
+
+    /** The same on the cover's own colours, which stay lighter than black at night. */
+    val FIELD_INK_FLOOR = floatArrayOf(0.81f, 0.71f, 0.62f)
 
     /** The darkest the pale cover field gets (Oklab L, before the hour's light): text is set against it. */
     const val FIELD_PALEST_DARK = 0.87f

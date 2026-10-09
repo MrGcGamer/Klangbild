@@ -62,6 +62,31 @@ class EdgeBandTest {
     }
 
     @Test
+    fun theScreenEdgesStayBlackOnTheCoverColours() {
+        // The colours move: the band stays black wherever the layers stand.
+        val scenes = Fixtures.tracks.map { Fixtures.scene(it, mdpi, coverField = true) }
+        var i by mutableStateOf(0)
+        var at by mutableStateOf(0.0)
+        compose.setContent {
+            Fixtures.Still {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    io.github.hazymorning.klangbild.ui.stage.LocalFieldTime provides
+                        io.github.hazymorning.klangbild.ui.stage.FieldTime({ at }, false),
+                ) {
+                    Stage(Fixtures.model(Fixtures.tracks[i], screen = mdpi, scene = scenes[i]))
+                }
+            }
+        }
+        for (k in scenes.indices) {
+            i = k
+            for (t in listOf(0.0, 53.0, 211.0)) {
+                at = t
+                assertWithMessage("${Fixtures.tracks[k].title} at $t s").that(brightestInBand()).isEqualTo(0)
+            }
+        }
+    }
+
+    @Test
     fun theScreenEdgesStayBlackBehindTheMenu() {
         val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext())

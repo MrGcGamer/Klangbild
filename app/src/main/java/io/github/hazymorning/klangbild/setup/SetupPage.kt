@@ -39,7 +39,7 @@ object SetupPage {
   section { border-top: 1px solid var(--line); padding: 22px 0 8px; }
   h2 { font-size: 17px; font-weight: 600; color: var(--ink); margin: 0 0 6px; }
   label { display: block; color: var(--muted); font-size: 15px; margin: 14px 0 6px; }
-  input[type=text], input[type=url], input[type=number], textarea {
+  input[type=text], input[type=url], input[type=number], textarea, select {
     width: 100%; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 14px; font: inherit; outline: none; }
   input:focus, textarea:focus { border-color: var(--accent); }
@@ -113,6 +113,12 @@ object SetupPage {
   </section>
 
   <section>
+    <h2>5 · Lichtleisten (freiwillig)</h2>
+    <p class="hint">Farbige Lichter hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. Klangbild merkt sich, wie sie vorher waren, und stellt das nach der Musik wieder her.</p>
+    <div id="lights"><p class="hint">Erst Home Assistant verbinden – dann erscheinen hier die Farblichter.</p></div>
+  </section>
+
+  <section>
     <button class="primary" id="save">Speichern</button>
     <p id="status"></p>
   </section>
@@ -120,6 +126,8 @@ object SetupPage {
 <script>
   const ${'$'} = (id) => document.getElementById(id);
   let hasToken = false;
+  let bars = { barsLeft: '', barsCenter: '', barsRight: '' };
+  let lightsShown = false;
   function code() { return ${'$'}('code').value.trim(); }
   function status(text, kind) { const s = ${'$'}('status'); s.textContent = text || ''; s.className = kind || ''; }
   async function api(path, body) {
@@ -145,6 +153,21 @@ object SetupPage {
       text.append(name, meta); row.append(r, text); box.append(row);
     });
   }
+  function renderLights(list) {
+    const box = ${'$'}('lights'); box.innerHTML = '';
+    if (!list.length) { box.innerHTML = '<p class="hint">Keine Farblichter gefunden.</p>'; return; }
+    [['barsLeft', 'Links'], ['barsCenter', 'Mitte'], ['barsRight', 'Rechts']].forEach(([key, label]) => {
+      const l = document.createElement('label'); l.htmlFor = key; l.textContent = label;
+      const sel = document.createElement('select'); sel.id = key;
+      const none = document.createElement('option'); none.value = ''; none.textContent = 'Keine'; sel.append(none);
+      list.forEach((li) => {
+        const o = document.createElement('option'); o.value = li.id; o.textContent = li.name + ' · ' + li.state;
+        o.selected = li.id === bars[key]; sel.append(o);
+      });
+      box.append(l, sel);
+    });
+    lightsShown = true;
+  }
   async function load() {
     if (code().length !== 6) return;
     const s = await api('/api/state');
@@ -157,6 +180,7 @@ object SetupPage {
     document.querySelectorAll('input[name=action]').forEach((r) => r.checked = (r.value === s.sleepAction));
     ${'$'}('clock').checked = !!s.clock; ${'$'}('dayNight').checked = !!s.dayNight; ${'$'}('remote').checked = !!s.remote;
     ${'$'}('maUrl').value = s.maUrl || '';
+    bars = { barsLeft: s.barsLeft || '', barsCenter: s.barsCenter || '', barsRight: s.barsRight || '' };
     if (s.hasMaToken) ${'$'}('maToken').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
     if (s.url && hasToken) find();
   }
@@ -168,6 +192,7 @@ object SetupPage {
       if (!r.ok) { status(r.message || 'Das hat nicht geklappt.', 'bad'); return; }
       ${'$'}('url').value = r.url;
       renderSpeakers(r.speakers, ${'$'}('entity').value);
+      renderLights(r.lights || []);
       status('Verbunden. Bitte den Lautsprecher wählen.', 'good');
     } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
     finally { ${'$'}('find').disabled = false; }
@@ -176,11 +201,14 @@ object SetupPage {
     ${'$'}('save').disabled = true;
     try {
       const action = document.querySelector('input[name=action]:checked').value;
-      const r = await api('/api/save', {
+      const body = {
         url: ${'$'}('url').value, token: ${'$'}('token').value, entity: ${'$'}('entity').value.trim(),
         sleepMinutes: parseInt(${'$'}('sleep').value, 10), sleepAction: action,
         clock: ${'$'}('clock').checked, dayNight: ${'$'}('dayNight').checked, remote: ${'$'}('remote').checked,
-        maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value });
+        maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value };
+      // The bars only once the page has shown them – otherwise they stay as they are.
+      if (lightsShown) ['barsLeft', 'barsCenter', 'barsRight'].forEach((k) => body[k] = ${'$'}(k).value);
+      const r = await api('/api/save', body);
       status(r.message || (r.ok ? 'Gespeichert.' : 'Das hat nicht geklappt.'), r.ok ? 'good' : 'bad');
     } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
     finally { ${'$'}('save').disabled = false; }

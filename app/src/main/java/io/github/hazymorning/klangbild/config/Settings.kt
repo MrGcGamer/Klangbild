@@ -59,17 +59,17 @@ enum class BackgroundMode {
 /** How the colours behind the picture move – on the screen and in the light bars; [speed] scales the drift. */
 enum class MotionLevel(val speed: Float) {
     OFF(0f),
-    GENTLE(1f),
-    MEDIUM(1.7f),
-    LIVELY(2.8f),
+    GENTLE(0.3f),
+    MEDIUM(0.6f),
+    LIVELY(1f),
 }
 
 /** How brightly the light bars behind the TV glow, as a share of their full brightness. */
 enum class BarLevel(val brightness: Float) {
     OFF(0f),
-    SUBTLE(0.3f),
-    NORMAL(0.55f),
-    STRONG(0.85f),
+    SUBTLE(0.1f),
+    NORMAL(0.2f),
+    STRONG(0.4f),
 }
 
 /** The colour lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
