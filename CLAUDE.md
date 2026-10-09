@@ -108,7 +108,12 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **Text colour:** three levels only – title; artist, clock and the bar's fill; everything
   else (like white at 100 / 80 / 62 %; on paper Oklab L 0.24 / 0.37 / 0.49, the quietest
   still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
-  warmer in the evening, never above 0.018), never #FFF, never ivory.
+  warmer in the evening, never above 0.018), never #FFF, never ivory. However late it is,
+  every level keeps 4.5:1 (`NIGHT_INK_FLOOR` on black, `lightestInkOn` on paper).
+- **Day and night (`Lighting`, setting "Tag und Nacht"):** the evening and the night only
+  dim and warm – light, artwork and text; they never hide anything (no line, no side card).
+  The light keeps at least 0.55 × its daytime strength (`HaloLight.nightLight`). Hiding
+  lines at dusk looked like a crash on the device (v3.0.2).
 - **Light and dark wall (`Appearance`):** automatic by the sun – light from sunrise to sunset
   (elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) – or fixed. The
   light wall is warm paper (Oklab L 0.915) with a breath of the cover's colour pulled towards
@@ -154,7 +159,7 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   cards at 55 % / 40 %, and on the dark wall a much lighter card steps back further beside a
   dark middle one. Dark: a soft oval of light above the middle card in its top edge's colour,
   ≤ L* 8 and following that edge's lightness (`FlowLight`); paper: no reflection, a soft
-  shadow below each card; night: side cards step back into the dark. The strip turns over in
+  shadow below each card. The strip turns over in
   1.3 s (`Motion.Turn`, peak ≤ 2× average speed); leaving cards swing aside early so crossing
   cards never intersect (tested); cards that make way dissolve first (300 ms), then new ones
   roll in opaque from beyond the strip's end, their centre crossing the screen at an even
@@ -180,7 +185,7 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   radius. No nodal diameters (crosses, wheels, rosettes), no single circle or two lobes ("O").
 - **Rest screen:** large light clock ("H:mm", 132 sp, `Figures`) under a dim pool of light
   that moves with it; re-hung every 15 min; one plain sentence when something is wrong
-  ("Home Assistant ist nicht erreichbar."); night: black wall, only the time.
+  ("Home Assistant ist nicht erreichbar."); at night the lamp is turned down, nothing left out.
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,

@@ -137,7 +137,7 @@ object SettingsMenu {
             }
         }
         MenuEntry.DAY_NIGHT ->
-            "Abends wärmer und dunkler, nachts nur Bild, Titel und Künstler – nach dem Stand der Sonne."
+            "Abends wärmer, nachts gedämpfter – nach dem Stand der Sonne. Alles bleibt zu sehen."
         MenuEntry.REMOTE ->
             "OK hält die Musik an, links und rechts wechseln den Titel – am Lautsprecher in Home Assistant."
         MenuEntry.UP_DOWN -> if (s.volumeKeys) {

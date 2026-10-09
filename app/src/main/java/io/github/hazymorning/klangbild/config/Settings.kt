@@ -71,6 +71,7 @@ data class Settings(
     val sleepAction: SleepAction = SleepAction.RELEASE,
     val showClock: Boolean = true,
     val remoteControl: Boolean = true,
+    /** Light by the time of day: warmer in the evening, dimmer at night – it never hides anything. */
     val dayNight: Boolean = true,
     val showTimeLine: Boolean = true,
     val showNext: Boolean = true,

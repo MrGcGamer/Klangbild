@@ -27,7 +27,7 @@ fun FlowStage(model: StageModel, cards: List<CardMotion>, modifier: Modifier = M
     Box(modifier.fillMaxSize()) {
         BaseWall(scene.palette.wall.asColor())
         WallLayer(scene)
-        FlowStrip(cards, geometry, scene.appearance, scene.lighting, scene.palette.wall.asColor(), sides = { if (model.night) 0f else 1f })
+        FlowStrip(cards, geometry, scene.appearance, scene.lighting, scene.palette.wall.asColor())
         TextLayer(model, plan = plan)
         StatusLayer(model)
     }

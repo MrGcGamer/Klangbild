@@ -134,7 +134,7 @@ class TextPlan(
 fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
-    return remember(model.text, model.year, model.next, model.scene.layout, model.night, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
+    return remember(model.text, model.year, model.next, model.scene.layout, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
         planText(model, measurer, localDensity)
     }
 }
@@ -150,7 +150,7 @@ private fun planText(
     val colW = (layout.columnWidth * d).roundToInt()
     val normal = StageStyles(model.scene.palette)
     val cjk = isMostlyCjk(t.title)
-    val version = t.version?.takeUnless { model.night }
+    val version = t.version
 
     val title = EmojiText.annotate(t.title, dimTo = normal.ink.copy(alpha = 0.62f))
 
@@ -166,8 +166,8 @@ private fun planText(
         if (t.work != null) rest += cap(normal.work) + linesHeight(t.work, normal.work, 2) + Gaps.WORK * d
         if (version != null) rest += Gaps.VERSION * d + cap(normal.version(step.size))
         rest += Gaps.ARTIST * d + cap(normal.artist)
-        if (!model.night && (t.album != null || model.year != null)) rest += Gaps.ALBUM * d + cap(normal.album)
-        if (!model.night && (model.line != null || (model.progress && model.durationMs != null))) {
+        if (t.album != null || model.year != null) rest += Gaps.ALBUM * d + cap(normal.album)
+        if (model.line != null || (model.progress && model.durationMs != null)) {
             rest += Gaps.BOTTOM * d + (4 + 10) * d + cap(normal.label)
         }
         return layout.art * BLOCK_SHARE * d - rest
@@ -196,12 +196,10 @@ private fun planText(
         artistStyle = block.artistSmall
     }
     // The album with its year; the year goes first when both don't fit.
-    val album = if (model.night) null else {
-        val full = listOfNotNull(t.album, model.year?.toString()).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
-        if (full != null && t.album != null && model.year != null && !fits(full, block.album)) t.album else full
-    }
+    val albumYear = listOfNotNull(t.album, model.year?.toString()).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
+    val album = if (albumYear != null && t.album != null && model.year != null && !fits(albumYear, block.album)) t.album else albumYear
     // What comes next: title and artist, or the title alone rather than a cut-off artist.
-    val next = if (model.night) null else model.next?.let { full ->
+    val next = model.next?.let { full ->
         if (model.nextTitle == null || measurer.measure(nextText(full, normal), normal.next, maxLines = 1, softWrap = false).size.width <= colW) {
             full
         } else {

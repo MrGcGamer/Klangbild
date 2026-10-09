@@ -181,7 +181,7 @@ object WallGlow {
         lab = lab.lerp(Lab(lab.l, 0.012f, 0.045f), 0.3f * warm)
         val lin = Oklab.toLinear(Oklab.gamutMap(Lab(0.7f, lab.a, lab.b)))
         val y = 0.2126f * lin[0] + 0.7152f * lin[1] + 0.0722f * lin[2]
-        val target = min(EDGE_LUMINANCE, SHARE_OF_EDGE * lum) * (1f - 1.8f * night).coerceAtLeast(0.28f)
+        val target = min(EDGE_LUMINANCE, SHARE_OF_EDGE * lum) * HaloLight.nightLight(night)
         val k = if (y > 1e-5f) target / y else 0f
         return floatArrayOf(lin[0] * k, lin[1] * k, lin[2] * k)
     }

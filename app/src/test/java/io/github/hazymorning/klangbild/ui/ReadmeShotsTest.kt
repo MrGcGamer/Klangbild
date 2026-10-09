@@ -65,7 +65,7 @@ class ReadmeShotsTest {
 
     @Test fun s08() = stage(
         "08-nachts",
-        Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = pärt, lighting = Lighting.NIGHT, night = true),
+        Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = pärt, lighting = Lighting.NIGHT, clock = "23:12"),
     )
 
     @Test fun s09() = shot("09-ruhe") {

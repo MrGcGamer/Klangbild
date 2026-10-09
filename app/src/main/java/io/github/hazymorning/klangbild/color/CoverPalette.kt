@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.color
 
 import kotlin.math.abs
+import kotlin.math.cbrt
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
@@ -195,19 +196,13 @@ object CoverPalette {
         // steps down from near-black. Greys closer than that read as a mistake side by side.
         val levels = if (appearance == Appearance.DARK) {
             // At night the text must not outshine the dimmed cover: a little lower still than
-            // the light alone would make it – but the title keeps 4.5:1 on black.
+            // the light alone would make it – but never below [NIGHT_INK_FLOOR].
             val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
             val t = 1f - 0.10f * nightness
             floatArrayOf(0.93f * t, 0.80f * t, 0.665f * t)
         } else {
             floatArrayOf(LIGHT_INK, LIGHT_INK + 0.13f, LIGHT_INK + 0.25f)
         }
-        // The light of the hour warms the text – a little: never more than twice the day's colour.
-        fun ink(l: Float): Int {
-            val lit = lighting.apply(Lch(l, inkChroma, inkHue).toLab()).toLch()
-            return Lch(lit.l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
-        }
-
         val wall = if (appearance == Appearance.DARK) {
             0xFF000000.toInt()
         } else {
@@ -225,12 +220,25 @@ object CoverPalette {
             val paperTint = tint * (1f - away / 90f).coerceIn(0f, 1f)
             lighting.apply(Lch(PAPER, 0.005f + paperTint, paperHue).toLab()).toArgb()
         }
+        // The light of the hour warms the text – a little: never more than twice the day's colour.
+        // However late it is, every level stays readable: on black none falls below
+        // [NIGHT_INK_FLOOR], on paper dimmed by the night the quietest still keeps 4.5:1.
+        val paperLimit = if (appearance == Appearance.DARK) 1f else lightestInkOn(wall)
+        fun ink(level: Int): Int {
+            val lit = lighting.apply(Lch(levels[level], inkChroma, inkHue).toLab()).toLch()
+            val l = if (appearance == Appearance.DARK) {
+                maxOf(lit.l, NIGHT_INK_FLOOR[level])
+            } else {
+                minOf(lit.l, paperLimit - INK_STEP * (2 - level))
+            }
+            return Lch(l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
+        }
         return ScenePalette(
             appearance = appearance,
             wall = wall,
-            ink = ink(levels[0]),
-            inkMuted = ink(levels[1]),
-            inkQuiet = ink(levels[2]),
+            ink = ink(0),
+            inkMuted = ink(1),
+            inkQuiet = ink(2),
             kind = analysis.kind,
             lead = lead,
         )
@@ -244,6 +252,22 @@ object CoverPalette {
 
     /** The most colour text takes, even in the warmest light of the evening. */
     const val MAX_INK_CHROMA = 0.018f
+
+    /**
+     * The least lightness (Oklab) of the three text levels on black, however dark the night:
+     * the quietest still 4.5:1, the steps between the levels kept.
+     */
+    val NIGHT_INK_FLOOR = floatArrayOf(0.79f, 0.68f, 0.57f)
+
+    /** The least step in lightness between two text levels where one has to give way. */
+    private const val INK_STEP = 0.1f
+
+    /** The lightest text (Oklab L) that still keeps 4.5:1 (with a little margin) on [wall]. */
+    fun lightestInkOn(wall: Int): Float {
+        val l = Oklab.fromArgb(wall).l
+        val y = (l * l * l + 0.05f) / 4.6f - 0.05f
+        return if (y <= 0f) 0f else cbrt(y)
+    }
 
     /** Angle between two hues along the shorter arc (degrees). */
     private fun hueDistance(a: Float, b: Float): Float {

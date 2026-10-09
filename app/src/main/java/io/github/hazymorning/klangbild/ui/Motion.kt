@@ -73,9 +73,6 @@ object Motion {
     /** Cards beside the middle come or go (the queue changed). */
     const val FLOW_SIDES_MS = 900
 
-    /** At night the cards beside the middle step back into the dark. */
-    const val NIGHT_SIDES_MS = 1_500
-
     /** Same track, better cover or new time-of-day light. */
     const val SOFT_SWAP_MS = 900
 

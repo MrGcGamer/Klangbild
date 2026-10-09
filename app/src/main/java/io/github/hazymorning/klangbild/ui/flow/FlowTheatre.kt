@@ -96,8 +96,6 @@ fun FlowTheatre(
     lightFactor: () -> Float = { 1f },
     /** The link is down: the stage dims like a pause. */
     dimmed: Boolean = false,
-    /** Night: the cards beside the middle step back into the dark. */
-    night: Boolean = false,
 ) {
     var current by remember { mutableStateOf(flow) }
     var previous by remember { mutableStateOf<FlowData?>(null) }
@@ -158,7 +156,6 @@ fun FlowTheatre(
         label = "pause-cards",
     )
     val textDim by animateFloatAsState(if (quiet) Motion.PAUSED_TEXT else 1f, tween(Motion.PAUSE_MS, easing = Motion.Dimmer), label = "pause-text")
-    val sides by animateFloatAsState(if (night) 0f else 1f, tween(Motion.NIGHT_SIDES_MS, easing = Motion.Dimmer), label = "night-sides")
     val breathing: State<Float> = if (status == PlayerStatus.BUFFERING) {
         rememberInfiniteTransition(label = "buffering").animateFloat(
             initialValue = 1f,
@@ -213,7 +210,7 @@ fun FlowTheatre(
         if (prev != null && restrip) {
             // A new look of the same strip: the old cards stay underneath while the new ones come up.
             val old = prev.middle.scene
-            FlowStrip(resting(prev), geometry, old.appearance, old.lighting, old.palette.wall.asColor(), dim = { cardDim }, sides = { sides })
+            FlowStrip(resting(prev), geometry, old.appearance, old.lighting, old.palette.wall.asColor(), dim = { cardDim })
         }
         FlowStrip(
             cards = motions,
@@ -223,7 +220,6 @@ fun FlowTheatre(
             wall = wall,
             time = { if (softText) 1f else t.value },
             dim = { cardDim },
-            sides = { sides },
             alpha = { if (restrip) p(0, total, Motion.Sine) else 1f },
         )
         if (prevModel != null && prevPlan != null && kind != FlowChange.SIDES) {

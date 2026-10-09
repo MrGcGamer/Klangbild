@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.art.stableHash
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
+import io.github.hazymorning.klangbild.color.Lab
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.RestReason
@@ -51,16 +52,21 @@ import kotlin.math.roundToInt
 
 /**
  * Quiet colours for screens without a cover: soft white on black, or near-black on warm
- * paper – dimmed with the day either way.
+ * paper – dimmed with the day either way, but however late it is every line still reads
+ * (the quietest at least 4.5:1).
  */
 data class QuietColors(val wall: Color, val primary: Color, val secondary: Color, val label: Color) {
     companion object {
         fun of(lighting: Lighting, appearance: Appearance = Appearance.DARK): QuietColors {
-            fun c(l: Float, ch: Float) = Color(lighting.applyArgb(Lch(l, ch, HaloLight.LAMP_HUE).toArgb()))
+            fun lit(l: Float, ch: Float) = lighting.apply(Lch(l, ch, HaloLight.LAMP_HUE).toLab())
             return if (appearance == Appearance.DARK) {
-                QuietColors(wall = Color.Black, primary = c(0.84f, 0.004f), secondary = c(0.68f, 0.004f), label = c(0.62f, 0.004f))
+                fun c(l: Float, least: Float) = lit(l, 0.004f).let { Color(Lab(maxOf(it.l, least), it.a, it.b).toArgb()) }
+                QuietColors(wall = Color.Black, primary = c(0.84f, 0.70f), secondary = c(0.68f, 0.62f), label = c(0.62f, 0.57f))
             } else {
-                QuietColors(wall = c(CoverPalette.PAPER, 0.006f), primary = c(0.28f, 0.004f), secondary = c(0.42f, 0.004f), label = c(0.5f, 0.004f))
+                val wall = lit(CoverPalette.PAPER, 0.006f).toArgb()
+                val most = CoverPalette.lightestInkOn(wall)
+                fun c(l: Float, step: Float) = lit(l, 0.004f).let { Color(Lab(minOf(it.l, most - step), it.a, it.b).toArgb()) }
+                QuietColors(wall = Color(wall), primary = c(0.28f, 0.16f), secondary = c(0.42f, 0.08f), label = c(0.5f, 0f))
             }
         }
     }
@@ -102,7 +108,7 @@ object RestTexts {
  * The rest screen's light and composition: the clock hangs on the wall where a lamp lights
  * it – a soft oval of warm light just above the clock block, both re-hung together every
  * quarter of an hour so no stroke stays in place. By day the lamp is a breath of light, in
- * the evening less; at night the wall is simply black.
+ * the evening and at night less – turned down, never off.
  */
 object RestLight {
     const val MAP_W = 480
@@ -141,10 +147,9 @@ object RestLight {
         return ImageOps.toArgbDithered(img, seed = 11, ditherLsb = ditherLsb, blackBelow = 0.0005f)
     }
 
-    /** Brightest point of the light (relative luminance); null at night: a black wall. */
-    fun peak(lighting: Lighting): Float? {
+    /** Brightest point of the light (relative luminance): lower in the evening, lowest at night. */
+    fun peak(lighting: Lighting): Float {
         val k = ((lighting.brightness - 0.7f) / 0.3f).coerceIn(0f, 1f)
-        if (k <= 0f) return null
         return 0.006f + 0.008f * k
     }
 
@@ -159,8 +164,7 @@ object RestLight {
 
 /**
  * Nothing is playing: a quiet clock on a dim, lamp-lit wall, the date, and one line that
- * says why – never an error code. Night leaves only the clock (and a problem, if any) on a
- * black wall.
+ * says why – never an error code. At night the lamp is turned down; nothing is left out.
  */
 @Composable
 fun RestScreen(
@@ -177,9 +181,8 @@ fun RestScreen(
 ) {
     val colors = QuietColors.of(lighting, appearance)
     val lines = RestTexts.lines(reason, speaker, entityId)
-    val night = lighting.brightness < 0.7f
     // A lamp only lights a dark wall.
-    val peak = RestLight.peak(lighting)?.let { it * lightFactor }?.takeIf { it > 0f && appearance == Appearance.DARK }
+    val peak = (RestLight.peak(lighting) * lightFactor).takeIf { it > 0f && appearance == Appearance.DARK }
     val tint = remember(lighting, peak) { peak?.let { HaloLight.lightTint(HaloLight.LAMP, it, lighting) } }
     val screen = ScreenSpec(960, 540, 1f)
 
@@ -209,8 +212,8 @@ fun RestScreen(
                 Box(Modifier.fillMaxSize().offset(dx.dp, (dy - 18f).dp), contentAlignment = Alignment.Center) {
                     RestBlock(
                         time = RestTexts.time(nowMs, zone),
-                        date = if (night) null else RestTexts.date(nowMs, zone),
-                        label = if (night) null else lines.label,
+                        date = RestTexts.date(nowMs, zone),
+                        label = lines.label,
                         sentence = lines.sentence,
                         colors = colors,
                     )

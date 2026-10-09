@@ -44,7 +44,7 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Pausiert](docs/screens/06-pausiert.jpg) | ![Abends](docs/screens/07-abends.jpg) |
 | *Pausiert: Licht, Bild und Text werden gedimmt* | *Abends wärmer und dunkler* |
 | ![Nachts](docs/screens/08-nachts.jpg) | ![Nichts läuft](docs/screens/09-ruhe.jpg) |
-| *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer kaum beleuchteten Wand* |
+| *Nachts gedämpft und wärmer – alles bleibt zu sehen* | *Nichts läuft: eine stille Uhr an einer kaum beleuchteten Wand* |
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
 | ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
@@ -119,8 +119,8 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   (Music Assistant, Spotify, Deezer, Apple Music, Tidal, Qobuz, YouTube Music) und zeigt sie
   nie größer, als sie es verträgt; ein kleines Bild bekommt ein dunkles Passepartout mit
   heller Schnittkante.
-- **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends dunkler und wärmer, nachts nur
-  noch Cover, Titel und Künstler (im Cover Flow treten die Nachbarn ins Dunkel zurück).
+- **Tageszeit.** Mit `sun.sun` aus Home Assistant: abends wärmer, nachts gedämpfter – Licht,
+  Cover und Schrift. Ausgeblendet wird dabei nichts; jede Zeile bleibt gut lesbar.
 - **OLED-Schutz.** Die ganze Komposition wandert unmerklich um ein paar Pixel, die Uhr im
   Ruhebildschirm wird jede Viertelstunde umgehängt, am Bildschirmrand ist es immer schwarz.
 - **Jeder Zustand ist gestaltet:** spielt, pausiert, puffert, stumm, Titelwechsel, nichts läuft, Verbindung weg, Lautsprecher nicht erreichbar
@@ -229,7 +229,7 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | `group` | Boolean | Lautsprechergruppe neben der Uhr (Standard `true`) |
 | `volume` | String | Lautstärke: `bei_aenderung` (Standard), `immer` oder `aus` |
 | `light` | String | Wandlicht: `kraeftig`, `normal` (Standard), `dezent` oder `aus` |
-| `day_night` | Boolean | Abends wärmer, nachts nur Bild und Titel (Standard `true`) |
+| `day_night` | Boolean | Abends wärmer, nachts gedämpfter, nichts wird ausgeblendet (Standard `true`) |
 | `remote` | Boolean | Fernbedienung steuert die Musik (Standard `true`) |
 | `volume_keys` | Boolean | Pfeil hoch/runter ändern die Lautstärke (Standard `false`) |
 | `setup` | Boolean | Nur für diesen Start: Einstellungen öffnen |

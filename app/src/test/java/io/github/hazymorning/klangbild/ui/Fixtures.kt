@@ -72,7 +72,6 @@ object Fixtures {
         clock: String? = "21:47",
         group: String? = null,
         lead: String? = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false),
-        night: Boolean = false,
         appearance: Appearance = Appearance.DARK,
         scene: ArtworkScene = scene(track, screen, lighting, appearance),
         album: Boolean = true,
@@ -92,7 +91,6 @@ object Fixtures {
             next = StageTexts.next(next),
             nextTitle = StageTexts.nextTitle(next),
             statusLine = StatusLine(lead, clock),
-            night = night,
         )
     }
 
@@ -120,14 +118,13 @@ object Fixtures {
 
     /** The animated cover flow for one strip; what comes next is the card to the right. */
     @Composable
-    fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING, night: Boolean = false) {
+    fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING) {
         val lead = StageTexts.lead(status, false, volumeFlash = false, volume = null, group = "Wohnzimmer + 5", volumeAlways = false)
         val next = flow.cards.getOrNull(flow.current + 1)?.track
         io.github.hazymorning.klangbild.ui.flow.FlowTheatre(
             flow = flow,
             status = status,
-            modelFor = { s -> model(s.track, next = next, status = status, night = night, scene = s.scene, lead = lead) },
-            night = night,
+            modelFor = { s -> model(s.track, next = next, status = status, scene = s.scene, lead = lead) },
         )
     }
 
@@ -137,7 +134,6 @@ object Fixtures {
         stage: StageData,
         status: PlayerStatus,
         next: TrackInfo? = null,
-        night: Boolean = false,
         lightFactor: Float = 1f,
         group: String? = null,
         muted: Boolean = false,
@@ -147,7 +143,7 @@ object Fixtures {
         StageTheatre(
             stage = stage,
             status = status,
-            modelFor = { s -> model(s.track, next = next, status = status, night = night, scene = s.scene, lead = lead) },
+            modelFor = { s -> model(s.track, next = next, status = status, scene = s.scene, lead = lead) },
             lightFactor = { lightFactor },
             dimmed = linkDown,
         )

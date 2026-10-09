@@ -48,12 +48,12 @@ class CoverPaletteTest {
                 val title = contrastRatio(p.ink, p.wall)
                 val quiet = contrastRatio(p.inkQuiet, p.wall)
                 if (lighting == Lighting.NIGHT) {
-                    // at night everything is dimmer, but the title must still read
+                    // at night everything is dimmer, but nothing is left out: every line must read
                     assertWithMessage("night title $p").that(title).isAtLeast(4.5f)
                 } else {
                     assertWithMessage("title $p").that(title).isAtLeast(if (appearance == Appearance.DARK) 10f else 9f)
-                    assertWithMessage("quiet $p").that(quiet).isAtLeast(4.5f)
                 }
+                assertWithMessage("quiet $p $lighting").that(quiet).isAtLeast(4.5f)
             }
         }
     }

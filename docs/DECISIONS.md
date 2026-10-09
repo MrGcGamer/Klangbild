@@ -71,7 +71,7 @@ Niveau nicht erreichen (siehe Brief: weitere Stile nur bei gleichem Niveau).
 - Strenges Raster: zwei Blöcke (Cover und Textspalte), gleiche Außenränder, Uhr oben in der
   Textspalte, Titel wächst nach oben, Künstlerzeile fest.
 - Kein hartes Weiß, auch nicht in hellen Covern (Lichter werden sanft komprimiert).
-- Nachts werden Zeilen weggelassen statt nur gedimmt.
+- Nachts werden Zeilen weggelassen statt nur gedimmt. *(Seit Version 3.0.2 abgelöst: nachts wird nur gedimmt, siehe §30.)*
 
 ## 5. Schriften
 
@@ -212,7 +212,8 @@ Doppelbelichtung. Umgesetzt:
   Helligkeit (der violette Himmel statt der kleinen orangen Sonne). Orange und Gelb werden
   zu gesättigtem Bernsteinrot gezogen – dunkles, mattes Orange liest sich als Braun. Neutrale
   Cover bekommen warmweißes Lampenlicht statt eines orangen Rahmens. Wärmer wird es erst nach
-  Sonnenuntergang; nachts höchstens 0,3 × Tageshelligkeit und höchstens 50 % Sättigung.
+  Sonnenuntergang; nachts höchstens 0,3 × Tageshelligkeit und höchstens 50 % Sättigung
+  *(seit Version 3.0.2: etwa die Hälfte, nie weniger als 0,55 ×, siehe §30)*.
 - **Das Bild als Objekt:** ein ±4-%-Streiflicht über dem Cover aus Richtung der Sonnenuhr,
   eine Haarlinie Licht an den beleuchteten Kanten, Schatten an den abgewandten.
 - **Titelwechsel nacheinander statt übereinander:** altes Bild 700 ms ins Dunkel, die leere
@@ -228,7 +229,7 @@ Doppelbelichtung. Umgesetzt:
   0,86-mal so groß, in Schriften ohne Versalien ist der Künstler größer als das Album.
 - **Ruhebildschirm:** Uhr in der Serifenschrift auf einer schwach lampenbeleuchteten Wand,
   deren hellste Stelle mit der Sonne wandert; der Block wird jede Viertelstunde umgehängt;
-  nachts nur die Uhr.
+  nachts nur die Uhr *(seit Version 3.0.2: nachts bleiben Datum und Raum, siehe §30)*.
 
 Nicht übernommen (bewusst): monochrome Emoji-Schrift (Größe, Lizenzpflege – Rand-Emoji
 entfallen ohnehin), Mincho/Naskh-Schriften für Japanisch und Arabisch (mehrere MB; die
@@ -607,8 +608,8 @@ durchdacht. Einstellung *Ansicht*: Einzelbild (Standard) oder Cover Flow.
 - **Licht:** Im Dunkeln ein breiter, schwacher Lichtfleck über den Karten in der Farbe des
   aktuellen Covers, vor der Textspalte verschwunden, der Boden bleibt schwarz, damit die
   Spiegelungen stehen. Auf Papier werfen die Karten weiche Schatten, und was zur Seite steht,
-  tritt ein wenig ins Papier zurück – wie Dinge, die weiter vom Fenster stehen. Nachts treten
-  die Seitenkarten ganz ins Dunkel zurück.
+  tritt ein wenig ins Papier zurück – wie Dinge, die weiter vom Fenster stehen. Nachts traten
+  die Seitenkarten ganz ins Dunkel zurück *(seit Version 3.0.2 nicht mehr, siehe §30)*.
 - **Bewegung:** Kommt ein anderes Bild in die Mitte, dreht sich die Reihe in 1,3 s weiter –
   sanfter Anfang, eine ruhige Mitte (höchstens doppelt so schnell wie im Schnitt), langes
   weiches Ankommen. Eine Karte, die die Mitte verlässt, schwenkt früh zur Seite – drehen und
@@ -726,3 +727,34 @@ Nicht übernommen: Das Raster des Cover Flow (Textspalte bei 570 statt 528 dp, 5
 folgt dem Entwurf, nicht dem Einzelbild – beim Wechsel der Ansicht geht der Bildschirm ohnehin
 durchs Dunkle. Und „Cover Flow“ bleibt der Name der Ansicht: So heißt sie im Wunsch, und so
 kennt man sie.
+
+## 30. Nachts wird nichts ausgeblendet – Version 3.0.2
+
+Am Gerät, am ersten Abend: Gegen halb acht zeigte Klangbild plötzlich nur noch Cover, Titel und
+Künstler, ohne Lichtschein – und blieb so. Das war kein Absturz, sondern der Nachtmodus der
+Einstellung *Tag und Nacht*: Ab etwa 8,6° Sonne unter dem Horizont (Anfang Oktober in
+Deutschland gegen halb acht) ließ er Statuszeile, Album, Fortschritt und „Als Nächstes“ weg, nahm das Licht auf ein
+Viertel zurück und ließ im Cover Flow die Nachbarkarten im Dunkel verschwinden. So war es seit
+der ersten Runde entschieden (§4) und in Menü und README beschrieben – und trotzdem falsch:
+Um halb acht ist Abend, nicht Nacht; niemand erwartet, dass eine Anzeige dann von selbst die
+Hälfte weglässt, und nichts sagte, warum. Was wie ein schwerer Fehler aussieht, ist einer.
+
+Neu, als Regel für alles, was mit der Tageszeit geht:
+
+- **Abends und nachts wird nur gedimmt und wärmer – nie etwas ausgeblendet.** Keine Zeile, keine
+  Seitenkarte, auch auf dem Ruhebildschirm bleiben Datum und Raum. Der Schalter für das
+  Ausblenden ist aus dem Code verschwunden (`UiState.night`, `StageModel.night`, das Ausblenden
+  der Seitenkarten), damit er nicht wiederkommt; `NightTest` prüft den ganzen Weg vom Zustand
+  der App bis zum Bild.
+- **Licht bleibt Licht:** Schein, Lampe und Menüband werden nachts auf etwa die Hälfte
+  zurückgenommen, nie unter 0,55 × (vorher 0,28 × – am OLED kaum mehr zu sehen); die Farbe
+  wird weiter gedämpft (höchstens 50 % Sättigung).
+- **Jede Zeile bleibt lesbar:** Weil nachts nun alle Zeilen stehen, hat jede der drei
+  Schriftstufen eine Untergrenze – auf Schwarz Oklab L 0,79 / 0,68 / 0,57, die leiseste damit
+  noch 4,7 : 1 (vorher sank sie bis 2,3 : 1, das fiel nur nicht auf, weil sie fehlte). Auf
+  Papier, das nachts mitgedimmt wird, gilt dasselbe von der anderen Seite. Der Ruhebildschirm
+  folgt der gleichen Regel.
+- Der Erklärtext im Menü sagt es: „Abends wärmer, nachts gedämpfter – nach dem Stand der
+  Sonne. Alles bleibt zu sehen.“
+
+Sofort-Abhilfe für Version 3.0.0 und 3.0.1: *Menü → Licht → Tag und Nacht → aus*.

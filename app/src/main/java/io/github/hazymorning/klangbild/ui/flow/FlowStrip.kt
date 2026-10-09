@@ -70,7 +70,6 @@ class CardMotion(
  *
  * @param time how far the change has come (0..1, linear); each card eases its own stretch.
  * @param dim brightness of the cards (pause).
- * @param sides presence of the side cards (night: 0).
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
  */
 @Composable
@@ -83,7 +82,6 @@ fun FlowStrip(
     modifier: Modifier = Modifier,
     time: () -> Float = { 1f },
     dim: () -> Float = { 1f },
-    sides: () -> Float = { 1f },
     alpha: () -> Float = { 1f },
 ) {
     val n = cards.size
@@ -97,7 +95,6 @@ fun FlowStrip(
     val paper = wall.toArgb()
     Canvas(modifier.fillMaxSize()) {
         val t = time().coerceIn(0f, 1f)
-        val side = sides().coerceIn(0f, 1f)
         val d = dim().coerceIn(0f, 1f)
         val all = alpha().coerceIn(0f, 1f)
         for (i in 0 until n) {
@@ -106,8 +103,7 @@ fun FlowStrip(
             val p = if (c.rolls) geometry.rolled(c.from, c.to, s) else c.from + (c.to - c.from) * s
             pos[i] = p
             val fade = c.fromAlpha + (c.toAlpha - c.fromAlpha) * Motion.Sine.transform(c.fade.of(t))
-            val nearMiddle = 1f - (1f - side) * HaloLight.smoothstep(0.15f, 0.85f, abs(p))
-            alphas[i] = fade * geometry.presence(p) * nearMiddle * all
+            alphas[i] = fade * geometry.presence(p) * all
             order[i] = i
         }
         // Farthest first (insertion sort: a handful of cards, no allocation).

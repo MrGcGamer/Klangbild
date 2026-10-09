@@ -84,7 +84,6 @@ data class UiState(
     val lighting: Lighting = Lighting.DAY,
     /** Light wall by day, dark at night (or as set). */
     val appearance: Appearance = Appearance.DARK,
-    val night: Boolean = false,
     /** What the stage shows (clock, progress, album …) and how strong its light is. */
     val display: DisplayOptions = DisplayOptions(),
     val source: SourceState = SourceState(LinkState.CONNECTING),
@@ -378,7 +377,6 @@ class NowPlayingController(
         val lighting = lightingFor(s, src)
         val appearance = appearanceFor(s, src)
         val look = Look(lighting, appearance, s.light.factor)
-        val night = s.dayNight && lighting.brightness < 0.7f
         val previous = _ui.value
         val menu = menuState(s, appearance)
         _ui.value = previous.copy(
@@ -388,7 +386,6 @@ class NowPlayingController(
             sleepAction = s.sleepAction,
             lighting = lighting,
             appearance = appearance,
-            night = night,
             display = s.display,
             session = session.value,
             entityId = s.entityId,

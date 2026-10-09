@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Cover Flow at rest: two cards to each side, dark and light; at night the middle one alone. */
+/** Cover Flow at rest: two cards to each side, dark and light; at night dimmer and warmer, nothing left out. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
@@ -25,12 +25,12 @@ class FlowTest {
         Fixtures.track(SyntheticCover.BAUHAUS),
     )
 
-    private fun shot(name: String, appearance: Appearance, lighting: Lighting = Lighting.DAY, night: Boolean = false) =
+    private fun shot(name: String, appearance: Appearance, lighting: Lighting = Lighting.DAY) =
         captureRoboImage("build/screenshots/flow/$name.png") {
             Fixtures.Still {
                 val scenes = Fixtures.flowScenes(strip, appearance, lighting)
                 FlowStage(
-                    Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], night = night, lighting = lighting),
+                    Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], lighting = lighting),
                     Fixtures.restingCards(scenes, 2),
                 )
             }
@@ -38,5 +38,5 @@ class FlowTest {
 
     @Test fun dark() = shot("flow_dark", Appearance.DARK)
     @Test fun light() = shot("flow_light", Appearance.LIGHT)
-    @Test fun night() = shot("flow_night", Appearance.DARK, Lighting.NIGHT, night = true)
+    @Test fun night() = shot("flow_night", Appearance.DARK, Lighting.NIGHT)
 }

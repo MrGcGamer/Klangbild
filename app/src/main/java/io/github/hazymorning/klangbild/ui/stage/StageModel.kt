@@ -40,8 +40,6 @@ class StageModel(
     val nextTitle: String? = null,
     /** The status line at the top right: where the music plays, the volume, the time. */
     val statusLine: StatusLine? = null,
-    /** Night: only artwork, title and artist remain. */
-    val night: Boolean = false,
 ) {
     fun fraction(): Float? {
         val d = durationMs ?: return null

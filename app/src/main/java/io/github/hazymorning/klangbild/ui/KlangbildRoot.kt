@@ -107,7 +107,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     StageTheatre(stage = c.stage, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown)
                 }
                 is Content.FlowContent -> StageContentView(ui, c.flow.middle.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
-                    FlowTheatre(flow = c.flow, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown, night = ui.night)
+                    FlowTheatre(flow = c.flow, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown)
                 }
                 is Content.RestContent -> RestScreen(
                     reason = c.reason,
@@ -209,7 +209,7 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS)
     val statusLine = StatusLine(lead, clock)
     val nextTrack = stageScreen?.next?.takeIf { display.next }
-    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, ui.night, linkDown, display, peek) {
+    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek) {
         { s: StageData ->
             val text = TrackText.from(s.track)
             StageModel(
@@ -224,7 +224,6 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
                 next = StageTexts.next(nextTrack),
                 nextTitle = StageTexts.nextTitle(nextTrack),
                 statusLine = statusLine,
-                night = ui.night,
             )
         }
     }

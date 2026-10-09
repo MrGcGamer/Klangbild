@@ -166,7 +166,6 @@ fun TextLayer(
 ) {
     val layout = model.scene.layout
     val t = model.text
-    val night = model.night
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
     val block = plan.styles
     val localDensity = LocalDensity.current
@@ -177,8 +176,8 @@ fun TextLayer(
         this.alpha = alpha(which).coerceIn(0f, 1f)
         translationY = (rise(which) * density).roundToInt().toFloat()
     }
-    val showBar = !night && model.line == null && model.progress && model.durationMs != null
-    val bottomLine = if (night) null else model.line
+    val showBar = model.line == null && model.progress && model.durationMs != null
+    val bottomLine = model.line
 
     Layout(
         modifier = modifier
@@ -309,7 +308,7 @@ fun StatusLayer(
     alpha: () -> Float = { 1f },
 ) {
     val status = model.statusLine
-    if (status == null || status.isEmpty || model.night) return
+    if (status == null || status.isEmpty) return
     val layout = model.scene.layout
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
     val figures = rememberFigures(styles.time, Face.TITLE)

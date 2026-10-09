@@ -50,15 +50,15 @@ object HaloLight {
 
     /**
      * The sRGB tint for a pool of light: [color] at [peak] luminance, adjusted for the time of
-     * day. The lamp gets warmer only after sunset; at night it is turned right down
-     * (0.28 × daylight) and loses saturation (≤ 50 %).
+     * day. The lamp gets warmer only after sunset; at night it is turned down ([nightLight]) and
+     * loses saturation (≤ 50 %).
      */
     fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
         val night = nightOf(lighting)
         val warm = lighting.warmth.coerceIn(0f, 1f)
         val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * warm).toLch()
         var chroma = base.c * (1f - 1.25f * night)
-        val luminance = peak * (1f - 1.8f * night).coerceAtLeast(0.28f)
+        val luminance = peak * nightLight(night)
         val maxSaturation = 1f - 1.25f * night
         var argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
         repeat(12) {
@@ -71,6 +71,15 @@ object HaloLight {
 
     /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
     fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
+
+    /**
+     * How strong light is at [night] ([nightOf]) compared with the day: turned down in the
+     * evening, to about half at deep night – never so far that it seems to be gone.
+     */
+    fun nightLight(night: Float) = (1f - 1.1f * night).coerceIn(MIN_NIGHT_LIGHT, 1f)
+
+    /** The least light keeps of its daytime strength at night. */
+    const val MIN_NIGHT_LIGHT = 0.55f
 
     /** [c] scaled in linear light to the given relative luminance (keeps its chromaticity). */
     private fun scaledTo(c: Lch, luminance: Float): Int {
