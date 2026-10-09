@@ -194,6 +194,7 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
                 progress = display.timeLine || peek,
                 line = StageTexts.line(linkDown, s.track),
                 next = StageTexts.next(nextTrack),
+                nextTitle = StageTexts.nextTitle(nextTrack),
                 statusLine = statusLine,
                 night = ui.night,
             )

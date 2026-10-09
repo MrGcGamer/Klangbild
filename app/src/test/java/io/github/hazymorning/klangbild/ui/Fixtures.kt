@@ -67,6 +67,7 @@ object Fixtures {
             progress = progress,
             line = StageTexts.line(linkDown, track),
             next = StageTexts.next(next),
+            nextTitle = StageTexts.nextTitle(next),
             statusLine = StatusLine(lead, clock),
             night = night,
         )

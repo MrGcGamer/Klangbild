@@ -261,6 +261,8 @@ class TextPlan(
     val artistStyle: TextStyle,
     /** "Album · 2024", or only the album when both don't fit. */
     val album: String?,
+    /** What comes next – title and artist, or only the title when both don't fit. */
+    val next: String?,
 )
 
 /** Measures the block once per model. */
@@ -268,7 +270,7 @@ class TextPlan(
 fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
-    return remember(model.text, model.year, model.scene.layout, model.night, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
+    return remember(model.text, model.year, model.next, model.scene.layout, model.night, model.scene.palette, model.progress, model.line, model.durationMs == null, localDensity) {
         planText(model, StageStyles(model.scene.palette), measurer, localDensity)
     }
 }
@@ -336,6 +338,14 @@ private fun planText(
         val full = listOfNotNull(t.album, model.year?.toString()).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
         if (full != null && t.album != null && model.year != null && !fits(full, styles.album)) t.album else full
     }
+    // What comes next: title and artist, or the title alone rather than a cut-off artist.
+    val next = if (model.night) null else model.next?.let { full ->
+        if (model.nextTitle == null || measurer.measure(nextText(full, styles), styles.next, maxLines = 1, softWrap = false).size.width <= colW) {
+            full
+        } else {
+            model.nextTitle
+        }
+    }
     return TextPlan(
         title = choice.text,
         titleStyle = styles.title(choice.step),
@@ -343,6 +353,7 @@ private fun planText(
         artists = artists,
         artistStyle = artistStyle,
         album = album,
+        next = next,
     )
 }
 
@@ -379,7 +390,7 @@ fun TextLayer(
     val albumText = plan.album
     val showBar = !night && model.line == null && model.progress && model.durationMs != null
     val bottomLine = if (night) null else model.line
-    val next = if (night) null else model.next
+    val next = plan.next
 
     Layout(
         modifier = modifier
@@ -489,12 +500,14 @@ private const val BAR = "\u0000bar"
 
 @Composable
 private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
-    val annotated = buildAnnotatedString {
-        withStyle(styles.nextLead) { append("Als Nächstes") }
-        append("  ")
-        append(if (isRightToLeft(text)) "⁧$text⁩" else text)
-    }
-    BasicText(annotated, modifier, style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    BasicText(nextText(text, styles), modifier, style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** "Als Nächstes" in a heavier weight, then what comes next (isolated if right-to-left). */
+private fun nextText(text: String, styles: StageStyles): AnnotatedString = buildAnnotatedString {
+    withStyle(styles.nextLead) { append("Als Nächstes") }
+    append("\u00A0\u00A0")
+    append(if (isRightToLeft(text)) "\u2067$text\u2069" else text)
 }
 
 /**
@@ -570,7 +583,7 @@ private fun pickTitleSize(
     maxH: Float,
     density: Float,
 ): TitleChoice? {
-    val base = glueParentheses(text)
+    val base = glueShortWords(glueParentheses(text))
     val glued = glueBetweenDashes(base)
     fun height(r: TextLayoutResult, step: TitleStep): Float =
         step.size * Fonts.CAP_HEIGHT * density + (r.getLineBaseline(r.lineCount - 1) - r.getLineBaseline(0))
@@ -589,6 +602,27 @@ private fun pickTitleSize(
         }
     }
     return null
+}
+
+/**
+ * A short word (one to three letters: "im", "de", "der", "You") stays with the word after it,
+ * so no line of a title ends on it: "Spiegel / im Spiegel", never "Spiegel im / Spiegel".
+ */
+private fun glueShortWords(text: AnnotatedString): AnnotatedString {
+    val s = text.text
+    val chars = s.toCharArray()
+    var start = 0
+    var changed = false
+    for (i in chars.indices) {
+        if (chars[i] != ' ') continue
+        val word = s.substring(start, i)
+        if (word.length in 1..3 && word.all { it.isLetter() } && i + 1 < chars.size && chars[i + 1].isLetterOrDigit()) {
+            chars[i] = '\u00A0'
+            changed = true
+        }
+        start = i + 1
+    }
+    return if (!changed) text else AnnotatedString(String(chars), spanStyles = text.spanStyles, paragraphStyles = text.paragraphStyles)
 }
 
 /** Short parentheses never break inside: "(alla marcia)" stays one piece. */

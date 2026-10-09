@@ -31,4 +31,13 @@ class HaloStageTest {
     @Test fun busy() = shot("busy", Fixtures.model(Fixtures.track(SyntheticCover.KONFETTI), next = pärt))
     @Test fun white() = shot("white", Fixtures.model(Fixtures.track(SyntheticCover.LEERRAUM)))
     @Test fun featVersion() = shot("feat_version", Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = pärt))
+
+    /** A short word never ends a title line; a long "next" line drops its artist rather than cutting it. */
+    @Test fun shortWords() = shot(
+        "short_words",
+        Fixtures.model(
+            io.github.hazymorning.klangbild.domain.TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"), album = "Alina", durationMs = 557_000),
+            next = io.github.hazymorning.klangbild.domain.TrackInfo("Für Alina – Variationen über ein Thema", listOf("Arvo Pärt", "Alexander Malter")),
+        ),
+    )
 }

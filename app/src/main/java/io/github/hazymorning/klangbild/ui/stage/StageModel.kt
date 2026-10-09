@@ -33,8 +33,10 @@ class StageModel(
      * notice ("Verbindung unterbrochen …"). Wins over the bar.
      */
     val line: String? = null,
-    /** "Spiegel im Spiegel · Arvo Pärt": what comes next. */
+    /** "Spiegel im Spiegel · Arvo Pärt": what comes next … */
     val next: String? = null,
+    /** … and its title alone, for when both don't fit. */
+    val nextTitle: String? = null,
     /** The status line at the top right: where the music plays, the volume, the time. */
     val statusLine: StatusLine? = null,
     /** Night: only artwork, title and artist remain. */
@@ -82,6 +84,9 @@ object StageTexts {
     /** "Spiegel im Spiegel · Arvo Pärt". */
     fun next(track: TrackInfo?): String? =
         track?.let { TrackText.from(it) }?.let { listOfNotNull(it.title, it.shortArtists).joinToString(TimeLine.SEPARATOR) }
+
+    /** "Spiegel im Spiegel". */
+    fun nextTitle(track: TrackInfo?): String? = track?.let { TrackText.from(it).title }
 
     /** A line in the progress bar's place: the lost connection, or a radio's station. */
     fun line(linkDown: Boolean, track: TrackInfo): String? = when {

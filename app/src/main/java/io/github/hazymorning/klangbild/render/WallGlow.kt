@@ -65,8 +65,10 @@ object WallGlow {
                 val px = (x + 0.5f) * sx
                 val d = shape.distance(px, py)
                 if (d <= 0f) continue // behind the print: dark
-                val toEdge = min(min(px, screen.widthDp - px), min(py, screen.heightDp - py))
-                val fade = smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, toEdge)
+                // Horizontal and vertical fades multiplied: smooth everywhere. (The minimum of
+                // the four edge distances would crease along the diagonals, like a mitre.)
+                val fade = smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(px, screen.widthDp - px)) *
+                    smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(py, screen.heightDp - py))
                 if (fade <= 0f) continue
                 val fall = exp(-(d / sigma).toDouble().pow(FALLOFF_POWER.toDouble())).toFloat() * fade
                 if (fall < 1e-4f) continue
