@@ -1,0 +1,70 @@
+package io.github.hazymorning.klangbild.domain
+
+import kotlin.math.abs
+import kotlin.math.exp
+
+/**
+ * Local progress interpolation. Home Assistant only reports the position when something
+ * happens (play, pause, seek, track change), so the position is extrapolated from the last
+ * report: `position + (now − reportedAt)`, with the server/local clock skew removed.
+ */
+object Progress {
+    /**
+     * @param nowMs local wall clock
+     * @param skewMs local minus server clock (see ClockSkew)
+     * @param receivedAtMs local time the snapshot arrived, used if the server sent no timestamp
+     */
+    fun positionAt(snapshot: PlayerSnapshot, nowMs: Long, skewMs: Long, receivedAtMs: Long): Long? {
+        val pos = snapshot.positionMs ?: return null
+        val duration = snapshot.track?.durationMs
+        val extrapolated = if (snapshot.status == PlayerStatus.PLAYING) {
+            val reportedLocal = snapshot.positionAtEpochMs?.let { it + skewMs } ?: receivedAtMs
+            pos + (nowMs - reportedLocal).coerceAtLeast(0)
+        } else {
+            pos
+        }
+        return if (duration != null && duration > 0) extrapolated.coerceIn(0, duration) else extrapolated.coerceAtLeast(0)
+    }
+}
+
+/**
+ * Glides over small corrections instead of jumping: when a new report differs from what
+ * is on screen by less than [glideLimitMs], the difference fades out with time constant
+ * [tauMs]. Real seeks (bigger jumps) and track changes are shown immediately.
+ */
+class SmoothedPosition(
+    private val glideLimitMs: Long = 2_500,
+    private val tauMs: Double = 700.0,
+) {
+    private var correction = 0.0
+    private var correctionAt = 0L
+    private var lastShown: Long? = null
+    private var lastKey: String? = null
+
+    /** Call whenever a new snapshot arrives, with the raw position for "now". */
+    @Synchronized
+    fun onReport(trackKey: String?, rawNowMs: Long?, nowMs: Long) {
+        val shown = lastShown
+        if (rawNowMs == null || shown == null || trackKey != lastKey) {
+            correction = 0.0
+        } else {
+            val diff = shown - rawNowMs
+            correction = if (abs(diff) <= glideLimitMs) diff.toDouble() else 0.0
+        }
+        correctionAt = nowMs
+        lastKey = trackKey
+    }
+
+    /** Position to display now (called from the draw phase). */
+    @Synchronized
+    fun display(rawNowMs: Long?, nowMs: Long): Long? {
+        if (rawNowMs == null) {
+            lastShown = null
+            return null
+        }
+        val decay = exp(-(nowMs - correctionAt).coerceAtLeast(0) / tauMs)
+        val shown = (rawNowMs + correction * decay).toLong().coerceAtLeast(0)
+        lastShown = shown
+        return shown
+    }
+}

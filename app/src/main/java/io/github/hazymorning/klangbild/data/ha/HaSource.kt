@@ -1,0 +1,260 @@
+package io.github.hazymorning.klangbild.data.ha
+
+import io.github.hazymorning.klangbild.data.LinkState
+import io.github.hazymorning.klangbild.data.NowPlayingSource
+import io.github.hazymorning.klangbild.data.RemoteCommand
+import io.github.hazymorning.klangbild.data.SourceState
+import io.github.hazymorning.klangbild.data.ma.MaAuthException
+import io.github.hazymorning.klangbild.data.ma.MaClient
+import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.data.ma.MaQueue
+import io.github.hazymorning.klangbild.data.ma.QueueWindow
+import io.github.hazymorning.klangbild.domain.PlayerSnapshot
+import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.QueueInfo
+import io.github.hazymorning.klangbild.domain.SpeakerGroup
+import io.github.hazymorning.klangbild.domain.SpeakerLabel
+import io.github.hazymorning.klangbild.domain.TrackInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import java.text.Normalizer
+
+/**
+ * Home Assistant as the source: the configured media_player plus `sun.sun`, enriched with
+ * Music Assistant's queue (next track, full-size artwork, individual artist names) – and,
+ * when Music Assistant itself is set up ([ma]), with the whole queue around the current track.
+ */
+class HaSource(
+    http: OkHttpClient,
+    private val scope: CoroutineScope,
+    private val config: HaConfig,
+    private val playerEntity: String,
+    private val sunEntity: String = "sun.sun",
+    private val now: () -> Long = System::currentTimeMillis,
+    private val ma: MaClient? = null,
+) : NowPlayingSource {
+
+    private val connection = HaConnection(http, scope)
+    private val _state = MutableStateFlow(SourceState(link = LinkState.CONNECTING))
+    override val state: StateFlow<SourceState> = _state.asStateFlow()
+
+    private var collector: Job? = null
+    private var queuePoller: Job? = null
+    @Volatile private var queue: QueueInfo? = null
+    @Volatile private var window: QueueWindow? = null
+    @Volatile private var queueForKey: String? = null
+    @Volatile private var maLink: MaLink? = null
+    @Volatile private var lastPlayerKey: String? = null
+    private var linkDownSince: Long? = null
+    private var lastSnapshot: PlayerSnapshot? = null
+    private var receivedAt = 0L
+    private var watched: Set<String> = emptySet()
+
+    override fun start() {
+        connection.start(config, listOf(playerEntity, sunEntity))
+        // How many Music Assistant speakers there are: a group of all of them is "everywhere".
+        connection.watchTemplate(SPEAKER_COUNT_TEMPLATE)
+        collector = scope.launch {
+            combine(connection.status, connection.entities, connection.templateResult) { st, ents, _ -> st to ents }
+                .collect { (st, ents) -> publish(st, ents) }
+        }
+        queuePoller = scope.launch {
+            ma?.let {
+                maLink = it.check()
+                publish(connection.status.value, connection.entities.value)
+            }
+            // Light periodic refresh: the queue can change without the track changing.
+            while (isActive) {
+                delay(QUEUE_REFRESH_MS)
+                if (_state.value.player?.status == PlayerStatus.PLAYING) refreshQueue(force = true)
+            }
+        }
+    }
+
+    override fun stop() {
+        collector?.cancel()
+        queuePoller?.cancel()
+        connection.stop()
+    }
+
+    /** The network came back: do not wait for the backoff timer. */
+    fun networkAvailable() = connection.retryNow()
+
+    override suspend fun send(command: RemoteCommand) {
+        val service = when (command) {
+            RemoteCommand.PLAY_PAUSE -> "media_play_pause"
+            RemoteCommand.NEXT -> "media_next_track"
+            RemoteCommand.PREVIOUS -> "media_previous_track"
+            RemoteCommand.VOLUME_UP -> "volume_up"
+            RemoteCommand.VOLUME_DOWN -> "volume_down"
+        }
+        runCatching { connection.callService("media_player", service, playerEntity) }
+    }
+
+    /** Called from the status/entity collector and after queue refreshes – serialised. */
+    @Synchronized
+    private fun publish(status: HaStatus, entities: Map<String, EntityState>) {
+        val t = now()
+        val link = when (status) {
+            HaStatus.Connected -> LinkState.CONNECTED
+            is HaStatus.AuthFailed -> LinkState.AUTH_FAILED
+            is HaStatus.Connecting -> if (lastSnapshot == null && linkDownSince == null) LinkState.CONNECTING else LinkState.RECONNECTING
+            is HaStatus.Waiting -> LinkState.RECONNECTING
+            HaStatus.Stopped -> LinkState.CONNECTING
+        }
+        linkDownSince = if (link == LinkState.CONNECTED) null else (linkDownSince ?: t)
+
+        val entity = entities[playerEntity]
+        val connectedAndLoaded = status == HaStatus.Connected && entities.isNotEmpty()
+        var player = entity?.let { PlayerParser.player(it, config.baseUrl) }
+        if (player != null && player != lastSnapshot) {
+            receivedAt = t
+            lastSnapshot = player
+        }
+        player = player ?: lastSnapshot.takeIf { link != LinkState.CONNECTED }
+
+        val key = player?.track?.let { trackKey(it) }
+        if (key != null && key != lastPlayerKey) {
+            lastPlayerKey = key
+            if (player.isMusicAssistant) scope.launch { refreshQueue(force = false) }
+        }
+
+        val enriched = player?.let { enrich(it) }
+        val sun = entities[sunEntity]?.number("elevation")
+        // The other speakers of a group are followed too, for their names.
+        val others = player?.groupMembers.orEmpty()
+        if (others.toSet() != watched) {
+            watched = others.toSet()
+            connection.watch(watched)
+        }
+        val queueKnown = key != null && queueForKey == key
+        val currentQueue = queue?.takeIf { queueKnown }
+        val currentWindow = window?.takeIf { queueKnown }
+        _state.value = SourceState(
+            link = link,
+            player = enriched,
+            entityMissing = connectedAndLoaded && entity == null,
+            next = currentQueue?.next,
+            sunElevation = sun ?: _state.value.sunElevation,
+            receivedAtMs = receivedAt,
+            skewMs = connection.clockSkew.offsetMs,
+            linkDownSinceMs = linkDownSince,
+            group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) }
+                ?.let { g -> if (isEverywhere(g)) g.copy(everywhere = true) else g },
+            queueKnown = queueKnown,
+            coming = currentWindow?.coming.orEmpty(),
+            played = currentWindow?.played.orEmpty(),
+            ma = if (ma == null) null else maLink,
+        )
+    }
+
+    /**
+     * Who plays along: a sync group lists its members in `group_members` (on the leader and
+     * on every member); a Music Assistant group player lists only its children, and its
+     * members list nobody – they only play from the group's queue, which has its name.
+     */
+    private fun groupOf(p: PlayerSnapshot, otherNames: List<String?>, q: QueueInfo?): SpeakerGroup? = when {
+        p.isGroupPlayer -> SpeakerGroup(self = null, others = otherNames, name = p.friendlyName)
+        otherNames.isNotEmpty() -> SpeakerGroup(self = p.friendlyName, others = otherNames)
+        else -> q?.name?.takeIf { SpeakerLabel.isOtherName(it, p.friendlyName) }
+            ?.let { SpeakerGroup(self = p.friendlyName, others = emptyList(), name = it) }
+    }
+
+    /** Prefer the queue's richer data when it describes the same track. */
+    private fun enrich(p: PlayerSnapshot): PlayerSnapshot {
+        val track = p.track ?: return p
+        val q = queue ?: return p
+        val current = q.current ?: return p
+        if (queueForKey != trackKey(track) || !sameTitle(current.title, track.title)) return p
+        // Only Music Assistant's own queue knows the album's year.
+        val year = window?.current?.takeIf { sameTitle(it.title, track.title) }?.year
+        return p.copy(
+            track = track.copy(
+                artists = current.artists.ifEmpty { track.artists },
+                album = track.album ?: current.album,
+                year = current.year ?: year ?: track.year,
+                artworkUrl = current.artworkUrl ?: track.artworkUrl,
+                artworkFallbackUrl = track.artworkUrl ?: track.artworkFallbackUrl,
+                source = current.source ?: track.source,
+            ),
+        )
+    }
+
+    private suspend fun refreshQueue(force: Boolean) {
+        val key = lastPlayerKey ?: return
+        if (!force && queueForKey == key) return
+        delay(350) // let a burst of state changes settle
+        val response = runCatching {
+            connection.callService("music_assistant", "get_queue", playerEntity, returnResponse = true)
+        }.getOrNull()
+        // No answer (a source without a queue, like Spotify Connect): nothing is known to follow.
+        // A periodic refresh that fails keeps what is known.
+        val again = force && queueForKey == key
+        val parsed = response?.let { PlayerParser.queue(it, playerEntity, config.baseUrl) }
+        if (parsed == null && again) return
+        val read = parsed?.let { readWindow(it) } ?: window.takeIf { again }
+        if (lastPlayerKey != key) return
+        queue = parsed
+        window = read
+        queueForKey = key
+        publish(connection.status.value, connection.entities.value)
+    }
+
+    /**
+     * The whole queue around the current item, from Music Assistant itself (if set up) – only
+     * if it is the same item Home Assistant reports (the queue may have moved in between).
+     */
+    private suspend fun readWindow(q: QueueInfo): QueueWindow? {
+        val client = ma ?: return null
+        val id = q.queueId ?: lastSnapshot?.activeQueue ?: return null
+        val index = q.currentIndex ?: return null
+        val (offset, limit) = MaQueue.range(index)
+        return try {
+            val w = MaQueue.window(client.items(id, offset, limit), offset, index, client.baseUrl)
+            maLink = MaLink.CONNECTED
+            w.takeIf { a -> val b = q.current; a.current != null && b != null && sameTitle(a.current.title, b.title) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: MaAuthException) {
+            maLink = MaLink.AUTH_FAILED
+            null
+        } catch (_: Exception) {
+            maLink = MaLink.UNREACHABLE
+            null
+        }
+    }
+
+    /** All of the house's speakers play together (and there are at least three). */
+    private fun isEverywhere(g: SpeakerGroup): Boolean {
+        val all = connection.templateResult.value?.trim()?.toIntOrNull() ?: return false
+        return g.name == null && all >= 3 && g.others.size + 1 >= all
+    }
+
+    private fun trackKey(t: TrackInfo) = norm(t.title) + "|" + norm(t.artists.joinToString())
+
+    companion object {
+        const val QUEUE_REFRESH_MS = 60_000L
+
+        /** Music Assistant speakers (not groups) that are not unavailable. */
+        const val SPEAKER_COUNT_TEMPLATE =
+            "{{ states.media_player | selectattr('attributes.mass_player_type', 'eq', 'player') " +
+                "| rejectattr('state', 'eq', 'unavailable') | list | count }}"
+
+        fun norm(s: String): String =
+            Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }
+
+        fun sameTitle(a: String, b: String): Boolean {
+            val x = norm(a)
+            val y = norm(b)
+            return x == y || (x.isNotEmpty() && y.isNotEmpty() && (x.startsWith(y) || y.startsWith(x)))
+        }
+    }
+}

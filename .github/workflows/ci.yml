@@ -1,0 +1,210 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    # A tag like v1.0.0 publishes a release with the APK; v1.1.0-beta.1 (with a hyphen) a pre-release.
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release unter diesem Tag veröffentlichen (z. B. v1.0.0; mit Bindestrich wie v1.1.0-beta.1 als Vorabversion); leer = nur bauen"
+        required: false
+        default: ""
+
+# A manual release run must not cancel the push run of the same commit (and vice versa).
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Tests und Release-APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Cache Robolectric android-all
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Unit- und Screenshot-Tests
+        run: ./gradlew :app:testDebugUnitTest -Proborazzi.test.record=true --stacktrace
+
+      - name: Signierte Release-APK (R8)
+        env:
+          # A release carries its tag as version name (v1.0.0 → 1.0.0).
+          TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
+        run: |
+          if [ -n "$TAG" ]; then
+            ./gradlew :app:assembleRelease "-Pklangbild.versionName=${TAG#v}" --stacktrace
+          else
+            ./gradlew :app:assembleRelease --stacktrace
+          fi
+
+      - name: Version auslesen
+        id: version
+        run: |
+          meta=app/build/outputs/apk/release/output-metadata.json
+          echo "version_code=$(jq -r '.elements[0].versionCode' $meta)" >> "$GITHUB_OUTPUT"
+          echo "version_name=$(jq -r '.elements[0].versionName' $meta)" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/release/app-release.apk klangbild.apk
+
+      - name: APK hochladen
+        uses: actions/upload-artifact@v7
+        with:
+          name: klangbild-apk
+          path: klangbild.apk
+          if-no-files-found: error
+
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: app/build/screenshots
+          if-no-files-found: warn
+
+      - name: Testberichte hochladen
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: app/build/reports/tests
+
+  smoke:
+    name: Smoke-Test auf Android-TV-Emulator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: klangbild-apk
+
+      - name: Speicherplatz freigeben
+        # The TV image wants a large userdata partition; the runner's disk is tight.
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+            /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk || true
+          df -h /
+
+      - name: KVM aktivieren
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Klangbild mit Ersatz-Home-Assistant auf Android TV 14
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          disable-animations: false
+          disk-size: 3G
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-metrics
+          script: bash ci/tv-smoke.sh klangbild.apk
+
+      - name: Smoke-Test-Ergebnisse hochladen
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: emulator-smoke
+          path: smoke/
+          if-no-files-found: warn
+
+  release:
+    name: GitHub-Release (main)
+    needs: [build, smoke]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: klangbild-apk
+
+      - name: Release veröffentlichen
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ needs.build.outputs.version_code }}
+          name: Klangbild ${{ needs.build.outputs.version_name }}
+          target_commitish: ${{ github.sha }}
+          make_latest: "true"
+          body: |
+            Signierte Release-APK für Google TV (Sideload).
+
+            Installation: `adb install -r klangbild.apk`
+
+            Fester Link auf die jeweils neueste Version:
+            `https://github.com/${{ github.repository }}/releases/latest/download/klangbild.apk`
+          files: klangbild.apk
+
+  publish:
+    name: GitHub-Release (Tag)
+    needs: [build, smoke]
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.release_tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: docs/releases
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: klangbild-apk
+
+      - name: Release-Text
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          notes="docs/releases/$TAG.md"
+          {
+            if [ -f "$notes" ]; then cat "$notes"; echo; fi
+            echo "**Installation:** \`adb install -r klangbild.apk\` – als Update über eine ältere Version; die Einstellungen bleiben erhalten."
+            echo
+            echo "Fester Link auf die jeweils neueste Version: \`https://github.com/$REPO/releases/latest/download/klangbild.apk\`"
+          } > release-body.md
+
+      - name: Release veröffentlichen
+        uses: softprops/action-gh-release@v3
+        with:
+          # A manual run creates the tag on the built commit.
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Klangbild ${{ needs.build.outputs.version_name }}
+          # Only a tag with a hyphen (v1.1.0-beta.1) is a pre-release; everything else is
+          # a normal release and shows as "Latest" on the repository page.
+          prerelease: ${{ contains(env.TAG, '-') }}
+          make_latest: ${{ !contains(env.TAG, '-') }}
+          body_path: release-body.md
+          files: klangbild.apk

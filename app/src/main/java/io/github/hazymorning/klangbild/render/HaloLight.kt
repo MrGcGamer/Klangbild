@@ -1,0 +1,106 @@
+package io.github.hazymorning.klangbild.render
+
+import io.github.hazymorning.klangbild.color.Lch
+import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Oklab
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/**
+ * The outline of the artwork on the wall: a square with softly rounded corners ([corner],
+ * dp), or a disc (generated sand plates hang on the wall without a square around them).
+ */
+data class PrintShape(val rect: RectDp, val round: Boolean = false, val corner: Float = 0f) {
+    val centerX get() = rect.centerX
+    val centerY get() = rect.centerY
+
+    /** Half the size (dp): for a disc its radius. */
+    val radius get() = rect.width / 2f
+
+    /** Distance (dp) of a point from the outline; 0 inside. */
+    fun distance(xDp: Float, yDp: Float): Float = max(0f, signedDistance(xDp, yDp))
+
+    /** Distance from the outline, negative inside. */
+    fun signedDistance(xDp: Float, yDp: Float): Float =
+        if (round) {
+            hypot(xDp - centerX, yDp - centerY) - radius
+        } else {
+            val r = corner.coerceIn(0f, rect.width / 2f)
+            val qx = kotlin.math.abs(xDp - centerX) - (rect.width / 2f - r)
+            val qy = kotlin.math.abs(yDp - centerY) - (rect.height / 2f - r)
+            val outside = sqrt(max(qx, 0f) * max(qx, 0f) + max(qy, 0f) * max(qy, 0f))
+            outside + kotlin.math.min(max(qx, qy), 0f) - r
+        }
+
+    fun contains(xDp: Float, yDp: Float): Boolean = signedDistance(xDp, yDp) < 0f
+}
+
+/**
+ * Lamp light for the screens without artwork (rest, menu): a warm white bulb whose tint is
+ * dimmed and warmed with the time of day. The stage's own light is [WallGlow].
+ */
+object HaloLight {
+    /** Light for neutral surroundings: warm white, like a 2700–3000 K bulb. */
+    val LAMP = Lch(0.70f, 0.045f, 72f)
+
+    /** Hue of plain lamp light. */
+    const val LAMP_HUE = 72f
+
+    /**
+     * The sRGB tint for a pool of light: [color] at [peak] luminance, adjusted for the time of
+     * day. The lamp gets warmer only after sunset; at night it is turned down ([nightLight]) and
+     * loses saturation (≤ 50 %).
+     */
+    fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
+        val night = nightOf(lighting)
+        val warm = lighting.warmth.coerceIn(0f, 1f)
+        val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * warm).toLch()
+        var chroma = base.c * (1f - 1.25f * night)
+        val luminance = peak * nightLight(night)
+        val maxSaturation = 1f - 1.25f * night
+        var argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
+        repeat(12) {
+            if (hsvSaturation(argb) <= maxSaturation + 1e-3f) return argb
+            chroma *= 0.85f
+            argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
+        }
+        return argb
+    }
+
+    /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
+    fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
+
+    /**
+     * How strong light is at [night] ([nightOf]) compared with the day: turned down in the
+     * evening, to about half at deep night – never so far that it seems to be gone.
+     */
+    fun nightLight(night: Float) = (1f - 1.1f * night).coerceIn(MIN_NIGHT_LIGHT, 1f)
+
+    /** The least light keeps of its daytime strength at night. */
+    const val MIN_NIGHT_LIGHT = 0.55f
+
+    /** [c] scaled in linear light to the given relative luminance (keeps its chromaticity). */
+    private fun scaledTo(c: Lch, luminance: Float): Int {
+        val lin = Oklab.toLinear(Oklab.gamutMap(c.toLab()))
+        val y = 0.2126f * lin[0] + 0.7152f * lin[1] + 0.0722f * lin[2]
+        val k = if (y > 0f) luminance / y else 0f
+        fun ch(v: Float) = (Oklab.linearToSrgb((v * k).coerceIn(0f, 1f)) * 255f).roundToInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (ch(lin[0]) shl 16) or (ch(lin[1]) shl 8) or ch(lin[2])
+    }
+
+    fun hsvSaturation(argb: Int): Float {
+        val r = (argb shr 16) and 0xFF
+        val g = (argb shr 8) and 0xFF
+        val b = argb and 0xFF
+        val mx = maxOf(r, g, b)
+        val mn = minOf(r, g, b)
+        return if (mx == 0) 0f else (mx - mn).toFloat() / mx
+    }
+
+    fun smoothstep(e0: Float, e1: Float, x: Float): Float {
+        val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
+    }
+}
