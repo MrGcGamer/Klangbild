@@ -134,7 +134,7 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
   warmer in the evening, never above 0.018), never #FFF, never ivory. However late it is,
   every level keeps 4.5:1 (`NIGHT_INK_FLOOR` on black, `lightestInkOn` on paper).
-- **Day and night (`Lighting`, setting "Tag und Nacht"):** the evening and the night only
+- **Day and night (`Lighting`, setting "Nachtmodus"):** the evening and the night only
   dim and warm – light, artwork and text; they never hide anything (no line, no side card).
   The light keeps at least 0.55 × its daytime strength (`HaloLight.nightLight`). Hiding
   lines at dusk looked like a crash on the device (v3.0.2).
@@ -221,30 +221,34 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   motion, aiming at 4.8:1 so the quietest text keeps 4.5:1 – tested on rendered pixels) and
   the artwork's shadow. No vignette. `FieldModel` computes the same field on the CPU (text
   shade, light bars). On colour the lower inks stand a little lighter (0.82 / 0.71, night floors
-  0.71 / 0.62); the progress bar takes the cover's leading hue. "Wandlicht" sets how strong the
+  0.71 / 0.62); the progress bar takes the cover's leading hue. "Intensität" sets how strong the
   colours are. Cover Flow on the field: the cards pass the screen's edges (`FlowStrip(edges = false)`).
-- **Bewegung** (Aus / Sanft / Mittel / Lebhaft = speed 0 / 0.3 / 0.6 / 1.0; the main layer turns
+- **Bewegung** (Aus / Langsam / Mittel / Schnell = speed 0 / 0.3 / 0.6 / 1.0; the main layer turns
   once in ≈ 470 / 230 / 140 s): only while music plays, on the field's own clock (`FieldClock`) –
   a pause freezes it, nothing jumps; screen and light bars read the same clock. One frame tick
   (~30/s) for the field and the progress bar, never two loops out of step.
-- **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus / Dezent /
-  Normal / Kräftig = 10 / 20 / 40 % brightness): each bar takes the field's colour at the screen
+- **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus / Schwach /
+  Normal / Stark = 10 / 20 / 40 % brightness): each bar takes the field's colour at the screen
   edge next to it (left and right edge, the middle bar the top edge), as xy within gamut C, greys as warm white (2700 K, evening
   2300 K), dark covers softly; night × 0.6, pause × 0.5 (after 2 s). Before taking the bars over
   their state is noted; it is given back after the music has ended for 5 minutes, when the
   option goes off and when the app closes (bars that were off: dimmed, then off without a fade).
   At most one call per bar a second, none for invisible changes, a new song after 1.5 s
   (quick skips cost nothing) in a 2.5 s fade, drift every 10 s in 8 s fades. A bar someone else
-  switches off, sets to white or changes a lot is theirs until the next session.
+  switches off, sets to white or changes a lot is theirs until the next session. The bars'
+  states arrive a moment after they are followed: taking over waits for them (≤ 10 s) and a
+  bar that appears later joins in; a failed call is retried once, for that bar only.
+- **Skip flicker** (`FlipGuard`): a return to an item left within 5 s is held 2 s and shown
+  only if it is still what plays; new items pass at once, and so does the remote's "previous".
 - **Hörbücher und Podcasts** are told by Music Assistant's URI (`…://audiobook/…`,
   `…://podcast_episode/…`): a book's description (where an album would be) never shows, an
   episode's show stands where an artist would. With Music Assistant: the chapter in the album's
   place (a number-only name as "Kapitel 7", a long one cut after a whole word), the bar spans
   the chapter, "Als Nächstes" the next chapter, the speed in words ("Tempo 1,25×") and the
   position running at that speed. Left / right jump back 15 / ahead 30 s (presses add up, the bar
-  shows it at once), held they go by chapters; setting "Hörbücher und Podcasts": Springen /
-  Wechseln. A held key never repeats a command.
-- **Einschlafen** (menu, no setting): Aus / 15 / 30 / 45 Minuten / eine Stunde / Ende des
+  shows it at once), held they go by chapters; setting "Hörbücher, Podcasts": Spulen /
+  Titel wechseln. A held key never repeats a command.
+- **Sleep-Timer** (menu, no setting): Aus / 15 / 30 / 45 Minuten / eine Stunde / Ende des
   Kapitels / Ende der Folge (des Titels, des Hörbuchs); the status line says "Pause um 23:10".
   An end counts only when playing reaches it (a jump across moves the timer on); the item's end
   is paused 1.5 s early so the queue never moves on first. It lives in the app: only while
