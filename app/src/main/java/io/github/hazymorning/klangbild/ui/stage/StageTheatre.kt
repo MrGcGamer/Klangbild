@@ -17,13 +17,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.ui.Motion
+import kotlinx.coroutines.flow.conflate
 
 /** How two consecutive stages differ, which decides the choreography. */
 enum class Change {
@@ -70,19 +73,25 @@ fun StageTheatre(
     var previous by remember { mutableStateOf<StageData?>(null) }
     var change by remember { mutableStateOf(Change.FULL) }
     val t = remember { Animatable(1f) }
+    val latest by rememberUpdatedState(stage)
 
-    LaunchedEffect(stage) {
-        if (stage.scene !== current.scene || stage.track != current.track) {
-            change = when {
-                stage.track.key == current.track.key && stage.scene.appearance != current.scene.appearance -> Change.WALL
-                stage.track.key == current.track.key -> Change.SOFT
-                samePicture(current.scene, stage.scene) -> Change.TEXT
+    // One change at a time: what arrives meanwhile waits until the running change has landed,
+    // and of several waiting only the newest is shown – a quick skip never cuts a change short.
+    LaunchedEffect(Unit) {
+        snapshotFlow { latest }.conflate().collect { target ->
+            val old = current
+            if (target.scene === old.scene && target.track == old.track) return@collect
+            val kind = when {
+                target.track.key == old.track.key && target.scene.appearance != old.scene.appearance -> Change.WALL
+                target.track.key == old.track.key -> Change.SOFT
+                samePicture(old.scene, target.scene) -> Change.TEXT
                 else -> Change.FULL
             }
-            previous = current
-            current = stage
             t.snapTo(0f)
-            t.animateTo(1f, tween(durationOf(change), easing = LinearEasing))
+            change = kind
+            previous = old
+            current = target
+            t.animateTo(1f, tween(durationOf(kind), easing = LinearEasing))
             previous = null
         }
     }
@@ -158,7 +167,7 @@ fun StageTheatre(
     // The text: the old block leaves first, the new lines follow one after another.
     val textStart = if (kind == Change.FULL) Motion.TEXT_IN_MS else Motion.TEXT_IN_SAME_PICTURE_MS
     val textIn: (TextLine) -> Float = { line ->
-        if (prev == null || kind.isSoft) 1f else p(textStart + stagger(line), textStart + stagger(line) + Motion.TEXT_LINE_MS, Motion.Decelerate)
+        if (prev == null || kind.isSoft) 1f else p(textStart + line.stagger, textStart + line.stagger + Motion.TEXT_LINE_MS, Motion.Decelerate)
     }
     val textRise: (TextLine) -> Float = { line ->
         if (prev == null || kind.isSoft) 0f else 10f * (1f - textIn(line))
@@ -186,16 +195,6 @@ fun StageTheatre(
     }
 }
 
-/** Each line of the new text starts a little after the one above it. */
-private fun stagger(line: TextLine): Int = when (line) {
-    TextLine.WORK, TextLine.TITLE -> 0
-    TextLine.VERSION -> 50
-    TextLine.ARTIST -> 80
-    TextLine.ALBUM -> 140
-    TextLine.BOTTOM -> 200
-    TextLine.NEXT -> 260
-}
-
 private fun durationOf(change: Change) = when (change) {
     Change.FULL -> Motion.TRACK_CHANGE_MS
     Change.TEXT -> Motion.TEXT_CHANGE_MS
@@ -204,5 +203,5 @@ private fun durationOf(change: Change) = when (change) {
 }
 
 /** Same picture: consecutive songs of one album. */
-private fun samePicture(a: ArtworkScene, b: ArtworkScene): Boolean =
+internal fun samePicture(a: ArtworkScene, b: ArtworkScene): Boolean =
     a.shape == b.shape && a.coverGenerated == b.coverGenerated && a.thumb.contentEquals(b.thumb)

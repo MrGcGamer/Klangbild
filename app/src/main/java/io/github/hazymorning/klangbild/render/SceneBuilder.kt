@@ -5,9 +5,11 @@ import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.art.stableHash
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverAnalysis
+import io.github.hazymorning.klangbild.color.CoverKind
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.ScenePalette
+import io.github.hazymorning.klangbild.domain.StageView
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -30,8 +32,9 @@ class ArtworkScene(
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
     /**
-     * The wall around the print, the whole screen at 1 px per dp: in the dark the print's light
-     * on black ([WallGlow]), in the light paper with the print's shadow ([WallShade]).
+     * The wall around the print, scaled to the whole screen: in the dark the print's light on
+     * black ([WallGlow]; in Cover Flow the pool of light above the cards, [FlowLight]), in the
+     * light paper with the print's shadow ([WallShade]; in Cover Flow plain paper).
      */
     val wall: Bitmap,
     val palette: ScenePalette,
@@ -43,6 +46,8 @@ class ArtworkScene(
     val matted: Boolean = false,
     /** How much of the cover's colour the light wall takes (the light level setting). */
     val wallTint: Float = 1f,
+    /** The print as a card of the cover flow, with its mirror image; null in the single view. */
+    val card: FlowCard? = null,
 ) {
     val screen: ScreenSpec get() = layout.screen
 
@@ -85,8 +90,9 @@ object SceneBuilder {
         lighting: Lighting,
         appearance: Appearance = Appearance.DARK,
         wallTint: Float = 1f,
+        view: StageView = StageView.SINGLE,
     ): ArtworkScene {
-        val layout = HaloLayout(screen)
+        val layout = HaloLayout(screen, view)
         val slotPx = (layout.art * screen.density).roundToInt()
         val slotRect = layout.coverRect(layout.art)
         val coverPixels: IntArray
@@ -127,10 +133,13 @@ object SceneBuilder {
      * source image: only a small print's mat changes with the wall.
      */
     fun relight(scene: ArtworkScene, lighting: Lighting, appearance: Appearance, wallTint: Float): ArtworkScene {
-        val cover = if (scene.matted && scene.appearance != appearance) remat(scene, appearance) else scene.cover
+        val sameWall = scene.appearance == appearance
+        val cover = if (scene.matted && !sameWall) remat(scene, appearance) else scene.cover
         return assemble(
             scene.key, scene.layout, cover, scene.shape, scene.coverGenerated,
             scene.coverNativePx, scene.analysis, lighting, scene.thumb, scene.matted, appearance, wallTint,
+            // The card only changes with the wall (its mirror image, mat and hairline).
+            card = scene.card.takeIf { sameWall },
         )
     }
 
@@ -159,15 +168,30 @@ object SceneBuilder {
         matted: Boolean,
         appearance: Appearance,
         wallTint: Float,
+        card: FlowCard? = null,
     ): ArtworkScene {
         val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint)
-        val wall = if (appearance == Appearance.DARK) {
-            // The wall sees the outside of the picture: for a matted print that is the mat board.
-            val edges = if (matted) IntArray(THUMB * THUMB) { MAT } else thumb
-            WallGlow.field(edges, THUMB, shape, layout.screen, lighting)
-        } else {
-            WallShade.field(palette.wall, shape, layout.screen)
+        val flow = layout.view == StageView.FLOW
+        val wall = when {
+            flow && appearance == Appearance.DARK ->
+                Bitmap.createBitmap(FlowLight.field(palette.lead, layout, lighting), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
+            flow -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
+            appearance == Appearance.DARK -> {
+                // The wall sees the outside of the picture: for a matted print that is the mat board.
+                val edges = if (matted) IntArray(THUMB * THUMB) { MAT } else thumb
+                Bitmap.createBitmap(WallGlow.field(edges, THUMB, shape, layout.screen, lighting), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
+            }
+            else -> Bitmap.createBitmap(WallShade.field(palette.wall, shape, layout.screen), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
         }
+        val flowCard = if (!flow) null else card ?: FlowCards.build(
+            cover = cover,
+            round = shape.round,
+            cornerPx = layout.radius * layout.screen.density,
+            geometry = FlowGeometry(layout),
+            density = layout.screen.density,
+            appearance = appearance,
+            edgeLine = edgeLine(analysis.kind, shape.round, appearance),
+        )
         return ArtworkScene(
             key = key,
             layout = layout,
@@ -175,14 +199,26 @@ object SceneBuilder {
             shape = shape,
             coverGenerated = generated,
             coverNativePx = nativePx,
-            wall = Bitmap.createBitmap(wall, WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888),
+            wall = wall,
             palette = palette,
             analysis = analysis,
             lighting = lighting,
             thumb = thumb,
             matted = matted,
             wallTint = wallTint,
+            card = flowCard,
         )
+    }
+
+    /**
+     * A faint inner hairline (ARGB) where the artwork would dissolve into the wall: white at
+     * 7 % inside dark square artwork on black, black at 8 % inside pale artwork on paper.
+     */
+    fun edgeLine(kind: CoverKind, round: Boolean, appearance: Appearance): Int = when {
+        round -> 0
+        appearance == Appearance.DARK && kind == CoverKind.DARK -> 0x12FFFFFF
+        appearance == Appearance.LIGHT && kind == CoverKind.LIGHT -> 0x14000000
+        else -> 0
     }
 
     /**

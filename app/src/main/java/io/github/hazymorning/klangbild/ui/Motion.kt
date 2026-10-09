@@ -32,6 +32,12 @@ object Motion {
     val Accelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
     /**
+     * The cover flow turning over: a gentle start, an unhurried middle – at most about twice
+     * the average speed – and a long soft landing.
+     */
+    val Turn = CubicBezierEasing(0.35f, 0f, 0.35f, 1f)
+
+    /**
      * A full track change: the old artwork goes dark (0–320 ms), the new one comes up
      * (300–900 ms) and settles from 1.5 % larger; the light on the wall turns to the new
      * colours (0–900 ms). The old text leaves (200 ms); the new lines rise into place one
@@ -49,6 +55,22 @@ object Motion {
     /** New track, same picture (next song of the album): only the text changes, sooner. */
     const val TEXT_CHANGE_MS = 950
     const val TEXT_IN_SAME_PICTURE_MS = 250
+
+    /**
+     * Cover Flow: another picture comes to the middle – the strip turns over in 1.3 s
+     * ([Turn]); the light above the cards takes the new colour (0–1100 ms); the old text has
+     * left before the cards gather speed, the new lines rise from 620 ms, as the new cover
+     * arrives.
+     */
+    const val FLOW_MOVE_MS = 1_300
+    const val FLOW_LIGHT_MS = 1_100
+    const val FLOW_TEXT_IN_MS = 620
+
+    /** Cards beside the middle come or go (the queue changed). */
+    const val FLOW_SIDES_MS = 900
+
+    /** At night the cards beside the middle step back into the dark. */
+    const val NIGHT_SIDES_MS = 1_500
 
     /** Same track, better cover or new time-of-day light. */
     const val SOFT_SWAP_MS = 900

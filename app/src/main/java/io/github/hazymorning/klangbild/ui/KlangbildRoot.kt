@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.color.Appearance
@@ -30,8 +31,10 @@ import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
+import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.ui.flow.FlowTheatre
 import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
@@ -100,7 +103,12 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
             label = "screen",
         ) { k ->
             when (val c = latest[k] ?: Content.Dark) {
-                is Content.StageContent -> StageContentView(ui, c, screen, hooks, wall)
+                is Content.StageContent -> StageContentView(ui, c.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
+                    StageTheatre(stage = c.stage, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown)
+                }
+                is Content.FlowContent -> StageContentView(ui, c.flow.middle.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
+                    FlowTheatre(flow = c.flow, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown, night = ui.night)
+                }
                 is Content.RestContent -> RestScreen(
                     reason = c.reason,
                     // A group is named here too: "Wohnzimmer + 5 · Pausiert".
@@ -131,6 +139,11 @@ private sealed interface Content {
         override val key = "stage"
     }
 
+    data class FlowContent(val flow: FlowData) : Content {
+        // The cover flow animates its own changes, too; switching views fades through the dark.
+        override val key = "flow"
+    }
+
     data class RestContent(val reason: io.github.hazymorning.klangbild.domain.RestReason, val speaker: String?, val appearance: Appearance) : Content {
         // A new wall fades through the dark like a new screen.
         override val key = "rest:$reason:$appearance"
@@ -148,15 +161,29 @@ private sealed interface Content {
 private const val QUIET_START_MS = 4_000L
 
 private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s = ui.screen) {
-    is Screen.Stage -> ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
+    is Screen.Stage ->
+        if (ui.view == StageView.FLOW) ui.flow?.let { Content.FlowContent(it) } ?: Content.Dark
+        else ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
     is Screen.Rest ->
         if (quietStart && s.reason == io.github.hazymorning.klangbild.domain.RestReason.CONNECTING) Content.Dark
         else Content.RestContent(s.reason, s.speaker, ui.appearance)
     is Screen.Setup -> Content.SetupContent(s.reason, ui.appearance)
 }
 
+/** A view's theatre, given the player's status, how to build a model, the light setting and a lost link. */
+private typealias Theatre = @Composable (
+    status: PlayerStatus,
+    modelFor: (StageData) -> StageModel,
+    lightFactor: () -> Float,
+    linkDown: Boolean,
+) -> Unit
+
+/**
+ * What both views share for the [stage] that plays: the status line's words, the models, the
+ * light setting – then [theatre] draws.
+ */
 @Composable
-private fun StageContentView(ui: UiState, key: Content.StageContent, screen: ScreenSpec, hooks: RootHooks, wall: State<Long>) {
+private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wall: State<Long>, theatre: Theatre) {
     val stageScreen = ui.screen as? Screen.Stage
     // While a new cover loads, the previous stage stays; status follows the live state.
     // A lost connection (after the grace period) or a muted speaker dims the stage.
@@ -182,7 +209,6 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
     val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS)
     val statusLine = StatusLine(lead, clock)
     val nextTrack = stageScreen?.next?.takeIf { display.next }
-    val stage = key.stage
     val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, ui.night, linkDown, display, peek) {
         { s: StageData ->
             val text = TrackText.from(s.track)
@@ -208,11 +234,5 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
         animationSpec = tween(1_200, easing = Motion.Dimmer),
         label = "light-setting",
     )
-    StageTheatre(
-        stage = stage,
-        status = status,
-        modelFor = modelFor,
-        lightFactor = { lightFactor },
-        dimmed = linkDown,
-    )
+    theatre(status, modelFor, { lightFactor }, linkDown)
 }

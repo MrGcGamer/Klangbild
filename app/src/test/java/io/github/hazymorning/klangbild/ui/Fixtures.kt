@@ -2,6 +2,8 @@ package io.github.hazymorning.klangbild.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import io.github.hazymorning.klangbild.app.FlowData
+import io.github.hazymorning.klangbild.app.FlowEntry
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.art.SyntheticCovers
@@ -13,6 +15,8 @@ import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.ui.flow.CardMotion
 import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
@@ -43,11 +47,20 @@ object Fixtures {
         screen: ScreenSpec = ScreenSpec.TV_1080,
         lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
+        view: StageView = StageView.SINGLE,
     ): ArtworkScene {
         val cover = track.artworkUrl?.removePrefix(Catalogue.SCHEME)?.let { SyntheticCover.valueOf(it) }
         val bmp = cover?.let { SyntheticCovers.render(it) }
-        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance)
+        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance, view = view)
     }
+
+    /** Cover Flow scenes for [tracks] (the middle one is the current track). */
+    fun flowScenes(tracks: List<TrackInfo>, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, screen: ScreenSpec = ScreenSpec.TV_1080) =
+        tracks.map { scene(it, screen, lighting, appearance, StageView.FLOW) }
+
+    /** The cards of [scenes] at rest, the one at [current] in the middle. */
+    fun restingCards(scenes: List<ArtworkScene>, current: Int) =
+        scenes.mapIndexed { i, sc -> CardMotion(i.toLong(), sc.card!!, (i - current).toFloat(), (i - current).toFloat()) }
 
     fun model(
         track: TrackInfo,
@@ -95,6 +108,27 @@ object Fixtures {
         lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
     ) = StageData(track, scene(track, screen, lighting, appearance))
+
+    /** A cover flow of [scenes] (ids as given), the card with id [middle] in the middle. */
+    fun flow(scenes: Map<Long, ArtworkScene>, ids: List<Long>, middle: Long): FlowData {
+        val cards = ids.map { id ->
+            val sc = scenes.getValue(id)
+            FlowEntry(id, tracks.first { it.key == sc.key }, sc)
+        }
+        return FlowData(cards, cards.indexOfFirst { it.id == middle })
+    }
+
+    /** The animated cover flow for one strip. */
+    @Composable
+    fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING, next: TrackInfo? = pärt, night: Boolean = false) {
+        val lead = StageTexts.lead(status, false, volumeFlash = false, volume = null, group = "Wohnzimmer + 5", volumeAlways = false)
+        io.github.hazymorning.klangbild.ui.flow.FlowTheatre(
+            flow = flow,
+            status = status,
+            modelFor = { s -> model(s.track, next = next, status = status, night = night, scene = s.scene, lead = lead) },
+            night = night,
+        )
+    }
 
     /** The animated stage (pause dimming, buffering breath) for one stage, frozen in time. */
     @Composable

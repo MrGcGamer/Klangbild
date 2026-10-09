@@ -109,11 +109,7 @@ fun Int.asColor() = Color(this)
  * than the paper around it.
  */
 fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): ColorFilter {
-    val k = lighting.brightness.pow(1.36f) * dim * if (appearance == Appearance.LIGHT) 1.06f else 1f
-    val w = lighting.warmth
-    val r = k * 0.92f * (1f + 0.0375f * w)
-    val g = k * 0.905f * (1f - 0.0066f * w)
-    val b = k * 0.876f * (1f - 0.045f * w)
+    val (r, g, b) = coverScale(lighting, dim, appearance)
     return ColorFilter.colorMatrix(
         ColorMatrix(
             floatArrayOf(
@@ -124,4 +120,11 @@ fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Ap
             ),
         ),
     )
+}
+
+/** The per-channel scale of [coverFilter] (red, green, blue). */
+fun coverScale(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): Triple<Float, Float, Float> {
+    val k = lighting.brightness.pow(1.36f) * dim * if (appearance == Appearance.LIGHT) 1.06f else 1f
+    val w = lighting.warmth
+    return Triple(k * 0.92f * (1f + 0.0375f * w), k * 0.905f * (1f - 0.0066f * w), k * 0.876f * (1f - 0.045f * w))
 }

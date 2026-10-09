@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.config
 
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.data.LinkState
+import io.github.hazymorning.klangbild.domain.StageView
 
 /** Sections of the settings menu, in order. */
 enum class MenuSection(val title: String) {
@@ -14,6 +15,7 @@ enum class MenuSection(val title: String) {
 
 /** One line of the settings menu. */
 enum class MenuEntry(val section: MenuSection, val label: String) {
+    VIEW(MenuSection.DISPLAY, "Ansicht"),
     CLOCK(MenuSection.DISPLAY, "Uhrzeit"),
     TIME_LINE(MenuSection.DISPLAY, "Fortschritt"),
     NEXT(MenuSection.DISPLAY, "Als Nächstes"),
@@ -51,6 +53,7 @@ object SettingsMenu {
     fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx)) }
 
     fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
+        MenuEntry.VIEW -> if (s.view == StageView.FLOW) "Cover Flow" else "Einzelbild"
         MenuEntry.CLOCK -> onOff(s.showClock)
         MenuEntry.TIME_LINE -> onOff(s.showTimeLine)
         MenuEntry.NEXT -> onOff(s.showNext)
@@ -86,6 +89,11 @@ object SettingsMenu {
     }
 
     fun description(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
+        MenuEntry.VIEW -> if (s.view == StageView.FLOW) {
+            "Das Cover in der Mitte, links die Cover davor, rechts die nächsten – sie blättern weiter, wenn ein neues Album beginnt."
+        } else {
+            "Ein Cover an der Wand, in seinem eigenen Licht."
+        }
         MenuEntry.CLOCK -> "Die Uhrzeit oben neben dem Bild."
         MenuEntry.TIME_LINE ->
             "Der Balken mit gespielter und verbleibender Zeit. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz."
@@ -147,6 +155,7 @@ object SettingsMenu {
      * for the action lines.
      */
     fun step(e: MenuEntry, s: Settings, direction: Int, wrap: Boolean = false): Settings? = when (e) {
+        MenuEntry.VIEW -> s.copy(view = if (s.view == StageView.FLOW) StageView.SINGLE else StageView.FLOW)
         MenuEntry.CLOCK -> s.copy(showClock = !s.showClock)
         MenuEntry.TIME_LINE -> s.copy(showTimeLine = !s.showTimeLine)
         MenuEntry.NEXT -> s.copy(showNext = !s.showNext)

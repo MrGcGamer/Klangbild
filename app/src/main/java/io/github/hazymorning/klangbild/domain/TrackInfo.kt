@@ -22,4 +22,14 @@ data class TrackInfo(
 ) {
     /** Seed for generated artwork: stable per album/station rather than per song. */
     val artSeed: String get() = source ?: album ?: artists.firstOrNull() ?: title
+
+    /**
+     * Identity of the picture this track shows – the album (one card for all its songs, even
+     * where each song carries its own copy of the artwork), else the artwork, else the
+     * generated figure's seed.
+     */
+    val pictureKey: String
+        get() = album?.takeIf { it.isNotBlank() }?.let { "album|" + it.trim().lowercase() }
+            ?: artworkUrl?.let { "art|$it" }
+            ?: "seed|$artSeed"
 }

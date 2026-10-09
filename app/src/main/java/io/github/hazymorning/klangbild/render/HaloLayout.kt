@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.render
 
+import io.github.hazymorning.klangbild.domain.StageView
 import kotlin.math.min
 
 /** Physical screen the scene is prepared for. */
@@ -39,25 +40,30 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
  *  │        │   artwork    │      Artist                      │  ← artwork centre
  *  │        │              │      Album · Year                │
  *  │        │              │      ━━━━━━━━━━━━──────────      │
- *  │        │              │      1:35               −2:36    │
+ *  │        │              │      1:35                4:11    │
  *  │        ╰──────────────╯      Als Nächstes  …             │  ← artwork bottom
  *  └──────────────────────────────────────────────────────────┘
+ *
+ * Cover Flow ([StageView.FLOW]) keeps every rule but makes room for the cards beside the
+ * middle one: the middle cover is 300 dp with its centre 272 dp from the left, the column
+ * starts at 570 dp and leaves 50 dp on the right (see [FlowGeometry]).
  */
-data class HaloLayout(val screen: ScreenSpec) {
+data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SINGLE) {
     private val sx = screen.widthDp / 960f
     private val sy = screen.heightDp / 540f
+    private val grid = if (view == StageView.FLOW) FLOW else SINGLE
 
     /** Left margin before the artwork; the right margin is a little narrower (text is ragged). */
-    val margin = 96f * sx
-    val rightMargin = 80f * sx
+    val margin = grid.margin * sx
+    val rightMargin = grid.rightMargin * sx
 
     /** Side of the artwork's square. */
-    val art = 368f * sy
+    val art = grid.art * sy
     val artTop = (screen.heightDp - art) / 2f - LIFT * sy
     val artRect: RectDp get() = RectDp(margin, artTop, art, art)
 
     /** Space between artwork and text. */
-    val gap = 64f * sx
+    val gap = grid.gap * sx
     val columnLeft get() = margin + art + gap
     val columnWidth get() = screen.widthDp - rightMargin - columnLeft
 
@@ -71,7 +77,7 @@ data class HaloLayout(val screen: ScreenSpec) {
     val footerBaseline get() = artTop + art
 
     /** Corner radius of a square artwork (dp): a hair over 2 % of its side. */
-    val radius get() = RADIUS * sy
+    val radius get() = RADIUS * art / SINGLE.art
 
     /** The cover rect for a cover of [coverDp], centred in the artwork's square. */
     fun coverRect(coverDp: Float): RectDp {
@@ -80,11 +86,17 @@ data class HaloLayout(val screen: ScreenSpec) {
         return RectDp(s.left + (s.width - size) / 2f, s.top + (s.height - size) / 2f, size, size)
     }
 
+    /** Margins, artwork and gap of a view at 960 × 540 dp. */
+    private class Grid(val margin: Float, val art: Float, val gap: Float, val rightMargin: Float)
+
     companion object {
+        private val SINGLE = Grid(margin = 96f, art = 368f, gap = 64f, rightMargin = 80f)
+        private val FLOW = Grid(margin = 122f, art = 300f, gap = 148f, rightMargin = 50f)
+
         /** How far the group sits above the screen's centre (dp). */
         const val LIFT = 8f
 
-        /** Corner radius of square artwork (dp at 960 × 540). */
+        /** Corner radius of square artwork (dp at 960 × 540, for the single view's 368 dp). */
         const val RADIUS = 8f
 
         /**

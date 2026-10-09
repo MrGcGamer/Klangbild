@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.hazymorning.klangbild.data.ha.HaUrls
+import io.github.hazymorning.klangbild.domain.StageView
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -80,6 +81,7 @@ data class Settings(
     /** Up and down on the remote change the speaker's volume (instead of showing the exact time). */
     val volumeKeys: Boolean = false,
     val appearance: AppearanceMode = AppearanceMode.AUTO,
+    val view: StageView = StageView.SINGLE,
 ) {
     val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && !haToken.isNullOrBlank() && !entityId.isNullOrBlank()
 
@@ -122,6 +124,7 @@ class SettingsStore(private val context: Context) {
         val light = stringPreferencesKey("light_level")
         val volumeKeys = booleanPreferencesKey("volume_keys")
         val appearance = stringPreferencesKey("appearance")
+        val view = stringPreferencesKey("view")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -143,6 +146,7 @@ class SettingsStore(private val context: Context) {
             light = p[Keys.light]?.let { runCatching { LightLevel.valueOf(it) }.getOrNull() } ?: LightLevel.NORMAL,
             volumeKeys = p[Keys.volumeKeys] ?: false,
             appearance = p[Keys.appearance]?.let { runCatching { AppearanceMode.valueOf(it) }.getOrNull() } ?: AppearanceMode.AUTO,
+            view = p[Keys.view]?.let { runCatching { StageView.valueOf(it) }.getOrNull() } ?: StageView.SINGLE,
         )
     }
 
@@ -169,6 +173,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.light] = s.light.name
             p[Keys.volumeKeys] = s.volumeKeys
             p[Keys.appearance] = s.appearance.name
+            p[Keys.view] = s.view.name
         }
     }
 }
@@ -200,12 +205,13 @@ object LaunchExtras {
     const val DAY_NIGHT = "day_night"
     const val REMOTE = "remote"
     const val APPEARANCE = "appearance"
+    const val VIEW = "view"
     const val SETUP = "setup"
     const val DEBUG = "debug"
 
     private val stored = listOf(
         HA_URL, TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
-        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE,
+        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW,
     )
 
     /** Applies stored-setting extras to [s]. Unknown or invalid values are ignored. */
@@ -254,6 +260,13 @@ object LaunchExtras {
                 else -> null
             }?.let { out = out.copy(appearance = it) }
         }
+        (extras[VIEW] as? String)?.let { v ->
+            when (v.trim().lowercase().replace(" ", "").replace("_", "")) {
+                "single", "einzelbild", "bild" -> StageView.SINGLE
+                "flow", "coverflow" -> StageView.FLOW
+                else -> null
+            }?.let { out = out.copy(view = it) }
+        }
         return out
     }
 
@@ -287,7 +300,7 @@ object LaunchExtras {
      */
     private val linkKeys = setOf(
         CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
-        APPEARANCE,
+        APPEARANCE, VIEW,
     )
 
     /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */

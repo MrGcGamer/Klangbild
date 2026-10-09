@@ -21,22 +21,22 @@ import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
+import io.github.hazymorning.klangbild.domain.CoverStrip
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.ScreenDecision
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
+import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.render.ArtworkScene
-import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupHandler
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,14 +48,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.abs
 
 /** A scene that is ready to be shown for a track. */
 data class StageData(val track: TrackInfo, val scene: ArtworkScene)
+
+/** A card of the cover flow with its scene, ready to be shown. */
+data class FlowEntry(val id: Long, val track: TrackInfo, val scene: ArtworkScene) {
+    val stage: StageData get() = StageData(track, scene)
+}
+
+/** The cover flow as far as it is ready: cards in play order, the one at [current] in the middle. */
+data class FlowData(val cards: List<FlowEntry>, val current: Int) {
+    val middle: FlowEntry get() = cards[current]
+}
 
 /** The settings menu while it is open: its lines and the one the cursor is on. */
 data class MenuState(val rows: List<MenuRow>, val cursor: Int)
@@ -68,6 +76,10 @@ data class UiState(
     val sleepAction: SleepAction = SleepAction.RELEASE,
     /** The latest scene that is ready; may lag behind [screen] while a new cover loads. */
     val stage: StageData? = null,
+    /** How the stage shows what plays. */
+    val view: StageView = StageView.SINGLE,
+    /** The cover flow (in [StageView.FLOW]); like [stage] it may lag behind [screen]. */
+    val flow: FlowData? = null,
     val lighting: Lighting = Lighting.DAY,
     /** Light wall by day, dark at night (or as set). */
     val appearance: Appearance = Appearance.DARK,
@@ -86,11 +98,10 @@ data class UiState(
 )
 
 /**
- * The app's single source of truth: runs the Home Assistant source, runs
- * the screen state machine on every update and once a second, prepares scenes (cover,
- * palette, light) off the main thread and pre-builds the next track's scene.
+ * The app's single source of truth: runs the Home Assistant source, runs the screen state
+ * machine on every update and once a second, has the scenes (cover, palette, light) prepared
+ * off the main thread – the next track's ahead of time, in Cover Flow the whole strip's.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 class NowPlayingController(
     private val scope: CoroutineScope,
     private val http: OkHttpClient,
@@ -102,7 +113,6 @@ class NowPlayingController(
 
     private val settings = MutableStateFlow(Settings())
     private val session = MutableStateFlow(SessionOptions())
-    private var screenSpec = ScreenSpec.TV_1080
 
     private var source: NowPlayingSource? = null
     private var sourceKey: String? = null
@@ -114,10 +124,8 @@ class NowPlayingController(
     private var lastReportKey: Any? = null
 
     private val artwork = ArtworkLoader(http, { settings.value.haUrl }, { settings.value.haToken })
-    private val sceneDispatcher = Dispatchers.Default.limitedParallelism(1)
-    private var sceneJob: Job? = null
-    private var buildingKey: String? = null
-    private val prepared = LinkedHashMap<String, ArtworkScene>()
+    private val scenes = Scenes(scope, artwork)
+    private val strip = CoverStrip()
 
     private var viewers = 0
 
@@ -137,10 +145,7 @@ class NowPlayingController(
     /** A screen (activity or dream) starts showing the controller. */
     fun attach(spec: ScreenSpec) {
         viewers++
-        if (spec != screenSpec) {
-            screenSpec = spec
-            synchronized(prepared) { prepared.clear() }
-        }
+        scenes.frame = scenes.frame.copy(screen = spec)
         if (viewers == 1) start()
     }
 
@@ -276,7 +281,15 @@ class NowPlayingController(
         }
     }
 
+    @Synchronized
     private fun onSettings(s: Settings) {
+        val view = s.view
+        if (view != settings.value.view || _ui.value.view != view) {
+            // Another view needs other scenes; the strip starts afresh.
+            scenes.frame = scenes.frame.copy(view = view)
+            strip.clear()
+            _ui.value = _ui.value.copy(view = view, stage = null, flow = null)
+        }
         settings.value = s
         val timing = timingFor(s)
         if (timing != machine.timing) {
@@ -373,8 +386,9 @@ class NowPlayingController(
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
         )
         val stage = decision.screen as? Screen.Stage
-        if (stage != null) ensureScene(stage.track, stage.next, look)
-        relightIfNeeded(look)
+        if (stage != null) {
+            if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
+        }
         // The setup page is only reachable while the setup screen is visible.
         if (decision.screen is Screen.Setup && viewers > 0) setupServer.start() else setupServer.stop()
     }
@@ -406,96 +420,47 @@ class NowPlayingController(
         return a
     }
 
-    private fun ensureScene(track: TrackInfo, next: TrackInfo?, look: Look) {
-        val current = _ui.value.stage
-        if (current?.track?.key == track.key && current.track == track) return
-        val cached = synchronized(prepared) { prepared[track.key] }
-        if (cached != null && look.fits(cached)) {
-            _ui.value = _ui.value.copy(stage = StageData(track, cached))
-            prefetch(next, look)
+    /** The stage shows [stage]'s track as soon as its scene is ready (the next track's is made ahead). */
+    private fun showStage(stage: Screen.Stage, look: Look) {
+        scenes.retain(setOfNotNull(stage.track.key, stage.next?.key))
+        val scene = scenes.ready(stage.track, look)
+        if (scene == null) {
+            scenes.prepare(stage.track, look) { recompute() }
             return
         }
-        if (buildingKey == track.key) return
-        buildingKey = track.key
-        sceneJob?.cancel()
-        sceneJob = scope.launch {
-            val scene = try {
-                buildScene(track, look)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                buildingKey = null
-                throw e
-            } catch (e: Throwable) {
-                // Broken image, out of memory …: the generated figure always works.
-                withContext(sceneDispatcher) { buildScene(track, look, withCover = false) }
-            }
-            buildingKey = null
-            synchronized(prepared) { remember(track.key, scene) }
-            val screen = _ui.value.screen
-            if (screen is Screen.Stage && screen.track.key == track.key) {
-                _ui.value = _ui.value.copy(stage = StageData(track, scene))
-            }
-            prefetch(next, look)
+        val shown = _ui.value.stage
+        if (shown?.track != stage.track || shown.scene !== scene) _ui.value = _ui.value.copy(stage = StageData(stage.track, scene))
+        stage.next?.let { scenes.prepare(it, look) }
+    }
+
+    /**
+     * Cover Flow: the strip around [stage]'s track; every card's scene is made (the middle one
+     * first, then what comes, then what was), the strip is shown once the middle one is ready –
+     * cards still on their way join it as they come. A card whose scene is being re-lit keeps
+     * the one it has meanwhile; when the wall changes (light ↔ dark), the whole strip changes
+     * at once, as soon as every card it shows is ready.
+     */
+    private fun showFlow(stage: Screen.Stage, look: Look) {
+        val s = strip.update(stage.track, coming = listOfNotNull(stage.next))
+        scenes.retain(s.cards.map { it.track.key }.toSet())
+        val order = listOf(s.current) + (s.current + 1 until s.cards.size) + (s.current - 1 downTo 0)
+        for (i in order) {
+            val track = s.cards[i].track
+            if (scenes.ready(track, look) == null) scenes.prepare(track, look) { recompute() }
         }
-    }
-
-    private fun prefetch(next: TrackInfo?, look: Look) {
-        next ?: return
-        if (synchronized(prepared) { prepared.containsKey(next.key) }) return
-        scope.launch {
-            runCatching { buildScene(next, look) }.getOrNull()?.let { scene ->
-                synchronized(prepared) { remember(next.key, scene) }
-            }
+        val middle = scenes.ready(s.middle.track, look) ?: return
+        val shown = _ui.value.flow?.cards.orEmpty().associateBy { it.id }
+        val newWall = shown.values.any { it.scene.appearance != look.appearance }
+        if (newWall && s.cards.any { it.id in shown && scenes.ready(it.track, look) == null && scenes.pending(it.track) }) return
+        val entries = s.cards.mapNotNull { c ->
+            val scene = scenes.ready(c.track, look) ?: shown[c.id]?.scene?.takeIf { !newWall && it.layout == middle.layout }
+            scene?.let { FlowEntry(c.id, c.track, it) }
         }
-    }
-
-    private suspend fun buildScene(track: TrackInfo, look: Look, withCover: Boolean = true): ArtworkScene {
-        // Wait at most a few seconds for the cover; then the Chladni figure steps in.
-        val bitmap = if (!withCover) null else withTimeoutOrNull(COVER_TIMEOUT_MS) { runCatching { artwork.load(track) }.getOrNull() }
-        return withContext(sceneDispatcher) {
-            SceneBuilder.build(
-                key = track.key,
-                source = bitmap,
-                artSeed = track.artSeed,
-                screen = screenSpec,
-                lighting = look.lighting,
-                appearance = look.appearance,
-                wallTint = look.wallTint,
-            )
-        }
-    }
-
-    private fun remember(key: String, scene: ArtworkScene) {
-        prepared[key] = scene
-        while (prepared.size > 3) prepared.remove(prepared.keys.first())
-    }
-
-    private var relighting = false
-
-    private fun relightIfNeeded(look: Look) {
-        val stage = _ui.value.stage ?: return
-        if (relighting || look.fits(stage.scene)) return
-        relighting = true
-        scope.launch {
-            val scene = withContext(sceneDispatcher) { SceneBuilder.relight(stage.scene, look.lighting, look.appearance, look.wallTint) }
-            synchronized(prepared) { remember(stage.track.key, scene) }
-            val now = _ui.value.stage
-            if (now?.track?.key == stage.track.key) _ui.value = _ui.value.copy(stage = StageData(now.track, scene))
-            relighting = false
-        }
-    }
-
-    /** How scenes are lit: the time of day, the wall, and how much colour a light wall takes. */
-    private data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float) {
-        fun fits(scene: ArtworkScene) =
-            scene.appearance == appearance &&
-                abs(scene.lighting.brightness - lighting.brightness) < 0.03f &&
-                abs(scene.lighting.warmth - lighting.warmth) < 0.05f &&
-                (appearance == Appearance.DARK || scene.wallTint == wallTint)
+        val flow = FlowData(entries, entries.indexOfFirst { it.id == s.middle.id })
+        if (flow != _ui.value.flow) _ui.value = _ui.value.copy(flow = flow)
     }
 
     companion object {
-        const val COVER_TIMEOUT_MS = 6_000L
-
         /** How long a new volume stays in the status line. */
         const val VOLUME_FLASH_MS = 3_500L
 

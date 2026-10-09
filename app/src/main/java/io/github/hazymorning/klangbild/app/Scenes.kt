@@ -1,0 +1,129 @@
+package io.github.hazymorning.klangbild.app
+
+import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.data.ArtworkLoader
+import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.render.ArtworkScene
+import io.github.hazymorning.klangbild.render.SceneBuilder
+import io.github.hazymorning.klangbild.render.ScreenSpec
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
+
+/** How scenes are lit: the time of day, the wall, and how much colour a light wall takes. */
+data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float) {
+    fun fits(scene: ArtworkScene) =
+        scene.appearance == appearance &&
+            abs(scene.lighting.brightness - lighting.brightness) < 0.03f &&
+            abs(scene.lighting.warmth - lighting.warmth) < 0.05f &&
+            (appearance == Appearance.DARK || scene.wallTint == wallTint)
+}
+
+/** What scenes are built for: the screen and the view. Another frame means new scenes. */
+data class Frame(val screen: ScreenSpec, val view: StageView)
+
+/**
+ * Prepares the stage's scenes (cover, palette, light – see [SceneBuilder]) off the main thread,
+ * one at a time, and keeps the most recent ones: a scene for a track that comes back (the next
+ * song, a step back, the cards of the cover flow) is there at once. A scene whose light no
+ * longer fits is re-lit from what it has, without loading the cover again.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class Scenes(
+    private val scope: CoroutineScope,
+    private val artwork: ArtworkLoader,
+) {
+    private val dispatcher = Dispatchers.Default.limitedParallelism(1)
+    private val cache = LinkedHashMap<String, ArtworkScene>()
+    private val building = HashMap<String, Job>()
+
+    @Volatile var frame = Frame(ScreenSpec.TV_1080, StageView.SINGLE)
+        set(value) {
+            if (value != field) synchronized(cache) { cache.clear() }
+            field = value
+        }
+
+    /** How many scenes are kept: the cover flow needs a whole strip of them. */
+    private val capacity get() = if (frame.view == StageView.FLOW) 10 else 3
+
+    /** The scene for [track] if it is ready and lit as [look]. */
+    fun ready(track: TrackInfo, look: Look): ArtworkScene? =
+        synchronized(cache) { cache[track.key] }?.takeIf { look.fits(it) }
+
+    /** Whether [track]'s scene is on its way. */
+    fun pending(track: TrackInfo): Boolean = synchronized(cache) { track.key in building }
+
+    /**
+     * Starts making [track]'s scene for [look] unless it is ready or on its way: re-lit if an
+     * older one exists, otherwise built from the cover. [done] runs with the result.
+     */
+    fun prepare(track: TrackInfo, look: Look, done: (ArtworkScene) -> Unit = {}) {
+        val key = track.key
+        val forFrame = frame
+        synchronized(cache) {
+            if (cache[key]?.let(look::fits) == true || key in building) return
+            val old = cache[key]
+            building[key] = scope.launch { make(track, key, old, look, forFrame, done) }
+        }
+    }
+
+    /** Stops building scenes for tracks that are no longer wanted (skipped past quickly). */
+    fun retain(keys: Set<String>) {
+        synchronized(cache) {
+            val stale = building.filterKeys { it !in keys }
+            stale.values.forEach { it.cancel() }
+            building.keys.removeAll(stale.keys)
+        }
+    }
+
+    private suspend fun make(track: TrackInfo, key: String, old: ArtworkScene?, look: Look, forFrame: Frame, done: (ArtworkScene) -> Unit) {
+        val scene = try {
+            if (old != null) {
+                withContext(dispatcher) { SceneBuilder.relight(old, look.lighting, look.appearance, look.wallTint) }
+            } else {
+                build(track, look, forFrame)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Broken image, out of memory …: the generated figure always works.
+            runCatching { withContext(dispatcher) { build(track, look, forFrame, withCover = false) } }.getOrNull()
+        }
+        synchronized(cache) {
+            building.remove(key)
+            if (scene == null || frame != forFrame) return
+            cache.remove(key)
+            cache[key] = scene
+            while (cache.size > capacity) cache.remove(cache.keys.first())
+        }
+        done(scene!!)
+    }
+
+    private suspend fun build(track: TrackInfo, look: Look, frame: Frame, withCover: Boolean = true): ArtworkScene {
+        // Wait at most a few seconds for the cover; then the Chladni figure steps in.
+        val bitmap = if (!withCover) null else withTimeoutOrNull(COVER_TIMEOUT_MS) { runCatching { artwork.load(track) }.getOrNull() }
+        return withContext(dispatcher) {
+            SceneBuilder.build(
+                key = track.key,
+                source = bitmap,
+                artSeed = track.artSeed,
+                screen = frame.screen,
+                lighting = look.lighting,
+                appearance = look.appearance,
+                wallTint = look.wallTint,
+                view = frame.view,
+            )
+        }
+    }
+
+    companion object {
+        const val COVER_TIMEOUT_MS = 6_000L
+    }
+}

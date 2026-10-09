@@ -1,0 +1,106 @@
+package io.github.hazymorning.klangbild.ui
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onRoot
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.takahirom.roborazzi.captureRoboImage
+import io.github.hazymorning.klangbild.app.FlowData
+import io.github.hazymorning.klangbild.art.SyntheticCover
+import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.render.ScreenSpec
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * The cover flow in motion, as sequences of stills: the next picture arriving (the strip
+ * turns over by one card), a step back, a jump to something new (it rolls in from the end of
+ * the strip), a song put in between, the queue changing beside the middle, and two quick
+ * skips (the second waits for the first to land).
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
+class FlowMotionTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val mdpi = ScreenSpec(960, 540, 1f)
+
+    private val covers = listOf(
+        SyntheticCover.TERRAKOTTA, SyntheticCover.MOOS, SyntheticCover.NACHTFAHRT,
+        SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS, SyntheticCover.SALZWASSER, SyntheticCover.NOCTURNE,
+    )
+
+    private fun scenes(appearance: Appearance = Appearance.DARK) = covers.mapIndexed { i, c ->
+        i.toLong() to Fixtures.scene(Fixtures.track(c), mdpi, appearance = appearance, view = StageView.FLOW)
+    }.toMap()
+
+    /** Shows [from], then each of [then] at its frame (counted from 1), capturing every [stepMs]. */
+    private fun run(name: String, from: FlowData, then: Map<Int, FlowData>, frames: Int = 12, stepMs: Long = 100) {
+        var flow by mutableStateOf(from)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Fixtures.FlowTheatreOf(flow) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onRoot().captureRoboImage("build/screenshots/flow_motion/${name}_00.png")
+        for (i in 1..frames) {
+            then[i]?.let { flow = it }
+            compose.mainClock.advanceTimeBy(stepMs)
+            compose.onRoot().captureRoboImage("build/screenshots/flow_motion/${name}_%02d.png".format(i))
+        }
+    }
+
+    private fun run(name: String, from: FlowData, to: FlowData, frames: Int = 12, stepMs: Long = 100) =
+        run(name, from, mapOf(1 to to), frames, stepMs)
+
+    @Test
+    fun forward() {
+        val s = scenes()
+        run("forward", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(1, 2, 3, 4, 5), 3))
+    }
+
+    @Test
+    fun back() {
+        val s = scenes()
+        run("back", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(0, 1, 2, 3), 1))
+    }
+
+    @Test
+    fun jump() {
+        val s = scenes()
+        run("jump", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(1, 2, 6), 6))
+    }
+
+    @Test
+    fun songInBetween() {
+        // "Play now": a song from elsewhere comes in, the queue goes on with what stood next.
+        val s = scenes()
+        run("between", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(1, 2, 6, 3), 6), frames = 6, stepMs = 200)
+    }
+
+    @Test
+    fun queueChanges() {
+        val s = scenes()
+        run("queue", Fixtures.flow(s, listOf(0, 1, 2), 1), Fixtures.flow(s, listOf(0, 1, 5), 1), frames = 5, stepMs = 200)
+    }
+
+    @Test
+    fun quickSkips() {
+        val s = scenes()
+        val start = Fixtures.flow(s, listOf(0, 1, 2, 3), 1)
+        run("skips", start, mapOf(1 to Fixtures.flow(s, listOf(0, 1, 2, 3), 2), 3 to Fixtures.flow(s, listOf(1, 2, 3, 4), 3)), frames = 12, stepMs = 200)
+    }
+
+    @Test
+    fun forwardOnPaper() {
+        val s = scenes(Appearance.LIGHT)
+        run("paper", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(1, 2, 3, 4, 5), 3), frames = 6, stepMs = 200)
+    }
+}

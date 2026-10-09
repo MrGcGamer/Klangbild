@@ -43,11 +43,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.em
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.CoverKind
 import io.github.hazymorning.klangbild.color.ScenePalette
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.render.ArtworkScene
+import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Face
 import io.github.hazymorning.klangbild.ui.theme.Fonts
@@ -136,7 +136,9 @@ fun ArtworkLayer(
     }
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
-    val edge = remember(scene) { edgeLine(scene) }
+    val edge = remember(scene) {
+        SceneBuilder.edgeLine(scene.palette.kind, scene.shape.round, scene.appearance).takeIf { it != 0 }?.let { Color(it) }
+    }
     Canvas(
         modifier
             .fillMaxSize()
@@ -168,17 +170,6 @@ fun ArtworkLayer(
             )
         }
     }
-}
-
-/**
- * A faint inner hairline where the artwork would dissolve into the wall: white at 7 % inside
- * dark square artwork on black, black at 8 % inside pale artwork on paper; none for a plate.
- */
-private fun edgeLine(scene: ArtworkScene): Color? = when {
-    scene.shape.round -> null
-    scene.appearance == Appearance.DARK && scene.palette.kind == CoverKind.DARK -> Color.White.copy(alpha = 0.07f)
-    scene.appearance == Appearance.LIGHT && scene.palette.kind == CoverKind.LIGHT -> Color.Black.copy(alpha = 0.08f)
-    else -> null
 }
 
 /**
@@ -374,8 +365,11 @@ private fun planText(
     )
 }
 
-/** The lines of the text block, for transitions that treat them one by one. */
-enum class TextLine { WORK, TITLE, VERSION, ARTIST, ALBUM, BOTTOM, NEXT }
+/**
+ * The lines of the text block, for transitions that treat them one by one: new lines rise one
+ * after another, each [stagger] ms after the first.
+ */
+enum class TextLine(val stagger: Int) { WORK(0), TITLE(0), VERSION(50), ARTIST(80), ALBUM(140), BOTTOM(200), NEXT(260) }
 
 /**
  * Large type has more room before its first stem than small type; left as it is, a title
