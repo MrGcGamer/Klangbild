@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -113,5 +114,81 @@ class PlayerParserTest {
         assertThat(group.isGroupPlayer).isTrue()
         assertThat(group.groupMembers).containsExactly("media_player.kueche", "media_player.bad").inOrder()
         assertThat(PlayerParser.player(entity("playing", """{"media_title":"X","mass_player_type":"player"}"""), base).isGroupPlayer).isFalse()
+    }
+
+    @Test
+    fun `an audiobook keeps its authors and never shows its description as an album`() {
+        val book = PlayerParser.player(
+            entity(
+                "playing",
+                """{"media_title":"Der Process","media_artist":"Franz Kafka/Max Brod","media_content_id":"library://audiobook/12",
+                   "media_album_name":"Josef K. wird eines Morgens verhaftet.\n\nEin Roman über …","media_duration":32400,
+                   "app_id":"music_assistant","mass_player_type":"player"}""",
+            ),
+            base,
+        ).track!!
+        assertThat(book.kind).isEqualTo(MediaKind.AUDIOBOOK)
+        assertThat(book.artists).containsExactly("Franz Kafka", "Max Brod").inOrder()
+        assertThat(book.album).isNull()
+        assertThat(book.durationMs).isEqualTo(32_400_000L)
+        // Even a short blurb: a book has no album.
+        val short = PlayerParser.player(
+            entity("playing", """{"media_title":"Momo","media_artist":"Michael Ende","media_content_id":"audiobookshelf--x://audiobook/7","media_album_name":"Ein Märchen."}"""),
+            base,
+        ).track!!
+        assertThat(short.album).isNull()
+    }
+
+    @Test
+    fun `an episode names its show where an artist would be`() {
+        val episode = PlayerParser.player(
+            entity(
+                "playing",
+                """{"media_title":"Folge 112: Wie Wolken entstehen","media_content_id":"podcastfeed--y://podcast_episode/abc",
+                   "media_album_name":"Zeit für Wissen","media_duration":2875}""",
+            ),
+            base,
+        ).track!!
+        assertThat(episode.kind).isEqualTo(MediaKind.PODCAST)
+        assertThat(episode.artists).containsExactly("Zeit für Wissen")
+        assertThat(episode.album).isNull()
+    }
+
+    @Test
+    fun `music stays music, a station is a station, a description is never an album`() {
+        val song = PlayerParser.player(
+            entity("playing", """{"media_title":"X","media_artist":"AC/DC","media_content_id":"spotify--z://track/1","media_album_name":"Back in Black"}"""),
+            base,
+        ).track!!
+        assertThat(song.kind).isEqualTo(MediaKind.MUSIC)
+        // A band's own slash stays.
+        assertThat(song.artists).containsExactly("AC/DC")
+        assertThat(song.album).isEqualTo("Back in Black")
+        val station = PlayerParser.player(
+            entity("playing", """{"media_title":"Y","media_content_id":"radiobrowser--r://radio/swr2","media_album_name":"SWR2"}"""),
+            base,
+        ).track!!
+        assertThat(station.kind).isEqualTo(MediaKind.RADIO)
+        val described = PlayerParser.player(
+            entity("playing", """{"media_title":"Z","media_album_name":"${"Ein langer Text über diese Aufnahme. ".repeat(6)}"}"""),
+            base,
+        ).track!!
+        assertThat(described.kind).isEqualTo(MediaKind.MUSIC)
+        assertThat(described.album).isNull()
+    }
+
+    @Test
+    fun `get_queue says what kind an item is`() {
+        val response = obj(
+            """{"media_player.wz":{"queue_id":"q1","current_index":0,
+              "current_item":{"queue_item_id":"1","name":"Der Process","duration":32400,
+                "media_item":{"media_type":"audiobook","uri":"library://audiobook/12","name":"Der Process","version":"","image":null}},
+              "next_item":{"queue_item_id":"2","name":"Folge 3","duration":1800,
+                "media_item":{"media_type":"podcast_episode","uri":"x://podcast_episode/3","name":"Folge 3","version":""}}}}""",
+        )
+        val q = PlayerParser.queue(response, "media_player.wz", base)!!
+        assertThat(q.current!!.kind).isEqualTo(MediaKind.AUDIOBOOK)
+        assertThat(q.current!!.title).isEqualTo("Der Process")
+        assertThat(q.next!!.kind).isEqualTo(MediaKind.PODCAST)
     }
 }

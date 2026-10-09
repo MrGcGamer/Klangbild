@@ -44,11 +44,14 @@ data class SourceState(
     val ma: MaLink? = null,
 )
 
-enum class RemoteCommand { PLAY_PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
+enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
 
 interface NowPlayingSource {
     val state: StateFlow<SourceState>
     fun start()
     fun stop()
     suspend fun send(command: RemoteCommand)
+
+    /** Plays on from [positionMs] in the item's own time. */
+    suspend fun seek(positionMs: Long)
 }

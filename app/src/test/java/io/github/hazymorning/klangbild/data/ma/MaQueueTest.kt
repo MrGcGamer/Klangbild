@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data.ma
 
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.domain.MediaKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import org.junit.Test
@@ -66,5 +67,41 @@ class MaQueueTest {
         assertThat(w.current).isNull()
         assertThat(w.coming).isEmpty()
         assertThat(w.played).hasSize(4)
+    }
+
+    private val spoken = Json.parseToJsonElement(
+        """
+        [
+          {"queue_id":"q1","queue_item_id":"a","name":"Der Process","duration":32400,"extra_attributes":{"playback_speed":1.25},
+           "media_item":{"media_type":"audiobook","name":"Der Process","version":"","authors":["Franz Kafka",{"name":"Max Brod"}],
+             "narrators":["Ulrich Matthes"],
+             "metadata":{"description":"<p>Lang …</p>","chapters":[
+               {"position":2,"name":"Gespräch mit Frau Grubach","start":1834.2,"end":null},
+               {"position":1,"name":"Verhaftung","start":0.0,"end":1834.2},
+               {"position":3,"name":"003","start":3600.0,"end":null}]}}},
+          {"queue_id":"q1","queue_item_id":"b","name":"Folge 112","duration":2875,
+           "media_item":{"media_type":"podcast_episode","name":"Folge 112","podcast":{"name":"Zeit für Wissen","media_type":"podcast"},
+             "metadata":{"chapters":[]}}}
+        ]
+        """,
+    ).jsonArray
+
+    @Test
+    fun `a book brings its authors, chapters and speed, an episode its show`() {
+        val w = MaQueue.window(spoken, offset = 0, currentIndex = 0, baseUrl = base)
+        val book = w.current!!
+        assertThat(book.kind).isEqualTo(MediaKind.AUDIOBOOK)
+        assertThat(book.artists).containsExactly("Franz Kafka", "Max Brod").inOrder()
+        assertThat(book.album).isNull()
+        // Sorted by start; each ends where the next begins, the last at the book's end.
+        assertThat(book.chapters.map { it.name }).containsExactly("Verhaftung", "Gespräch mit Frau Grubach", "003").inOrder()
+        assertThat(book.chapters.map { it.endMs }).containsExactly(1_834_200L, 3_600_000L, 32_400_000L).inOrder()
+        assertThat(w.speed).isWithin(1e-6f).of(1.25f)
+        val episode = w.coming.single()
+        assertThat(episode.kind).isEqualTo(MediaKind.PODCAST)
+        assertThat(episode.artists).containsExactly("Zeit für Wissen")
+        assertThat(episode.chapters).isEmpty()
+        // Music plays at its own pace.
+        assertThat(MaQueue.window(items, offset = 10, currentIndex = 11, baseUrl = base).speed).isEqualTo(1f)
     }
 }

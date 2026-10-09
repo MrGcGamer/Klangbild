@@ -48,15 +48,21 @@ object Fixtures {
         lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
         view: StageView = StageView.SINGLE,
+        coverField: Boolean = false,
     ): ArtworkScene {
         val cover = track.artworkUrl?.removePrefix(Catalogue.SCHEME)?.let { SyntheticCover.valueOf(it) }
         val bmp = cover?.let { SyntheticCovers.render(it) }
-        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance, view = view)
+        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance, view = view, coverField = coverField)
     }
 
     /** Cover Flow scenes for [tracks] (the middle one is the current track). */
-    fun flowScenes(tracks: List<TrackInfo>, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, screen: ScreenSpec = ScreenSpec.TV_1080) =
-        tracks.map { scene(it, screen, lighting, appearance, StageView.FLOW) }
+    fun flowScenes(
+        tracks: List<TrackInfo>,
+        appearance: Appearance = Appearance.DARK,
+        lighting: Lighting = Lighting.DAY,
+        screen: ScreenSpec = ScreenSpec.TV_1080,
+        coverField: Boolean = false,
+    ) = tracks.map { scene(it, screen, lighting, appearance, StageView.FLOW, coverField) }
 
     /** The cards of [scenes] at rest, the one at [current] in the middle. */
     fun restingCards(scenes: List<ArtworkScene>, current: Int) =
@@ -105,7 +111,8 @@ object Fixtures {
         screen: ScreenSpec = ScreenSpec.TV_1080,
         lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
-    ) = StageData(track, scene(track, screen, lighting, appearance))
+        coverField: Boolean = false,
+    ) = StageData(track, scene(track, screen, lighting, appearance, coverField = coverField))
 
     /** A cover flow of [scenes] (ids as given), the card with id [middle] in the middle. */
     fun flow(scenes: Map<Long, ArtworkScene>, ids: List<Long>, middle: Long): FlowData {

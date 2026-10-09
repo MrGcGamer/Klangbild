@@ -211,11 +211,11 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
         LaunchedEffect(target) { offset.animateTo(target, tween(340, easing = Motion.Dimmer)) }
 
         val glowCx = layout.columnLeft + layout.columnWidth / 2f
-        val field = remember(screen, colors) {
+        val field = rememberOffMain(screen, colors) {
             val px = glowField(glowCx, focusY, screen.widthDp, screen.heightDp, SceneBuilder.ditherFor(colors.band.toArgb()))
             Bitmap.createBitmap(px, GLOW_MAP_W, GLOW_MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()
         }
-        Canvas(Modifier.fillMaxSize()) {
+        if (field != null) Canvas(Modifier.fillMaxSize()) {
             // The band's light adds to the wall – on black and on paper alike.
             drawImage(
                 field,

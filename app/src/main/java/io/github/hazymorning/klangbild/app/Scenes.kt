@@ -17,13 +17,18 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
-/** How scenes are lit: the time of day, the wall, and how much colour a light wall takes. */
-data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float) {
+/**
+ * How scenes are lit: the time of day, the wall, how much colour a light wall takes (the light
+ * level, which also sets how colourful the cover's colours are), and whether the cover's
+ * colours are the wall ([coverField]).
+ */
+data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float, val coverField: Boolean = false) {
     fun fits(scene: ArtworkScene) =
         scene.appearance == appearance &&
+            scene.coverField == coverField &&
             abs(scene.lighting.brightness - lighting.brightness) < 0.03f &&
             abs(scene.lighting.warmth - lighting.warmth) < 0.05f &&
-            (appearance == Appearance.DARK || scene.wallTint == wallTint)
+            (appearance == Appearance.DARK && !coverField || scene.wallTint == wallTint)
 }
 
 /** What scenes are built for: the screen and the view. Another frame means new scenes. */
@@ -74,6 +79,15 @@ class Scenes(
         }
     }
 
+    /** Lets go of every scene (nothing is shown any more, or memory is short). */
+    fun clear() {
+        synchronized(cache) {
+            building.values.forEach { it.cancel() }
+            building.clear()
+            cache.clear()
+        }
+    }
+
     /** Stops building scenes for tracks that are no longer wanted (skipped past quickly). */
     fun retain(keys: Set<String>) {
         synchronized(cache) {
@@ -86,7 +100,7 @@ class Scenes(
     private suspend fun make(track: TrackInfo, key: String, old: ArtworkScene?, look: Look, forFrame: Frame, done: (ArtworkScene) -> Unit) {
         val scene = try {
             if (old != null) {
-                withContext(dispatcher) { SceneBuilder.relight(old, look.lighting, look.appearance, look.wallTint) }
+                withContext(dispatcher) { SceneBuilder.relight(old, look.lighting, look.appearance, look.wallTint, look.coverField) }
             } else {
                 build(track, look, forFrame)
             }
@@ -119,6 +133,7 @@ class Scenes(
                 appearance = look.appearance,
                 wallTint = look.wallTint,
                 view = frame.view,
+                coverField = look.coverField,
             )
         }
     }

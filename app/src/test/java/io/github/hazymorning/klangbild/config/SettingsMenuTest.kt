@@ -3,6 +3,8 @@ package io.github.hazymorning.klangbild.config
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.domain.MediaKind
+import io.github.hazymorning.klangbild.domain.SleepChoice
 import org.junit.Test
 
 class SettingsMenuTest {
@@ -48,9 +50,18 @@ class SettingsMenuTest {
     @Test
     fun `every line has a value and an explanation, actions have no step`() {
         val withMa = configured.copy(maUrl = "http://192.168.1.5:8095", maToken = "t")
-        val actions = setOf(MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT)
-        for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa)) {
-            for (ctx in listOf(MenuContext(), MenuContext(LinkState.CONNECTED, ma = MaLink.CONNECTED), MenuContext(LinkState.AUTH_FAILED, ma = MaLink.AUTH_FAILED))) {
+        val withBars = configured.copy(bars = LightBars(left = "light.links", right = "light.rechts"))
+        val contexts = listOf(
+            MenuContext(),
+            MenuContext(LinkState.CONNECTED, ma = MaLink.CONNECTED),
+            MenuContext(LinkState.AUTH_FAILED, ma = MaLink.AUTH_FAILED),
+            MenuContext(sleep = SleepChoice.MIN_30, sleepAt = 1_791_483_667_000L),
+            MenuContext(sleep = SleepChoice.ITEM_END, kind = MediaKind.PODCAST),
+        )
+        for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa, withBars)) {
+            // The lines that act rather than set: the connections, the sleep timer – and the light bars until they are set up.
+            val actions = setOfNotNull(MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.BARS.takeIf { !s.bars.isSet })
+            for (ctx in contexts) {
                 for (row in SettingsMenu.rows(s, ctx)) {
                     assertThat(row.value).isNotEmpty()
                     assertThat(row.description).endsWith(".")
@@ -58,6 +69,8 @@ class SettingsMenuTest {
                 }
             }
         }
+        assertThat(SettingsMenu.sleepValue(SleepChoice.ITEM_END, MediaKind.PODCAST)).isEqualTo("Ende der Folge")
+        assertThat(SettingsMenu.sleepValue(SleepChoice.MIN_60, null)).isEqualTo("Eine Stunde")
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, Settings(), MenuContext())).isEqualTo("Einrichten")
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, configured, MenuContext(LinkState.CONNECTED))).isEqualTo("Verbunden")
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, configured, MenuContext(LinkState.AUTH_FAILED))).isEqualTo("Token abgelehnt")

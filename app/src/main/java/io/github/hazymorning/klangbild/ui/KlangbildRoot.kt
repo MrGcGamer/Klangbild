@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -27,18 +28,22 @@ import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.config.MotionLevel
 import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.flow.FlowTheatre
+import io.github.hazymorning.klangbild.ui.stage.FieldTime
+import io.github.hazymorning.klangbild.ui.stage.LocalFieldTime
 import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
-import io.github.hazymorning.klangbild.ui.stage.StatusLine
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
+import io.github.hazymorning.klangbild.ui.stage.StatusLine
 import kotlinx.coroutines.delay
 
 /** A wall clock that ticks every [periodMs] (the UI needs minutes, the drift whole pixels). */
@@ -57,6 +62,8 @@ class RootHooks(
     /** Local time until which hidden parts (time, place, progress) show again after a key press. */
     val peekUntil: State<Long> = mutableLongStateOf(0L),
     val now: () -> Long = System::currentTimeMillis,
+    /** The colour field's time (seconds): it runs while music plays, at the motion setting's speed. */
+    val fieldTime: () -> Double = { 0.0 },
 )
 
 /**
@@ -94,6 +101,11 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
         // and an outgoing screen keeps showing what it showed.
         val latest = remember { HashMap<String, Content>() }
         latest[content.key] = content
+        // Once a switch has faded out, the screens left behind (a whole cover flow's scenes) go.
+        LaunchedEffect(content.key) {
+            delay(SCREEN_SWITCH_MS)
+            latest.keys.retainAll(setOf(content.key))
+        }
         AnimatedContent(
             targetState = content.key,
             transitionSpec = {
@@ -120,8 +132,8 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     appearance = c.appearance,
                 )
                 is Content.SetupContent -> {
-                    val scene = remember(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
-                    SetupScreen(c.reason, ui.setup, scene)
+                    val scene = rememberOffMain(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
+                    if (scene != null) SetupScreen(c.reason, ui.setup, scene) else Box(Modifier.fillMaxSize())
                 }
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
@@ -159,6 +171,9 @@ private sealed interface Content {
 }
 
 private const val QUIET_START_MS = 4_000L
+
+/** A switch of screens is over after this long (900 ms out, then 1.3 s in after 900 ms), with room to spare. */
+private const val SCREEN_SWITCH_MS = 3_000L
 
 private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s = ui.screen) {
     is Screen.Stage ->
@@ -206,24 +221,34 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     val clock = if (display.clock || peek) RestTexts.time(wall.value) else null
     val group = SpeakerLabel.group(ui.source.group).takeIf { display.group || peek }
     val volume = SpeakerLabel.volume(player?.volume, muted)
-    val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS)
+    // How it plays: when the sleep timer pauses it, else a book's or an episode's speed.
+    val spoken = stageScreen?.track?.kind?.spoken == true
+    val pace = ui.sleepAt?.let { StageTexts.sleep(it) } ?: TimeLine.speed(player?.speed ?: 1f)?.takeIf { spoken }
+    val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, pace = pace)
     val statusLine = StatusLine(lead, clock)
     val nextTrack = stageScreen?.next?.takeIf { display.next }
-    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek) {
+    val chapter = ui.chapter
+    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek, chapter) {
         { s: StageData ->
             val text = TrackText.from(s.track)
+            // A book or an episode with chapters: the chapter in the album's place, the bar over
+            // the chapter, the next chapter after it.
+            val ch = chapter?.takeIf { s.track.key == stage.track.key }
+            val nextChapter = ch?.next?.takeIf { display.next }
             StageModel(
                 scene = s.scene,
                 text = if (display.album) text else text.copy(album = null),
                 status = status,
-                durationMs = s.track.durationMs,
+                durationMs = ch?.let { it.endMs - it.startMs } ?: s.track.durationMs,
                 positionMs = { if (s.track.key == stage.track.key) hooks.positionNow() else null },
                 year = s.track.year.takeIf { display.album },
                 progress = display.timeLine || peek,
                 line = StageTexts.line(linkDown, s.track),
-                next = StageTexts.next(nextTrack),
-                nextTitle = StageTexts.nextTitle(nextTrack),
+                next = nextChapter ?: StageTexts.next(nextTrack),
+                nextTitle = if (nextChapter != null) null else StageTexts.nextTitle(nextTrack),
                 statusLine = statusLine,
+                chapter = ch?.label,
+                rangeStartMs = ch?.startMs ?: 0L,
             )
         }
     }
@@ -233,5 +258,10 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
         animationSpec = tween(1_200, easing = Motion.Dimmer),
         label = "light-setting",
     )
-    theatre(status, modelFor, { lightFactor }, linkDown)
+    // The cover's colours move only while music plays (a pause holds them, like everything else).
+    val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
+    val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
+    CompositionLocalProvider(LocalFieldTime provides fieldTime) {
+        theatre(status, modelFor, { lightFactor }, linkDown)
+    }
 }

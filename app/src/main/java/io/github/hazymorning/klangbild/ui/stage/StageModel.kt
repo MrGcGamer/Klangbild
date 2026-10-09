@@ -22,8 +22,9 @@ class StageModel(
     val scene: ArtworkScene,
     val text: TrackText,
     val status: PlayerStatus,
+    /** The progress bar's length: the track's – or, in a book with chapters, the chapter's. */
     val durationMs: Long?,
-    /** Smoothed playback position "now" (null without duration information). */
+    /** Smoothed playback position "now" in the item's own time (null without duration information). */
     val positionMs: () -> Long?,
     /** Year of the album, shown after its name. */
     val year: Int? = null,
@@ -40,11 +41,15 @@ class StageModel(
     val nextTitle: String? = null,
     /** The status line at the top right: where the music plays, the volume, the time. */
     val statusLine: StatusLine? = null,
+    /** The chapter of a book or an episode, in the album's place ("Die Verhaftung", "Kapitel 7"). */
+    val chapter: String? = null,
+    /** Where the progress bar starts in the item's time: the chapter's start. */
+    val rangeStartMs: Long = 0L,
 ) {
     fun fraction(): Float? {
         val d = durationMs ?: return null
         val p = positionMs() ?: return null
-        return if (d > 0) (p.toFloat() / d).coerceIn(0f, 1f) else null
+        return if (d > 0) ((p - rangeStartMs).toFloat() / d).coerceIn(0f, 1f) else null
     }
 }
 
@@ -64,8 +69,8 @@ object StageTexts {
 
     /**
      * The status line's lead: a passing volume change wins, then mute and pause (after the
-     * place: "Wohnzimmer · Pausiert"), otherwise the place – and the volume, if it is always
-     * shown.
+     * place: "Wohnzimmer · Pausiert"), otherwise the place, how it plays ([pace]: "Pause um
+     * 23:10", "Tempo 1,5×") – and the volume, if it is always shown.
      */
     fun lead(
         status: PlayerStatus,
@@ -74,12 +79,16 @@ object StageTexts {
         volume: String?,
         group: String?,
         volumeAlways: Boolean,
+        pace: String? = null,
     ): String? = when {
         volumeFlash && !muted && volume != null -> "Lautstärke $volume"
         muted -> listOfNotNull(group, "Stumm").joinToString(TimeLine.SEPARATOR)
         status == PlayerStatus.PAUSED -> listOfNotNull(group, "Pausiert").joinToString(TimeLine.SEPARATOR)
-        else -> listOfNotNull(group, volume.takeIf { volumeAlways }).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
+        else -> listOfNotNull(group, pace, volume.takeIf { volumeAlways }).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
     }
+
+    /** "Pause um 23:10": when the sleep timer pauses the music. */
+    fun sleep(atMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String = "Pause um " + TimeLine.clock(atMs, zone)
 
     /** "Spiegel im Spiegel · Arvo Pärt". */
     fun next(track: TrackInfo?): String? =

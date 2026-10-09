@@ -3,11 +3,15 @@ package io.github.hazymorning.klangbild.config
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.domain.MediaKind
+import io.github.hazymorning.klangbild.domain.SleepChoice
 import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.TimeLine
 
 /** Sections of the settings menu, in order. */
 enum class MenuSection(val title: String) {
     DISPLAY("Anzeige"),
+    EFFECTS("Effekte"),
     LIGHT("Licht"),
     REMOTE("Fernbedienung"),
     REST("Ruhe"),
@@ -23,19 +27,34 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     ALBUM(MenuSection.DISPLAY, "Album"),
     GROUP(MenuSection.DISPLAY, "Lautsprechergruppe"),
     VOLUME(MenuSection.DISPLAY, "Lautstärke"),
+    BACKGROUND(MenuSection.EFFECTS, "Hintergrund"),
+    MOTION(MenuSection.EFFECTS, "Bewegung"),
+    BARS(MenuSection.EFFECTS, "Lichtleisten"),
     APPEARANCE(MenuSection.LIGHT, "Erscheinungsbild"),
     LIGHT(MenuSection.LIGHT, "Wandlicht"),
     DAY_NIGHT(MenuSection.LIGHT, "Tag und Nacht"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
     UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
+    SPOKEN(MenuSection.REMOTE, "Hörbücher und Podcasts"),
+    SLEEP_TIMER(MenuSection.REST, "Einschlafen"),
     SLEEP_AFTER(MenuSection.REST, "Ruhe nach"),
     SLEEP_ACTION(MenuSection.REST, "Danach"),
     CONNECTION(MenuSection.CONNECTION, "Home Assistant"),
     MUSIC_ASSISTANT(MenuSection.CONNECTION, "Music Assistant"),
 }
 
-/** What the menu needs to know besides the settings: the connections and the wall as they are now. */
-data class MenuContext(val link: LinkState? = null, val appearance: Appearance = Appearance.DARK, val ma: MaLink? = null)
+/**
+ * What the menu needs to know besides the settings: the connections and the wall as they are
+ * now, the sleep timer ([sleep], pausing at [sleepAt]) and what kind of thing plays.
+ */
+data class MenuContext(
+    val link: LinkState? = null,
+    val appearance: Appearance = Appearance.DARK,
+    val ma: MaLink? = null,
+    val sleep: SleepChoice = SleepChoice.OFF,
+    val sleepAt: Long? = null,
+    val kind: MediaKind? = null,
+)
 
 /** A line as the menu shows it: the value in words and what the option does. */
 data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
@@ -66,6 +85,19 @@ object SettingsMenu {
             VolumeDisplay.ALWAYS -> "Immer"
             VolumeDisplay.OFF -> "Aus"
         }
+        MenuEntry.BACKGROUND -> if (s.background == BackgroundMode.COVER) "Coverfarben" else "Wand"
+        MenuEntry.MOTION -> when (s.motion) {
+            MotionLevel.OFF -> "Aus"
+            MotionLevel.GENTLE -> "Sanft"
+            MotionLevel.MEDIUM -> "Mittel"
+            MotionLevel.LIVELY -> "Lebhaft"
+        }
+        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else when (s.barLevel) {
+            BarLevel.OFF -> "Aus"
+            BarLevel.SUBTLE -> "Dezent"
+            BarLevel.NORMAL -> "Normal"
+            BarLevel.STRONG -> "Kräftig"
+        }
         MenuEntry.APPEARANCE -> when (s.appearance) {
             AppearanceMode.AUTO -> "Automatisch"
             AppearanceMode.LIGHT -> "Hell"
@@ -80,6 +112,8 @@ object SettingsMenu {
         MenuEntry.DAY_NIGHT -> onOff(s.dayNight)
         MenuEntry.REMOTE -> onOff(s.remoteControl)
         MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Einblenden"
+        MenuEntry.SPOKEN -> if (s.spokenSkip) "Springen" else "Wechseln"
+        MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind)
         MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
         MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) "App schließen" else "Bildschirm freigeben"
         MenuEntry.CONNECTION -> when {
@@ -115,6 +149,35 @@ object SettingsMenu {
             VolumeDisplay.ALWAYS -> "Die Lautstärke steht ständig neben der Uhrzeit."
             VolumeDisplay.OFF -> "Die Lautstärke erscheint nie."
         }
+        MenuEntry.BACKGROUND -> if (s.background == BackgroundMode.COVER) {
+            "Die Farben des Covers füllen den Hintergrund, weich verlaufend. Der Fortschritt nimmt ihren Ton an, die Schrift einen Hauch davon."
+        } else {
+            "Das Bild hängt an der Wand: im Dunkeln in seinem eigenen Licht, im Hellen auf Papier."
+        }
+        MenuEntry.MOTION -> {
+            val what = when {
+                s.background == BackgroundMode.COVER && s.bars.isSet -> "Wie die Farben im Hintergrund und in den Lichtleisten fließen. "
+                s.bars.isSet -> "Wie die Farben der Lichtleisten fließen – auf dem Bildschirm nur mit Coverfarben. "
+                else -> "Wie die Farben im Hintergrund fließen – mit Coverfarben. "
+            }
+            what + when (s.motion) {
+                MotionLevel.OFF -> "Aus: Sie stehen still."
+                MotionLevel.GENTLE -> "Sanft: langsam ineinander, kaum zu bemerken."
+                MotionLevel.MEDIUM -> "Mittel: deutlich, aber ruhig."
+                MotionLevel.LIVELY -> "Lebhaft: sichtbar in Bewegung."
+            }
+        }
+        MenuEntry.BARS -> if (!s.bars.isSet) {
+            "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
+                "OK zeigt den QR-Code; am Handy wählst du sie aus Home Assistant aus."
+        } else {
+            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben des Covers, bei Pause gedämpft. " + when (s.barLevel) {
+                BarLevel.OFF -> "Aus: Sie behalten ihr eigenes Licht."
+                BarLevel.SUBTLE -> "Dezent: ein Schimmer an der Wand."
+                BarLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
+                BarLevel.STRONG -> "Kräftig: für helle Räume."
+            }
+        }
         MenuEntry.APPEARANCE -> when (s.appearance) {
             AppearanceMode.AUTO ->
                 "Hell, solange die Sonne scheint, dunkel von Sonnenuntergang bis Sonnenaufgang – nach dem Stand der Sonne in Home Assistant."
@@ -145,6 +208,18 @@ object SettingsMenu {
         } else {
             "Pfeil hoch und runter zeigen ausgeblendete Angaben wie Uhrzeit und Fortschritt kurz an."
         }
+        MenuEntry.SPOKEN -> if (s.spokenSkip) {
+            "Bei Hörbüchern und Podcasts springt links 15 Sekunden zurück, rechts 30 Sekunden vor. " +
+                "Gedrückt gehalten geht es zum vorigen oder nächsten Kapitel."
+        } else {
+            "Links und rechts wechseln auch bei Hörbüchern und Podcasts zum vorigen oder nächsten Eintrag."
+        }
+        MenuEntry.SLEEP_TIMER -> when {
+            ctx.sleep == SleepChoice.OFF ->
+                "Hält die Musik nach einer Weile an, auch am Ende eines Kapitels. Dafür muss Klangbild laufen."
+            ctx.sleepAt != null -> "Die Musik hält um ${TimeLine.clock(ctx.sleepAt)} an."
+            else -> "Die Musik hält an, sobald ${endPhrase(ctx.sleep, ctx.kind)} erreicht ist."
+        }
         MenuEntry.SLEEP_AFTER -> "So lange bleibt der Bildschirm ohne Musik an."
         MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) {
             "Danach schließt sich Klangbild, zurück zum Startbildschirm."
@@ -167,7 +242,7 @@ object SettingsMenu {
     /**
      * The settings after one step of [e]: [direction] −1 (left) or +1 (right, OK). Left and
      * right stop at the ends of a scale, OK ([wrap]) goes round. Switches simply flip. Null
-     * for the action lines.
+     * for the action lines (and the light bars while none are set up: OK sets them up).
      */
     fun step(e: MenuEntry, s: Settings, direction: Int, wrap: Boolean = false): Settings? = when (e) {
         MenuEntry.VIEW -> s.copy(view = if (s.view == StageView.FLOW) StageView.SINGLE else StageView.FLOW)
@@ -177,22 +252,43 @@ object SettingsMenu {
         MenuEntry.ALBUM -> s.copy(showAlbum = !s.showAlbum)
         MenuEntry.GROUP -> s.copy(showGroup = !s.showGroup)
         MenuEntry.VOLUME -> s.copy(volumeDisplay = move(VOLUME_ORDER, s.volumeDisplay, direction, wrap))
+        MenuEntry.BACKGROUND -> s.copy(background = if (s.background == BackgroundMode.COVER) BackgroundMode.WALL else BackgroundMode.COVER)
+        MenuEntry.MOTION -> s.copy(motion = move(MOTION_ORDER, s.motion, direction, wrap))
+        MenuEntry.BARS -> if (s.bars.isSet) s.copy(barLevel = move(BAR_ORDER, s.barLevel, direction, wrap)) else null
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
         MenuEntry.DAY_NIGHT -> s.copy(dayNight = !s.dayNight)
         MenuEntry.REMOTE -> s.copy(remoteControl = !s.remoteControl)
         MenuEntry.UP_DOWN -> s.copy(volumeKeys = !s.volumeKeys)
+        MenuEntry.SPOKEN -> s.copy(spokenSkip = !s.spokenSkip)
         MenuEntry.SLEEP_AFTER -> s.copy(sleepAfterMinutes = nextSleep(s.sleepAfterMinutes, direction, wrap))
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT -> null
+        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER -> null
     }
+
+    /** "Aus", "30 Minuten", "Eine Stunde", "Ende des Kapitels", "Ende der Folge" … */
+    fun sleepValue(choice: SleepChoice, kind: MediaKind?): String = when (choice) {
+        SleepChoice.OFF -> "Aus"
+        SleepChoice.CHAPTER_END -> "Ende des Kapitels"
+        SleepChoice.ITEM_END -> when (kind) {
+            MediaKind.PODCAST -> "Ende der Folge"
+            MediaKind.AUDIOBOOK -> "Ende des Hörbuchs"
+            else -> "Ende des Titels"
+        }
+        else -> minutes(choice.minutes)
+    }
+
+    /** "das Ende des Kapitels" – for the sentence that says when the music pauses. */
+    private fun endPhrase(choice: SleepChoice, kind: MediaKind?): String = "das\u00A0" + sleepValue(choice, kind).replace(" ", "\u00A0")
 
     /** From quiet to present: left means less, right means more. */
     private val VOLUME_ORDER = listOf(VolumeDisplay.OFF, VolumeDisplay.ON_CHANGE, VolumeDisplay.ALWAYS)
     private val LIGHT_ORDER = listOf(LightLevel.OFF, LightLevel.SUBTLE, LightLevel.NORMAL, LightLevel.STRONG)
     private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
+    private val MOTION_ORDER = listOf(MotionLevel.OFF, MotionLevel.GENTLE, MotionLevel.MEDIUM, MotionLevel.LIVELY)
+    private val BAR_ORDER = listOf(BarLevel.OFF, BarLevel.SUBTLE, BarLevel.NORMAL, BarLevel.STRONG)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {
         val i = order.indexOf(current).coerceAtLeast(0) + direction

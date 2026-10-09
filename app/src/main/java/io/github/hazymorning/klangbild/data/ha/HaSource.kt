@@ -9,6 +9,7 @@ import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.data.ma.MaQueue
 import io.github.hazymorning.klangbild.data.ma.QueueWindow
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import java.text.Normalizer
 
@@ -40,6 +43,8 @@ class HaSource(
     private val sunEntity: String = "sun.sun",
     private val now: () -> Long = System::currentTimeMillis,
     private val ma: MaClient? = null,
+    /** How often the queue is read again while music plays (shorter in tests). */
+    private val queueRefreshMs: Long = QUEUE_REFRESH_MS,
 ) : NowPlayingSource {
 
     private val connection = HaConnection(http, scope)
@@ -48,11 +53,21 @@ class HaSource(
 
     private var collector: Job? = null
     private var queuePoller: Job? = null
+
+    /** The one queue read under way: a newer track cancels it (quick skips leave nothing running). */
+    private var queueJob: Job? = null
     @Volatile private var queue: QueueInfo? = null
     @Volatile private var window: QueueWindow? = null
     @Volatile private var queueForKey: String? = null
     @Volatile private var maLink: MaLink? = null
     @Volatile private var lastPlayerKey: String? = null
+
+    /** Home Assistant answered the last `get_queue` – a player without a queue is not asked again until its track changes. */
+    @Volatile private var queueWorks = false
+
+    /** Music Assistant's queue was last read at this time, for what it was then (id, place, next). */
+    private var windowReadAt = 0L
+    private var windowFor: Triple<String?, Int?, String?>? = null
     private var linkDownSince: Long? = null
     private var lastSnapshot: PlayerSnapshot? = null
     private var receivedAt = 0L
@@ -71,10 +86,12 @@ class HaSource(
                 maLink = it.check()
                 publish(connection.status.value, connection.entities.value)
             }
-            // Light periodic refresh: the queue can change without the track changing.
+            // Light periodic refresh: the queue can change without the track changing – asked
+            // only of a Music Assistant player that has a queue, and only while it plays.
             while (isActive) {
-                delay(QUEUE_REFRESH_MS)
-                if (_state.value.player?.status == PlayerStatus.PLAYING) refreshQueue(force = true)
+                delay(queueRefreshMs)
+                val p = _state.value.player
+                if (p?.status == PlayerStatus.PLAYING && p.isMusicAssistant && queueWorks) startQueueRead(force = true)
             }
         }
     }
@@ -82,6 +99,7 @@ class HaSource(
     override fun stop() {
         collector?.cancel()
         queuePoller?.cancel()
+        queueJob?.cancel()
         connection.stop()
     }
 
@@ -91,12 +109,20 @@ class HaSource(
     override suspend fun send(command: RemoteCommand) {
         val service = when (command) {
             RemoteCommand.PLAY_PAUSE -> "media_play_pause"
+            RemoteCommand.PLAY -> "media_play"
+            RemoteCommand.PAUSE -> "media_pause"
             RemoteCommand.NEXT -> "media_next_track"
             RemoteCommand.PREVIOUS -> "media_previous_track"
             RemoteCommand.VOLUME_UP -> "volume_up"
             RemoteCommand.VOLUME_DOWN -> "volume_down"
         }
         runCatching { connection.callService("media_player", service, playerEntity) }
+    }
+
+    /** Home Assistant passes whole seconds on to Music Assistant, whatever the speed: the item's own time. */
+    override suspend fun seek(positionMs: Long) {
+        val data = buildJsonObject { put("seek_position", positionMs.coerceAtLeast(0) / 1000) }
+        runCatching { connection.callService("media_player", "media_seek", playerEntity, data = data) }
     }
 
     /** Called from the status/entity collector and after queue refreshes – serialised. */
@@ -124,7 +150,7 @@ class HaSource(
         val key = player?.track?.let { trackKey(it) }
         if (key != null && key != lastPlayerKey) {
             lastPlayerKey = key
-            if (player.isMusicAssistant) scope.launch { refreshQueue(force = false) }
+            if (player.isMusicAssistant) startQueueRead(force = false)
         }
 
         val enriched = player?.let { enrich(it) }
@@ -168,45 +194,82 @@ class HaSource(
             ?.let { SpeakerGroup(self = p.friendlyName, others = emptyList(), name = it) }
     }
 
-    /** Prefer the queue's richer data when it describes the same track. */
+    /**
+     * Prefer the queue's richer data when it describes the same track; Music Assistant's own
+     * queue adds a book's authors, an episode's show, the chapters and the speed.
+     */
     private fun enrich(p: PlayerSnapshot): PlayerSnapshot {
         val track = p.track ?: return p
         val q = queue ?: return p
         val current = q.current ?: return p
         if (queueForKey != trackKey(track) || !sameTitle(current.title, track.title)) return p
+        val w = window?.takeIf { w -> w.current?.let { sameTitle(it.title, track.title) } == true }
+        val mine = w?.current
         // Only Music Assistant's own queue knows the album's year.
-        val year = window?.current?.takeIf { sameTitle(it.title, track.title) }?.year
         return p.copy(
             track = track.copy(
-                artists = current.artists.ifEmpty { track.artists },
+                artists = current.artists.ifEmpty { mine?.artists.orEmpty() }.ifEmpty { track.artists },
                 album = track.album ?: current.album,
-                year = current.year ?: year ?: track.year,
+                year = current.year ?: mine?.year ?: track.year,
                 artworkUrl = current.artworkUrl ?: track.artworkUrl,
                 artworkFallbackUrl = track.artworkUrl ?: track.artworkFallbackUrl,
                 source = current.source ?: track.source,
+                kind = listOf(track.kind, mine?.kind, current.kind).firstOrNull { it != null && it != MediaKind.MUSIC } ?: MediaKind.MUSIC,
+                chapters = mine?.chapters.orEmpty(),
             ),
+            speed = w?.speed ?: p.speed,
         )
+    }
+
+    /** Starts reading the queue anew; a read under way for an older track is cancelled, a periodic one waits its turn. */
+    private fun startQueueRead(force: Boolean) {
+        synchronized(this) {
+            if (force && queueJob?.isActive == true) return
+            queueJob?.cancel()
+            queueJob = scope.launch { refreshQueue(force) }
+        }
     }
 
     private suspend fun refreshQueue(force: Boolean) {
         val key = lastPlayerKey ?: return
         if (!force && queueForKey == key) return
         delay(350) // let a burst of state changes settle
-        val response = runCatching {
+        if (lastPlayerKey != key) return
+        val response = try {
             connection.callService("music_assistant", "get_queue", playerEntity, returnResponse = true)
-        }.getOrNull()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        queueWorks = response != null
         // No answer (a source without a queue, like Spotify Connect): nothing is known to follow.
         // A periodic refresh that fails keeps what is known.
         val again = force && queueForKey == key
         val parsed = response?.let { PlayerParser.queue(it, playerEntity, config.baseUrl) }
         if (parsed == null && again) return
-        val read = parsed?.let { readWindow(it) } ?: window.takeIf { again }
+        // Music Assistant's queue is read again only when something moved – or for spoken word,
+        // whose speed can change at any time.
+        val read = parsed?.let { q -> if (!again || windowStale(q)) readWindow(q) else window } ?: window.takeIf { again }
         if (lastPlayerKey != key) return
         queue = parsed
         window = read
         queueForKey = key
         publish(connection.status.value, connection.entities.value)
+        // A book's or an episode's chapters may follow a moment after it starts (Music Assistant 2.11).
+        val current = read?.current
+        if (!again && current != null && current.kind.spoken && current.chapters.isEmpty()) {
+            delay(CHAPTERS_AGAIN_MS)
+            if (lastPlayerKey == key) refreshQueue(force = true)
+        }
     }
+
+    /** Whether Music Assistant's queue is worth reading again: it moved, it is old, or it is spoken word. */
+    private fun windowStale(q: QueueInfo): Boolean =
+        Triple(q.queueId, q.currentIndex, q.next?.key) != windowFor ||
+            now() - windowReadAt > WINDOW_MAX_AGE_MS ||
+            q.current?.kind?.spoken == true ||
+            window?.current?.kind?.spoken == true
 
     /**
      * The whole queue around the current item, from Music Assistant itself (if set up) – only
@@ -220,6 +283,8 @@ class HaSource(
         return try {
             val w = MaQueue.window(client.items(id, offset, limit), offset, index, client.baseUrl)
             maLink = MaLink.CONNECTED
+            windowReadAt = now()
+            windowFor = Triple(q.queueId, q.currentIndex, q.next?.key)
             w.takeIf { a -> val b = q.current; a.current != null && b != null && sameTitle(a.current.title, b.title) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -242,6 +307,12 @@ class HaSource(
 
     companion object {
         const val QUEUE_REFRESH_MS = 60_000L
+
+        /** Music Assistant's queue is read again after this long even when nothing seems to have moved. */
+        const val WINDOW_MAX_AGE_MS = 5 * 60_000L
+
+        /** A book without chapters is asked once more after this long. */
+        const val CHAPTERS_AGAIN_MS = 10_000L
 
         /** Music Assistant speakers (not groups) that are not unavailable. */
         const val SPEAKER_COUNT_TEMPLATE =

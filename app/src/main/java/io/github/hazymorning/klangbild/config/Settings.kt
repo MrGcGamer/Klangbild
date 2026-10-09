@@ -47,6 +47,39 @@ enum class AppearanceMode {
     DARK,
 }
 
+/** What stands behind the picture. */
+enum class BackgroundMode {
+    /** The wall: black with the artwork's light on it, or paper with its shadow. */
+    WALL,
+
+    /** The cover's own colours, softly blurred, fill the screen. */
+    COVER,
+}
+
+/** How the colours behind the picture move – on the screen and in the light bars; [speed] scales the drift. */
+enum class MotionLevel(val speed: Float) {
+    OFF(0f),
+    GENTLE(1f),
+    MEDIUM(1.7f),
+    LIVELY(2.8f),
+}
+
+/** How brightly the light bars behind the TV glow, as a share of their full brightness. */
+enum class BarLevel(val brightness: Float) {
+    OFF(0f),
+    SUBTLE(0.3f),
+    NORMAL(0.55f),
+    STRONG(0.85f),
+}
+
+/** The colour lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
+data class LightBars(val left: String? = null, val center: String? = null, val right: String? = null) {
+    /** Each light once, from the left. */
+    val ids: List<String> get() = listOfNotNull(left, center, right).distinct()
+
+    val isSet: Boolean get() = ids.isNotEmpty()
+}
+
 /** What the stage shows – the part of the settings the UI needs. */
 data class DisplayOptions(
     val clock: Boolean = true,
@@ -59,6 +92,8 @@ data class DisplayOptions(
     val group: Boolean = true,
     val volume: VolumeDisplay = VolumeDisplay.ON_CHANGE,
     val light: LightLevel = LightLevel.NORMAL,
+    val background: BackgroundMode = BackgroundMode.WALL,
+    val motion: MotionLevel = MotionLevel.OFF,
 )
 
 /** Persistent settings. Secrets live only in app-private storage (no backup, see manifest). */
@@ -86,6 +121,13 @@ data class Settings(
     /** Music Assistant itself (optional): for the whole queue in Cover Flow. */
     val maUrl: String? = null,
     val maToken: String? = null,
+    val background: BackgroundMode = BackgroundMode.WALL,
+    val motion: MotionLevel = MotionLevel.OFF,
+    /** The colour lights behind the TV and how brightly they join in. */
+    val bars: LightBars = LightBars(),
+    val barLevel: BarLevel = BarLevel.NORMAL,
+    /** With an audiobook or a podcast, left and right jump back 15 and ahead 30 seconds. */
+    val spokenSkip: Boolean = true,
 ) {
     val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && !haToken.isNullOrBlank() && !entityId.isNullOrBlank()
 
@@ -110,6 +152,8 @@ data class Settings(
             group = showGroup,
             volume = volumeDisplay,
             light = light,
+            background = background,
+            motion = motion,
         )
 }
 
@@ -143,6 +187,13 @@ class SettingsStore(private val context: Context) {
         val view = stringPreferencesKey("view")
         val maUrl = stringPreferencesKey("ma_url")
         val maToken = stringPreferencesKey("ma_token")
+        val background = stringPreferencesKey("background")
+        val motion = stringPreferencesKey("motion")
+        val barsLeft = stringPreferencesKey("bars_left")
+        val barsCenter = stringPreferencesKey("bars_center")
+        val barsRight = stringPreferencesKey("bars_right")
+        val barLevel = stringPreferencesKey("bar_level")
+        val spokenSkip = booleanPreferencesKey("spoken_skip")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -167,6 +218,11 @@ class SettingsStore(private val context: Context) {
             view = p[Keys.view]?.let { runCatching { StageView.valueOf(it) }.getOrNull() } ?: StageView.SINGLE,
             maUrl = p[Keys.maUrl],
             maToken = p[Keys.maToken],
+            background = p[Keys.background]?.let { runCatching { BackgroundMode.valueOf(it) }.getOrNull() } ?: BackgroundMode.WALL,
+            motion = p[Keys.motion]?.let { runCatching { MotionLevel.valueOf(it) }.getOrNull() } ?: MotionLevel.OFF,
+            bars = LightBars(p[Keys.barsLeft], p[Keys.barsCenter], p[Keys.barsRight]),
+            barLevel = p[Keys.barLevel]?.let { runCatching { BarLevel.valueOf(it) }.getOrNull() } ?: BarLevel.NORMAL,
+            spokenSkip = p[Keys.spokenSkip] ?: true,
         )
     }
 
@@ -196,6 +252,13 @@ class SettingsStore(private val context: Context) {
             p[Keys.view] = s.view.name
             putOrRemove(Keys.maUrl, s.maUrl)
             putOrRemove(Keys.maToken, s.maToken)
+            p[Keys.background] = s.background.name
+            p[Keys.motion] = s.motion.name
+            putOrRemove(Keys.barsLeft, s.bars.left)
+            putOrRemove(Keys.barsCenter, s.bars.center)
+            putOrRemove(Keys.barsRight, s.bars.right)
+            p[Keys.barLevel] = s.barLevel.name
+            p[Keys.spokenSkip] = s.spokenSkip
         }
     }
 }
@@ -231,12 +294,20 @@ object LaunchExtras {
     const val REMOTE = "remote"
     const val APPEARANCE = "appearance"
     const val VIEW = "view"
+    const val BACKGROUND = "background"
+    const val MOTION = "motion"
+    const val BARS_LEFT = "bars_left"
+    const val BARS_CENTER = "bars_center"
+    const val BARS_RIGHT = "bars_right"
+    const val BAR_LEVEL = "bar_level"
+    const val SPOKEN_SKIP = "spoken_skip"
     const val SETUP = "setup"
     const val DEBUG = "debug"
 
     private val stored = listOf(
         HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
-        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW,
+        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
+        SPOKEN_SKIP,
     )
 
     /** Applies stored-setting extras to [s]. Unknown or invalid values are ignored. */
@@ -296,6 +367,41 @@ object LaunchExtras {
                 else -> null
             }?.let { out = out.copy(view = it) }
         }
+        (extras[BACKGROUND] as? String)?.let { v ->
+            when (v.trim().lowercase().replace(" ", "").replace("_", "")) {
+                "wall", "wand" -> BackgroundMode.WALL
+                "cover", "coverfarben", "colours", "colors", "farben" -> BackgroundMode.COVER
+                else -> null
+            }?.let { out = out.copy(background = it) }
+        }
+        (extras[MOTION] as? String)?.let { v ->
+            when (v.trim().lowercase()) {
+                "off", "aus" -> MotionLevel.OFF
+                "gentle", "sanft" -> MotionLevel.GENTLE
+                "medium", "mittel" -> MotionLevel.MEDIUM
+                "lively", "lebhaft" -> MotionLevel.LIVELY
+                else -> null
+            }?.let { out = out.copy(motion = it) }
+        }
+        (extras[BAR_LEVEL] as? String)?.let { v ->
+            when (v.trim().lowercase()) {
+                "off", "aus" -> BarLevel.OFF
+                "subtle", "dezent" -> BarLevel.SUBTLE
+                "normal" -> BarLevel.NORMAL
+                "strong", "kraeftig", "kräftig" -> BarLevel.STRONG
+                else -> null
+            }?.let { out = out.copy(barLevel = it) }
+        }
+        // A light given as "" or "none" is removed; anything but a light entity is ignored.
+        fun bar(key: String, current: String?): String? = when (val v = (extras[key] as? String)?.trim()) {
+            null -> current
+            "", "none", "keine" -> null
+            else -> v.takeIf { isLightId(it) } ?: current
+        }
+        if (extras.keys.any { it == BARS_LEFT || it == BARS_CENTER || it == BARS_RIGHT }) {
+            out = out.copy(bars = LightBars(bar(BARS_LEFT, out.bars.left), bar(BARS_CENTER, out.bars.center), bar(BARS_RIGHT, out.bars.right)))
+        }
+        boolOf(extras[SPOKEN_SKIP])?.let { out = out.copy(spokenSkip = it) }
         return out
     }
 
@@ -324,18 +430,21 @@ object LaunchExtras {
     const val DEEP_LINK_SCHEME = "klangbild"
 
     /**
-     * What a link may set: display options and the sleep time – never the address, token or
-     * speaker. Any page in a browser on the TV could open such a link.
+     * What a link may set: display options and the sleep time – never the address, token,
+     * speaker or the lights to control. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(
         CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
-        APPEARANCE, VIEW,
+        APPEARANCE, VIEW, BACKGROUND, MOTION, BAR_LEVEL, SPOKEN_SKIP,
     )
 
     /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */
     fun fromLink(params: Map<String, String?>): Map<String, Any?> = params.filterKeys { it in linkKeys }
 
     fun isEntityId(s: String) = Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(s)
+
+    /** A Home Assistant light (`light.wohnzimmer_tv_links`). */
+    fun isLightId(s: String) = s.startsWith("light.") && isEntityId(s)
 
     private fun intOf(v: Any?): Int? = when (v) {
         is Int -> v

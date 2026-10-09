@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.app
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
+import io.github.hazymorning.klangbild.config.BackgroundMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
 import io.github.hazymorning.klangbild.config.MenuContext
@@ -22,11 +23,16 @@ import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
 import io.github.hazymorning.klangbild.data.ma.MaClient
+import io.github.hazymorning.klangbild.domain.ChapterPlace
+import io.github.hazymorning.klangbild.domain.Chapters
 import io.github.hazymorning.klangbild.domain.CoverStrip
+import io.github.hazymorning.klangbild.domain.FieldClock
+import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.ScreenDecision
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
+import io.github.hazymorning.klangbild.domain.SleepTimer
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.Timing
@@ -95,6 +101,10 @@ data class UiState(
     val menu: MenuState? = null,
     /** The volume just changed: the status line shows it for a moment. */
     val volumeFlash: Boolean = false,
+    /** The chapter of the book or episode on stage, while it has chapters. */
+    val chapter: ChapterPlace? = null,
+    /** When the sleep timer pauses the music (wall clock), while it is set. */
+    val sleepAt: Long? = null,
 )
 
 /**
@@ -123,6 +133,24 @@ class NowPlayingController(
     private val smooth = SmoothedPosition()
     private var lastReportKey: Any? = null
 
+    /** "Einschlafen": set from the menu, it pauses the music once ([SleepTimer]). */
+    private val sleepTimer = SleepTimer()
+    private var sleepJob: Job? = null
+    private var sleepWake: Long? = null
+
+    /** The next chapter's start on the wall clock, so the stage turns to it on time. */
+    @Volatile private var chapterEndsAt: Long? = null
+
+    /** A jump with the remote that Home Assistant has not confirmed yet: the bar shows where it goes. */
+    @Volatile private var seekOverride: SeekOverride? = null
+    private var seekJob: Job? = null
+
+    /** The colour field's time, shared by the screen and the light bars. */
+    private val fieldClock = FieldClock(now)
+
+    /** The colour field's time now (seconds): it runs while music plays, at the motion setting's speed. */
+    fun fieldTime(): Double = fieldClock.now()
+
     private val artwork = ArtworkLoader(http, { settings.value.haUrl }, { settings.value.haToken })
     private val scenes = Scenes(scope, artwork)
     private val strip = CoverStrip()
@@ -148,18 +176,26 @@ class NowPlayingController(
     private var setupJob: Job? = null
 
     /** A screen (activity or dream) starts showing the controller. */
+    @Synchronized
     fun attach(spec: ScreenSpec) {
         viewers++
         scenes.frame = scenes.frame.copy(screen = spec)
         if (viewers == 1) start()
     }
 
+    @Synchronized
     fun detach() {
         viewers = (viewers - 1).coerceAtLeast(0)
         if (viewers == 0) stop()
     }
 
+    private var stoppedAt = 0L
+    private var releaseJob: Job? = null
+
     private fun start() {
+        releaseJob?.cancel()
+        // A sleep timer outlives a hand-over between the app and the screensaver, not a closed app.
+        if (stoppedAt > 0 && now() - stoppedAt > HANDOVER_MS) sleepTimer.clear()
         settingsJob = scope.launch {
             settingsStore.settings.collect { s ->
                 // While the menu's own changes are being written, it already shows them.
@@ -168,12 +204,12 @@ class NowPlayingController(
         }
         ticker = scope.launch {
             while (isActive) {
-                delay(1_000)
+                delay(tickDelay())
                 recompute()
             }
         }
         setupJob = scope.launch {
-            setupServer.info.collect { info -> _ui.value = _ui.value.copy(setup = info) }
+            setupServer.info.collect { info -> synchronized(this@NowPlayingController) { _ui.value = _ui.value.copy(setup = info) } }
         }
     }
 
@@ -186,7 +222,46 @@ class NowPlayingController(
         source?.stop()
         source = null
         sourceKey = null
+        sleepJob?.cancel()
+        sleepJob = null
+        sleepWake = null
+        seekJob?.cancel()
+        seekOverride = null
+        stoppedAt = now()
+        // Covers and scenes are let go once it is clear that no screen comes straight back.
+        releaseJob = scope.launch {
+            delay(HANDOVER_MS)
+            releaseMemory()
+        }
+        // The next start begins afresh: a pause from last night must not send a new launch to
+        // sleep (or close it) before the music has been heard of.
+        val setup = machine.isSetupRequested
+        machine = ScreenStateMachine(machine.timing).also { it.requestSetup(setup) }
+        lastReportKey = null
+        lastVolume = null
+        _ui.value = _ui.value.copy(
+            source = SourceState(LinkState.CONNECTING),
+            screen = Screen.Rest(io.github.hazymorning.klangbild.domain.RestReason.CONNECTING),
+            stage = null,
+            flow = null,
+            asleep = false,
+            keepScreenOn = true,
+            chapter = null,
+            sleepAt = null,
+        )
     }
+
+    /** Lets go of decoded covers and scenes while no screen shows them (or when the system asks). */
+    @Synchronized
+    fun releaseMemory() {
+        if (viewers > 0) return
+        scenes.clear()
+        artwork.clear()
+        strip.clear()
+    }
+
+    /** Once a second – or sooner, when a chapter ends before that. */
+    private fun tickDelay(): Long = chapterEndsAt?.let { (it - now() + 20).coerceIn(20, 1_000) } ?: 1_000
 
     /** Extras from `am start` (cold start or onNewIntent). */
     fun applyLaunch(extras: Map<String, Any?>) {
@@ -221,6 +296,97 @@ class NowPlayingController(
             recompute()
         }
         scope.launch { source?.send(command) }
+    }
+
+    // --- spoken word: jumps and chapters ---------------------------------------------------
+
+    /** Left and right jump within what plays (a book, an episode) instead of changing it. */
+    val spokenKeys: Boolean
+        get() {
+            val s = settings.value
+            return s.remoteControl && s.spokenSkip && (_ui.value.screen as? Screen.Stage)?.track?.kind?.spoken == true
+        }
+
+    /**
+     * Jumps back ([direction] −1, [BACK_MS]) or ahead (+1, [AHEAD_MS]); presses in quick
+     * succession add up to one jump, which the bar shows at once.
+     */
+    fun skip(direction: Int) {
+        if (!settings.value.remoteControl) return
+        val track = (_ui.value.screen as? Screen.Stage)?.track ?: return
+        val t = now()
+        val from = contentPosition(t) ?: return
+        seekTo(track, from + if (direction < 0) -BACK_MS else AHEAD_MS, t)
+    }
+
+    /**
+     * Held left or right: to the chapter's start (or the one before, right after a start) or to
+     * the next chapter – without chapters, or past the last, to the item before or after.
+     */
+    fun jump(direction: Int) {
+        if (!settings.value.remoteControl) return
+        val track = (_ui.value.screen as? Screen.Stage)?.track ?: return
+        val t = now()
+        val at = contentPosition(t)?.let { Chapters.jump(track.chapters, it, direction) }
+        if (at != null) seekTo(track, at, t) else send(if (direction < 0) RemoteCommand.PREVIOUS else RemoteCommand.NEXT)
+    }
+
+    /** Where [track] plays now in its own time: a jump not yet confirmed, else the reported position. */
+    private fun contentPosition(t: Long): Long? {
+        seekOverride?.let { return it.at(t) }
+        val s = _ui.value.source
+        return s.player?.let { Progress.positionAt(it, t, s.skewMs, s.receivedAtMs) }
+    }
+
+    private fun seekTo(track: TrackInfo, target: Long, t: Long) {
+        val end = track.durationMs?.let { (it - END_MARGIN_MS).coerceAtLeast(0) } ?: return
+        val p = _ui.value.source.player
+        val o = SeekOverride(track.key, target.coerceIn(0, end), t, if (p?.status == PlayerStatus.PLAYING) p.speed else 0f)
+        seekOverride = o
+        seekJob?.cancel()
+        // Presses close together make one jump: it is sent once they stop.
+        seekJob = scope.launch {
+            delay(SEEK_SETTLE_MS)
+            seekOverride = o.copy(sentAt = now())
+            source?.seek(o.at(now()))
+            // Home Assistant answers within moments; if not, the reported position takes over again.
+            delay(SEEK_TRUST_MS)
+            if (seekOverride?.startedAt == o.startedAt) seekOverride = null
+        }
+        recompute()
+    }
+
+    /** A jump not yet confirmed: from [target] at [startedAt] it runs on at [speed] (0 while paused). */
+    private data class SeekOverride(val key: String, val target: Long, val startedAt: Long, val speed: Float, val sentAt: Long? = null) {
+        fun at(t: Long): Long = target + ((t - startedAt).coerceAtLeast(0) * speed).toLong()
+    }
+
+    // --- sleep timer ---------------------------------------------------------------------
+
+    /** Steps the sleep timer along the choices that fit what plays. */
+    @Synchronized
+    private fun stepSleep(direction: Int, wrap: Boolean) {
+        val track = (_ui.value.screen as? Screen.Stage)?.track
+        val choices = sleepTimer.choices(track)
+        val i = choices.indexOf(sleepTimer.choice).coerceAtLeast(0) + direction
+        val next = if (wrap) choices[Math.floorMod(i, choices.size)] else choices[i.coerceIn(0, choices.size - 1)]
+        if (next != sleepTimer.choice) sleepTimer.set(next, now())
+        recompute()
+    }
+
+    /** Wakes the controller when the sleep timer expects to act (a tick could be up to a second late). */
+    private fun scheduleSleep(at: Long?) {
+        val old = sleepWake
+        if (at == old || (at != null && old != null && kotlin.math.abs(at - old) < 250)) return
+        sleepJob?.cancel()
+        sleepWake = at
+        sleepJob = at?.let {
+            scope.launch {
+                delay((it - now()).coerceAtLeast(0))
+                synchronized(this@NowPlayingController) { sleepWake = null }
+                recompute()
+            }
+        }
     }
 
     // --- settings menu -------------------------------------------------------------------
@@ -265,11 +431,15 @@ class NowPlayingController(
     fun menuChange(direction: Int, wrap: Boolean) {
         val c = menuCursor ?: return
         menuTouchedAt = now()
-        when (val entry = SettingsMenu.entries[c]) {
-            MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT -> {
+        val entry = SettingsMenu.entries[c]
+        when {
+            // The connections – and the light bars while none are set up – are set up on the phone.
+            entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.BARS && !settings.value.bars.isSet) -> {
                 menuCursor = null
                 requestSetup(true)
             }
+            // The sleep timer is no setting: it lives until it has paused the music once.
+            entry == MenuEntry.SLEEP_TIMER -> stepSleep(direction, wrap)
             else -> {
                 val updated = SettingsMenu.step(entry, settings.value, direction, wrap) ?: return
                 localEdits.incrementAndGet()
@@ -305,19 +475,23 @@ class NowPlayingController(
         recompute()
     }
 
-    private fun menuState(s: Settings, appearance: Appearance): MenuState? {
+    private fun menuState(s: Settings, appearance: Appearance, track: TrackInfo?): MenuState? {
         val cursor = menuCursor ?: return null
-        val ctx = MenuContext(link = _ui.value.source.link, appearance = appearance, ma = _ui.value.source.ma)
+        val ctx = MenuContext(
+            link = _ui.value.source.link,
+            appearance = appearance,
+            ma = _ui.value.source.ma,
+            sleep = sleepTimer.choice,
+            sleepAt = sleepTimer.pausesAt,
+            kind = track?.kind,
+        )
         return MenuState(SettingsMenu.rows(s, ctx), cursor)
     }
 
     /** Smoothed playback position for the current track, for the UI's draw phase. */
     fun positionNow(): Long? {
-        val s = _ui.value.source
-        val p = s.player ?: return null
         val t = now()
-        val raw = Progress.positionAt(p, t, s.skewMs, s.receivedAtMs)
-        return smooth.display(raw, t)
+        return smooth.display(contentPosition(t), t)
     }
 
     @Synchronized
@@ -341,24 +515,34 @@ class NowPlayingController(
         newSource.start()
         lastVolume = null
         sourceJob = scope.launch {
-            newSource.state.collect { st ->
-                val p = st.player
-                val reportKey = Triple(p?.track?.key, p?.positionMs, p?.status)
-                if (reportKey != lastReportKey) {
-                    lastReportKey = reportKey
-                    val raw = p?.let { Progress.positionAt(it, now(), st.skewMs, st.receivedAtMs) }
-                    smooth.onReport(p?.track?.key, raw, now())
-                }
-                // A new volume – set here, on a phone or anywhere else – is shown for a moment.
-                val volume = p?.volume?.let { it to p.muted }
-                if (volume != null) {
-                    if (lastVolume != null && volume != lastVolume) volumeFlashUntil = now() + VOLUME_FLASH_MS
-                    lastVolume = volume
-                }
-                _ui.value = _ui.value.copy(source = st)
-                recompute()
-            }
+            newSource.state.collect { st -> onSource(st) }
         }
+    }
+
+    /** A new state from the source – written under the same lock as [recompute], so neither loses the other's update. */
+    @Synchronized
+    private fun onSource(st: SourceState) {
+        val p = st.player
+        val t = now()
+        val reportKey = Triple(p?.track?.key, p?.positionMs, p?.status)
+        if (reportKey != lastReportKey) {
+            lastReportKey = reportKey
+            val raw = p?.let { Progress.positionAt(it, t, st.skewMs, st.receivedAtMs) }
+            // A jump with the remote holds until Home Assistant reports the new place (or another item).
+            seekOverride?.let { o ->
+                val confirmed = o.sentAt != null && raw != null && kotlin.math.abs(raw - o.at(t)) < SEEK_MATCH_MS
+                if (p?.track?.key != o.key || confirmed) seekOverride = null
+            }
+            smooth.onReport(p?.track?.key, seekOverride?.at(t) ?: raw, t)
+        }
+        // A new volume – set here, on a phone or anywhere else – is shown for a moment.
+        val volume = p?.volume?.let { it to p.muted }
+        if (volume != null) {
+            if (lastVolume != null && volume != lastVolume) volumeFlashUntil = t + VOLUME_FLASH_MS
+            lastVolume = volume
+        }
+        _ui.value = _ui.value.copy(source = st)
+        recompute()
     }
 
     private var lastVolume: Pair<Float, Boolean>? = null
@@ -376,9 +560,19 @@ class NowPlayingController(
         val decision: ScreenDecision = machine.decide(src, t)
         val lighting = lightingFor(s, src)
         val appearance = appearanceFor(s, src)
-        val look = Look(lighting, appearance, s.light.factor)
+        val look = Look(lighting, appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
+        val stage = decision.screen as? Screen.Stage
+        val playing = stage?.status == PlayerStatus.PLAYING && !stage.linkDown
+        val speed = src.player?.speed ?: 1f
+        // Spoken word: the chapter that plays, and the moment the next one begins.
+        val position = stage?.let { contentPosition(t) }
+        val chapter = stage?.let { ChapterPlace.at(it.track, position) }
+        chapterEndsAt = if (chapter != null && position != null && playing) t + ((chapter.endMs - position) / speed.coerceAtLeast(0.25f)).toLong() else null
+        // The sleep timer: it may want the music paused right now.
+        if (sleepTimer.evaluate(t, stage?.track, position, speed, playing)) scope.launch { source?.send(RemoteCommand.PAUSE) }
+        scheduleSleep(sleepTimer.wakeAt)
         val previous = _ui.value
-        val menu = menuState(s, appearance)
+        val menu = menuState(s, appearance, stage?.track)
         _ui.value = previous.copy(
             screen = decision.screen,
             keepScreenOn = decision.keepScreenOn || menu != null,
@@ -391,8 +585,11 @@ class NowPlayingController(
             entityId = s.entityId,
             menu = menu,
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
+            chapter = chapter,
+            sleepAt = sleepTimer.pausesAt,
         )
-        val stage = decision.screen as? Screen.Stage
+        // The colours move only while music plays – on the screen and in the light bars alike.
+        fieldClock.run(if (playing) s.motion.speed else 0f)
         if (stage != null) {
             if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
         }
@@ -476,5 +673,24 @@ class NowPlayingController(
 
         /** An untouched menu closes after this long. */
         const val MENU_IDLE_MS = 60_000L
+
+        /** Spoken word: left jumps back this far, right ahead this far (like most podcast apps). */
+        const val BACK_MS = 15_000L
+        const val AHEAD_MS = 30_000L
+
+        /** A jump never lands closer to the end than this (Music Assistant refuses one past it). */
+        const val END_MARGIN_MS = 2_000L
+
+        /** Presses closer together than this add up to one jump. */
+        const val SEEK_SETTLE_MS = 500L
+
+        /** How long a jump is shown before the reported position takes over again, confirmed or not. */
+        const val SEEK_TRUST_MS = 6_000L
+
+        /** A reported position this close to the jump's confirms it. */
+        const val SEEK_MATCH_MS = 4_000L
+
+        /** A stop shorter than this is a hand-over between the app and the screensaver. */
+        const val HANDOVER_MS = 10_000L
     }
 }

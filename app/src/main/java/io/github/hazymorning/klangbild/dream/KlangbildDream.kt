@@ -50,7 +50,7 @@ class KlangbildDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                 setViewTreeSavedStateRegistryOwner(this@KlangbildDream)
                 setContent {
                     val ui by controller.ui.collectAsStateWithLifecycle()
-                    KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow))
+                    KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, fieldTime = controller::fieldTime))
                 }
             },
         )

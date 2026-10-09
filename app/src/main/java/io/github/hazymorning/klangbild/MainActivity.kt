@@ -7,6 +7,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.lifecycle.Lifecycle
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private val controller get() = graph.controller
     private val peekUntil = mutableLongStateOf(0L)
     private var centerLongPressed = false
+    private var sideLongPressed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,12 +45,18 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = onBack()
         })
-        FrameStats.attach(window)
         val spec = screenSpec()
         setContent {
             val ui by controller.ui.collectAsStateWithLifecycle()
-            KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil))
-            if (ui.session.debugOverlay) DebugOverlay()
+            KlangbildRoot(ui, spec, RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil, fieldTime = controller::fieldTime))
+            if (ui.session.debugOverlay) {
+                // Frames are only counted while the overlay shows them.
+                DisposableEffect(Unit) {
+                    FrameStats.attach(window)
+                    onDispose { FrameStats.detach(window) }
+                }
+                DebugOverlay()
+            }
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -101,23 +109,45 @@ class MainActivity : ComponentActivity() {
                 }
                 return true
             }
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                if (onStage()) {
-                    controller.send(RemoteCommand.PREVIOUS)
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                // A held key repeats: it changes the track once, not twenty times.
+                if (event.repeatCount == 0 && onStage()) {
+                    if (controller.spokenKeys) {
+                        // A book or an episode: a press jumps (on release), a held key goes by chapters.
+                        sideLongPressed = false
+                        event.startTracking()
+                    } else {
+                        controller.send(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) RemoteCommand.PREVIOUS else RemoteCommand.NEXT)
+                        peek()
+                    }
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                if (event.repeatCount == 0 && onStage()) {
+                    controller.send(if (keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS) RemoteCommand.PREVIOUS else RemoteCommand.NEXT)
                     peek()
                 }
                 return true
             }
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                if (onStage()) {
-                    controller.send(RemoteCommand.NEXT)
+            KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                if (event.repeatCount == 0 && onStage()) {
+                    controller.skip(if (keyCode == KeyEvent.KEYCODE_MEDIA_REWIND) -1 else +1)
                     peek()
                 }
                 return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                controller.send(RemoteCommand.PLAY_PAUSE)
-                peek()
+                if (event.repeatCount == 0) {
+                    controller.send(
+                        when (keyCode) {
+                            KeyEvent.KEYCODE_MEDIA_PLAY -> RemoteCommand.PLAY
+                            KeyEvent.KEYCODE_MEDIA_PAUSE -> RemoteCommand.PAUSE
+                            else -> RemoteCommand.PLAY_PAUSE
+                        },
+                    )
+                    peek()
+                }
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -157,6 +187,12 @@ class MainActivity : ComponentActivity() {
             if (!controller.menuOpen) controller.openMenu()
             return true
         }
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && !controller.menuOpen) {
+            sideLongPressed = true
+            controller.jump(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else +1)
+            peek()
+            return true
+        }
         return super.onKeyLongPress(keyCode, event)
     }
 
@@ -164,6 +200,15 @@ class MainActivity : ComponentActivity() {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             if (!centerLongPressed && !event.isCanceled) onCenterPressed()
             centerLongPressed = false
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            // Only a press that started a jump (spoken word) acts on release.
+            if (event.isTracking && !sideLongPressed && !event.isCanceled && onStage()) {
+                controller.skip(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else +1)
+                peek()
+            }
+            sideLongPressed = false
             return true
         }
         return super.onKeyUp(keyCode, event)

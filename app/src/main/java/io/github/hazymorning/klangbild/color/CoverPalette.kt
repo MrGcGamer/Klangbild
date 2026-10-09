@@ -40,6 +40,11 @@ data class ScenePalette(
     val kind: CoverKind,
     /** The cover's leading colour, or null for a neutral cover. */
     val lead: Lab?,
+    /**
+     * The progress bar's fill: the artist's level on the plain wall; on the cover's colours
+     * ([CoverPalette.derive] with `cover`) the cover's leading hue, light enough to stand out.
+     */
+    val accent: Int = inkMuted,
 )
 
 object CoverPalette {
@@ -176,6 +181,7 @@ object CoverPalette {
         lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
         wallTint: Float = 1f,
+        cover: Boolean = false,
     ): ScenePalette {
         val chromatic = analysis.clusters
             .filter { it.lab.chroma >= NEUTRAL_CHROMA && it.weight >= 0.02f }
@@ -189,7 +195,8 @@ object CoverPalette {
         // under amber light reads as pink. And it is warm itself – a little.
         val evening = ((lighting.warmth - Lighting.DAY.warmth) / (Lighting.EVENING.warmth - Lighting.DAY.warmth)).coerceIn(0f, 1f)
         val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
-        val inkChroma = neutralChroma + 0.008f * evening
+        // On the cover's own colours the text takes a little more of their hue – still near-neutral.
+        val inkChroma = neutralChroma * (if (cover) 1.6f else 1f) + 0.008f * evening
 
         // Three levels (lightness in Oklab): the title; artist, clock and the progress bar's
         // fill; everything else – on black like white at 100 / 80 / 62 %, on paper the same
@@ -223,7 +230,12 @@ object CoverPalette {
         // The light of the hour warms the text – a little: never more than twice the day's colour.
         // However late it is, every level stays readable: on black none falls below
         // [NIGHT_INK_FLOOR], on paper dimmed by the night the quietest still keeps 4.5:1.
-        val paperLimit = if (appearance == Appearance.DARK) 1f else lightestInkOn(wall)
+        // On the pale cover field the text stands on its darkest part, not on the paper.
+        val paperLimit = when {
+            appearance == Appearance.DARK -> 1f
+            cover -> min(lightestInkOn(wall), lightestInkOn(lighting.apply(Lch(FIELD_PALEST_DARK, 0.04f, hue).toLab()).toArgb()))
+            else -> lightestInkOn(wall)
+        }
         fun ink(level: Int): Int {
             val lit = lighting.apply(Lch(levels[level], inkChroma, inkHue).toLab()).toLch()
             val l = if (appearance == Appearance.DARK) {
@@ -233,14 +245,27 @@ object CoverPalette {
             }
             return Lch(l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
         }
+        val muted = ink(1)
+        // The bar's fill on the cover's colours: their leading hue, light (or dark on paper) enough
+        // to read against them; a neutral cover keeps the artist's level.
+        val accent = if (!cover || lead == null) {
+            muted
+        } else if (appearance == Appearance.DARK) {
+            val lit = lighting.apply(Lch(0.80f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.12f), lead.hue).toLab()).toLch()
+            Lch(maxOf(lit.l, NIGHT_INK_FLOOR[1]), lit.c, lit.h).toLab().toArgb()
+        } else {
+            val lit = lighting.apply(Lch(0.44f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.11f), lead.hue).toLab()).toLch()
+            Lch(minOf(lit.l, paperLimit - INK_STEP), lit.c, lit.h).toLab().toArgb()
+        }
         return ScenePalette(
             appearance = appearance,
             wall = wall,
             ink = ink(0),
-            inkMuted = ink(1),
+            inkMuted = muted,
             inkQuiet = ink(2),
             kind = analysis.kind,
             lead = lead,
+            accent = accent,
         )
     }
 
@@ -258,6 +283,9 @@ object CoverPalette {
      * the quietest still 4.5:1, the steps between the levels kept.
      */
     val NIGHT_INK_FLOOR = floatArrayOf(0.79f, 0.68f, 0.57f)
+
+    /** The darkest the pale cover field gets (Oklab L, before the hour's light): text is set against it. */
+    const val FIELD_PALEST_DARK = 0.87f
 
     /** The least step in lightness between two text levels where one has to give way. */
     private const val INK_STEP = 0.1f

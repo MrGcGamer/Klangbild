@@ -94,14 +94,12 @@ object RestTexts {
     }
 
     private val dateFormat = DateTimeFormatter.ofPattern("EEEE, d. MMMM", Locale.GERMAN)
-    /** "2:13", "21:47" – no leading zero, as a clock on a wall would show it. */
-    private val timeFormat = DateTimeFormatter.ofPattern("H:mm", Locale.GERMAN)
 
     fun date(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         dateFormat.format(Instant.ofEpochMilli(epochMs).atZone(zone))
 
-    fun time(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        timeFormat.format(Instant.ofEpochMilli(epochMs).atZone(zone))
+    /** "2:13", "21:47" – no leading zero, as a clock on a wall would show it. */
+    fun time(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String = TimeLine.clock(epochMs, zone)
 }
 
 /**
@@ -192,7 +190,7 @@ fun RestScreen(
         Crossfade(targetState = slot, animationSpec = tween(2_400, easing = Motion.Dimmer), label = "re-hang") { s ->
             val (dx, dy) = RestLight.blockOffset(s * 15 * 60_000L)
             // The lamp hangs just above the clock and moves with it.
-            val field = remember(tint, s) {
+            val field = rememberOffMain(tint, s) {
                 tint?.let {
                     val px = RestLight.field(480f + dx, 270f + dy - 18f - 35f, screen, SceneBuilder.ditherFor(it))
                     Bitmap.createBitmap(px, RestLight.MAP_W, RestLight.MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()

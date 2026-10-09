@@ -51,6 +51,9 @@ class ProgressColors(val track: Color, val fill: Color, val label: Color)
  *
  * The labels' cap height sits [labelGap] below the bar; the measured height ends at their
  * baseline, so a layout can align the block by it.
+ *
+ * In a book with chapters the bar spans the chapter: from [startMs] in the item's own time, for
+ * [durationMs]; a new chapter starts a new bar, without gliding back.
  */
 @Composable
 fun ProgressBar(
@@ -60,6 +63,7 @@ fun ProgressBar(
     colors: ProgressColors,
     labelStyle: TextStyle,
     modifier: Modifier = Modifier,
+    startMs: Long = 0L,
     thickness: Dp = 4.dp,
     labelGap: Dp = 10.dp,
 ) {
@@ -77,12 +81,13 @@ fun ProgressBar(
         animationSpec = tween(Motion.PAUSE_MS, easing = Motion.Dimmer),
         label = "progress-pause",
     )
-    val glide = remember(durationMs) { Glide() }
+    val glide = remember(startMs, durationMs) { Glide() }
+    val elapsed: () -> Long = { ((positionMs() ?: startMs) - startMs).coerceIn(0L, durationMs) }
     // The labels only change when the displayed second does.
-    val second by remember(durationMs) {
+    val second by remember(startMs, durationMs) {
         derivedStateOf {
             frame.longValue // re-read every refresh
-            ((positionMs() ?: 0L) / 1000L).coerceIn(0L, durationMs / 1000L)
+            elapsed() / 1000L
         }
     }
     val label = labelStyle.copy(color = colors.label)
@@ -93,7 +98,7 @@ fun ProgressBar(
             // Its own layer: the refresh re-records only the bar, not the labels.
             Canvas(Modifier.fillMaxWidth().height(thickness).graphicsLayer()) {
                 val now = frame.longValue // redraw on every refresh
-                val target = ((positionMs() ?: 0L).toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
+                val target = (elapsed().toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
                 val f = glide.at(target, now, durationMs)
                 val r = CornerRadius(size.height / 2f)
                 drawRoundRect(colors.track, cornerRadius = r)

@@ -27,7 +27,10 @@ import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
@@ -63,6 +66,8 @@ fun WallLayer(
     alpha: () -> Float = { 1f },
     level: () -> Float = { 1f },
 ) {
+    // With "Coverfarben" the cover's colours are the wall.
+    if (scene.coverField) return FieldLayer(scene, modifier, alpha, level)
     val image = remember(scene) { scene.wall.asImageBitmap() }
     val filters = remember { HashMap<Int, ColorFilter?>() }
     val lit = scene.appearance == Appearance.DARK
@@ -178,6 +183,7 @@ fun TextLayer(
     }
     val showBar = model.line == null && model.progress && model.durationMs != null
     val bottomLine = model.line
+    val measurer = rememberTextMeasurer(cacheSize = 4)
 
     Layout(
         modifier = modifier
@@ -196,8 +202,21 @@ fun TextLayer(
             } else {
                 Box(Modifier)
             }
-            // 4: album · year
-            if (plan.album != null) BasicText(plan.album, line(TextLine.ALBUM), style = block.album, maxLines = 1, overflow = TextOverflow.Ellipsis) else Box(Modifier)
+            // 4: album · year – or the chapter, which changes in place
+            when {
+                model.chapter != null -> Crossfade(
+                    targetState = model.chapter,
+                    modifier = line(TextLine.ALBUM),
+                    animationSpec = tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer),
+                    label = "chapter",
+                ) { chapter ->
+                    // A long name ends after a whole word, never inside one.
+                    val fitted = remember(chapter, colW, block.album) { fitWords(measurer, chapter, block.album, colW) }
+                    BasicText(fitted, style = block.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                plan.album != null -> BasicText(plan.album, line(TextLine.ALBUM), style = block.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                else -> Box(Modifier)
+            }
             // 5: progress bar, station or notice – changes cross-fade
             Crossfade(
                 targetState = when {
@@ -214,8 +233,9 @@ fun TextLayer(
                     BAR -> ProgressBar(
                         durationMs = model.durationMs ?: 1L,
                         positionMs = model.positionMs,
+                        startMs = model.rangeStartMs,
                         playing = playing,
-                        colors = ProgressColors(track = styles.ink.copy(alpha = 0.16f), fill = styles.muted, label = styles.quiet),
+                        colors = ProgressColors(track = styles.track, fill = styles.accent, label = styles.quiet),
                         labelStyle = styles.time,
                     )
                     else -> BasicText(content, style = styles.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -290,9 +310,30 @@ fun TextLayer(
 
 private const val BAR = "\u0000bar"
 
+/**
+ * [text] on one line of [width] px: whole, or cut after its last whole word that leaves room
+ * for an ellipsis ("Gespräch mit Frau Grubach – dann …"); a single word too long for the line
+ * is left to the line's own ellipsis.
+ */
+internal fun fitWords(measurer: TextMeasurer, text: String, style: TextStyle, width: Int): String {
+    fun fits(s: String) = measurer.measure(AnnotatedString(s), style, maxLines = 1, softWrap = false).size.width <= width
+    if (fits(text)) return text
+    var end = text.length
+    while (true) {
+        end = text.lastIndexOfAny(charArrayOf(' ', ' '), end - 1)
+        if (end <= 0) return text
+        // Never end on a dash or a separator: "Grubach – …", not "Grubach –…".
+        val head = text.substring(0, end).trimEnd(' ', ' ', '–', '·', ',', ':', ';')
+        if (head.isNotEmpty() && fits("$head …")) return "$head …"
+    }
+}
+
+/** What comes next; a new one (the next chapter, while a book plays on) cross-fades in place. */
 @Composable
 private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
-    BasicText(nextText(text, styles), modifier, style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Crossfade(text, modifier, tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer), label = "next") { t ->
+        BasicText(nextText(t, styles), style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /**

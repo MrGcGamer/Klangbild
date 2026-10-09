@@ -6,7 +6,8 @@ import kotlin.math.exp
 /**
  * Local progress interpolation. Home Assistant only reports the position when something
  * happens (play, pause, seek, track change), so the position is extrapolated from the last
- * report: `position + (now − reportedAt)`, with the server/local clock skew removed.
+ * report: `position + (now − reportedAt) × speed`, with the server/local clock skew removed –
+ * a book at 1.5× runs through its own time half as fast again.
  */
 object Progress {
     /**
@@ -19,7 +20,7 @@ object Progress {
         val duration = snapshot.track?.durationMs
         val extrapolated = if (snapshot.status == PlayerStatus.PLAYING) {
             val reportedLocal = snapshot.positionAtEpochMs?.let { it + skewMs } ?: receivedAtMs
-            pos + (nowMs - reportedLocal).coerceAtLeast(0)
+            pos + ((nowMs - reportedLocal).coerceAtLeast(0) * snapshot.speed.toDouble()).toLong()
         } else {
             pos
         }

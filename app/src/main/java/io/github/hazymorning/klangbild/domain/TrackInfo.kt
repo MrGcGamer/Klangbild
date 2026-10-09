@@ -17,6 +17,10 @@ data class TrackInfo(
     val artworkFallbackUrl: String? = null,
     /** Radio station or other source label, shown when it adds information. */
     val source: String? = null,
+    /** Music, a station, a podcast episode or an audiobook. */
+    val kind: MediaKind = MediaKind.MUSIC,
+    /** The chapters of a book or an episode (from Music Assistant), sorted; empty without any. */
+    val chapters: List<Chapter> = emptyList(),
     /** Stable identity used for transitions and caching. */
     val key: String = listOf(title, artists.joinToString(), album.orEmpty()).joinToString("|"),
 ) {
