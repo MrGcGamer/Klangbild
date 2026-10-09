@@ -7,6 +7,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      beta_tag:
+        description: "Beta veröffentlichen unter diesem Tag (z. B. v0.1.0-beta.1); leer = nur bauen"
+        required: false
+        default: 
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -152,7 +157,9 @@ jobs:
   beta:
     name: Beta-Release (Tag)
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.beta_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -164,8 +171,10 @@ jobs:
       - name: Beta veröffentlichen
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Klangbild ${{ github.ref_name }} (Beta, ${{ needs.build.outputs.version_name }})
+          # A manual run creates the tag on the built commit.
+          tag_name: ${{ inputs.beta_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Klangbild ${{ inputs.beta_tag || github.ref_name }} (Beta, ${{ needs.build.outputs.version_name }})
           prerelease: true
           make_latest: "false"
           body: |

@@ -110,7 +110,7 @@ Home-Assistant-Integration ohnehin).
    `https://github.com/hazymorning/Music-Assistant-TV/releases/latest/download/klangbild.apk`;
    das Repository ist privat, also im Browser angemeldet herunterladen). Vorabversionen
    stehen als Beta (Pre-Release) unter [Releases](../../releases) – ein Tag wie
-   `v0.1.0-beta.1` erzeugt eine. Für jeden Branch gibt es die APK außerdem als Artifact
+   `v0.1.0-beta.1` oder ein manueller CI-Lauf mit `beta_tag` erzeugt eine. Für jeden Branch gibt es die APK außerdem als Artifact
    `klangbild-apk` im jeweiligen [Actions-Lauf](../../actions).
 2. **Installieren** (vom Rechner im selben Netz):
    ```bash
