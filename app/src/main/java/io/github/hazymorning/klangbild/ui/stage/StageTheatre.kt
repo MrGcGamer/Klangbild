@@ -53,6 +53,7 @@ enum class Change {
  *
  * @param modelFor builds the text model for a stage (title, time line, clock …).
  * @param progressFor 0..1 track progress for the sundial (null for radio).
+ * @param lightFactor the lamp's strength from the settings (1 = as designed, 0 = off).
  */
 @Composable
 fun StageTheatre(
@@ -62,6 +63,7 @@ fun StageTheatre(
     progressFor: (StageData) -> Float?,
     wallClock: () -> Long,
     modifier: Modifier = Modifier,
+    lightFactor: () -> Float = { 1f },
 ) {
     var current by remember { mutableStateOf(stage) }
     var previous by remember { mutableStateOf<StageData?>(null) }
@@ -163,7 +165,7 @@ fun StageTheatre(
             1f - (1f - Motion.SWAP_LIGHT) * down
         }
     }
-    val level: () -> Float = { pausedLevel * breathing.value * swapDip() }
+    val level: () -> Float = { pausedLevel * breathing.value * swapDip() * lightFactor() }
 
     // The clock only moves along if its place changes. Then it stays, a little dimmed, where
     // it was through the dark moment and dissolves over to its new place as the new light

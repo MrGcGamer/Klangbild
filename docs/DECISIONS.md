@@ -366,3 +366,41 @@ Damit endet die Reihe der Kritikrunden vorerst: Die verbleibenden Fragen (wie da
 Stufen knapp über Schwarz zeigt, Bildrate, Helligkeitsbegrenzung) lassen sich nur auf dem
 echten Gerät beantworten.
 
+
+## 22. Nach dem ersten Test: Gruppe, Einstellungen, Lautstärke, Releases
+
+Rückmeldung vom Gerät: Klangbild soll zeigen, ob der Wohnzimmer-Lautsprecher allein oder
+mit allen anderen spielt, sich per Fernbedienung einstellen lassen und als normales Release
+erscheinen.
+
+- **Lautsprechergruppe in der Datumszeile.** Die Uhr über dem Titel wird zur Zeile wie über
+  einem Zeitungsartikel: „21:14 · Wohnzimmer + 5“. Das Muster „Raum + Anzahl“ ist das von
+  Sonos und Spotify und damit sofort lesbar; bei genau einem weiteren Lautsprecher stehen beide
+  Namen da („Wohnzimmer + Küche“). Kein Chip, kein Symbol: dieselben gesperrten Versalien wie
+  die Uhr, dieselbe leise Farbe. Spielt der Lautsprecher allein, steht nichts da – der
+  Fernseher hängt ja in diesem Raum. Die Gruppe kommt aus `group_members` (Home Assistant
+  listet dort alle Mitglieder samt Leiter, auf jedem Mitglied gleich); die Namen der anderen
+  liefert ein zweites `subscribe_entities`-Abo, das ausgetauscht wird, wenn sich die Gruppe
+  ändert. Gerätewörter („Lautsprecher“, „Sonos One“, „(MA)“) fallen aus den Namen. Ändert sich
+  die Gruppe, blendet nur dieser Teil der Zeile über; die Uhr bleibt stehen.
+- **Lautstärke** erscheint, wenn sie sich ändert – egal wo –, für dreieinhalb Sekunden an der
+  Stelle der Restzeit („Lautstärke 35 %“, wie die genaue Zeit nach einem Tastendruck, auch
+  nachts). Wer sie ständig sehen will, bekommt sie in die Datumszeile; ein Balken kommt nicht
+  in Frage. Pfeil hoch/runter können die Lautstärke des Lautsprechers ändern – aus
+  Voreinstellung aus, weil die Tasten sonst die genaue Zeit zeigen und ein versehentlicher
+  Druck das ganze Haus lauter machen kann.
+- **Einstellungen per Fernbedienung** statt nur QR-Code: ein Bildschirm im Raster der Bühne.
+  Links Überschrift und die Erklärung der gewählten Zeile, rechts die Zeilen; die gewählte
+  steht immer in der Bildschirmmitte im Licht einer Lampe, die Liste gleitet hindurch und
+  verblasst nach oben und unten – kein Rahmen, kein Schalter, keine Bildlaufleiste. Werte sind
+  Wörter („Bei Änderung“, „Dezent“). Jede Änderung gilt sofort, es gibt nichts zu bestätigen;
+  links/rechts laufen eine Skala entlang und halten an ihren Enden, OK geht im Kreis. Nach einer
+  Minute ohne Taste schließt das Menü (OLED). Optionen: Uhrzeit, Restzeit, Als Nächstes, Album,
+  Lautsprechergruppe, Lautstärke, Lampe (kräftig 1,45×, normal, dezent 0,5×, aus), Tag und
+  Nacht, Musik steuern, hoch/runter, Ruhezeit, danach, Home Assistant (QR-Code), Demo. Bewusst
+  nicht: Schriftgrößen, Farben, Layout-Varianten – die gestalterischen Entscheidungen bleiben
+  Entscheidungen.
+- **Releases:** Ein Tag `vX.Y.Z` (oder ein manueller CI-Lauf mit `release_tag`) erzeugt ein
+  normales Release, das GitHub auf der Startseite als „Latest“ zeigt; nur ein Tag mit
+  Bindestrich (`v1.1.0-beta.1`) wird eine Vorabversion. Der Versionsname der APK ist dann der
+  des Tags („1.0.0“). Ein Release wartet auf den Smoke-Test im Emulator.

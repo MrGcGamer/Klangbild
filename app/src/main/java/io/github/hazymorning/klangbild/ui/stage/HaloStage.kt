@@ -78,8 +78,9 @@ fun BaseWall(modifier: Modifier = Modifier) {
  * sundial's side ([sunAngle]), hidden behind the print and held off the screen edges by the
  * static wall mask, tinted with [tint]; a dark print also gets a faint rim all around.
  * [alpha] fades the layer during transitions; [lightLevel] dims the lamp (pause, link loss)
- * – dim light also loses colour. [holeOpen] 0..1 takes the print's shadow away while the
- * print itself is taken down, so the empty wall shows the whole pool and nothing else.
+ * – dim light also loses colour – or, above 1, makes it brighter (the "kräftig" setting).
+ * [holeOpen] 0..1 takes the print's shadow away while the print itself is taken down, so the
+ * empty wall shows the whole pool and nothing else.
  */
 @Composable
 fun HaloLightLayer(
@@ -94,11 +95,11 @@ fun HaloLightLayer(
     val light = remember(scene) { WallLight(scene) }
     Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
-        val level = lightLevel().coerceIn(0f, 1f)
+        val level = lightLevel().coerceIn(0f, 2f)
         if (a <= 0.002f || level <= 0.002f) return@Canvas
         val sun = sunAngle()
         light.place(HaloLight.lampPose(scene.shape, sun, scene.screen), sun, scene.shape, density, size)
-        val filter = ColorFilter.tint(Color(HaloLight.dimTint(tint(), level)), BlendMode.Modulate)
+        val filter = ColorFilter.tint(Color(HaloLight.levelTint(tint(), level)), BlendMode.Modulate)
         val open = holeOpen().coerceIn(0f, 1f)
         if (open > 0.001f) drawRect(light.openWall, alpha = a, colorFilter = filter)
         if (open < 0.999f) {
@@ -109,7 +110,7 @@ fun HaloLightLayer(
                 drawRect(
                     rim,
                     alpha = a * (1f - open),
-                    colorFilter = ColorFilter.tint(Color(HaloLight.dimTint(scene.rimTint, level)), BlendMode.Modulate),
+                    colorFilter = ColorFilter.tint(Color(HaloLight.levelTint(scene.rimTint, level)), BlendMode.Modulate),
                     blendMode = BlendMode.Lighten,
                 )
             }
@@ -390,7 +391,7 @@ private fun artistLine(text: String, styles: ColumnStyles): AnnotatedString {
 fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
-    return remember(model.text, model.scene.layout, model.night, model.clock, model.scene.palette, localDensity) {
+    return remember(model.text, model.scene.layout, model.night, model.clock, model.capExtra, model.scene.palette, localDensity) {
         planText(model, ColumnStyles(model), measurer, localDensity)
     }
 }
@@ -425,7 +426,7 @@ private fun planText(
     val withoutClock = layout.slotTop * d + workBlock
     fun maxH(ceiling: Float) = (layout.titleBaseline * d - ceiling + 16 * d).roundToInt().coerceAtLeast(1)
 
-    val wantsClock = model.clock != null && !model.night
+    val wantsClock = (model.clock != null || model.capExtra != null) && !model.night
     val first = pickTitleSize(title, styles, measurer, colW, maxH(if (wantsClock) withClock else withoutClock))
     val showClock = wantsClock && first != null
     val choice = first ?: pickTitleSize(title, styles, measurer, colW, maxH(withoutClock))
@@ -481,8 +482,8 @@ fun HaloTextLayer(
         }
         translationY = if (which in steady) 0f else (offsetY() * density).roundToInt().toFloat()
     }
-    // At night only an explicit request for the exact time shows a time line.
-    val timeLine = model.timeLine?.takeIf { !night || it.figures }
+    // At night only an answer to a key press (exact time, volume) shows a time line.
+    val timeLine = model.timeLine?.takeIf { !night || it.atNight }
 
     Layout(
         modifier = modifier
@@ -588,9 +589,11 @@ fun steadyLines(before: StageModel, beforePlan: TextPlan, after: StageModel, aft
 }
 
 /**
- * The clock at the top of the text column, its cap height on the cover's top edge.
- * [color] overrides the palette's colour (a clock that stays through a change takes on the
- * new print's colour gradually).
+ * The dateline at the top of the text column, its cap height on the cover's top edge: the
+ * clock, then where the music plays ("21:14 · Wohnzimmer + 5") and, if wanted, how loud.
+ * The place changes seldom and then cross-fades; the clock simply ticks. [color] overrides
+ * the palette's colour (a clock that stays through a change takes on the new print's colour
+ * gradually).
  */
 @Composable
 fun HaloClockLayer(
@@ -601,21 +604,49 @@ fun HaloClockLayer(
     color: ColorProducer? = null,
 ) {
     val clock = model.clock
-    if (clock == null || !plan.showClock || model.night) return
+    val extra = model.capExtra
+    if ((clock == null && extra == null) || !plan.showClock || model.night) return
     val layout = model.scene.layout
     val styles = remember(model.text, model.scene.palette) { ColumnStyles(model) }
     Layout(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
-        content = { BasicText(clock, style = styles.clock, color = color) },
+        content = {
+            if (clock != null) BasicText(clock, style = styles.clock, color = color) else Box(Modifier)
+            Crossfade(
+                targetState = extra,
+                animationSpec = tween(TIME_LINE_FADE_MS, easing = Motion.Dimmer),
+                label = "dateline",
+            ) { e ->
+                if (e != null) {
+                    BasicText(datelineText(e, afterClock = clock != null), style = styles.clock, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else {
+                    Box(Modifier)
+                }
+            }
+        },
     ) { measurables, constraints ->
-        val p = measurables[0].measure(Constraints())
+        val colW = (layout.columnWidth * density).roundToInt()
+        val c = measurables[0].measure(Constraints(maxWidth = colW))
+        val e = measurables[1].measure(Constraints(maxWidth = (colW - c.width).coerceAtLeast(0)))
         val baseline = (layout.clockTop * density).roundToInt() + (12.sp.toPx() * 0.70f).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
-            val b = p[FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: p.height
-            p.place((layout.columnLeft * density).roundToInt(), baseline - b)
+            fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: height
+            val x = (layout.columnLeft * density).roundToInt()
+            if (c.height > 0) c.place(x, baseline - c.first())
+            if (e.height > 0) e.place(x + c.width, baseline - e.first())
         }
+    }
+}
+
+/** The place in the dateline's capitals – without letter-spacing where a script has no capitals. */
+private fun datelineText(extra: String, afterClock: Boolean): AnnotatedString = buildAnnotatedString {
+    if (afterClock) append(TimeLine.SEPARATOR)
+    if (isSpacingFriendly(extra)) {
+        append(extra.uppercase())
+    } else {
+        withStyle(SpanStyle(letterSpacing = 0.em)) { append(extra) }
     }
 }
 

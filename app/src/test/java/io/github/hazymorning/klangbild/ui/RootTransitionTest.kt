@@ -37,7 +37,7 @@ class RootTransitionTest {
         val a = Fixtures.stage(Fixtures.track(SyntheticCover.MOOS), mdpi)
         val b = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI), mdpi)
         fun stageUi(s: io.github.hazymorning.klangbild.app.StageData) =
-            UiState(screen = Screen.Stage(s.track, PlayerStatus.PLAYING, null), stage = s, showClock = true)
+            UiState(screen = Screen.Stage(s.track, PlayerStatus.PLAYING, null), stage = s)
         var ui by mutableStateOf(stageUi(a))
         compose.mainClock.autoAdvance = false
         compose.setContent { KlangbildRoot(ui, mdpi, RootHooks(positionNow = { 60_000L }, now = { 0L })) }

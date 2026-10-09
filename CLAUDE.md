@@ -26,14 +26,16 @@ python3 tools/make_launcher_assets.py                          # re-render banne
 ## Architecture (data source → state model → UI)
 
 ```
-data/ha/        HaConnection (WebSocket: auth, subscribe_entities, call_service, ping, backoff)
+data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swappable one for
+                group members via watch(), call_service, ping, backoff)
                 EntityStore (compressed diff applier), PlayerParser (entity + MA get_queue),
                 HaUrls, LocalNetwork (cleartext only in LAN), ArtworkUrls (CDN hi-res rewrites)
                 HaSource (NowPlayingSource: player + sun.sun + MA queue enrichment)
 data/demo/      DemoSource (invented catalogue, synthetic covers via demo://cover/NAME)
 data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader, Backoff
-domain/         TrackInfo, PlayerSnapshot, TrackText (typographic cleanup), Progress +
-                SmoothedPosition, TimeLine (time in words), ScreenStateMachine (Screen + keep-on/sleep)
+domain/         TrackInfo, PlayerSnapshot (+ group members, volume), SpeakerLabel ("Wohnzimmer + 5",
+                room names, "35 %"), TrackText (typographic cleanup), Progress + SmoothedPosition,
+                TimeLine (time in words), ScreenStateMachine (Screen + keep-on/sleep)
 color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette), Lighting (time of day)
 render/         HaloLayout (grid), HaloLight (light map, light colour/tint, sundial mask),
                 SceneBuilder (per-track precompute: Lanczos cover at exact px, light map, palette),
@@ -41,10 +43,12 @@ render/         HaloLayout (grid), HaloLight (light map, light colour/tint, sund
 art/            SyntheticCovers (test/demo covers), ChladniArt (missing-cover art), Noise
 app/            NowPlayingController (single source of truth → StateFlow<UiState>), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API), SetupPage (HTML), SetupServer (+ QR, discovery)
-ui/             KlangbildRoot (screen switch, entrance fade, OLED drift), stage/ (HaloStage layers,
-                StageTheatre transitions), RestScreen, SetupScreen, Motion, DebugOverlay/FrameStats
+ui/             KlangbildRoot (screen switch, entrance fade, OLED drift, menu overlay), stage/ (HaloStage
+                layers, StageTheatre transitions), MenuScreen (settings by remote), RestScreen,
+                SetupScreen, Motion, DebugOverlay/FrameStats
 dream/          KlangbildDream (DreamService with ComposeView)
-config/         Settings + SettingsStore (DataStore), LaunchExtras (am start extras)
+config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel) + SettingsStore (DataStore),
+                SettingsMenu (entries, values, German explanations, steps), LaunchExtras (am start extras)
 ```
 
 ## Design principles (do not regress)
@@ -73,6 +77,16 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
 - **Grid** (960 × 540 dp): cover slot 320 dp at 108 dp margin; text column 360 dp; clock cap
   on the cover top, title grows upward from 44 dp above the artist baseline (350 dp), time
   line on the cover bottom. Layout mirrors per album (burn-in), whole stage drifts ±12 dp.
+- **Dateline:** the clock line carries where the music plays – "21:14 · Wohnzimmer + 5"
+  (Sonos' pattern; both names for a group of two; nothing while the speaker plays alone) –
+  and, if chosen, the volume, all in the clock's spaced caps and colour. Only the place
+  cross-fades when the group changes. Volume changes show 3.5 s in the time line's place
+  ("Lautstärke 35 %", also at night). Never chips, icons or bars.
+- **Settings menu** (OK long-press / Menu): the stage's grid, heading and the chosen line's
+  explanation on the left, lines on the right; the chosen line sits at the screen's middle in
+  a static lamp pool, the list glides through it and fades with distance. Values are words,
+  changes apply at once (left/right clamp, OK wraps), closes itself after 60 s. Options show
+  or hide parts and dim the lamp – no fonts, colours or layout variants.
 - **Honest resolution:** ≤ 1.1 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
   small covers sit optically centred in a charcoal mat with grain and a 1 dp white bevel (a
   light mat would be the largest static bright area on the OLED).

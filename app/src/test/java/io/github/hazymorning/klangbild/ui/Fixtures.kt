@@ -47,17 +47,20 @@ object Fixtures {
         night: Boolean = false,
         exact: Boolean = false,
         scene: ArtworkScene = scene(track, screen, lighting),
+        capExtra: String? = null,
+        timeLine: TimeLine.Line? = TimeLine.compute(status, positionMs, track.durationMs, next?.let { TrackText.from(it) }, track.source, exact),
+        album: Boolean = true,
     ): StageModel {
-        val nextText = next?.let { TrackText.from(it) }
         return StageModel(
             scene = scene,
-            text = TrackText.from(track),
+            text = TrackText.from(track).let { if (album) it else it.copy(album = null) },
             status = status,
             durationMs = track.durationMs,
             positionMs = { positionMs },
-            timeLine = TimeLine.compute(status, positionMs, track.durationMs, nextText, track.source, exact),
+            timeLine = timeLine,
             clock = clock,
             night = night,
+            capExtra = capExtra,
         )
     }
 
@@ -66,13 +69,21 @@ object Fixtures {
 
     /** The animated stage (pause dimming, buffering breath) for one stage, frozen in time. */
     @Composable
-    fun Theatre(stage: StageData, status: PlayerStatus, next: TrackInfo? = null, night: Boolean = false, exact: Boolean = false) {
+    fun Theatre(
+        stage: StageData,
+        status: PlayerStatus,
+        next: TrackInfo? = null,
+        night: Boolean = false,
+        exact: Boolean = false,
+        lightFactor: Float = 1f,
+    ) {
         StageTheatre(
             stage = stage,
             status = status,
             modelFor = { s -> model(s.track, next = next, status = status, night = night, exact = exact, scene = s.scene) },
             progressFor = { s -> s.track.durationMs?.let { 1f / 3f } },
             wallClock = { 0L },
+            lightFactor = { lightFactor },
         )
     }
 }

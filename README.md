@@ -45,6 +45,8 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | *Nachts sehr zurückhaltend: nur Cover, Titel, Künstler* | *Nichts läuft: eine stille Uhr an einer Wand im Lampenlicht* |
 | ![Verbindung weg](docs/screens/10-verbindung.jpg) | ![Einrichtung per QR-Code](docs/screens/11-einrichtung.jpg) |
 | *Verbindung weg: ruhig erklärt, nie ein Fehlercode* | *Einrichtung: der QR-Code hängt wie ein Bild an der Wand* |
+| ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
+| *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht einer Lampe* |
 
 **Titelwechsel** – das alte Bild wird dunkel, die Lampe wird heruntergedreht, und wo das
 Bild hing, liegt für einen Moment nur ihr schwacher, runder Lichtkegel auf der leeren Wand;
@@ -95,6 +97,16 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   Verbindung weg, Lautsprecher nicht erreichbar oder unbekannt, Token abgelehnt, Einrichtung.
 - **Als Nächstes** kommt aus der Music-Assistant-Warteschlange (`music_assistant.get_queue`);
   das Cover des nächsten Titels wird vorab berechnet, damit der Wechsel nahtlos ist.
+- **Lautsprechergruppe.** Spielen weitere Lautsprecher mit (Music Assistant, Attribut
+  `group_members`), steht neben der Uhrzeit „Wohnzimmer + 5“ – so, wie Sonos und Spotify
+  Gruppen benennen; bei nur einem weiteren Lautsprecher beide Namen („Wohnzimmer + Küche“).
+  Gerätewörter wie „Lautsprecher“ oder „Sonos One“ fallen aus dem Namen weg. Spielt der
+  Lautsprecher allein, steht dort nichts.
+- **Lautstärke.** Ändert sie sich – am Handy, in Home Assistant, egal wo –, steht sie ein paar
+  Sekunden unter dem Bild („Lautstärke 35 %“); auf Wunsch ständig neben der Uhrzeit oder nie.
+- **Einstellungen mit der Fernbedienung.** Jede Zeile lässt sich einzeln zeigen oder
+  verbergen, die Lampe kräftiger, dezenter oder ganz ausschalten (siehe
+  [Bedienung](#bedienung-mit-der-fernbedienung)).
 - **Ruhe.** Der Bildschirm bleibt nur an, solange Musik läuft. Nach einer einstellbaren
   Zeit ohne Musik gibt Klangbild den Bildschirm frei oder schließt sich.
 - **Demo-Modus** ohne Home Assistant: zwölf erfundene Veröffentlichungen mit erzeugten
@@ -105,13 +117,14 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 Voraussetzung: ADB-Zugriff auf den Google TV Streamer (den hast du für die
 Home-Assistant-Integration ohnehin).
 
-1. **APK holen.** Die signierte Release-APK liegt nach jedem Build auf `main` im
-   [neuesten Release](../../releases/latest) (fester Link:
-   `https://github.com/hazymorning/Music-Assistant-TV/releases/latest/download/klangbild.apk`;
-   das Repository ist privat, also im Browser angemeldet herunterladen). Vorabversionen
-   stehen als Beta (Pre-Release) unter [Releases](../../releases) – ein Tag wie
-   `v0.1.0-beta.1` oder ein manueller CI-Lauf mit `beta_tag` erzeugt eine. Für jeden Branch gibt es die APK außerdem als Artifact
-   `klangbild-apk` im jeweiligen [Actions-Lauf](../../actions).
+1. **APK holen.** Die signierte Release-APK hängt am [neuesten Release](../../releases/latest)
+   – auf der Startseite des Repositorys rechts unter *Releases* („Latest“). Fester Link:
+   `https://github.com/hazymorning/Music-Assistant-TV/releases/latest/download/klangbild.apk`
+   (das Repository ist privat, also im Browser angemeldet herunterladen). Ein Release entsteht
+   durch ein Tag wie `v1.1.0` oder einen manuellen CI-Lauf mit `release_tag`, außerdem bei
+   jedem Build auf `main`; ein Tag mit Bindestrich (`v1.2.0-beta.1`) wird eine Vorabversion.
+   Für jeden Branch gibt es die APK außerdem als Artifact `klangbild-apk` im jeweiligen
+   [Actions-Lauf](../../actions).
 2. **Installieren** (vom Rechner im selben Netz):
    ```bash
    adb connect 192.168.1.50:5555          # IP des Streamers
@@ -119,7 +132,14 @@ Home-Assistant-Integration ohnehin).
    ```
    Updates funktionieren immer mit `adb install -r`, weil jede Version mit demselben
    Schlüssel signiert ist und der `versionCode` automatisch steigt.
-3. **Starten:** Klangbild erscheint unter *Apps* im Google-TV-Launcher. Oder per ADB:
+3. **Starten:** Google TV zeigt per ADB installierte Apps nicht in der Startzeile, aber in
+   der Übersicht: *Apps → Ihre Apps → Alle anzeigen* (ganz ans Ende der Zeile scrollen).
+   Dort Klangbild mit *OK* lang drücken → *Verschieben* bzw. *Zu Favoriten hinzufügen*, dann
+   steht es in der Zeile „Ihre Apps“ auf dem Startbildschirm. Die Stern-Taste der
+   Streamer-Fernbedienung lässt sich unter *Einstellungen → Fernbedienungen und Zubehör* mit
+   einer App belegen. (Beides nicht am echten Gerät mit Klangbild geprüft – die Menünamen
+   können je nach Google-TV-Version abweichen.) Aus Home Assistant siehe
+   [Klangbild öffnen](#klangbild-aus-home-assistant-öffnen). Oder per ADB:
    ```bash
    adb shell am start -n io.github.hazymorning.klangbild/.MainActivity
    ```
@@ -144,8 +164,9 @@ Beim ersten Start zeigt Klangbild einen QR-Code und einen sechsstelligen Code.
    Music-Assistant-Player stehen oben. Den Wohnzimmer-Lautsprecher wählen.
 5. Ruhezeit und Optionen wählen, *Speichern*. Der Fernseher verbindet sich sofort.
 
-Die Einstellungen lassen sich jederzeit wieder öffnen: **OK lange drücken** (oder die
-Menü-Taste). *Zurück* schließt sie wieder.
+Später ändert sich die Verbindung über die Einstellungen am Fernseher: **OK lange drücken**
+(oder die Menütaste) → *Verbindung → Home Assistant* zeigt den QR-Code wieder. *Zurück*
+schließt ihn.
 
 ### Alternativ: alles per ADB
 
@@ -164,13 +185,64 @@ adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
 | `sleep_minutes` | Int/String | Minuten ohne Musik bis zur Ruhe (1–720, Standard 10) |
 | `sleep_action` | String | `release` (Bildschirm freigeben, Standard) oder `close` (App schließen) |
 | `clock` | Boolean | Uhr anzeigen (Standard `true`) |
+| `time_line` | Boolean | Restzeit unter dem Bild (Standard `true`) |
+| `next` | Boolean | „Als Nächstes“ in der Restzeit (Standard `true`) |
+| `album` | Boolean | Albumtitel (Standard `true`) |
+| `group` | Boolean | Lautsprechergruppe neben der Uhr (Standard `true`) |
+| `volume` | String | Lautstärke: `bei_aenderung` (Standard), `immer` oder `aus` |
+| `light` | String | Lampe: `kraeftig`, `normal` (Standard), `dezent` oder `aus` |
+| `day_night` | Boolean | Abends wärmer, nachts nur Bild und Titel (Standard `true`) |
+| `remote` | Boolean | Fernbedienung steuert die Musik (Standard `true`) |
+| `volume_keys` | Boolean | Pfeil hoch/runter ändern die Lautstärke (Standard `false`) |
 | `demo` | Boolean | Nur für diesen Start: Demo statt Home Assistant |
 | `setup` | Boolean | Nur für diesen Start: Einstellungen öffnen |
 | `debug` | Boolean | Nur für diesen Start: Bildrate einblenden (siehe Fehlerbehebung) |
 
-Läuft Klangbild schon, übernimmt es neue Extras ohne Neustart.
+Läuft Klangbild schon, übernimmt es neue Extras ohne Neustart. Boolesche Werte verstehen
+auch `ja`/`nein` und `an`/`aus`.
 
 ## Home-Assistant-Automationen
+
+### Klangbild aus Home Assistant öffnen
+
+Wie jede andere App über die Quelle des Streamers – der Paketname ist
+`io.github.hazymorning.klangbild`:
+
+```yaml
+action: media_player.select_source
+target:
+  entity_id: media_player.android_tv_wohnzimmer
+data:
+  source: io.github.hazymorning.klangbild
+```
+
+Mit der ADB-Integration (*Android Debug Bridge*) geht es auch mit Extras, etwa um den
+Lautsprecher mitzugeben oder für den Abend die Lampe zu dämpfen:
+
+```yaml
+action: androidtv.adb_command
+target:
+  entity_id: media_player.android_tv_wohnzimmer
+data:
+  command: >-
+    am start -n io.github.hazymorning.klangbild/.MainActivity
+    --es entity media_player.wohnzimmer --es light dezent
+```
+
+Als Button im Dashboard (Tap-Aktion):
+
+```yaml
+type: button
+name: Klangbild
+icon: mdi:image-frame
+tap_action:
+  action: perform-action
+  perform_action: media_player.select_source
+  target:
+    entity_id: media_player.android_tv_wohnzimmer
+  data:
+    source: io.github.hazymorning.klangbild
+```
 
 Platzhalter anpassen:
 - `media_player.wohnzimmer` – der Music-Assistant-Player im Wohnzimmer
@@ -259,12 +331,31 @@ Klangbild hat keine sichtbaren Bedienelemente. Die Fernbedienung wirkt trotzdem:
 |---|---|
 | OK | Pause / Weiter (der Lautsprecher in Home Assistant) |
 | ◀ / ▶ | Vorheriger / nächster Titel |
-| ▲ / ▼ | Zeigt für ein paar Sekunden die genaue Zeit |
-| OK lange drücken, Menü | Einstellungen (QR-Code) |
+| ▲ / ▼ | Zeigt für ein paar Sekunden die genaue Zeit – oder ändert die Lautstärke (einstellbar) |
+| OK lange drücken, Menü | Einstellungen |
 | Zurück | Klangbild schließen (bzw. Einstellungen schließen) |
 
-Die Steuerung lässt sich in den Einstellungen abschalten. Beim ersten Start ohne
-Einrichtung startet OK die Demo.
+Beim ersten Start ohne Einrichtung startet OK die Demo.
+
+### Einstellungen
+
+*OK lange drücken* (oder die Menütaste) öffnet die Einstellungen. ▲ / ▼ wählen eine Zeile –
+sie steht immer in der Mitte, im Licht einer Lampe –, ◀ / ▶ oder OK ändern sie. Jede
+Änderung gilt sofort, es gibt nichts zu bestätigen; *Zurück* schließt. Unbenutzt schließen
+sich die Einstellungen nach einer Minute von selbst.
+
+| Bereich | Zeile | Werte |
+|---|---|---|
+| Anzeige | Uhrzeit, Restzeit, Als Nächstes, Album, Lautsprechergruppe | an / aus |
+| | Lautstärke | bei Änderung / immer / aus |
+| Licht | Lampe | kräftig / normal / dezent / aus |
+| | Tag und Nacht | an / aus |
+| Fernbedienung | Musik steuern (OK, ◀ / ▶) | an / aus |
+| | Hoch und runter | genaue Zeit / Lautstärke |
+| Ruhe | Ruhe nach | fünf Minuten bis zwei Stunden |
+| | Danach | Bildschirm freigeben / App schließen |
+| Verbindung | Home Assistant | OK zeigt den QR-Code zum Einrichten |
+| | Demo | OK startet bzw. beendet die Demo |
 
 ## Bildschirmschoner (optional)
 
@@ -300,6 +391,8 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | Die Einrichtungsseite lädt nicht | Handy und Fernseher müssen im selben Netz sein; die Seite läuft nur, solange der QR-Code zu sehen ist. |
 | Ruckeln? | Mit `--ez debug true` starten: oben links stehen Bilder pro Sekunde, langsamster Frame und verspätete Frames. Außerdem: `adb shell dumpsys gfxinfo io.github.hazymorning.klangbild`. |
 | App schließt nach einer Weile | Ruhezeit mit „App schließen“ eingestellt – in den Einstellungen auf „Bildschirm freigeben“ ändern. |
+| Klangbild fehlt auf dem Startbildschirm | Per ADB installierte Apps stehen unter *Apps → Ihre Apps → Alle anzeigen*; von dort zu den Favoriten verschieben. Oder aus Home Assistant öffnen (`media_player.select_source`). |
+| Keine Lautsprechergruppe zu sehen | Music Assistant meldet Gruppen über das Attribut `group_members` des Players (nur bei synchron gruppierten Playern). Spielt der Lautsprecher allein, steht bewusst nichts da. |
 
 Logs: `adb logcat | grep -i klangbild`
 

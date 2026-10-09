@@ -40,6 +40,35 @@ class PlayerParserTest {
     }
 
     @Test
+    fun `group members without this speaker, volume and mute`() {
+        val leader = PlayerParser.player(
+            entity(
+                "playing",
+                """{"media_title":"X","group_members":["media_player.wz","media_player.kueche","media_player.bad","media_player.kueche"],
+                   "volume_level":0.35,"is_volume_muted":false}""",
+            ),
+            base,
+        )
+        assertThat(leader.groupMembers).containsExactly("media_player.kueche", "media_player.bad").inOrder()
+        assertThat(leader.volume).isWithin(1e-6f).of(0.35f)
+        assertThat(leader.muted).isFalse()
+
+        // A member lists the leader first – it is one of the others, too.
+        val member = PlayerParser.player(
+            entity("playing", """{"media_title":"X","group_members":["media_player.kueche","media_player.wz"],"is_volume_muted":true}"""),
+            base,
+        )
+        assertThat(member.groupMembers).containsExactly("media_player.kueche")
+        assertThat(member.volume).isNull()
+        assertThat(member.muted).isTrue()
+
+        val alone = PlayerParser.player(entity("playing", """{"media_title":"X","group_members":["media_player.wz"]}"""), base)
+        assertThat(alone.groupMembers).isEmpty()
+        val noAttribute = PlayerParser.player(entity("playing", """{"media_title":"X","group_members":null}"""), base)
+        assertThat(noAttribute.groupMembers).isEmpty()
+    }
+
+    @Test
     fun `state strings and missing data`() {
         assertThat(PlayerParser.status("buffering")).isEqualTo(PlayerStatus.BUFFERING)
         assertThat(PlayerParser.status("standby")).isEqualTo(PlayerStatus.IDLE)

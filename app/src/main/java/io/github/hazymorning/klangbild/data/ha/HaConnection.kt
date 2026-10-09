@@ -78,12 +78,22 @@ class HaConnection(
 
     private var loop: Job? = null
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
+    private val extraIds = MutableStateFlow<Set<String>>(emptySet())
 
     @Volatile private var session: Session? = null
 
     fun start(config: HaConfig, entityIds: List<String>) {
         stop()
         loop = scope.launch { runLoop(config, entityIds) }
+    }
+
+    /**
+     * Also follows these entities – the other speakers of a group, say – in a second
+     * subscription that is replaced whenever the set changes (and renewed after a
+     * reconnect). Their states appear in [entities] next to the main ones.
+     */
+    fun watch(ids: Set<String>) {
+        extraIds.value = ids
     }
 
     fun stop() {
@@ -238,11 +248,7 @@ class HaConnection(
             // --- subscribe ---------------------------------------------------------------
             val store = EntityStore()
             val subId = s.nextId()
-            s.send(buildJsonObject {
-                put("id", subId)
-                put("type", "subscribe_entities")
-                put("entity_ids", buildJsonArray { entityIds.forEach { add(JsonPrimitive(it)) } })
-            })
+            s.send(subscribe(subId, entityIds))
             session = s
             _status.value = HaStatus.Connected
             onConnected()
@@ -265,19 +271,65 @@ class HaConnection(
                 }
             }
 
+            // --- extra entities: a second subscription, replaced when the set changes -----
+            val extraStore = EntityStore()
+            var extraSubId: Int? = null
+            var extraFor: Set<String> = emptySet()
+            val extraChanges = Channel<Set<String>>(Channel.CONFLATED)
+            val extraWatcher = launch { extraIds.collect { extraChanges.send(it) } }
+            fun publishEntities() {
+                _entities.value = extraStore.snapshot() + store.snapshot()
+            }
+            fun follow(ids: Set<String>) {
+                extraSubId?.let { old ->
+                    s.send(buildJsonObject {
+                        put("id", s.nextId())
+                        put("type", "unsubscribe_events")
+                        put("subscription", old)
+                    })
+                }
+                extraSubId = null
+                extraFor = ids
+                // Only publish if entities really leave: right after a reconnect the main
+                // snapshot is not there yet, and an empty map would read as "player gone".
+                val hadExtras = extraStore.snapshot().isNotEmpty()
+                extraStore.clear()
+                if (ids.isNotEmpty()) {
+                    val id = s.nextId()
+                    s.send(subscribe(id, ids.toList()))
+                    extraSubId = id
+                }
+                if (hadExtras) publishEntities()
+            }
+
             // --- message loop ------------------------------------------------------------
             try {
                 while (true) {
-                    when (val ev = events.receive()) {
+                    val next = select<Any> {
+                        events.onReceive { it }
+                        extraChanges.onReceive { it }
+                    }
+                    if (next is Set<*>) {
+                        val ids = next.filterIsInstance<String>().toSet()
+                        if (ids != extraFor) follow(ids)
+                        continue
+                    }
+                    when (val ev = next as WsEvent) {
                         is WsEvent.Text -> for (msg in parseMessages(ev.text)) {
                             val id = (msg["id"] as? JsonPrimitive)?.intOrNull
                             when (msg.type()) {
-                                "event" -> if (id == subId) {
+                                "event" -> {
+                                    val target = when {
+                                        id == null -> continue
+                                        id == subId -> store
+                                        id == extraSubId -> extraStore
+                                        else -> continue
+                                    }
                                     val event = msg["event"] as? JsonObject ?: continue
-                                    val changed = store.apply(event)
+                                    val changed = target.apply(event)
                                     if (changed.isNotEmpty()) {
                                         recordSkew(event)
-                                        _entities.value = store.snapshot()
+                                        publishEntities()
                                     }
                                 }
                                 "result" -> {
@@ -306,11 +358,18 @@ class HaConnection(
                 SessionEnd.Lost(null)
             } finally {
                 pinger.cancel()
+                extraWatcher.cancel()
                 s.pending.values.forEach { it.cancel() }
             }
         } finally {
             socket.cancel()
         }
+    }
+
+    private fun subscribe(id: Int, entityIds: List<String>) = buildJsonObject {
+        put("id", id)
+        put("type", "subscribe_entities")
+        put("entity_ids", buildJsonArray { entityIds.forEach { add(JsonPrimitive(it)) } })
     }
 
     private fun recordSkew(event: JsonObject) {

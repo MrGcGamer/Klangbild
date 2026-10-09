@@ -7,6 +7,7 @@ import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
+import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -45,6 +46,7 @@ class HaSource(
     private var linkDownSince: Long? = null
     private var lastSnapshot: PlayerSnapshot? = null
     private var receivedAt = 0L
+    private var watched: Set<String> = emptySet()
 
     override fun start() {
         connection.start(config, listOf(playerEntity, sunEntity))
@@ -76,6 +78,8 @@ class HaSource(
             RemoteCommand.PLAY_PAUSE -> "media_play_pause"
             RemoteCommand.NEXT -> "media_next_track"
             RemoteCommand.PREVIOUS -> "media_previous_track"
+            RemoteCommand.VOLUME_UP -> "volume_up"
+            RemoteCommand.VOLUME_DOWN -> "volume_down"
         }
         runCatching { connection.callService("media_player", service, playerEntity) }
     }
@@ -110,6 +114,12 @@ class HaSource(
 
         val enriched = player?.let { enrich(it) }
         val sun = entities[sunEntity]?.number("elevation")
+        // The other speakers of a group are followed too, for their names.
+        val others = player?.groupMembers.orEmpty()
+        if (others.toSet() != watched) {
+            watched = others.toSet()
+            connection.watch(watched)
+        }
         _state.value = SourceState(
             link = link,
             player = enriched,
@@ -119,6 +129,9 @@ class HaSource(
             receivedAtMs = receivedAt,
             skewMs = connection.clockSkew.offsetMs,
             linkDownSinceMs = linkDownSince,
+            group = others.takeIf { it.isNotEmpty() }?.let { ids ->
+                SpeakerGroup(self = player?.friendlyName, others = ids.map { entities[it]?.string("friendly_name") })
+            },
         )
     }
 

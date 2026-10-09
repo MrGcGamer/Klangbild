@@ -1,11 +1,17 @@
 package io.github.hazymorning.klangbild.app
 
 import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
+import io.github.hazymorning.klangbild.config.MenuContext
+import io.github.hazymorning.klangbild.config.MenuEntry
+import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.SessionOptions
 import io.github.hazymorning.klangbild.config.Settings
+import io.github.hazymorning.klangbild.config.SettingsMenu
 import io.github.hazymorning.klangbild.config.SettingsStore
 import io.github.hazymorning.klangbild.config.SleepAction
+import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.data.ArtworkLoader
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
@@ -39,14 +45,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.util.Calendar
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /** A scene that is ready to be shown for a track. */
 data class StageData(val track: TrackInfo, val scene: ArtworkScene)
+
+/** The settings menu while it is open: its lines and the one the cursor is on. */
+data class MenuState(val rows: List<MenuRow>, val cursor: Int)
 
 /** Everything the UI renders. */
 data class UiState(
@@ -58,13 +70,18 @@ data class UiState(
     val stage: StageData? = null,
     val lighting: Lighting = Lighting.DAY,
     val night: Boolean = false,
-    val showClock: Boolean = true,
+    /** What the stage shows (clock, time line, album …) and how strong its light is. */
+    val display: DisplayOptions = DisplayOptions(),
     val source: SourceState = SourceState(LinkState.CONNECTING),
     val session: SessionOptions = SessionOptions(),
     val entityId: String? = null,
     val demo: Boolean = false,
     /** Address, code and QR modules while the setup screen is open. */
     val setup: SetupInfo? = null,
+    /** The settings menu, null while it is closed. */
+    val menu: MenuState? = null,
+    /** The volume just changed: the time line shows it for a moment. */
+    val volumeFlash: Boolean = false,
 )
 
 /**
@@ -134,10 +151,8 @@ class NowPlayingController(
     private fun start() {
         settingsJob = scope.launch {
             settingsStore.settings.collect { s ->
-                settings.value = s
-                machine = ScreenStateMachine(timingFor(s))
-                reconcileSource()
-                recompute()
+                // While the menu's own changes are being written, it already shows them.
+                if (localEdits.get() == 0) onSettings(s)
             }
         }
         ticker = scope.launch {
@@ -188,17 +203,113 @@ class NowPlayingController(
         recompute()
     }
 
+    fun stopDemo() {
+        session.value = session.value.copy(demo = false)
+        reconcileSource()
+        recompute()
+    }
+
     fun networkAvailable() {
         (source as? HaSource)?.networkAvailable()
     }
 
     fun send(command: RemoteCommand) {
-        if (!settings.value.remoteControl && source !is DemoSource) return
+        val volume = command == RemoteCommand.VOLUME_UP || command == RemoteCommand.VOLUME_DOWN
+        val allowed = source is DemoSource || if (volume) settings.value.volumeKeys else settings.value.remoteControl
+        if (!allowed) return
+        if (volume) {
+            // Answer the key at once; the new value follows from Home Assistant.
+            volumeFlashUntil = now() + VOLUME_FLASH_MS
+            recompute()
+        }
         scope.launch { source?.send(command) }
     }
 
     suspend fun saveSettings(transform: (Settings) -> Settings) {
         settingsStore.update(transform, settingsStore.settings.first())
+    }
+
+    // --- settings menu -------------------------------------------------------------------
+
+    // Keys arrive on the main thread, ticks and data on background threads.
+    @Volatile private var menuCursor: Int? = null
+    @Volatile private var menuTouchedAt = 0L
+    private val localEdits = AtomicInteger()
+    private val persistLock = Mutex()
+
+    val menuOpen: Boolean get() = menuCursor != null
+
+    /** Up and down change the speaker's volume. */
+    val volumeKeys: Boolean get() = settings.value.volumeKeys
+
+    @Synchronized
+    fun openMenu() {
+        menuCursor = menuCursor ?: 0
+        menuTouchedAt = now()
+        recompute()
+    }
+
+    @Synchronized
+    fun closeMenu() {
+        menuCursor = null
+        recompute()
+    }
+
+    /** Up (−1) or down (+1) through the menu; it stops at its ends. */
+    @Synchronized
+    fun menuMove(delta: Int) {
+        val c = menuCursor ?: return
+        menuCursor = (c + delta).coerceIn(0, SettingsMenu.entries.size - 1)
+        menuTouchedAt = now()
+        recompute()
+    }
+
+    /**
+     * Changes the line under the cursor: left (−1) or right (+1) along its scale, OK goes
+     * round ([wrap]). The two action lines open the setup code or start/stop the demo.
+     */
+    fun menuChange(direction: Int, wrap: Boolean) {
+        val c = menuCursor ?: return
+        menuTouchedAt = now()
+        when (val entry = SettingsMenu.entries[c]) {
+            MenuEntry.CONNECTION -> {
+                menuCursor = null
+                if (source is DemoSource) session.value = session.value.copy(demo = false)
+                reconcileSource()
+                requestSetup(true)
+            }
+            MenuEntry.DEMO -> if (source is DemoSource) stopDemo() else startDemo()
+            else -> {
+                val updated = SettingsMenu.step(entry, settings.value, direction, wrap) ?: return
+                localEdits.incrementAndGet()
+                onSettings(updated)
+                scope.launch {
+                    try {
+                        // Always the newest state: quick presses may overtake each other.
+                        persistLock.withLock { settingsStore.update({ settings.value }, settings.value) }
+                    } finally {
+                        localEdits.decrementAndGet()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onSettings(s: Settings) {
+        settings.value = s
+        val timing = timingFor(s)
+        if (timing != machine.timing) {
+            val setup = machine.isSetupRequested
+            machine = ScreenStateMachine(timing).also { it.requestSetup(setup) }
+        }
+        reconcileSource()
+        recompute()
+    }
+
+    private fun menuState(s: Settings): MenuState? {
+        val cursor = menuCursor ?: return null
+        val ctx = MenuContext(link = _ui.value.source.link, demo = source is DemoSource)
+        return MenuState(SettingsMenu.rows(s, ctx), cursor)
     }
 
     /** Smoothed playback position for the current track, for the UI's draw phase. */
@@ -233,6 +344,7 @@ class NowPlayingController(
             return
         }
         newSource.start()
+        lastVolume = null
         sourceJob = scope.launch {
             newSource.state.collect { st ->
                 val p = st.player
@@ -242,11 +354,20 @@ class NowPlayingController(
                     val raw = p?.let { Progress.positionAt(it, now(), st.skewMs, st.receivedAtMs) }
                     smooth.onReport(p?.track?.key, raw, now())
                 }
+                // A new volume – set here, on a phone or anywhere else – is shown for a moment.
+                val volume = p?.volume?.let { it to p.muted }
+                if (volume != null) {
+                    if (lastVolume != null && volume != lastVolume) volumeFlashUntil = now() + VOLUME_FLASH_MS
+                    lastVolume = volume
+                }
                 _ui.value = _ui.value.copy(source = st)
                 recompute()
             }
         }
     }
+
+    private var lastVolume: Pair<Float, Boolean>? = null
+    @Volatile private var volumeFlashUntil = 0L
 
     private fun timingFor(s: Settings) = Timing(sleepAfterMs = s.sleepAfterMinutes * 60_000L)
 
@@ -254,21 +375,27 @@ class NowPlayingController(
     private fun recompute() {
         val s = settings.value
         val src = _ui.value.source
-        val decision: ScreenDecision = machine.decide(src, now())
+        val t = now()
+        // A menu nobody uses closes by itself – it must not stand still on the OLED.
+        if (menuCursor != null && t - menuTouchedAt > MENU_IDLE_MS) menuCursor = null
+        val decision: ScreenDecision = machine.decide(src, t)
         val lighting = lightingFor(s, src)
         val night = s.dayNight && lighting.brightness < 0.7f
         val previous = _ui.value
+        val menu = menuState(s)
         _ui.value = previous.copy(
             screen = decision.screen,
-            keepScreenOn = decision.keepScreenOn,
-            asleep = decision.asleep,
+            keepScreenOn = decision.keepScreenOn || menu != null,
+            asleep = decision.asleep && menu == null,
             sleepAction = s.sleepAction,
             lighting = lighting,
             night = night,
-            showClock = s.showClock,
+            display = s.display,
             session = session.value,
             entityId = s.entityId,
             demo = source is DemoSource,
+            menu = menu,
+            volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
         )
         val stage = decision.screen as? Screen.Stage
         if (stage != null) ensureScene(stage.track, stage.next, lighting)
@@ -366,6 +493,12 @@ class NowPlayingController(
 
     companion object {
         const val COVER_TIMEOUT_MS = 6_000L
+
+        /** How long a new volume stays in the time line. */
+        const val VOLUME_FLASH_MS = 3_500L
+
+        /** An untouched menu closes after this long. */
+        const val MENU_IDLE_MS = 60_000L
 
         fun isPlaying(s: Screen) = s is Screen.Stage && s.status == PlayerStatus.PLAYING
     }

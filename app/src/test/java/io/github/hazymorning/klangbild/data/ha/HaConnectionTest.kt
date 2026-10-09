@@ -13,6 +13,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
@@ -79,13 +80,20 @@ class HaConnectionTest {
                     webSocket.close(1000, null)
                 }
                 "subscribe_entities" -> {
+                    val ids = msg["entity_ids"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+                    val states = if ("media_player.kueche" in ids) {
+                        """"media_player.kueche":{"s":"playing","a":{"friendly_name":"Küche"},"c":"y","lc":1.0}"""
+                    } else {
+                        """"media_player.wz":{"s":"playing","a":{"media_title":"Erstes Lied","media_artist":"A"},"c":"x","lc":1.0}"""
+                    }
                     // result + initial snapshot coalesced into one frame (HA may do that)
                     webSocket.send(
                         """[{"id":$id,"type":"result","success":true,"result":null},
-                           {"id":$id,"type":"event","event":{"a":{"media_player.wz":{"s":"playing","a":{"media_title":"Erstes Lied","media_artist":"A"},"c":"x","lc":1.0}}}}]""",
+                           {"id":$id,"type":"event","event":{"a":{$states}}}]""",
                     )
                     if (closeAfterSubscribe) webSocket.close(1001, "restart")
                 }
+                "unsubscribe_events" -> webSocket.send("""{"id":$id,"type":"result","success":true,"result":null}""")
                 "call_service" -> webSocket.send(
                     """{"id":$id,"type":"result","success":true,"result":{"context":{"id":"c"},"response":{"media_player.wz":{"next_item":{"name":"Zweites Lied"}}}}}""",
                 )
@@ -124,6 +132,36 @@ class HaConnectionTest {
         val call = received.first { it["type"]?.jsonPrimitive?.content == "call_service" }
         assertThat(call["return_response"]).isEqualTo(JsonPrimitive(true))
         assertThat(call["target"].toString()).isEqualTo("""{"entity_id":"media_player.wz"}""")
+        conn.stop()
+    }
+
+    @Test
+    fun `follows the other speakers of a group in a second subscription`() = runBlocking {
+        enqueueHa()
+        val conn = connection()
+        conn.start(config(), listOf("media_player.wz"))
+        withTimeout(5_000) { conn.entities.first { it.containsKey("media_player.wz") } }
+
+        conn.watch(setOf("media_player.kueche"))
+        val both = withTimeout(5_000) { conn.entities.first { it.containsKey("media_player.kueche") } }
+        assertThat(both.getValue("media_player.kueche").string("friendly_name")).isEqualTo("Küche")
+        assertThat(both).containsKey("media_player.wz")
+        fun ofType(t: String) = received.filter { it["type"]?.jsonPrimitive?.content == t }
+        val subs = ofType("subscribe_entities")
+        assertThat(subs).hasSize(2)
+        assertThat(subs[1]["entity_ids"].toString()).isEqualTo("""["media_player.kueche"]""")
+
+        // A change of the extra entity arrives like any other.
+        val extraId = subs[1]["id"]!!.jsonPrimitive.content
+        sockets.last().send("""{"id":$extraId,"type":"event","event":{"c":{"media_player.kueche":{"+":{"s":"paused","lu":6.0}}}}}""")
+        withTimeout(5_000) { conn.entities.first { it["media_player.kueche"]?.state == "paused" } }
+
+        // The group breaks up: the second subscription ends, its entity leaves.
+        conn.watch(emptySet())
+        val alone = withTimeout(5_000) { conn.entities.first { !it.containsKey("media_player.kueche") } }
+        assertThat(alone).containsKey("media_player.wz")
+        withTimeout(5_000) { while (ofType("unsubscribe_events").isEmpty()) delay(20) }
+        assertThat(ofType("unsubscribe_events").single()["subscription"]!!.jsonPrimitive.content).isEqualTo(extraId)
         conn.stop()
     }
 

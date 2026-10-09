@@ -370,6 +370,19 @@ object HaloLight {
         return Lch(lab.l * f, c, lab.hue).toArgb()
     }
 
+    /**
+     * The tint at light level [k]: below 1 as [dimTint] (dim light loses colour), above 1
+     * the same light brighter – scaled in linear light, so its colour stays.
+     */
+    fun levelTint(tint: Int, k: Float): Int {
+        if (k <= 1f) return dimTint(tint, k)
+        fun ch(shift: Int): Int {
+            val v = Oklab.srgbToLinear(((tint shr shift) and 0xFF) / 255f) * k
+            return (Oklab.linearToSrgb(v.coerceIn(0f, 1f)) * 255f).roundToInt().coerceIn(0, 255)
+        }
+        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+    }
+
     /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
     fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
 

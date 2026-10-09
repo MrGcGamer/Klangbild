@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (controller.menuOpen && menuKey(keyCode)) return true
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 if (event.repeatCount == 0) {
@@ -120,21 +121,40 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                flashExactTime()
+                if (controller.ui.value.screen !is Screen.Setup && controller.volumeKeys) {
+                    controller.send(if (keyCode == KeyEvent.KEYCODE_DPAD_UP) RemoteCommand.VOLUME_UP else RemoteCommand.VOLUME_DOWN)
+                } else {
+                    flashExactTime()
+                }
                 return true
             }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
-                controller.requestSetup(true)
+                controller.openMenu()
                 return true
             }
         }
         return super.onKeyDown(keyCode, event)
     }
 
+    /** Keys while the settings menu is open; false lets the key through (media keys). */
+    private fun menuKey(keyCode: Int): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> controller.menuMove(-1)
+            KeyEvent.KEYCODE_DPAD_DOWN -> controller.menuMove(+1)
+            KeyEvent.KEYCODE_DPAD_LEFT -> controller.menuChange(-1, wrap = false)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> controller.menuChange(+1, wrap = false)
+            // OK acts on release, like everywhere else (a long press must not also change a line).
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> Unit
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> controller.closeMenu()
+            else -> return false
+        }
+        return true
+    }
+
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             centerLongPressed = true
-            controller.requestSetup(true)
+            if (!controller.menuOpen) controller.openMenu()
             return true
         }
         return super.onKeyLongPress(keyCode, event)
@@ -150,6 +170,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onCenterPressed() {
+        if (controller.menuOpen) {
+            controller.menuChange(+1, wrap = true)
+            return
+        }
         when (val s = controller.ui.value.screen) {
             is Screen.Setup -> when (s.reason) {
                 SetupReason.FIRST_RUN -> controller.startDemo()
@@ -164,10 +188,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Back closes the app – or just the settings when they were opened on top of the music. */
+    /** Back closes the app – or just the menu or the setup code opened on top of the music. */
     private fun onBack() {
         val s = controller.ui.value.screen
-        if (s is Screen.Setup && s.reason == SetupReason.REQUESTED) {
+        if (controller.menuOpen) {
+            controller.closeMenu()
+        } else if (s is Screen.Setup && s.reason == SetupReason.REQUESTED) {
             controller.requestSetup(false)
         } else {
             finish()

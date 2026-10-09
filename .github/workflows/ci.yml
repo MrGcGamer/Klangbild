@@ -3,18 +3,19 @@ name: CI
 on:
   push:
     branches: ["**"]
-    # A tag like v0.1.0-beta.1 publishes a beta (pre-release) with the APK.
+    # A tag like v1.0.0 publishes a release with the APK; v1.1.0-beta.1 (with a hyphen) a pre-release.
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
-      beta_tag:
-        description: "Beta veröffentlichen unter diesem Tag (z. B. v0.1.0-beta.1); leer = nur bauen"
+      release_tag:
+        description: "Release unter diesem Tag veröffentlichen (z. B. v1.0.0; mit Bindestrich wie v1.1.0-beta.1 als Vorabversion); leer = nur bauen"
         required: false
-        default: 
+        default: ""
 
+# A manual release run must not cancel the push run of the same commit (and vice versa).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -48,7 +49,15 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest -Proborazzi.test.record=true --stacktrace
 
       - name: Signierte Release-APK (R8)
-        run: ./gradlew :app:assembleRelease --stacktrace
+        env:
+          # A release carries its tag as version name (v1.0.0 → 1.0.0).
+          TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
+        run: |
+          if [ -n "$TAG" ]; then
+            ./gradlew :app:assembleRelease "-Pklangbild.versionName=${TAG#v}" --stacktrace
+          else
+            ./gradlew :app:assembleRelease --stacktrace
+          fi
 
       - name: Version auslesen
         id: version
@@ -154,32 +163,48 @@ jobs:
             `https://github.com/${{ github.repository }}/releases/latest/download/klangbild.apk`
           files: klangbild.apk
 
-  beta:
-    name: Beta-Release (Tag)
-    needs: build
+  publish:
+    name: GitHub-Release (Tag)
+    needs: [build, smoke]
     if: >-
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.beta_tag != '')
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ inputs.release_tag || github.ref_name }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: docs/releases
+
       - uses: actions/download-artifact@v7
         with:
           name: klangbild-apk
 
-      - name: Beta veröffentlichen
+      - name: Release-Text
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          notes="docs/releases/$TAG.md"
+          {
+            if [ -f "$notes" ]; then cat "$notes"; echo; fi
+            echo "**Installation:** \`adb install -r klangbild.apk\` – als Update über eine ältere Version; die Einstellungen bleiben erhalten."
+            echo
+            echo "Fester Link auf die jeweils neueste Version: \`https://github.com/$REPO/releases/latest/download/klangbild.apk\`"
+          } > release-body.md
+
+      - name: Release veröffentlichen
         uses: softprops/action-gh-release@v3
         with:
           # A manual run creates the tag on the built commit.
-          tag_name: ${{ inputs.beta_tag || github.ref_name }}
+          tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
-          name: Klangbild ${{ inputs.beta_tag || github.ref_name }} (Beta, ${{ needs.build.outputs.version_name }})
-          prerelease: true
-          make_latest: "false"
-          body: |
-            Vorabversion zum Testen – signierte Release-APK für Google TV (Sideload).
-
-            Installation: `adb install -r klangbild.apk`
-            (Update über eine ältere Version; Einstellungen bleiben erhalten.)
+          name: Klangbild ${{ needs.build.outputs.version_name }}
+          # Only a tag with a hyphen (v1.1.0-beta.1) is a pre-release; everything else is
+          # a normal release and shows as "Latest" on the repository page.
+          prerelease: ${{ contains(env.TAG, '-') }}
+          make_latest: ${{ !contains(env.TAG, '-') }}
+          body_path: release-body.md
           files: klangbild.apk

@@ -8,8 +8,15 @@ import kotlin.math.roundToLong
  * once a minute. Exact figures appear only briefly after a key press.
  */
 object TimeLine {
-    /** [label] is set in spaced capitals, [detail] in italics. */
-    data class Line(val label: String, val detail: String? = null, val figures: Boolean = false)
+    /**
+     * [label] is set in spaced capitals, [detail] in italics. [figures] lines (exact times)
+     * keep their case; [atNight] lines answer a key press and also show at night.
+     */
+    data class Line(val label: String, val detail: String? = null, val figures: Boolean = false, val atNight: Boolean = figures)
+
+    /** The volume for a moment after it changed: "Lautstärke  35 %". */
+    fun volume(level: Float?, muted: Boolean): Line? =
+        SpeakerLabel.volume(level, muted)?.let { Line("Lautstärke", it, atNight = true) }
 
     /** The one separator used everywhere: a middle dot between no-break-glued spaces. */
     const val SEPARATOR = " · "

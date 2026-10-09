@@ -90,6 +90,23 @@ class ReadmeShotsTest {
             SetupScreen(SetupReason.FIRST_RUN, info, SetupArt.scene(info, ScreenSpec.TV_1080, Lighting.DAY))
         }
     }
+
+    @Test fun s12() = captureRoboImage(out("12-gruppe")) {
+        val group = io.github.hazymorning.klangbild.domain.SpeakerLabel.group(
+            io.github.hazymorning.klangbild.domain.SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Arbeitszimmer", "Schlafzimmer", "Terrasse")),
+        )
+        HaloStage(Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = pärt, capExtra = group), wallClockMs = { 0L })
+    }
+
+    @Test fun s13() = captureRoboImage(out("13-einstellungen")) {
+        val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
+        val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(
+            settings,
+            io.github.hazymorning.klangbild.config.MenuContext(io.github.hazymorning.klangbild.data.LinkState.CONNECTED),
+        )
+        val cursor = io.github.hazymorning.klangbild.config.SettingsMenu.entries.indexOf(io.github.hazymorning.klangbild.config.MenuEntry.GROUP)
+        MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), Lighting.DAY)
+    }
 }
 
 /** The track change as frames for the README animation (960 × 540). */

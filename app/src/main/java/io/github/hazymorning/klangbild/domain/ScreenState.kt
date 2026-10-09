@@ -63,7 +63,7 @@ data class ScreenDecision(
  * Turns the source state plus time into what the screen shows. Pure apart from the one
  * piece of memory it needs: since when no music has been playing.
  */
-class ScreenStateMachine(private val timing: Timing = Timing()) {
+class ScreenStateMachine(val timing: Timing = Timing()) {
     private var notPlayingSince: Long? = null
     private var setupRequested = false
 

@@ -16,6 +16,19 @@ data class PlayerSnapshot(
     /** Music Assistant queue id when MA drives the player (for get_queue enrichment). */
     val activeQueue: String? = null,
     val isMusicAssistant: Boolean = false,
+    /** Entity ids of the other speakers playing in sync with this one (this one excluded). */
+    val groupMembers: List<String> = emptyList(),
+    /** Volume 0..1, null when the player does not report one. */
+    val volume: Float? = null,
+    val muted: Boolean = false,
+)
+
+/** The speakers playing together with the configured one. */
+data class SpeakerGroup(
+    /** Name of the configured speaker. */
+    val self: String?,
+    /** Names of the others, in Home Assistant's order; null where a name is not known (yet). */
+    val others: List<String?>,
 )
 
 /** What Music Assistant's queue adds on top of the player entity. */

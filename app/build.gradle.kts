@@ -21,9 +21,14 @@ val headCommitShortSha: String = providers.exec {
 }.standardOutput.asText.get().trim().ifEmpty { "local" }
 val versionEpochSeconds = 1767225600L // 2026-01-01T00:00:00Z
 val autoVersionCode = ((headCommitEpochSeconds - versionEpochSeconds) / 60L).coerceAtLeast(1L).toInt()
-val autoVersionName: String = DateTimeFormatter.ofPattern("yyyy.MM.dd")
-    .withZone(ZoneOffset.UTC)
-    .format(Instant.ofEpochSecond(headCommitEpochSeconds)) + " ($headCommitShortSha)"
+// A release build from a tag gets the tag's name ("1.0.0", passed by CI); every other build
+// is named after its commit date and hash.
+val autoVersionName: String = providers.gradleProperty("klangbild.versionName").orNull?.takeIf { it.isNotBlank() }
+    ?: (
+        DateTimeFormatter.ofPattern("yyyy.MM.dd")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.ofEpochSecond(headCommitEpochSeconds)) + " ($headCommitShortSha)"
+        )
 
 android {
     namespace = "io.github.hazymorning.klangbild"

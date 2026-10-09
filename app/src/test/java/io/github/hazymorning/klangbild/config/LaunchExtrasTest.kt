@@ -30,6 +30,37 @@ class LaunchExtrasTest {
     }
 
     @Test
+    fun `display options from extras`() {
+        val s = LaunchExtras.applyTo(
+            Settings(),
+            mapOf(
+                "time_line" to "aus",
+                "next" to false,
+                "album" to "0",
+                "group" to "nein",
+                "volume" to "immer",
+                "light" to "dezent",
+                "volume_keys" to "ja",
+                "day_night" to false,
+                "remote" to "off",
+            ),
+        )
+        assertThat(s.showTimeLine).isFalse()
+        assertThat(s.showNext).isFalse()
+        assertThat(s.showAlbum).isFalse()
+        assertThat(s.showGroup).isFalse()
+        assertThat(s.volumeDisplay).isEqualTo(VolumeDisplay.ALWAYS)
+        assertThat(s.light).isEqualTo(LightLevel.SUBTLE)
+        assertThat(s.volumeKeys).isTrue()
+        assertThat(s.dayNight).isFalse()
+        assertThat(s.remoteControl).isFalse()
+        assertThat(LaunchExtras.applyTo(s, mapOf("light" to "kräftig", "volume" to "bei_änderung")).let { it.light to it.volumeDisplay })
+            .isEqualTo(LightLevel.STRONG to VolumeDisplay.ON_CHANGE)
+        assertThat(LaunchExtras.applyTo(s, mapOf("light" to "grell", "volume" to "laut"))).isEqualTo(s)
+        assertThat(LaunchExtras.hasStoredExtras(mapOf("light" to "aus"))).isTrue()
+    }
+
+    @Test
     fun `session options`() {
         assertThat(LaunchExtras.session(mapOf("demo" to true))).isEqualTo(SessionOptions(demo = true))
         assertThat(LaunchExtras.session(mapOf("demo" to "ja", "debug" to 1, "setup" to "true")))

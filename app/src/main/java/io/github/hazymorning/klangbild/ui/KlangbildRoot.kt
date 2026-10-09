@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,8 +23,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
+import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
+import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ScreenSpec
@@ -96,10 +99,12 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 is Content.StageContent -> StageContentView(ui, c, screen, hooks, wall)
                 is Content.RestContent -> RestScreen(
                     reason = c.reason,
-                    speaker = c.speaker,
+                    // A group is named here too: "Wohnzimmer + 5 · Pausiert".
+                    speaker = c.speaker?.let { name -> SpeakerLabel.group(ui.source.group).takeIf { ui.display.group } ?: name },
                     entityId = ui.entityId,
                     lighting = ui.lighting,
                     nowMs = wall.value,
+                    lightFactor = ui.display.light.factor,
                 )
                 is Content.SetupContent -> {
                     val scene = remember(ui.setup, screen, ui.lighting) { SetupArt.scene(ui.setup, screen, ui.lighting) }
@@ -108,6 +113,8 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
         }
+        // The settings menu lies over everything and fades in and out on its own.
+        MenuOverlay(ui.menu, ui.lighting)
     }
 }
 
@@ -150,21 +157,25 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
     val linkDown = stageScreen?.linkDown == true
     val status = stageScreen?.status ?: PlayerStatus.PAUSED
     val shownStatus = if (linkDown) PlayerStatus.PAUSED else status
-    val next = stageScreen?.next
-    val clock = if (ui.showClock) io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value) else null
+    val display = ui.display
+    val next = stageScreen?.next?.takeIf { display.next }
+    val clock = if (display.clock) io.github.hazymorning.klangbild.ui.RestTexts.time(wall.value) else null
+    val player = ui.source.player
+    val volume = SpeakerLabel.volume(player?.volume, player?.muted == true)
+    // The dateline after the clock: where the music plays and, if wanted, how loud.
+    val capExtra = listOfNotNull(
+        SpeakerLabel.group(ui.source.group).takeIf { display.group },
+        volume.takeIf { display.volume == VolumeDisplay.ALWAYS },
+    ).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
+    val volumeLine = if (ui.volumeFlash) TimeLine.volume(player?.volume, player?.muted == true) else null
     val exact = hooks.exactUntil.value > hooks.now()
     val minuteBucket = wall.value / 15_000 // time line words change at most every 15 s
     val stage = key.stage
-    val modelFor: (StageData) -> StageModel = remember(stage, minuteBucket, exact, status, next, clock, ui.night, linkDown) {
-        { s: StageData ->
-            val position = if (s.track.key == stage.track.key) hooks.positionNow() else null
-            StageModel(
-                scene = s.scene,
-                text = TrackText.from(s.track),
-                status = status,
-                durationMs = s.track.durationMs,
-                positionMs = { hooks.positionNow() },
-                timeLine = TimeLine.compute(
+    val modelFor: (StageData) -> StageModel =
+        remember(stage, minuteBucket, exact, status, next, clock, ui.night, linkDown, display, capExtra, volumeLine) {
+            { s: StageData ->
+                val position = if (s.track.key == stage.track.key) hooks.positionNow() else null
+                val timeLine = volumeLine ?: TimeLine.compute(
                     status = status,
                     positionMs = position,
                     durationMs = s.track.durationMs,
@@ -172,12 +183,26 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
                     source = s.track.source,
                     showExact = exact,
                     linkDown = linkDown,
-                ),
-                clock = clock,
-                night = ui.night,
-            )
+                )?.takeIf { display.timeLine || linkDown || it.figures }
+                StageModel(
+                    scene = s.scene,
+                    text = TrackText.from(s.track).let { if (display.album) it else it.copy(album = null) },
+                    status = status,
+                    durationMs = s.track.durationMs,
+                    positionMs = { hooks.positionNow() },
+                    timeLine = timeLine,
+                    clock = clock,
+                    night = ui.night,
+                    capExtra = capExtra,
+                )
+            }
         }
-    }
+    // Changing the lamp's strength in the menu turns it like a dimmer.
+    val lightFactor by animateFloatAsState(
+        targetValue = display.light.factor,
+        animationSpec = tween(1_200, easing = Motion.Dimmer),
+        label = "light-setting",
+    )
     StageTheatre(
         stage = stage,
         status = shownStatus,
@@ -188,5 +213,6 @@ private fun StageContentView(ui: UiState, key: Content.StageContent, screen: Scr
             if (d != null && d > 0 && p != null && s.track.key == stage.track.key) p.toFloat() / d else null
         },
         wallClock = { wall.value },
+        lightFactor = { lightFactor },
     )
 }

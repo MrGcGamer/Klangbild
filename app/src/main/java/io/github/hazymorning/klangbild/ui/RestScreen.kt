@@ -169,12 +169,14 @@ fun RestScreen(
     nowMs: Long,
     modifier: Modifier = Modifier,
     zone: ZoneId = ZoneId.systemDefault(),
+    /** The lamp's strength from the settings (0 = off). */
+    lightFactor: Float = 1f,
 ) {
     val colors = QuietColors.of(lighting)
     val lines = RestTexts.lines(reason, speaker, entityId)
     val night = lighting.brightness < 0.7f
-    val peak = RestLight.peak(lighting)
-    val tint = remember(lighting) { peak?.let { HaloLight.lightTint(HaloLight.LAMP, it, lighting) } }
+    val peak = RestLight.peak(lighting)?.let { it * lightFactor }?.takeIf { it > 0f }
+    val tint = remember(lighting, peak) { peak?.let { HaloLight.lightTint(HaloLight.LAMP, it, lighting) } }
     val screen = ScreenSpec(960, 540, 1f)
 
     Box(modifier.fillMaxSize()) {

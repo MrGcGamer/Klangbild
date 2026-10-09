@@ -7,7 +7,9 @@ import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,6 +40,7 @@ class DemoSource(
     private var segmentStart = 0L
     private var pausedAt: Long? = null
     private var pausedTotal = 0L
+    private var volume = 0.35f
 
     override fun start() {
         segmentStart = now()
@@ -58,6 +61,11 @@ class DemoSource(
         when (command) {
             RemoteCommand.NEXT -> advance(+1)
             RemoteCommand.PREVIOUS -> advance(-1)
+            RemoteCommand.VOLUME_UP, RemoteCommand.VOLUME_DOWN -> {
+                val step = if (command == RemoteCommand.VOLUME_UP) VOLUME_STEP else -VOLUME_STEP
+                volume = ((volume + step) * 100).roundToInt().coerceIn(0, 100) / 100f
+                publish()
+            }
             RemoteCommand.PLAY_PAUSE -> {
                 val t = now()
                 val p = pausedAt
@@ -92,6 +100,7 @@ class DemoSource(
         val duration = track.durationMs
         val start = duration?.let { (it - SEGMENT_MS).coerceAtLeast(0) } ?: 0L
         val elapsed = t - segmentStart - pausedTotal - (pausedAt?.let { t - it } ?: 0)
+        val others = groupFor(index)
         _state.value = SourceState(
             link = LinkState.DEMO,
             player = PlayerSnapshot(
@@ -99,16 +108,28 @@ class DemoSource(
                 track = track,
                 positionMs = if (duration != null) start + elapsed else null,
                 positionAtEpochMs = t,
-                friendlyName = "Demo",
+                friendlyName = SPEAKER,
+                groupMembers = others.map { "media_player." + it.lowercase() },
+                volume = volume,
             ),
             next = TRACKS[(index + 1) % TRACKS.size],
             receivedAtMs = t,
+            group = others.takeIf { it.isNotEmpty() }?.let { SpeakerGroup(SPEAKER, it) },
         )
     }
 
     companion object {
         const val SEGMENT_MS = 42_000L
         const val SCHEME = "demo://cover/"
+        const val SPEAKER = "Wohnzimmer"
+        const val VOLUME_STEP = 0.05f
+
+        /** The demo house: first everything plays together, then two rooms, then one. */
+        fun groupFor(index: Int): List<String> = when (index) {
+            in 0..5 -> listOf("Küche", "Bad", "Arbeitszimmer", "Schlafzimmer", "Terrasse")
+            in 6..8 -> listOf("Küche")
+            else -> emptyList()
+        }
 
         private fun cover(c: SyntheticCover) = SCHEME + c.name
 

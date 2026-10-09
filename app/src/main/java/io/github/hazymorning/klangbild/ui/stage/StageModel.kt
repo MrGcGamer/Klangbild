@@ -27,6 +27,11 @@ class StageModel(
     val clock: String?,
     /** Night: only cover, title and artist remain. */
     val night: Boolean = false,
+    /**
+     * The rest of the dateline after the clock: where the music plays ("Wohnzimmer + 5")
+     * and, if wanted, how loud. Set in the clock's capitals.
+     */
+    val capExtra: String? = null,
 ) {
     fun progress(): Float? {
         val d = durationMs ?: return null

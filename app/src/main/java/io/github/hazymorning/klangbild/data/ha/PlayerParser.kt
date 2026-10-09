@@ -7,6 +7,7 @@ import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import java.time.OffsetDateTime
@@ -61,8 +62,22 @@ object PlayerParser {
             friendlyName = entity.string("friendly_name"),
             activeQueue = entity.string("active_queue"),
             isMusicAssistant = isMa,
+            groupMembers = groupMembers(entity),
+            volume = entity.number("volume_level")?.toFloat()?.coerceIn(0f, 1f),
+            muted = (entity.attr("is_volume_muted") as? JsonPrimitive)?.booleanOrNull == true,
         )
     }
+
+    /**
+     * `group_members` lists every speaker of a sync group, the leader first – on the leader
+     * and on each member alike. The others are the list without this speaker.
+     */
+    fun groupMembers(entity: EntityState): List<String> =
+        (entity.attr("group_members") as? JsonArray)
+            ?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim() }
+            ?.filter { it.isNotEmpty() && it != entity.entityId }
+            ?.distinct()
+            .orEmpty()
 
     /** MA joins multiple artists with " / " in `media_artist`. */
     fun splitArtists(raw: String?): List<String> {

@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data
 
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
+import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.flow.StateFlow
 
@@ -33,9 +34,11 @@ data class SourceState(
     val skewMs: Long = 0,
     /** Local time since which the link is not [LinkState.CONNECTED] (for grace periods). */
     val linkDownSinceMs: Long? = null,
+    /** The speakers playing in sync with this one; null while it plays alone. */
+    val group: SpeakerGroup? = null,
 )
 
-enum class RemoteCommand { PLAY_PAUSE, NEXT, PREVIOUS }
+enum class RemoteCommand { PLAY_PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
 
 interface NowPlayingSource {
     val state: StateFlow<SourceState>
