@@ -74,16 +74,23 @@ class CoverPaletteTest {
     }
 
     @Test
-    fun `the light wall takes the cover's hue, a neutral cover leaves it warm`() {
+    fun `the light wall takes a breath of a warm cover's colour and stays warm paper for a cool one`() {
+        val red = CoverPalette.derive(CoverPalette.analyze(solid(0xFFB0412E.toInt())), Lighting.DAY, Appearance.LIGHT)
         val blue = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT)
+        val teal = CoverPalette.derive(CoverPalette.analyze(solid(0xFF1F7A78.toInt())), Lighting.DAY, Appearance.LIGHT)
         val grey = CoverPalette.derive(CoverPalette.analyze(solid(0xFF777777.toInt())), Lighting.DAY, Appearance.LIGHT)
-        assertThat(blue.lead).isNotNull()
+        assertThat(red.lead).isNotNull()
         assertThat(grey.lead).isNull()
-        assertThat(Oklab.fromArgb(blue.wall).chroma).isGreaterThan(Oklab.fromArgb(grey.wall).chroma)
+        assertThat(Oklab.fromArgb(red.wall).chroma).isGreaterThan(Oklab.fromArgb(grey.wall).chroma)
+        // paper is never mint or blue: a cool cover gives it less colour, not its hue
+        for (p in listOf(red, blue, teal, grey)) {
+            assertThat(Oklab.fromArgb(p.wall).hue).isIn(com.google.common.collect.Range.closed(45f, 95f))
+        }
+        assertThat(Oklab.fromArgb(blue.wall).chroma).isAtMost(Oklab.fromArgb(red.wall).chroma)
         assertThat(Oklab.fromArgb(grey.wall).hue).isWithin(20f).of(CoverPalette.WARM_HUE)
         // the "Wandlicht" setting at "Aus" leaves plain paper
         val plain = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT, wallTint = 0f)
-        assertThat(Oklab.fromArgb(plain.wall).chroma).isAtMost(0.007f)
+        assertThat(Oklab.fromArgb(plain.wall).chroma).isAtMost(Oklab.fromArgb(grey.wall).chroma)
     }
 
     @Test

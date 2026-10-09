@@ -118,10 +118,11 @@ object Fixtures {
         return FlowData(cards, cards.indexOfFirst { it.id == middle })
     }
 
-    /** The animated cover flow for one strip. */
+    /** The animated cover flow for one strip; what comes next is the card to the right. */
     @Composable
-    fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING, next: TrackInfo? = pärt, night: Boolean = false) {
+    fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING, night: Boolean = false) {
         val lead = StageTexts.lead(status, false, volumeFlash = false, volume = null, group = "Wohnzimmer + 5", volumeAlways = false)
+        val next = flow.cards.getOrNull(flow.current + 1)?.track
         io.github.hazymorning.klangbild.ui.flow.FlowTheatre(
             flow = flow,
             status = status,

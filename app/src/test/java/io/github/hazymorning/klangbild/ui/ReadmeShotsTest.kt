@@ -119,7 +119,7 @@ class ReadmeShotsTest {
         )
         val scenes = Fixtures.flowScenes(strip, appearance)
         FlowStage(
-            Fixtures.model(strip[2], next = pärt, group = "Wohnzimmer + 5", scene = scenes[2], clock = if (appearance == Appearance.LIGHT) "11:24" else "21:47"),
+            Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], clock = if (appearance == Appearance.LIGHT) "11:24" else "21:47"),
             Fixtures.restingCards(scenes, 2),
         )
     }

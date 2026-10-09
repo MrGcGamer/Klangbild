@@ -30,7 +30,7 @@ class FlowTest {
             Fixtures.Still {
                 val scenes = Fixtures.flowScenes(strip, appearance, lighting)
                 FlowStage(
-                    Fixtures.model(strip[2], next = Fixtures.pärt, group = "Wohnzimmer + 5", scene = scenes[2], night = night, lighting = lighting),
+                    Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], night = night, lighting = lighting),
                     Fixtures.restingCards(scenes, 2),
                 )
             }

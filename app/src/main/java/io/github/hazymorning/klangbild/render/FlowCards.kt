@@ -32,6 +32,8 @@ class FlowCard(
      * wall, where the cards cast no shadow.
      */
     val shadow: Bitmap?,
+    /** The print's mean lightness (Oklab L), so a bright card beside a dark one can step back. */
+    val lightness: Float,
 ) {
     /** Width and height of the card itself in [full] (pixels), without the border. */
     val sidePx: Int get() = full.width - 2 * PAD
@@ -43,21 +45,20 @@ class FlowCard(
         const val PAD = 2
 
         /** How far the shadow bitmap reaches beyond the card, as a share of its side. */
-        const val SHADOW_MARGIN = 0.18f
+        const val SHADOW_MARGIN = 0.08f
     }
 }
 
 object FlowCards {
-    /** Opacity of the mirror image where it meets the card: a dark gloss reflects more than a light one. */
-    const val REFLECTION_DARK = 0.3f
-    const val REFLECTION_LIGHT = 0.2f
+    /** Opacity of the mirror image where it meets the card – on the dark gloss only: paper is matte. */
+    const val REFLECTION = 0.3f
 
     /**
      * The card for [cover] (the print at its exact size, [cover] square, already matted if
      * small), [round] for a generated plate (already transparent outside its disc), with
      * corners of [cornerPx] and [geometry]'s gap and reflection height; a hairline of
      * [edgeLine] (ARGB, 0 for none) inside the edge where the print would dissolve into the
-     * wall.
+     * wall; [lightness] is the print's mean lightness. On paper there is no mirror image.
      */
     fun build(
         cover: Bitmap,
@@ -67,6 +68,7 @@ object FlowCards {
         density: Float,
         appearance: Appearance,
         edgeLine: Int = 0,
+        lightness: Float = 0.5f,
     ): FlowCard {
         val side = cover.width
         val gap = (geometry.gap * density).roundToInt()
@@ -97,27 +99,28 @@ object FlowCards {
             val r = RectF(pad + line / 2f, pad + line / 2f, pad + side - line / 2f, pad + side - line / 2f)
             c.drawRoundRect(r, radius - line / 2f, radius - line / 2f, p)
         }
-        // The mirror image: the card upside down below a hairline gap, fading out on the way down.
-        val top = (pad + side + gap).toFloat()
-        val layer = c.saveLayer(0f, top, out.width.toFloat(), top + reflection, null)
-        card(top, flipped = true)
-        val strength = if (appearance == Appearance.DARK) REFLECTION_DARK else REFLECTION_LIGHT
-        val fade = Paint().apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-            this.shader = LinearGradient(
-                0f, top, 0f, top + reflection,
-                intArrayOf(alpha(strength), alpha(strength * 0.35f), alpha(strength * 0.08f), 0),
-                floatArrayOf(0f, 0.35f, 0.7f, 1f),
-                Shader.TileMode.CLAMP,
-            )
+        if (appearance == Appearance.DARK) {
+            // The mirror image: the card upside down below a hairline gap, fading out on the way down.
+            val top = (pad + side + gap).toFloat()
+            val layer = c.saveLayer(0f, top, out.width.toFloat(), top + reflection, null)
+            card(top, flipped = true)
+            val fade = Paint().apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                this.shader = LinearGradient(
+                    0f, top, 0f, top + reflection,
+                    intArrayOf(alpha(REFLECTION), alpha(REFLECTION * 0.35f), alpha(REFLECTION * 0.08f), 0),
+                    floatArrayOf(0f, 0.35f, 0.7f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+            }
+            c.drawRect(0f, top, out.width.toFloat(), top + reflection, fade)
+            c.restoreToCount(layer)
         }
-        c.drawRect(0f, top, out.width.toFloat(), top + reflection, fade)
-        c.restoreToCount(layer)
         out.prepareToDraw()
         val half = Bitmap.createScaledBitmap(out, out.width / 2, out.height / 2, true)
         half.prepareToDraw()
         val shadow = if (appearance == Appearance.LIGHT) shadow(round, cornerPx / side).also { it.prepareToDraw() } else null
-        return FlowCard(out, half, shadow)
+        return FlowCard(out, half, shadow, lightness)
     }
 
     /** The soft shadow of a card (or a disc, [round]) as alpha: blurred, for any size. */

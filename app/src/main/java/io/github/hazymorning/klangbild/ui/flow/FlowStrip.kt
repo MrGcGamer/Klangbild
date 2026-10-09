@@ -24,15 +24,29 @@ import io.github.hazymorning.klangbild.render.FlowCard
 import io.github.hazymorning.klangbild.render.FlowGeometry
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.WallGlow
+import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.stage.coverScale
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.min
 import kotlin.math.roundToInt
+
+/** A stretch of a change, as shares of its time (0..1). */
+@Immutable
+class Window(val start: Float, val end: Float) {
+    /** How far [t] has come through this stretch (0..1). */
+    fun of(t: Float): Float = if (end <= start) (if (t >= end) 1f else 0f) else ((t - start) / (end - start)).coerceIn(0f, 1f)
+
+    companion object {
+        val ALL = Window(0f, 1f)
+    }
+}
 
 /**
  * A card during a change of the strip: it moves from position [from] to [to] (equal when it
- * stays) and fades from [fromAlpha] to [toAlpha] – a card that leaves – within the first
- * [fadeBy] of the change.
+ * stays) during [move], and fades from [fromAlpha] to [toAlpha] (a card that comes or goes)
+ * during [fade]. A card that [rolls] in from beyond the strip's end crosses the screen at an
+ * even pace ([FlowGeometry.rolled]).
  */
 @Immutable
 class CardMotion(
@@ -42,7 +56,9 @@ class CardMotion(
     val to: Float,
     val fromAlpha: Float = 1f,
     val toAlpha: Float = 1f,
-    val fadeBy: Float = 1f,
+    val move: Window = Window.ALL,
+    val fade: Window = Window.ALL,
+    val rolls: Boolean = false,
 )
 
 /**
@@ -52,7 +68,7 @@ class CardMotion(
  * see [FlowGeometry]). Nothing is laid out or allocated per frame; colour filters are cached
  * by step.
  *
- * @param progress the change's eased progress (0..1).
+ * @param time how far the change has come (0..1, linear); each card eases its own stretch.
  * @param dim brightness of the cards (pause).
  * @param sides presence of the side cards (night: 0).
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
@@ -65,7 +81,7 @@ fun FlowStrip(
     lighting: Lighting,
     wall: Color,
     modifier: Modifier = Modifier,
-    progress: () -> Float = { 1f },
+    time: () -> Float = { 1f },
     dim: () -> Float = { 1f },
     sides: () -> Float = { 1f },
     alpha: () -> Float = { 1f },
@@ -74,19 +90,22 @@ fun FlowStrip(
     val pos = remember(cards) { FloatArray(n) }
     val alphas = remember(cards) { FloatArray(n) }
     val order = remember(cards) { IntArray(n) }
+    // The card the strip turns to: the others never outshine it.
+    val middleLightness = remember(cards) { cards.firstOrNull { it.to == 0f && it.toAlpha > 0f }?.card?.lightness ?: 0.5f }
     val tools = remember { DrawTools() }
     val filters = remember(appearance, lighting, wall) { HashMap<Int, ColorMatrixColorFilter>() }
     val paper = wall.toArgb()
     Canvas(modifier.fillMaxSize()) {
-        val t = progress().coerceIn(0f, 1f)
+        val t = time().coerceIn(0f, 1f)
         val side = sides().coerceIn(0f, 1f)
         val d = dim().coerceIn(0f, 1f)
         val all = alpha().coerceIn(0f, 1f)
         for (i in 0 until n) {
             val c = cards[i]
-            val p = c.from + (c.to - c.from) * t
+            val s = Motion.Turn.transform(c.move.of(t))
+            val p = if (c.rolls) geometry.rolled(c.from, c.to, s) else c.from + (c.to - c.from) * s
             pos[i] = p
-            val fade = c.fromAlpha + (c.toAlpha - c.fromAlpha) * (t / c.fadeBy).coerceAtMost(1f)
+            val fade = c.fromAlpha + (c.toAlpha - c.fromAlpha) * Motion.Sine.transform(c.fade.of(t))
             val nearMiddle = 1f - (1f - side) * HaloLight.smoothstep(0.15f, 0.85f, abs(p))
             alphas[i] = fade * geometry.presence(p) * nearMiddle * all
             order[i] = i
@@ -111,7 +130,7 @@ fun FlowStrip(
                 card.shadow?.let { shadow(native, it, pos[i], a, geometry, density, tools) }
                 geometry.corners(pos[i], tools.dp)
                 for (k in 0 until 8) tools.dst[k] = tools.dp[k] * density
-                val light = geometry.light(pos[i]) * d
+                val light = geometry.light(pos[i]) * d * stepBack(card.lightness, middleLightness, pos[i], appearance)
                 val step = (light * STEPS).roundToInt()
                 val filter = filters.getOrPut(step) { ColorMatrixColorFilter(cardMatrix(lighting, step / STEPS.toFloat(), appearance, paper)) }
                 // How much the card is squeezed sideways: far turned cards take the half-size texture.
@@ -121,15 +140,29 @@ fun FlowStrip(
                 if (half > 0f) quad(native, card, true, a * half, filter, tools, snap = false)
             }
         }
-        // The cards dissolve into the wall before the screen's edges (on an OLED the band stays black).
+        // The cards dissolve into the wall before the screen's edges (on an OLED the band stays
+        // black; on paper briefly, so a card leaving does not look bleached).
         val band = WallGlow.EDGE_BLACK_DP * density
-        val reach = band + EDGE_FADE_DP * density
+        val fadeDp = (if (appearance == Appearance.LIGHT) PAPER_EDGE_FADE_DP else EDGE_FADE_DP) * density
+        val reach = band + fadeDp
         drawRect(wall, Offset.Zero, Size(band, size.height))
         drawRect(Brush.horizontalGradient(listOf(wall, wall.copy(alpha = 0f)), startX = band, endX = reach), Offset(band, 0f), Size(reach - band, size.height))
         val bottom = size.height - band
         drawRect(wall, Offset(0f, bottom), Size(size.width, band))
-        drawRect(Brush.verticalGradient(listOf(wall.copy(alpha = 0f), wall), startY = bottom - EDGE_FADE_DP * density, endY = bottom), Offset(0f, bottom - EDGE_FADE_DP * density), Size(size.width, EDGE_FADE_DP * density))
+        drawRect(Brush.verticalGradient(listOf(wall.copy(alpha = 0f), wall), startY = bottom - fadeDp, endY = bottom), Offset(0f, bottom - fadeDp), Size(size.width, fadeDp))
     }
+}
+
+/**
+ * On the dark wall a card beside the middle one steps back by its brightness too: one much
+ * lighter than the middle card (a cream sleeve beside a night sky) dims until it is at most a
+ * little lighter, never below half – the middle card stays the heaviest. Fades in with the
+ * distance from the middle.
+ */
+private fun stepBack(lightness: Float, middle: Float, position: Float, appearance: Appearance): Float {
+    if (appearance != Appearance.DARK) return 1f
+    val relative = (STEP_BACK_RATIO * middle / lightness.coerceAtLeast(0.05f)).coerceIn(0.5f, 1f)
+    return 1f + (relative - 1f) * min(abs(position), 1f)
 }
 
 /** Reused per strip: corners, matrix and paint – nothing allocated per frame. */
@@ -231,15 +264,19 @@ private fun cardMatrix(lighting: Lighting, light: Float, appearance: Appearance,
 private const val STEPS = 48
 
 /** How much a card fades into the paper where the light falls off. */
-private const val PAPER_FOG = 0.5f
+private const val PAPER_FOG = 0.3f
+
+/** A card beside the middle one is at most this much lighter than it (dark wall). */
+private const val STEP_BACK_RATIO = 1.1f
 
 /** The shadow on paper: how dark at most, and how far below the card it falls (share of the side). */
-private const val SHADOW_ALPHA = 0.26f
-private const val SHADOW_DROP = 0.035f
+private const val SHADOW_ALPHA = 0.18f
+private const val SHADOW_DROP = 0.06f
 
 /** Squeezed below this share of its width a card starts to take the half-size texture, fully below [HALF_TO]. */
 private const val HALF_FROM = 0.62f
 private const val HALF_TO = 0.82f
 
-/** The stretch over which the cards dissolve before the black band at the screen's edges (dp). */
+/** The stretch over which the cards dissolve before the band at the screen's edges (dp): dark, paper. */
 private const val EDGE_FADE_DP = 70f
+private const val PAPER_EDGE_FADE_DP = 36f

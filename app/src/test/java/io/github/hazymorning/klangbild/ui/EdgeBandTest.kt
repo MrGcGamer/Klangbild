@@ -21,7 +21,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * OLED: the band next to the screen edges stays black – checked on the rendered pixels of
- * every test scene, in both views, not on the light model.
+ * every test scene, in both views and behind the menu, not on the light model.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -58,6 +58,18 @@ class EdgeBandTest {
         for (i in strips.indices) {
             strip = i
             assertWithMessage(strips[i][2].title).that(brightestInBand()).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun theScreenEdgesStayBlackBehindTheMenu() {
+        val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
+        val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext())
+        var cursor by mutableStateOf(0)
+        compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), io.github.hazymorning.klangbild.color.Lighting.DAY) } }
+        for (c in listOf(0, rows.size / 2, rows.size - 1)) {
+            cursor = c
+            assertWithMessage(rows[c].entry.label).that(brightestInBand()).isEqualTo(0)
         }
     }
 

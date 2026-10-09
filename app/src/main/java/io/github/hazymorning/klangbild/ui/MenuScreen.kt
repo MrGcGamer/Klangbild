@@ -57,12 +57,14 @@ import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.render.WallGlow
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.textType
 import io.github.hazymorning.klangbild.ui.theme.titleType
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.exp
+import kotlin.math.min
 
 /** Geometry of the menu (dp): the line under the cursor always sits at the screen's middle. */
 object MenuGrid {
@@ -317,16 +319,21 @@ private const val GLOW_MAP_H = 270
 /**
  * The light behind the chosen line: a soft, low band around ([cx], [cy]) dp that lights
  * this line and not its neighbours – greyscale, dithered, tinted when drawn. It never moves;
- * the list moves through it.
+ * the list moves through it. Like every light it is gone before the band along the screen's
+ * edges.
  */
 fun glowField(cx: Float, cy: Float, widthDp: Float, heightDp: Float, ditherLsb: Float): IntArray {
     val img = LinearImage(GLOW_MAP_W, GLOW_MAP_H)
     val sx = widthDp / GLOW_MAP_W
     val sy = heightDp / GLOW_MAP_H
     for (y in 0 until GLOW_MAP_H) for (x in 0 until GLOW_MAP_W) {
-        val u = ((x + 0.5f) * sx - cx) / MenuGrid.GLOW_SIGMA_X
-        val v = ((y + 0.5f) * sy - cy) / MenuGrid.GLOW_SIGMA_Y
-        val value = exp(-0.5f * (u * u + v * v))
+        val px = (x + 0.5f) * sx
+        val py = (y + 0.5f) * sy
+        val u = (px - cx) / MenuGrid.GLOW_SIGMA_X
+        val v = (py - cy) / MenuGrid.GLOW_SIGMA_Y
+        val edges = HaloLight.smoothstep(WallGlow.EDGE_BLACK_DP, WallGlow.EDGE_BLACK_DP + 80f, min(px, widthDp - px)) *
+            HaloLight.smoothstep(WallGlow.EDGE_BLACK_DP, WallGlow.EDGE_BLACK_DP + 40f, min(py, heightDp - py))
+        val value = exp(-0.5f * (u * u + v * v)) * edges
         val o = y * GLOW_MAP_W + x
         img.r[o] = value
         img.g[o] = value

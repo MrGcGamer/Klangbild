@@ -22,12 +22,12 @@ object SetupPage {
 <style>
   :root {
     --wall: #0f0d0c; --card: #171412; --line: #2c2723; --ink: #ebe3d8; --muted: #b3a89b;
-    --faint: #8a8076; --accent: #c9a46a; --on-accent: #1a140d; --bad: #e0876f;
+    --faint: #8a8076; --accent: #ebe3d8; --on-accent: #141110; --bad: #e0876f;
   }
   @media (prefers-color-scheme: light) {
     :root {
       --wall: #ebe6df; --card: #f6f2ec; --line: #d6cec4; --ink: #2b2622; --muted: #5e554d;
-      --faint: #7a7067; --accent: #8a6a36; --on-accent: #fbf8f3; --bad: #a8442e;
+      --faint: #7a7067; --accent: #2b2622; --on-accent: #f6f2ec; --bad: #a8442e;
     }
   }
   * { box-sizing: border-box; }
@@ -43,10 +43,10 @@ object SetupPage {
     width: 100%; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px 14px; font: inherit; outline: none; }
   input:focus, textarea:focus { border-color: var(--accent); }
-  textarea { min-height: 92px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 13px; word-break: break-all; }
+  textarea { min-height: 92px; resize: none; font-size: 14px; overflow-wrap: anywhere; }
   .hint { color: var(--faint); font-size: 15px; margin: 8px 0 0; }
-  button { appearance: none; border: 1px solid var(--accent); background: transparent; color: var(--accent);
-    border-radius: 999px; padding: 12px 22px; font: 600 15px system-ui, sans-serif; margin-top: 18px; }
+  button { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 10px; padding: 12px 20px; font: 600 15px system-ui, sans-serif; margin-top: 18px; }
   button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); width: 100%; padding: 15px; font-size: 16px; }
   button:disabled { opacity: .45; }
   .speakers { display: grid; gap: 10px; }
@@ -61,7 +61,7 @@ object SetupPage {
   .inline { display: flex; gap: 10px; align-items: center; color: var(--muted); }
   .inline input { width: 90px; }
   #status { min-height: 1.5em; margin-top: 16px; }
-  #status.bad { color: var(--bad); } #status.good { color: var(--accent); }
+  #status.bad { color: var(--bad); } #status.good { color: var(--ink); }
   .hidden { display: none; }
 </style>
 </head>

@@ -91,6 +91,52 @@ class FlowGeometry(val layout: HaloLayout) {
     }
 
     /**
+     * Where the centre of the card at [position] stands on screen, beside the middle (dp, from
+     * [cx]; the upper corners' mean).
+     */
+    fun centre(position: Float): Float {
+        cornersOf(position, -side / 2f, -side / 2f, side / 2f, -side / 2f, probe)
+        return (probe[0] + probe[2]) / 2f - cx
+    }
+
+    /** Card centres beside the middle for positions 0, 1/[TABLE_STEPS], … up to [TABLE_END]. */
+    private val centres: FloatArray by lazy { FloatArray(TABLE_SIZE) { centre(it / TABLE_STEPS.toFloat()) } }
+
+    private val probe = FloatArray(8)
+
+    /**
+     * The position of a card on its way from [from] to [to] at eased progress [s] when it rolls
+     * in from beyond the strip's end: its centre crosses the screen at an even pace (the far
+     * positions stand close together, so moving evenly in position would crawl there and then
+     * rush the last step). On the same side throughout; positions beyond [TABLE_END] count as it.
+     */
+    fun rolled(from: Float, to: Float, s: Float): Float {
+        val dir = if (from != 0f) sign(from) else sign(to)
+        val x = at(abs(from)) + (at(abs(to)) - at(abs(from))) * s
+        return dir * positionAt(x)
+    }
+
+    private fun at(position: Float): Float {
+        val i = (position.coerceIn(0f, TABLE_END) * TABLE_STEPS)
+        val k = i.toInt().coerceAtMost(TABLE_SIZE - 2)
+        return centres[k] + (centres[k + 1] - centres[k]) * (i - k)
+    }
+
+    /** The position whose card centre stands [x] dp beside the middle (the inverse of [centre]). */
+    private fun positionAt(x: Float): Float {
+        val c = centres
+        if (x <= c[0]) return 0f
+        if (x >= c[TABLE_SIZE - 1]) return TABLE_END
+        var lo = 0
+        var hi = TABLE_SIZE - 1
+        while (hi - lo > 1) {
+            val mid = (lo + hi) ushr 1
+            if (c[mid] < x) lo = mid else hi = mid
+        }
+        return (lo + (x - c[lo]) / (c[hi] - c[lo])) / TABLE_STEPS
+    }
+
+    /**
      * How brightly a card at [position] is lit: the middle one fully, the side cards a little
      * less with distance – the light falls on the middle.
      */
@@ -123,8 +169,13 @@ class FlowGeometry(val layout: HaloLayout) {
         /** Beyond this position a card is out of sight: cards that arrive come in from here. */
         const val EDGE = MAX_SIDE + 0.75f
 
-        /** Darkening of the first side card, and a little more for the next. */
-        const val SIDE_DIM = 0.3f
-        const val FAR_DIM = 0.12f
+        /** The table behind [rolled]: positions up to [TABLE_END] in steps of 1/[TABLE_STEPS]. */
+        private const val TABLE_END = 5f
+        private const val TABLE_STEPS = 50
+        private const val TABLE_SIZE = (TABLE_END * TABLE_STEPS).toInt() + 1
+
+        /** Darkening of the first side card, and more for the next (as in the design: 55 % and 40 %). */
+        const val SIDE_DIM = 0.45f
+        const val FAR_DIM = 0.15f
     }
 }

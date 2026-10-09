@@ -50,7 +50,7 @@ Alle Bilder stammen aus den Screenshot-Tests der App (gerendert auf der JVM in
 | ![Lautsprechergruppe](docs/screens/12-gruppe.jpg) | ![Einstellungen](docs/screens/13-einstellungen.jpg) |
 | *Fünf weitere Lautsprecher spielen mit: „Wohnzimmer + 5“ neben der Uhrzeit* | *Einstellungen mit der Fernbedienung: die gewählte Zeile steht im Licht* |
 | ![Cover Flow](docs/screens/14-cover-flow.jpg) | ![Cover Flow am Tag](docs/screens/15-cover-flow-hell.jpg) |
-| *Cover Flow: links was lief, rechts was kommt, darüber ein Schein in der Farbe des Covers* | *Cover Flow am Tag: Papier statt Schwarz, weiche Schatten statt Licht* |
+| *Cover Flow: links was lief, rechts was kommt, darüber ein Schein in der Farbe des Covers* | *Cover Flow am Tag: Papier statt Schwarz, weiche Schatten statt Licht und Spiegelung* |
 | ![Am Tag](docs/screens/16-tag.jpg) | |
 | *Am Tag: warmes Papier mit einem Hauch der Coverfarbe, das Bild wirft einen Schatten* | |
 
@@ -75,8 +75,8 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 
 - **Zwei Ansichten.** *Einzelbild*: ein Cover an der Wand, in seinem eigenen Licht.
   *Cover Flow*: das Cover in der Mitte, links die Alben davor, rechts die nächsten, gedreht im
-  Raum und auf glänzendem Boden gespiegelt; die Lieder eines Albums sind ein Cover, ein
-  Radiosender auch. Kommt ein neues Album, dreht sich die Reihe weiter; schaltet jemand
+  Raum und im Dunkeln auf glänzendem Boden gespiegelt, darüber ein Schein in der Farbe seiner
+  Oberkante; die Lieder eines Albums sind ein Cover, ein Radiosender auch. Kommt ein neues Album, dreht sich die Reihe weiter; schaltet jemand
   schnell weiter, endet jede Bewegung sauber, bevor die nächste beginnt. Mit Music Assistant
   direkt verbunden (freiwillig, siehe [Einrichtung](#einrichtung)) zeigt die Reihe die ganze
   Warteschlange: zwei Cover rechts, die echte Vorgeschichte links.

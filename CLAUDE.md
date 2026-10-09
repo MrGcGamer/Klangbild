@@ -62,7 +62,8 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 Typesetting, StageTheatre transitions, ProgressBar, StageModel + StageTexts),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
-                RestScreen, SetupScreen, Motion, DebugOverlay
+                RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
+                at a time, hurrying, held lines), DebugOverlay
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode) + SettingsStore
                 (DataStore), SettingsMenu (entries, values, German explanations, steps), LaunchExtras
@@ -107,11 +108,11 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **Text colour:** three levels only – title; artist, clock and the bar's fill; everything
   else (like white at 100 / 80 / 62 %; on paper Oklab L 0.24 / 0.37 / 0.49, the quietest
   still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
-  warmer in the evening), never #FFF, never ivory.
+  warmer in the evening, never above 0.018), never #FFF, never ivory.
 - **Light and dark wall (`Appearance`):** automatic by the sun – light from sunrise to sunset
   (elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) – or fixed. The
   light wall is warm paper (Oklab L 0.915) with a breath of the cover's colour pulled towards
-  warm, never white; there the artwork casts a soft shadow (`WallShade`) instead of light, a
+  warm and kept within hues 50–90° (a cool cover gives less colour, never mint), never white; there the artwork casts a soft shadow (`WallShade`) instead of light, a
   white cover gets a dark hairline, small covers an ivory mat. A wall change cross-fades the
   stage in 2.4 s.
 - **Light (`WallGlow`):** a tight halo in the colours of the artwork's own edges, the same on
@@ -140,19 +141,26 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   text – nothing moves, so the lines hung on the artwork's edges stay aligned. Mute is only
   a word; a lost link dims like a pause. Nothing slides, nothing bounces. Screens switch by
   fading through dark. **One change at a time:** what arrives during a change waits until it
-  has landed, then the newest goes next (`snapshotFlow … conflate()`) – no change is cut short.
+  has landed, then the newest goes next (`snapshotFlow … conflate()`). Only another *song*
+  hurries the running change (`playChange`, ≤ 350 ms) – a card joining the strip, a queue
+  update or a better cover just wait. Lines on their way up stop where they are when a change
+  hurries and leave from there (`RisingText`): the skipped song's lines never come up; if the
+  skip comes to nothing (back to the same song), they rise the rest of the way.
 - **Cover Flow** (`StageView.FLOW`): middle cover 300 dp centred 272 dp from the left, two
   cards per side turned 60° in one shared perspective (outer edges 222.5/255 dp beside the
   centre, 92 % height), mirrored on a glossy floor; column from 570 dp, 50 dp right margin;
-  every other rule holds. A card is one textured quad (print, corners and reflection baked;
-  a half-size copy against shimmer – HWUI has no mipmaps). Dark: a dim pool of the cover's
-  colour above the cards (`FlowLight`); paper: soft card shadows, side cards fade a little
-  into the paper; night: side cards step back into the dark. The strip turns over in 1.3 s
-  (`Motion.Turn`, peak ≤ 2× average speed); leaving cards swing aside early so crossing cards
-  never intersect (tested); arriving cards roll in opaque from beyond the strip's end,
-  unwanted ones dissolve before anything passes them – never a half-transparent card in
-  front of another. Cards are pictures, not songs (`CoverStrip`, `TrackInfo.pictureKey`);
-  ids are kept so every change animates card by card.
+  every other rule holds. A card is one textured quad (print, corners and – on the dark gloss
+  only – its reflection baked; a half-size copy against shimmer – HWUI has no mipmaps). Side
+  cards at 55 % / 40 %, and on the dark wall a much lighter card steps back further beside a
+  dark middle one. Dark: a soft oval of light above the middle card in its top edge's colour,
+  ≤ L* 8 and following that edge's lightness (`FlowLight`); paper: no reflection, a soft
+  shadow below each card; night: side cards step back into the dark. The strip turns over in
+  1.3 s (`Motion.Turn`, peak ≤ 2× average speed); leaving cards swing aside early so crossing
+  cards never intersect (tested); cards that make way dissolve first (300 ms), then new ones
+  roll in opaque from beyond the strip's end, their centre crossing the screen at an even
+  pace (`FlowGeometry.rolled`) – never two covers on top of each other. Cards are pictures,
+  not songs (`CoverStrip`, `TrackInfo.pictureKey`); ids are kept so every change animates
+  card by card.
 - **States say it in words**, in the status line, place first and state last: "Wohnzimmer
   · Pausiert", "Küche · Stumm", "Lautstärke 35 %" (3.5 s), "Überall";
   "Verbindung wird wiederhergestellt …" in the progress bar's place.

@@ -21,8 +21,9 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * The cover flow in motion, as sequences of stills: the next picture arriving (the strip
  * turns over by one card), a step back, a jump to something new (it rolls in from the end of
- * the strip), a song put in between, the queue changing beside the middle, and two quick
- * skips (the second waits for the first to land).
+ * the strip), a song put in between, the queue changing beside the middle, quick skips (the
+ * running turn hurries, the lines of the song skipped past never come up), a skip undone at
+ * once, and a card that joins during a turn (it waits for the turn to land).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -95,6 +96,23 @@ class FlowMotionTest {
         val s = scenes()
         val start = Fixtures.flow(s, listOf(0, 1, 2, 3), 1)
         run("skips", start, mapOf(1 to Fixtures.flow(s, listOf(0, 1, 2, 3), 2), 3 to Fixtures.flow(s, listOf(1, 2, 3, 4), 3)), frames = 12, stepMs = 200)
+    }
+
+    @Test
+    fun skipUndone() {
+        // On and straight back: the turn hurries, then the lines of the song that stays rise.
+        val s = scenes()
+        val start = Fixtures.flow(s, listOf(0, 1, 2, 3), 1)
+        val stays = Fixtures.flow(s, listOf(0, 1, 2, 3), 2)
+        run("undone", start, mapOf(1 to stays, 4 to Fixtures.flow(s, listOf(0, 1, 2, 3), 3), 6 to stays), frames = 16, stepMs = 100)
+    }
+
+    @Test
+    fun cardJoinsDuringTheTurn() {
+        // The card after next is ready a moment later: the turn runs its course, then the card comes.
+        val s = scenes()
+        val start = Fixtures.flow(s, listOf(0, 1, 2, 3), 1)
+        run("joins", start, mapOf(1 to Fixtures.flow(s, listOf(0, 1, 2, 3), 2), 4 to Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2)), frames = 13, stepMs = 200)
     }
 
     @Test

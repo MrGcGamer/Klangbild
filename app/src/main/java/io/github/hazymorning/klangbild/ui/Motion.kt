@@ -59,12 +59,16 @@ object Motion {
     /**
      * Cover Flow: another picture comes to the middle – the strip turns over in 1.3 s
      * ([Turn]); the light above the cards takes the new colour (0–1100 ms); the old text has
-     * left before the cards gather speed, the new lines rise from 620 ms, as the new cover
-     * arrives.
+     * left before the cards gather speed, the new lines rise from 780 ms, as the new cover
+     * turns to face the room. Cards that make way for others rolling in go first (300 ms).
      */
-    const val FLOW_MOVE_MS = 1_300
+    const val FLOW_TURN_MS = 1_300
     const val FLOW_LIGHT_MS = 1_100
-    const val FLOW_TEXT_IN_MS = 620
+    const val FLOW_TEXT_IN_MS = 780
+    const val FLOW_CLEAR_MS = 300
+
+    /** A change that something newer is waiting behind finishes within this (ms). */
+    const val HURRY_MS = 350
 
     /** Cards beside the middle come or go (the queue changed). */
     const val FLOW_SIDES_MS = 900

@@ -19,7 +19,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Motion as a sequence of stills: the track change (the new artwork settles over the old,
  * its light morphs on the wall, the text follows line by line), the next song of the same
- * album (only the text changes), the pause (the artwork recedes and dims) and buffering.
+ * album (only the text changes), quick skips and a skip undone at once, the pause (the
+ * artwork recedes and dims) and buffering.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -68,6 +69,36 @@ class TransitionTest {
         for (i in 1..6) {
             compose.mainClock.advanceTimeBy(200)
             compose.onRoot().captureRoboImage("build/screenshots/transition/album_%02d.png".format(i))
+        }
+    }
+
+    @Test
+    fun quickSkips() {
+        // A song skipped past: its change hurries, its lines never come up, the next one follows.
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), MDPI)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), MDPI)
+        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), MDPI)
+        skips("skips", a, mapOf(1 to b, 4 to c))
+    }
+
+    @Test
+    fun skipUndone() {
+        // On and straight back: the change hurries, then the lines of the song that stays rise.
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), MDPI)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), MDPI)
+        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), MDPI)
+        skips("undone", a, mapOf(1 to b, 4 to c, 6 to b))
+    }
+
+    private fun skips(name: String, from: io.github.hazymorning.klangbild.app.StageData, then: Map<Int, io.github.hazymorning.klangbild.app.StageData>) {
+        var stage by mutableStateOf(from)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Fixtures.Theatre(stage, PlayerStatus.PLAYING) }
+        compose.mainClock.advanceTimeBy(100)
+        for (i in 1..20) {
+            then[i]?.let { stage = it }
+            compose.mainClock.advanceTimeBy(100)
+            compose.onRoot().captureRoboImage("build/screenshots/transition/${name}_%02d.png".format(i))
         }
     }
 

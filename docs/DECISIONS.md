@@ -676,3 +676,53 @@ selbst.
   Weiterschalten, Papier).
 - **Einrichtungsseite** im Stil der App: eine Schrift (die des Handys), normale Schreibweise,
   keine Kursive, keine gesperrten Versalien; hell oder dunkel, wie das Handy eingestellt ist.
+
+## 29. Kritik an Version 3 – Version 3.0.1
+
+Ein unabhängiger Prüfer, der nur die Bilder und Bildfolgen kannte, fand sieben echte Mängel.
+Behoben:
+
+- **Doppelbilder beim Sprung und beim eingeschobenen Titel.** Ursache war auch ein Fehler: Kamen
+  mehrere Karten herein, begann die erste nicht hinter dem Reihenende, sondern schon sichtbar
+  in der Reihe – über den Karten, die gerade gingen. Jetzt gehen Karten, die Platz machen,
+  zuerst (300 ms, die äußeren etwas früher), dann dreht sich die Reihe; neue Karten rollen
+  unsichtbar vom Ende herein.
+- **Der Sprung stockte.** Die fernen Plätze stehen eng beieinander; gleichmäßig in der Position
+  bewegt, kroch eine Karte dort und stürzte dann in die Mitte. Hereinrollende Karten folgen
+  jetzt ihrer Mitte auf dem Bildschirm in gleichmäßigem Tempo (`FlowGeometry.rolled`) – sie
+  erreicht höchstens 31 dp je 100 ms, kaum mehr als ein gewöhnliches Weiterblättern, und
+  durchdringt die gehende Karte nie (in einer Simulation über die ganze Bewegung geprüft).
+- **Schnelles Weiterschalten.** Wartet schon ein anderer Titel, beeilt sich der laufende
+  Wechsel (höchstens 350 ms Rest), und die Zeilen des übersprungenen Titels erscheinen nicht –
+  in beiden Ansichten. Nur ein anderer Titel drängt: Eine Karte, die kurz nach dem Wechsel
+  fertig wird und dazukommt, eine neue Warteschlange von Music Assistant oder ein besseres
+  Cover warten, bis die Bewegung gelandet ist – sonst würde fast jede Drehung im Cover Flow
+  abgekürzt, denn die übernächste Karte kommt meist ein paar hundert Millisekunden später
+  (per Test geprüft: zwei Bühnen nebeneinander, eine bekommt die Karte, beide bleiben
+  pixelgleich). Zeilen, die beim Beeilen gerade aufstiegen, bleiben stehen und gehen von dort
+  aus – nichts springt; führt das Weiterschalten doch zurück zum selben Titel, steigen sie
+  sofort zu Ende.
+- **Der Lichtschein war eine braune Fläche:** flach, mit geraden Kanten und in der
+  Durchschnittsfarbe des Covers (Violett, Pink und Türkis ergaben Rost). Jetzt ein weiches Oval
+  über dem mittleren Cover in der Farbe seiner Oberkante, höchstens ≈ L* 8 und mit ihr heller
+  oder dunkler – wie im Entwurf ein violetter Schein über dem Synthwave-Cover, über einem fast
+  schwarzen Cover nur ein Hauch.
+- **Seitenkarten waren zu hell.** Wie im Entwurf auf 55 % und 40 % gedämpft; im Dunkeln tritt
+  eine viel hellere Karte neben einem dunklen mittleren Cover zusätzlich zurück, sodass die
+  Mitte das schwerste Bild bleibt.
+- **Papier:** Keine Spiegelung mehr (Papier glänzt nicht), der Schatten liegt unter der Karte
+  statt als grauer Rand darüber, die Karten verblassen am Rand kürzer. Die Papierwand bleibt
+  im warmen Bereich (Farbton 50–90°): Ein kühles Cover gibt ihr weniger Farbe, nie Mint.
+- **Nachts** war die Schrift khakifarben (viermal so farbig wie am Tag); das Licht des Abends
+  färbt sie jetzt höchstens doppelt so stark.
+- **Einstellungsmenü:** Sein Lichtband reichte bis an den Bildschirmrand; jetzt endet es vor
+  dem schwarzen Randstreifen (getestet).
+- **Einrichtungsseite:** Tinte statt Gold, kein Größengriff am Textfeld, keine
+  Monospace-Schrift, kein Umbruch mitten im Wort.
+- **Neue Zeilen** steigen etwas später (ab 780 ms), wenn sich das neue Cover dem Raum
+  zuwendet.
+
+Nicht übernommen: Das Raster des Cover Flow (Textspalte bei 570 statt 528 dp, 50 dp rechts)
+folgt dem Entwurf, nicht dem Einzelbild – beim Wechsel der Ansicht geht der Bildschirm ohnehin
+durchs Dunkle. Und „Cover Flow“ bleibt der Name der Ansicht: So heißt sie im Wunsch, und so
+kennt man sie.

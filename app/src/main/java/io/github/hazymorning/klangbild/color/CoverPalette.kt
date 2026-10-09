@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.color
 
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
@@ -201,15 +202,28 @@ object CoverPalette {
         } else {
             floatArrayOf(LIGHT_INK, LIGHT_INK + 0.13f, LIGHT_INK + 0.25f)
         }
-        fun ink(l: Float) = lighting.apply(Lch(l, inkChroma, inkHue).toLab()).toArgb()
+        // The light of the hour warms the text – a little: never more than twice the day's colour.
+        fun ink(l: Float): Int {
+            val lit = lighting.apply(Lch(l, inkChroma, inkHue).toLab()).toLch()
+            return Lch(lit.l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
+        }
 
         val wall = if (appearance == Appearance.DARK) {
             0xFF000000.toInt()
         } else {
             // Paper, a little warm, taking a breath of the cover's colour – pulled towards the
-            // warm side, so a red cover gives peach, never pink.
+            // warm side, so a red cover gives peach, never pink; paper stays paper: its hue keeps
+            // within the warm range, and a cool cover only gives it less colour, never mint.
             val tint = (if (lead == null) 0.002f else min(0.007f, lead.chroma * 0.06f + 0.002f)) * wallTint.coerceIn(0f, 1.5f)
-            lighting.apply(Lch(PAPER, 0.005f + tint, mixHue(hue, WARM_HUE, 0.5f)).toLab()).toArgb()
+            val pulled = mixHue(hue, WARM_HUE, 0.5f)
+            val paperHue = when {
+                pulled in PAPER_HUES -> pulled
+                hueDistance(pulled, PAPER_HUES.start) < hueDistance(pulled, PAPER_HUES.endInclusive) -> PAPER_HUES.start
+                else -> PAPER_HUES.endInclusive
+            }
+            val away = hueDistance(pulled, paperHue)
+            val paperTint = tint * (1f - away / 90f).coerceIn(0f, 1f)
+            lighting.apply(Lch(PAPER, 0.005f + paperTint, paperHue).toLab()).toArgb()
         }
         return ScenePalette(
             appearance = appearance,
@@ -224,6 +238,18 @@ object CoverPalette {
 
     /** Lightness (Oklab) of the light wall: paper, not white – a full screen of white glares. */
     const val PAPER = 0.915f
+
+    /** The hues paper may take (degrees): from peach to straw. */
+    val PAPER_HUES = 50f..90f
+
+    /** The most colour text takes, even in the warmest light of the evening. */
+    const val MAX_INK_CHROMA = 0.018f
+
+    /** Angle between two hues along the shorter arc (degrees). */
+    private fun hueDistance(a: Float, b: Float): Float {
+        val d = abs(a - b) % 360f
+        return if (d > 180f) 360f - d else d
+    }
 
     /** Lightness of the title on paper; the other two levels follow in steps. */
     const val LIGHT_INK = 0.24f

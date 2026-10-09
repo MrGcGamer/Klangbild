@@ -1,7 +1,6 @@
 package io.github.hazymorning.klangbild.ui.stage
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -26,7 +25,11 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.ui.Motion
+import io.github.hazymorning.klangbild.ui.RisingText
+import io.github.hazymorning.klangbild.ui.TextRise
+import io.github.hazymorning.klangbild.ui.playChange
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.first
 
 /** How two consecutive stages differ, which decides the choreography. */
 enum class Change {
@@ -73,26 +76,38 @@ fun StageTheatre(
     var previous by remember { mutableStateOf<StageData?>(null) }
     var change by remember { mutableStateOf(Change.FULL) }
     val t = remember { Animatable(1f) }
+    val text = remember { RisingText(t) }
     val latest by rememberUpdatedState(stage)
 
-    // One change at a time: what arrives meanwhile waits until the running change has landed,
-    // and of several waiting only the newest is shown – a quick skip never cuts a change short.
+    // One change at a time: what arrives meanwhile waits until the running change has landed –
+    // another song makes the running one hurry ([playChange]) – and only the newest follows.
     LaunchedEffect(Unit) {
         snapshotFlow { latest }.conflate().collect { target ->
             val old = current
+            val song = target.track.key
+            val newer: suspend () -> Unit = { snapshotFlow { latest.track.key }.first { it != song } }
+            // Lines held by a skip that came to nothing rise the rest of the way first.
+            if (song == old.track.key) text.release(newer)
             if (target.scene === old.scene && target.track == old.track) return@collect
             val kind = when {
-                target.track.key == old.track.key && target.scene.appearance != old.scene.appearance -> Change.WALL
-                target.track.key == old.track.key -> Change.SOFT
+                song == old.track.key && target.scene.appearance != old.scene.appearance -> Change.WALL
+                song == old.track.key -> Change.SOFT
                 samePicture(old.scene, target.scene) -> Change.TEXT
                 else -> Change.FULL
             }
             t.snapTo(0f)
+            when (kind) {
+                Change.FULL -> text.begin(TextRise(Motion.TEXT_IN_MS, durationOf(kind)))
+                Change.TEXT -> text.begin(TextRise(Motion.TEXT_IN_SAME_PICTURE_MS, durationOf(kind)))
+                else -> Unit
+            }
             change = kind
             previous = old
             current = target
-            t.animateTo(1f, tween(durationOf(kind), easing = LinearEasing))
+            playChange(t, durationOf(kind), newer) { text.hold(it) }
             previous = null
+            text.landed()
+            if (latest.track.key == song) text.release(newer)
         }
     }
 
@@ -164,14 +179,11 @@ fun StageTheatre(
     val settle: () -> Float = {
         if (prev == null || kind != Change.FULL) 1f else 1f + 0.015f * (1f - p(Motion.ART_IN_START_MS, total, Motion.Decelerate))
     }
-    // The text: the old block leaves first, the new lines follow one after another.
-    val textStart = if (kind == Change.FULL) Motion.TEXT_IN_MS else Motion.TEXT_IN_SAME_PICTURE_MS
-    val textIn: (TextLine) -> Float = { line ->
-        if (prev == null || kind.isSoft) 1f else p(textStart + line.stagger, textStart + line.stagger + Motion.TEXT_LINE_MS, Motion.Decelerate)
-    }
-    val textRise: (TextLine) -> Float = { line ->
-        if (prev == null || kind.isSoft) 0f else 10f * (1f - textIn(line))
-    }
+    // The text: the old block leaves first (from where it stood), the new lines follow one after
+    // another; a new look of the same song cross-fades in place.
+    val textIn: (TextLine) -> Float = { line -> text.level(line) }
+    val textRise: (TextLine) -> Float = { line -> if (text.rising) 10f * (1f - text.level(line)) else 0f }
+    val stood: (TextLine) -> Float = { line -> if (kind.isSoft) text.level(line) else text.leaving(line) }
 
     Box(modifier.fillMaxSize()) {
         BaseWall(cur.scene.palette.wall.asColor())
@@ -180,12 +192,11 @@ fun StageTheatre(
         if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
         ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim }, scale = settle)
         if (prevModel != null && prevPlan != null) {
-            val out: () -> Float = { if (kind.isSoft) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS) }
             TextLayer(
                 prevModel,
                 plan = prevPlan,
-                alpha = { out() },
-                rise = { if (kind.isSoft) 0f else -6f * p(0, Motion.TEXT_OUT_MS) },
+                alpha = { line -> stood(line) * (if (kind.isSoft) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS)) },
+                rise = { line -> 10f * (1f - stood(line)) - (if (kind.isSoft) 0f else 6f * p(0, Motion.TEXT_OUT_MS)) },
                 dim = { textDim },
             )
         }

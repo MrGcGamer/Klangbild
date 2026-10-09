@@ -173,8 +173,11 @@ object SceneBuilder {
         val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint)
         val flow = layout.view == StageView.FLOW
         val wall = when {
-            flow && appearance == Appearance.DARK ->
-                Bitmap.createBitmap(FlowLight.field(palette.lead, layout, lighting), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
+            flow && appearance == Appearance.DARK -> {
+                // The light above the cards takes the print's top edge: for a matted print the mat's.
+                val edge = if (matted) MAT else FlowLight.topEdge(thumb, THUMB)
+                Bitmap.createBitmap(FlowLight.field(edge, layout, lighting), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
+            }
             flow -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
             appearance == Appearance.DARK -> {
                 // The wall sees the outside of the picture: for a matted print that is the mat board.
@@ -191,6 +194,7 @@ object SceneBuilder {
             density = layout.screen.density,
             appearance = appearance,
             edgeLine = edgeLine(analysis.kind, shape.round, appearance),
+            lightness = analysis.meanL,
         )
         return ArtworkScene(
             key = key,
