@@ -85,7 +85,7 @@ class PlayerParserTest {
     @Test
     fun `parses get_queue response with next item and radio`() {
         val response = obj(
-            """{"media_player.wz":{"queue_id":"q1","current_index":5,"elapsed_time":73,
+            """{"media_player.wz":{"queue_id":"q1","name":"Erdgeschoss","current_index":5,"elapsed_time":73,
               "current_item":{"queue_item_id":"9c","name":"Queen - Bohemian Rhapsody","duration":355,
                 "media_item":{"media_type":"track","name":"Bohemian Rhapsody","version":"Remastered 2011",
                   "image":"https://i.scdn.co/image/ab67616d00001e02cafe",
@@ -100,5 +100,18 @@ class PlayerParserTest {
         assertThat(q.next!!.title).isEqualTo("Mozart – Klaviersonate Nr. 11")
         assertThat(q.next!!.source).isEqualTo("SWR2")
         assertThat(q.next!!.artworkUrl).isEqualTo("http://192.168.1.5:8123/api/x.png")
+        // The active queue's name: the group player the speaker plays in.
+        assertThat(q.name).isEqualTo("Erdgeschoss")
+    }
+
+    @Test
+    fun `a music assistant group player is recognised`() {
+        val group = PlayerParser.player(
+            entity("playing", """{"media_title":"X","mass_player_type":"group","group_members":["media_player.kueche","media_player.bad"]}"""),
+            base,
+        )
+        assertThat(group.isGroupPlayer).isTrue()
+        assertThat(group.groupMembers).containsExactly("media_player.kueche", "media_player.bad").inOrder()
+        assertThat(PlayerParser.player(entity("playing", """{"media_title":"X","mass_player_type":"player"}"""), base).isGroupPlayer).isFalse()
     }
 }

@@ -8,6 +8,7 @@ import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
+import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -120,19 +121,30 @@ class HaSource(
             watched = others.toSet()
             connection.watch(watched)
         }
+        val currentQueue = queue?.takeIf { queueForKey == key }
         _state.value = SourceState(
             link = link,
             player = enriched,
             entityMissing = connectedAndLoaded && entity == null,
-            next = queue?.takeIf { queueForKey == key }?.next,
+            next = currentQueue?.next,
             sunElevation = sun ?: _state.value.sunElevation,
             receivedAtMs = receivedAt,
             skewMs = connection.clockSkew.offsetMs,
             linkDownSinceMs = linkDownSince,
-            group = others.takeIf { it.isNotEmpty() }?.let { ids ->
-                SpeakerGroup(self = player?.friendlyName, others = ids.map { entities[it]?.string("friendly_name") })
-            },
+            group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) },
         )
+    }
+
+    /**
+     * Who plays along: a sync group lists its members in `group_members` (on the leader and
+     * on every member); a Music Assistant group player lists only its children, and its
+     * members list nobody – they only play from the group's queue, which has its name.
+     */
+    private fun groupOf(p: PlayerSnapshot, otherNames: List<String?>, q: QueueInfo?): SpeakerGroup? = when {
+        p.isGroupPlayer -> SpeakerGroup(self = null, others = otherNames, name = p.friendlyName)
+        otherNames.isNotEmpty() -> SpeakerGroup(self = p.friendlyName, others = otherNames)
+        else -> q?.name?.takeIf { SpeakerLabel.isOtherName(it, p.friendlyName) }
+            ?.let { SpeakerGroup(self = p.friendlyName, others = emptyList(), name = it) }
     }
 
     /** Prefer the queue's richer data when it describes the same track. */

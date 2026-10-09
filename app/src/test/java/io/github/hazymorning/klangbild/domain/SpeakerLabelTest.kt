@@ -19,6 +19,19 @@ class SpeakerLabelTest {
     }
 
     @Test
+    fun `a group with a name of its own is called by it`() {
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList(), name = "Alle Lautsprecher"))).isEqualTo("Alle Lautsprecher")
+        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad"), name = "Erdgeschoss"))).isEqualTo("Erdgeschoss")
+        // The queue of a speaker playing alone carries its own name, in whatever spelling.
+        assertThat(SpeakerLabel.isOtherName("Wohnzimmer", "Wohnzimmer Lautsprecher")).isFalse()
+        assertThat(SpeakerLabel.isOtherName("Sonos Wohnzimmer", "Wohnzimmer")).isFalse()
+        assertThat(SpeakerLabel.isOtherName("wohnzimmer", "Wohnzimmer (MA)")).isFalse()
+        assertThat(SpeakerLabel.isOtherName("Erdgeschoss", "Wohnzimmer")).isTrue()
+        assertThat(SpeakerLabel.isOtherName("Alle", null)).isTrue()
+        assertThat(SpeakerLabel.isOtherName(" ", "Wohnzimmer")).isFalse()
+    }
+
+    @Test
     fun `room names lose the device words`() {
         assertThat(SpeakerLabel.roomName("Wohnzimmer Lautsprecher")).isEqualTo("Wohnzimmer")
         assertThat(SpeakerLabel.roomName("Sonos One Küche")).isEqualTo("Küche")

@@ -34,6 +34,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <!-- klangbild://open?light=dezent – for Home Assistant's Android TV Remote integration
+                 (no ADB needed). Only display options are taken from a link, see LaunchExtras. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="klangbild" />
+            </intent-filter>
         </activity>
 
         <!-- Optional system screensaver; on Google TV it can only be selected via ADB (see README). -->

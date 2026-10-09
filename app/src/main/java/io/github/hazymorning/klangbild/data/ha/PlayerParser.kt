@@ -65,6 +65,7 @@ object PlayerParser {
             groupMembers = groupMembers(entity),
             volume = entity.number("volume_level")?.toFloat()?.coerceIn(0f, 1f),
             muted = (entity.attr("is_volume_muted") as? JsonPrimitive)?.booleanOrNull == true,
+            isGroupPlayer = entity.string("mass_player_type") == "group",
         )
     }
 
@@ -98,6 +99,7 @@ object PlayerParser {
             currentTitle = current?.let { (it["media_item"] as? JsonObject)?.string("name") ?: it.string("name") },
             current = current?.let { queueItem(it, baseUrl) },
             next = next?.let { queueItem(it, baseUrl) },
+            name = q.string("name")?.trim()?.takeIf { it.isNotEmpty() },
         )
     }
 

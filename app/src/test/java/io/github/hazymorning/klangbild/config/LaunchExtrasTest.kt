@@ -61,6 +61,19 @@ class LaunchExtrasTest {
     }
 
     @Test
+    fun `a link may set display options, never the connection`() {
+        val extras = LaunchExtras.fromLink(
+            mapOf("light" to "dezent", "album" to "aus", "demo" to "ja", "ha_url" to "http://evil", "token" to "x", "entity" to "media_player.x", "setup" to "true"),
+        )
+        assertThat(extras.keys).containsExactly("light", "album", "demo")
+        val s = LaunchExtras.applyTo(Settings(), extras)
+        assertThat(s.light).isEqualTo(LightLevel.SUBTLE)
+        assertThat(s.showAlbum).isFalse()
+        assertThat(s.haUrl).isNull()
+        assertThat(LaunchExtras.session(extras).demo).isTrue()
+    }
+
+    @Test
     fun `session options`() {
         assertThat(LaunchExtras.session(mapOf("demo" to true))).isEqualTo(SessionOptions(demo = true))
         assertThat(LaunchExtras.session(mapOf("demo" to "ja", "debug" to 1, "setup" to "true")))

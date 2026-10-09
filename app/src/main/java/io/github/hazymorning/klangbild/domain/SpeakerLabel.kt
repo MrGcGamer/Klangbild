@@ -10,8 +10,12 @@ import kotlin.math.roundToInt
  */
 object SpeakerLabel {
 
-    /** "Wohnzimmer + 5", "Wohnzimmer + Küche"; null while the speaker plays alone. */
+    /**
+     * "Wohnzimmer + 5", "Wohnzimmer + Küche"; a group with a name of its own is called by
+     * it ("Erdgeschoss"). Null while the speaker plays alone.
+     */
     fun group(group: SpeakerGroup?): String? {
+        group?.name?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
         val others = group?.others?.takeIf { it.isNotEmpty() } ?: return null
         val self = group.self?.let(::roomName)
         val single = others.singleOrNull()?.let(::roomName)
@@ -21,6 +25,22 @@ object SpeakerLabel {
             else -> "$self + ${others.size}"
         }
     }
+
+    /**
+     * True if [queueName] names something else than the speaker called [ownName] – then the
+     * speaker plays from another player's queue, a group's. Spellings of the same name
+     * ("Wohnzimmer" and "Wohnzimmer Lautsprecher") count as the same.
+     */
+    fun isOtherName(queueName: String, ownName: String?): Boolean {
+        val q = key(queueName)
+        if (q.isEmpty()) return false
+        if (ownName == null) return true
+        return listOfNotNull(key(ownName), roomName(ownName)?.let(::key)).filter { it.isNotEmpty() }
+            .none { own -> own == q || own.contains(q) || q.contains(own) }
+    }
+
+    private fun key(s: String): String =
+        java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }
 
     /** "35 %" with a narrow no-break space, or "stumm". */
     fun volume(level: Float?, muted: Boolean): String? = when {

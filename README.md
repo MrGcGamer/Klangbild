@@ -27,6 +27,7 @@ dem Cover und eine Zeile in Worten: *„In drei Minuten · Spiegel im Spiegel ·
 - [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
 - [Entwicklung](#entwicklung)
 - [Lizenzen](#lizenzen)
+- Ideen und nächste Schritte: [`docs/IDEEN.md`](docs/IDEEN.md)
 
 ## Bilder
 
@@ -100,8 +101,9 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
 - **Lautsprechergruppe.** Spielen weitere Lautsprecher mit (Music Assistant, Attribut
   `group_members`), steht neben der Uhrzeit „Wohnzimmer + 5“ – so, wie Sonos und Spotify
   Gruppen benennen; bei nur einem weiteren Lautsprecher beide Namen („Wohnzimmer + Küche“).
-  Gerätewörter wie „Lautsprecher“ oder „Sonos One“ fallen aus dem Namen weg. Spielt der
-  Lautsprecher allein, steht dort nichts.
+  Spielt er in einem Gruppen-Player von Music Assistant mit, steht dessen Name da
+  („Erdgeschoss“). Gerätewörter wie „Lautsprecher“ oder „Sonos One“ fallen aus dem Namen
+  weg. Spielt der Lautsprecher allein, steht dort nichts.
 - **Lautstärke.** Ändert sie sich – am Handy, in Home Assistant, egal wo –, steht sie ein paar
   Sekunden unter dem Bild („Lautstärke 35 %“); auf Wunsch ständig neben der Uhrzeit oder nie.
 - **Einstellungen mit der Fernbedienung.** Jede Zeile lässt sich einzeln zeigen oder
@@ -216,7 +218,22 @@ data:
   source: io.github.hazymorning.klangbild
 ```
 
-Mit der ADB-Integration (*Android Debug Bridge*) geht es auch mit Extras, etwa um den
+Ohne ADB, mit der Integration *Android TV Remote*, öffnet ein Link die App – auf Wunsch gleich
+mit Anzeige-Optionen (nicht am echten Gerät geprüft):
+
+```yaml
+action: remote.turn_on
+target:
+  entity_id: remote.wohnzimmer_tv
+data:
+  activity: klangbild://open?light=dezent&album=aus
+```
+
+Ein Link darf nur Anzeige-Optionen, Ruhezeit und `demo` setzen (dieselben Namen wie die
+ADB-Extras unten), nie Adresse, Token oder Lautsprecher – jede Webseite im Browser des
+Fernsehers könnte ihn öffnen.
+
+Mit der ADB-Integration (*Android Debug Bridge*) geht es auch mit allen Extras, etwa um den
 Lautsprecher mitzugeben oder für den Abend die Lampe zu dämpfen:
 
 ```yaml
@@ -392,7 +409,7 @@ Zurücksetzen überschreiben; dann die Befehle erneut ausführen.
 | Ruckeln? | Mit `--ez debug true` starten: oben links stehen Bilder pro Sekunde, langsamster Frame und verspätete Frames. Außerdem: `adb shell dumpsys gfxinfo io.github.hazymorning.klangbild`. |
 | App schließt nach einer Weile | Ruhezeit mit „App schließen“ eingestellt – in den Einstellungen auf „Bildschirm freigeben“ ändern. |
 | Klangbild fehlt auf dem Startbildschirm | Per ADB installierte Apps stehen unter *Apps → Ihre Apps → Alle anzeigen*; von dort zu den Favoriten verschieben. Oder aus Home Assistant öffnen (`media_player.select_source`). |
-| Keine Lautsprechergruppe zu sehen | Music Assistant meldet Gruppen über das Attribut `group_members` des Players (nur bei synchron gruppierten Playern). Spielt der Lautsprecher allein, steht bewusst nichts da. |
+| Keine Lautsprechergruppe zu sehen | Music Assistant meldet synchron gruppierte Lautsprecher über das Attribut `group_members`; spielt der Lautsprecher in einem Gruppen-Player mit, erkennt Klangbild das am Namen der aktiven Warteschlange (`music_assistant.get_queue`), spätestens nach einer Minute. Spielt der Lautsprecher allein, steht bewusst nichts da. |
 
 Logs: `adb logcat | grep -i klangbild`
 

@@ -382,7 +382,11 @@ erscheinen.
   listet dort alle Mitglieder samt Leiter, auf jedem Mitglied gleich); die Namen der anderen
   liefert ein zweites `subscribe_entities`-Abo, das ausgetauscht wird, wenn sich die Gruppe
   ändert. Gerätewörter („Lautsprecher“, „Sonos One“, „(MA)“) fallen aus den Namen. Ändert sich
-  die Gruppe, blendet nur dieser Teil der Zeile über; die Uhr bleibt stehen.
+  die Gruppe, blendet nur dieser Teil der Zeile über; die Uhr bleibt stehen. Die Mitglieder
+  eines *Gruppen-Players* von Music Assistant nennen einander nicht in `group_members`; sie
+  spielen aber aus dessen Warteschlange, und `get_queue` liefert die aktive Warteschlange mit
+  Namen. Weicht der vom eigenen Namen ab, steht der Name der Gruppe da („Erdgeschoss“), wie bei
+  Sonos und Roon benannte Gruppen ihren Namen tragen.
 - **Lautstärke** erscheint, wenn sie sich ändert – egal wo –, für dreieinhalb Sekunden an der
   Stelle der Restzeit („Lautstärke 35 %“, wie die genaue Zeit nach einem Tastendruck, auch
   nachts). Wer sie ständig sehen will, bekommt sie in die Datumszeile; ein Balken kommt nicht
@@ -400,6 +404,9 @@ erscheinen.
   Nacht, Musik steuern, hoch/runter, Ruhezeit, danach, Home Assistant (QR-Code), Demo. Bewusst
   nicht: Schriftgrößen, Farben, Layout-Varianten – die gestalterischen Entscheidungen bleiben
   Entscheidungen.
+- **Link `klangbild://`** für die Android-TV-Remote-Integration (ohne ADB). Ein Link darf nur
+  Anzeige-Optionen, Ruhezeit und Demo setzen: Jede Webseite im Browser des Fernsehers könnte
+  ihn öffnen, Adresse, Token und Lautsprecher bleiben deshalb ADB und der QR-Seite vorbehalten.
 - **Releases:** Ein Tag `vX.Y.Z` (oder ein manueller CI-Lauf mit `release_tag`) erzeugt ein
   normales Release, das GitHub auf der Startseite als „Latest“ zeigt; nur ein Tag mit
   Bindestrich (`v1.1.0-beta.1`) wird eine Vorabversion. Der Versionsname der APK ist dann der

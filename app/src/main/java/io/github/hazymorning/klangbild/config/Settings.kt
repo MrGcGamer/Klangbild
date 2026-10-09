@@ -247,12 +247,32 @@ object LaunchExtras {
     fun hasStoredExtras(extras: Map<String, Any?>) = stored.any { extras.containsKey(it) }
 
     fun fromIntent(intent: Intent?): Map<String, Any?> {
-        val b = intent?.extras ?: return emptyMap()
-        return b.keySet().associateWith {
-            @Suppress("DEPRECATION")
-            b.get(it)
+        val out = LinkedHashMap<String, Any?>()
+        intent?.extras?.let { b ->
+            for (key in b.keySet()) {
+                @Suppress("DEPRECATION")
+                out[key] = b.get(key)
+            }
         }
+        intent?.data?.takeIf { it.scheme == DEEP_LINK_SCHEME && it.isHierarchical }?.let { uri ->
+            out += fromLink(uri.queryParameterNames.associateWith { uri.getQueryParameter(it) })
+        }
+        return out
     }
+
+    /** `klangbild://open?light=dezent&album=aus` */
+    const val DEEP_LINK_SCHEME = "klangbild"
+
+    /**
+     * What a link may set: display options and the demo – never the address, token or
+     * speaker. Any page in a browser on the TV could open such a link.
+     */
+    private val linkKeys = setOf(
+        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION, DEMO,
+    )
+
+    /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */
+    fun fromLink(params: Map<String, String?>): Map<String, Any?> = params.filterKeys { it in linkKeys }
 
     fun isEntityId(s: String) = Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(s)
 
