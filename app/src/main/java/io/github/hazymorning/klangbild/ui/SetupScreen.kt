@@ -101,14 +101,14 @@ fun SetupScreen(
 
         val lead = when (reason) {
             SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
-            SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das Zugangstoken abgelehnt."
+            SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das\u00A0Zugangstoken abgelehnt."
             SetupReason.REQUESTED -> "Einstellungen"
         }
         // A short word that opens a sentence never ends a line ("Auf der Seite" stays
-        // together), and an article stays with its noun.
+        // together), and articles and adjectives stay with their noun.
         val text = when (reason) {
             SetupReason.AUTH_FAILED ->
-                "Erstelle in Home\u00A0Assistant ein neues langlebiges Zugangstoken, scanne den\u00A0Code und füge es auf der Seite ein."
+                "Erstelle in Home\u00A0Assistant ein\u00A0neues\u00A0langlebiges\u00A0Zugangstoken, scanne den\u00A0Code und füge es auf der Seite ein."
             else ->
                 "Scanne den\u00A0Code mit der Kamera. Auf\u00A0der\u00A0Seite verbindest du Home\u00A0Assistant und wählst den Lautsprecher."
         }

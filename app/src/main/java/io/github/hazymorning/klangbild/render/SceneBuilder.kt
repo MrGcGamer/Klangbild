@@ -68,6 +68,9 @@ object SceneBuilder {
     /** …and the white core of the bevel around the window, as cut into real mat board. */
     const val BEVEL = 0xFFC8C1B6.toInt()
 
+    /** Share of the free mat above the print (the rest goes below it). */
+    private const val OPTICAL_TOP = 0.455f
+
     /**
      * @param source decoded cover or null (radio, missing art) → generated Chladni figure.
      * @param layoutSeed decides the side of the cover (album or station), against burn-in.
@@ -202,17 +205,18 @@ object SceneBuilder {
             return (state ushr 8) % 5 - 2
         }
         val out = IntArray(slotPx * slotPx) { shifted(MAT, grain()) }
-        val off = (slotPx - printPx) / 2
-        for (y in 0 until printPx) System.arraycopy(print, y * printPx, out, (y + off) * slotPx + off, printPx)
+        val left = (slotPx - printPx) / 2
+        // Optically centred, as framers do: a little more mat below than above.
+        val top = ((slotPx - printPx) * OPTICAL_TOP).roundToInt()
+        for (y in 0 until printPx) System.arraycopy(print, y * printPx, out, (y + top) * slotPx + left, printPx)
         val bevel = density.roundToInt().coerceAtLeast(1)
         for (b in 1..bevel) {
-            val lo = off - b
-            val hi = off + printPx - 1 + b
-            for (i in lo..hi) {
-                for ((x, y) in arrayOf(i to lo, i to hi, lo to i, hi to i)) {
-                    if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
-                }
-            }
+            val x0 = left - b
+            val x1 = left + printPx - 1 + b
+            val y0 = top - b
+            val y1 = top + printPx - 1 + b
+            for (x in x0..x1) for (y in intArrayOf(y0, y1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
+            for (y in y0..y1) for (x in intArrayOf(x0, x1)) if (x in 0 until slotPx && y in 0 until slotPx) out[y * slotPx + x] = BEVEL
         }
         return out
     }

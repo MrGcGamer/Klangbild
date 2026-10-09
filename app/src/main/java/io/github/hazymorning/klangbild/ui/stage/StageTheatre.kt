@@ -150,6 +150,10 @@ fun StageTheatre(
     }
     val oldCover: () -> Float = { 1f - p(0, Motion.COVER_OUT_END_MS, Motion.Sine) }
     val newCover: () -> Float = { p(Motion.COVER_IN_START_MS, Motion.COVER_IN_END_MS, Motion.Sine) }
+    // The print keeps the lamp hidden while it is still faintly there: its shadow only goes
+    // at the very end of fading out and is back right at the start of coming up – the lamp
+    // never shines through it like through tracing paper.
+    fun shadowGone(cover: Float) = 1f - (cover / Motion.PRINT_HIDES_LAMP).coerceAtMost(1f)
     // The lamp goes down while the prints are swapped: the empty wall shows a dim pool only.
     val swapDip: () -> Float = {
         if (prev == null || kind != Change.FULL) {
@@ -199,24 +203,24 @@ fun StageTheatre(
             // The print moves to the other side: the old light hands over to the new one.
             HaloLightLayer(
                 prev.scene, sunAngle = angle, lightLevel = level, tint = tint,
-                alpha = { 1f - p(300, 1_150) }, holeOpen = { 1f - oldCover() },
+                alpha = { 1f - p(300, 1_150) }, holeOpen = { shadowGone(oldCover()) },
             )
             HaloLightLayer(
                 cur.scene, sunAngle = angle, lightLevel = level, tint = tint,
-                alpha = { p(850, 1_700) }, holeOpen = { 1f - newCover() },
+                alpha = { p(850, 1_700) }, holeOpen = { shadowGone(newCover()) },
             )
         } else {
             HaloLightLayer(
                 cur.scene, sunAngle = angle, lightLevel = level, tint = tint,
                 // The wall opens as the old print goes and closes as the new one comes.
-                holeOpen = { if (prev == null || kind != Change.FULL) 0f else minOf(1f - oldCover(), 1f - newCover()) },
+                holeOpen = { if (prev == null || kind != Change.FULL) 0f else minOf(shadowGone(oldCover()), shadowGone(newCover())) },
             )
             if (prev != null && kind != Change.TEXT) {
                 // Old light on top, fading: a true cross-fade of the two light shapes.
                 HaloLightLayer(
                     prev.scene, sunAngle = angle, lightLevel = level, tint = tint,
                     alpha = { if (kind == Change.FULL) 1f - p(700, 1_200) else 1f - p(0, total) },
-                    holeOpen = { if (kind == Change.FULL) 1f - oldCover() else 0f },
+                    holeOpen = { if (kind == Change.FULL) shadowGone(oldCover()) else 0f },
                 )
             }
         }

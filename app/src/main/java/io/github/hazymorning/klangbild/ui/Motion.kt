@@ -29,8 +29,11 @@ object Motion {
     const val TEXT_IN_START_MS = COVER_IN_START_MS + (COVER_IN_END_MS - COVER_IN_START_MS) * 6 / 10
     const val TEXT_IN_END_MS = TEXT_IN_START_MS + 900
 
-    /** Light level while the wall is empty during a track change (the pool's peak ≤ 2.5 %). */
-    const val SWAP_LIGHT = 0.3f
+    /** Light level while the wall is empty during a track change (the pool's peak ≈ 1.6 %). */
+    const val SWAP_LIGHT = 0.22f
+
+    /** A fading print still hides the lamp while its opacity is above this share. */
+    const val PRINT_HIDES_LAMP = 0.12f
 
     /** A clock that has to move holds at this alpha where it was until the new print comes. */
     const val HELD_CLOCK = 0.6f

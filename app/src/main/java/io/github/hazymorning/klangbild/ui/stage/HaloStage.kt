@@ -42,6 +42,7 @@ import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.HaloLight
+import io.github.hazymorning.klangbild.render.PrintShape
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import kotlin.math.roundToInt
@@ -95,14 +96,15 @@ fun HaloLightLayer(
         val a = alpha().coerceIn(0f, 1f)
         val level = lightLevel().coerceIn(0f, 1f)
         if (a <= 0.002f || level <= 0.002f) return@Canvas
-        light.place(HaloLight.lampPose(scene.shape, sunAngle(), scene.screen), density, size)
+        val sun = sunAngle()
+        light.place(HaloLight.lampPose(scene.shape, sun, scene.screen), sun, scene.shape, density, size)
         val filter = ColorFilter.tint(Color(HaloLight.dimTint(tint(), level)), BlendMode.Modulate)
         val open = holeOpen().coerceIn(0f, 1f)
         if (open > 0.001f) drawRect(light.openWall, alpha = a, colorFilter = filter)
         if (open < 0.999f) {
             drawRect(light.wall, alpha = a * (1f - open), colorFilter = filter)
-            // The rim only shows where the pool is dimmer than it (the far sides). Added on
-            // top it would brighten the lit side twice over – sums of sRGB values overshoot.
+            // The rim only shows where the pool is dimmer than it, fading away from the lamp.
+            // Added on top it would brighten the lit side twice over – sRGB sums overshoot.
             light.rim?.let { rim ->
                 drawRect(
                     rim,
@@ -121,19 +123,26 @@ private class WallLight(scene: ArtworkScene) {
     private val hole = clamped(scene.holeMask)
     private val open = clamped(scene.openMask)
     private val rimMap = scene.rim?.let(::clamped)
+
+    /** Along the sun's direction: full on the lamp's side, [HaloLight.RIM_FAR] on the far side. */
+    private val rimFade = android.graphics.LinearGradient(
+        -1f, 0f, 1f, 0f,
+        rimFar, android.graphics.Color.WHITE, android.graphics.Shader.TileMode.CLAMP,
+    )
     private val spriteHalf = scene.lamp.width / 2f
     private val lampMatrix = android.graphics.Matrix()
     private val maskMatrix = android.graphics.Matrix()
+    private val fadeMatrix = android.graphics.Matrix()
 
     /** Lamp × wall mask with the print. */
     val wall = ShaderBrush(android.graphics.ComposeShader(lamp, hole, android.graphics.BlendMode.MODULATE))
 
     /** Lamp × wall mask without the print. */
     val openWall = ShaderBrush(android.graphics.ComposeShader(lamp, open, android.graphics.BlendMode.MODULATE))
-    val rim = rimMap?.let { ShaderBrush(it) }
+    val rim = rimMap?.let { ShaderBrush(android.graphics.ComposeShader(it, rimFade, android.graphics.BlendMode.MODULATE)) }
 
     /** Puts the pool where the lamp stands now; the masks just cover the screen. */
-    fun place(pose: HaloLight.LampPose, density: Float, size: Size) {
+    fun place(pose: HaloLight.LampPose, sunDeg: Float, shape: PrintShape, density: Float, size: Size) {
         lampMatrix.setTranslate(-spriteHalf, -spriteHalf)
         lampMatrix.postScale(pose.alongEdge * density / spriteHalf, pose.towardsSun * density / spriteHalf)
         lampMatrix.postRotate(pose.rotationDeg)
@@ -142,11 +151,26 @@ private class WallLight(scene: ArtworkScene) {
         maskMatrix.setScale(size.width / HaloLight.MAP_W, size.height / HaloLight.MAP_H)
         hole.setLocalMatrix(maskMatrix)
         open.setLocalMatrix(maskMatrix)
-        rimMap?.setLocalMatrix(maskMatrix)
+        if (rimMap != null) {
+            rimMap.setLocalMatrix(maskMatrix)
+            val half = (shape.radius + HaloLight.RIM_DP) * density
+            fadeMatrix.setScale(half, half)
+            fadeMatrix.postRotate(-sunDeg)
+            fadeMatrix.postTranslate(shape.centerX * density, shape.centerY * density)
+            rimFade.setLocalMatrix(fadeMatrix)
+        }
     }
 
     private fun clamped(bitmap: android.graphics.Bitmap) =
         android.graphics.BitmapShader(bitmap, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+
+    private companion object {
+        /** [HaloLight.RIM_FAR] as the sRGB grey that multiplies the rim to that luminance. */
+        val rimFar: Int = run {
+            val g = (Math.pow(HaloLight.RIM_FAR.toDouble(), 1 / 2.2) * 255).toInt()
+            android.graphics.Color.rgb(g, g, g)
+        }
+    }
 }
 
 /**
@@ -727,8 +751,11 @@ private fun TimeLineText(line: TimeLine.Line, labelColor: Color, detailColor: Co
             // Each part in its own direction (a title in Arabic, an artist in Latin…), and
             // the separator always in the Latin face. Next to Arabic, whose letters sit low
             // on the line, the dot is raised a little – at the Latin height it would read
-            // as a full stop.
+            // as a full stop. If every part is right-to-left, the whole detail is one
+            // right-to-left run, so it reads title first from the right.
             val parts = detail.split(TimeLine.SEPARATOR)
+            val allRtl = parts.all { isRightToLeft(it) }
+            if (allRtl) append("\u2067")
             parts.forEachIndexed { i, part ->
                 if (i > 0) {
                     val lift = if (isRightToLeft(parts[i - 1]) || isRightToLeft(part)) RTL_DOT_LIFT else BaselineShift.None
@@ -743,8 +770,9 @@ private fun TimeLineText(line: TimeLine.Line, labelColor: Color, detailColor: Co
                         fontSize = 15.sp,
                         color = detailColor,
                     ),
-                ) { append(if (isSpacingFriendly(part)) part else "\u2068$part\u2069") }
+                ) { append(if (isSpacingFriendly(part) || allRtl) part else "\u2068$part\u2069") }
             }
+            if (allRtl) append("\u2069")
         }
     }
     BasicText(

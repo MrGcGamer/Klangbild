@@ -146,21 +146,23 @@ class DesignRulesTest {
 
     @Test
     fun `a dark print gets a faint rim all around, a bright one none`() {
-        assertThat(HaloLight.rimLuminance(0.002f)).isWithin(1e-4f).of(0.008f)
-        assertThat(HaloLight.rimLuminance(0.006f)).isWithin(1e-4f).of(0.012f)
-        assertThat(HaloLight.rimLuminance(0.03f)).isAtMost(0.015f)
+        for (edge in listOf(0.002f, 0.006f, 0.03f)) assertThat(HaloLight.rimLuminance(edge)).isEqualTo(0.008f)
         assertThat(HaloLight.rimLuminance(0.2f)).isEqualTo(0f)
+        // on the far side it fades to 0.35 %
+        assertThat(HaloLight.RIM_LUMINANCE * HaloLight.RIM_FAR).isWithin(1e-4f).of(0.0035f)
         val rim = HaloLight.rimMap(shape, screen)
-        fun at(xDp: Float, yDp: Float): Float {
+        fun at(xDp: Float, yDp: Float): Int {
             val x = (xDp / screen.widthDp * HaloLight.MAP_W).toInt()
             val y = (yDp / screen.heightDp * HaloLight.MAP_H).toInt()
-            return Oklab.srgbToLinear(grey(rim[y * HaloLight.MAP_W + x]))
+            return grey(rim[y * HaloLight.MAP_W + x])
         }
-        // all four sides, fading out over about 20 dp
+        // all four sides, a wash gone by 8 dp
         for ((x, y) in listOf(shape.rect.left - 1.5f to shape.centerY, shape.rect.right + 1.5f to shape.centerY, shape.centerX to shape.rect.top - 1.5f, shape.centerX to shape.rect.bottom + 1.5f)) {
-            assertThat(at(x, y)).isGreaterThan(0.6f)
+            assertThat(at(x, y)).isGreaterThan(150)
         }
-        assertThat(at(shape.rect.right + 22f, shape.centerY)).isLessThan(0.06f)
+        assertThat(at(shape.rect.right + 8.5f, shape.centerY)).isEqualTo(0)
+        // square corners like the print's, not a rounded band
+        assertThat(at(shape.rect.right + 4.5f, shape.rect.top - 4.5f)).isEqualTo(at(shape.rect.right + 4.5f, shape.centerY))
     }
 
     @Test
@@ -211,10 +213,24 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `cool light is held back, so it never reads as an LED strip`() {
-        val a = CoverPalette.analyze(thumb(0xFF2A1450.toInt() to 0.7f, 0xFF4B2C9A.toInt() to 0.3f))
-        val c = HaloLight.lightColor(a)
-        assertThat(c.c / c.l).isAtMost(0.1f)
+    fun `cool light keeps its hue at a modest chroma by day and turns to lamp light in the evening`() {
+        val teal = CoverPalette.analyze(thumb(0xFF0E5A66.toInt() to 0.7f, 0xFF0A2F36.toInt() to 0.3f))
+        val c = HaloLight.lightColor(teal)
+        // its own hue, never grey fog, never an LED strip
+        assertThat(c.c / c.l).isIn(Range.closed(0.035f, 0.06f))
+        val day = Oklab.fromArgb(HaloLight.lightTint(c, 0.05f, Lighting.DAY))
+        assertThat(day.chroma).isAtLeast(0.012f)
+        assertThat(kotlin.math.abs(day.hue - c.h)).isLessThan(20f)
+        // evening: plain tungsten white, not grey on the way there
+        val evening = Oklab.fromArgb(HaloLight.lightTint(c, 0.05f, Lighting.EVENING))
+        assertThat(evening.hue).isIn(Range.closed(60f, 85f))
+        assertThat(evening.chroma).isAtLeast(0.01f)
+    }
+
+    @Test
+    fun `yellow-green covers get warm white light, never olive`() {
+        val olive = CoverPalette.analyze(thumb(0xFF6E7A2A.toInt() to 0.7f, 0xFF2F3512.toInt() to 0.3f))
+        assertThat(HaloLight.lightColor(olive)).isEqualTo(HaloLight.LAMP)
     }
 
     @Test
@@ -256,7 +272,10 @@ class DesignRulesTest {
         assertThat(out[15 * 30 + 15]).isEqualTo(0xFFFF0000.toInt()) // the print, centred
         // grained mat board
         assertThat((out[0] shr 16) and 0xFF).isIn(Range.closed(((SceneBuilder.MAT shr 16) and 0xFF) - 2, ((SceneBuilder.MAT shr 16) and 0xFF) + 2))
-        assertThat(out[9 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
+        assertThat(out[8 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
+        // optically centred: a little more mat below the print than above it
+        val rows = (0 until 30).filter { out[it * 30 + 15] == 0xFFFF0000.toInt() }
+        assertThat(29 - rows.last()).isGreaterThan(rows.first())
     }
 
     @Test

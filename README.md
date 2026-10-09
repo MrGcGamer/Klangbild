@@ -64,8 +64,8 @@ Wahl stehen in [`docs/DECISIONS.md`](docs/DECISIONS.md) und
   und wirft einen runden, weichen Lichtkegel an die Wand – in der Leitfarbe des Covers
   (Farbanalyse im Farbraum Oklab): der violette Himmel eines Synthwave-Covers, nicht seine
   kleine orange Sonne. Warme Cover bekommen Glühlampenlicht (≈ 3300 K) statt rostbraunem
-  Schein, graue und weiße Cover warmweißes Licht, kühle Farben bleiben zurückhaltend; weiße
-  Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Fünftel
+  Schein, graue und weiße Cover warmweißes Licht; kühle Cover behalten tagsüber dezent ihren
+  Farbton, abends wird ihr Licht zu Glühlampenlicht. Weiße Cover blenden nie. Am Bildrand ist das Licht am hellsten und läuft nach etwa einem Fünftel
   der Bildbreite weich aus; die abgewandte Seite bleibt dunkel, ein dunkles Cover
   bekommt dort einen feinen Lichtsaum, damit seine Kanten nicht in der Wand verschwinden.
   Weit weg vom Bild und am Bildschirmrand ist die Wand schwarz.

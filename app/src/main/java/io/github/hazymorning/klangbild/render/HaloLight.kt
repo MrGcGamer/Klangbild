@@ -182,27 +182,38 @@ object HaloLight {
     fun openMask(screen: ScreenSpec): IntArray = mask(screen) { x, y -> edgeWindow(x, y, screen) }
 
     /** Width of the rim around a dark print (dp). */
-    const val RIM_DP = 20f
+    const val RIM_DP = 8f
 
     /**
      * The faint rim of wall light around a dark print, as lightness like the pool: 1 at its
-     * edge, gone with zero slope [RIM_DP] out.
+     * edge, gone with zero slope [RIM_DP] out – a wash that just separates the print from
+     * the wall, with square corners like the print's (a rounded band reads as a glow effect).
      */
     fun rimMap(shape: PrintShape, screen: ScreenSpec): IntArray = mask(screen, encoded = true) { x, y ->
         if (shape.contains(x, y)) {
             0f
         } else {
-            val q = (1f - (shape.distance(x, y) / RIM_DP).let { it * it }).coerceAtLeast(0f)
-            q * sqrt(q) * edgeWindow(x, y, screen)
+            val d = if (shape.round) {
+                shape.distance(x, y)
+            } else {
+                max(max(shape.rect.left - x, x - shape.rect.right), max(shape.rect.top - y, y - shape.rect.bottom))
+            }
+            val q = (1f - d / RIM_DP).coerceAtLeast(0f)
+            q * q * edgeWindow(x, y, screen)
         }
     }
 
+    /** Brightness (relative luminance) of the rim on the lamp's side; it fades to [RIM_FAR] of it away from the lamp. */
+    const val RIM_LUMINANCE = 0.008f
+
+    /** The rim on the side away from the lamp, as a share of [RIM_LUMINANCE] (0.35 %). */
+    const val RIM_FAR = 0.4375f
+
     /**
-     * Brightness (relative luminance) of the rim for a print whose outer edge has
-     * [edgeLuminance]; 0 when the print stands out against the black wall on its own.
+     * Brightness of the rim for a print whose outer edge has [edgeLuminance]: only a dark
+     * print gets one – a bright print stands out against the black wall on its own.
      */
-    fun rimLuminance(edgeLuminance: Float): Float =
-        if (edgeLuminance > 0.03f) 0f else max(0.008f, 2f * edgeLuminance).coerceAtMost(0.015f)
+    fun rimLuminance(edgeLuminance: Float): Float = if (edgeLuminance > 0.03f) 0f else RIM_LUMINANCE
 
     /** A greyscale map of the screen; [value] is linear light unless it is [encoded] already. */
     private inline fun mask(screen: ScreenSpec, encoded: Boolean = false, value: (Float, Float) -> Float): IntArray {
@@ -287,24 +298,22 @@ object HaloLight {
     fun lightColor(analysis: CoverAnalysis): Lch {
         val lead = leadGroup(analysis) ?: return LAMP
         val hue = lead.hue
-        return if (hue in 20f..105f) {
+        return when {
             // ~3300 K: clearly warm, still light – never below hue 60° (rust).
-            Lch(0.70f, (lead.chroma * 0.8f).coerceIn(0.06f, 0.083f), hue.coerceIn(64f, 72f))
-        } else {
-            // Cool and violet light reads as an LED strip: it is drawn towards the lamp's warm
-            // white (in OKLab, so it passes through neutral, never through green) and kept
-            // to little chroma – a hint of the cover's colour in lamp light.
-            val own = Lch(0.66f, (lead.chroma * 1.25f).coerceIn(0.035f, 0.06f), hue).toLab()
-            val mixed = own.lerp(Lch(0.66f, LAMP.c, LAMP.h).toLab(), COOL_TO_LAMP).toLch()
-            Lch(mixed.l, mixed.c.coerceAtMost(COOL_CHROMA), mixed.h)
+            hue in 20f..95f -> Lch(0.70f, (lead.chroma * 0.8f).coerceIn(0.06f, 0.083f), hue.coerceIn(64f, 72f))
+            // Yellow-greens turn olive or khaki as dim light: plain lamp light instead.
+            hue < 150f && hue > 95f -> LAMP
+            // Cool and violet covers keep their own hue at a fixed, modest chroma (a saturated
+            // one reads as an LED strip, a mix towards warm white as grey fog).
+            else -> Lch(0.66f, COOL_CHROMA, hue)
         }
     }
 
-    /** How far cool light is drawn towards the lamp's warm white. */
-    private const val COOL_TO_LAMP = 0.4f
+    /** Chroma of cool light at the reference lightness (≈ 0.017 at the glow's level). */
+    private const val COOL_CHROMA = 0.03f
 
-    /** Chroma limit of cool light at the reference lightness (≈ 0.02 at the glow's level). */
-    private const val COOL_CHROMA = 0.034f
+    /** True for the light of a cool cover: it turns into lamp light in the evening. */
+    fun isCool(color: Lch): Boolean = color.c > 0.01f && (color.h < 20f || color.h >= 150f)
 
     /** Light for neutral covers (black and white, greys): warm white, like a 2700–3000 K bulb. */
     val LAMP = Lch(0.70f, 0.045f, 72f)
@@ -331,9 +340,11 @@ object HaloLight {
     fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
         val night = nightOf(lighting)
         val warm = lighting.warmth.coerceIn(0f, 1f)
-        // After sunset the light warms towards the lamp's white – in OKLab, so cool light
-        // passes through neutral on its way, never through green.
-        val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * warm).toLch()
+        // After sunset the light warms towards the lamp's white – in OKLab, so it never passes
+        // through green. A cool light becomes plain lamp light in the evening (over a short
+        // stretch of dusk: half-way it would be grey).
+        val toLamp = if (isCool(color)) smoothstep(0.25f, 0.45f, warm) else 0.35f * warm
+        val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), toLamp).toLch()
         var chroma = base.c * (1f - 1.25f * night)
         val luminance = peak * (1f - 1.8f * night).coerceAtLeast(0.28f)
         val maxSaturation = 1f - 1.25f * night

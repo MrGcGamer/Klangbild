@@ -335,3 +335,34 @@ abgerundeten Rechtecken – wieder der Box-Shadow. Umgesetzt:
   Schnittkante – ein Museums-Passepartout statt einer leeren Fläche.
 - **Typografie:** lange Satzbezeichnungen dürfen eine Größenstufe kleiner werden, wenn sie dann
   nur nach den Gedankenstrichen umbrechen; „den Code“ bleibt zusammen.
+
+## 21. Siebte Runde: Farbe statt Dunst, Licht nur, wo es hingehört
+
+Die sechste Kritik bestätigte den Lichtkegel im Raster, den schwarzen Randstreifen, die Uhr
+beim Seitenwechsel und die Nachtfarbe. Umgesetzt wurde der Rest:
+
+- **Kühle Cover:** Die Mischung zum warmweißen Lampenlicht ergab grauen oder olivfarbenen
+  Dunst. Jetzt behalten kühle Cover tagsüber ihren eigenen Farbton bei fester, kleiner Sättigung
+  (Chroma 0,03 bei der Referenzhelligkeit, an der Bildkante etwa 0,017); abends wird ihr Licht
+  über eine kurze Strecke der Dämmerung zu Glühlampenlicht. Gelbgrüne Töne (95–150°) bekommen
+  gleich warmweißes Licht – als schwaches Licht wirken sie olivgrün.
+- **Saum statt Glow:** nur noch 8 dp breit, mit eckigen Ecken wie das Bild, 0,8 % auf der Seite
+  der Lampe, zur abgewandten Seite bis 0,35 % auslaufend.
+- **Kein Pauspapier:** Ein verblassendes Bild verdeckt die Lampe, solange es zu mehr als 12 %
+  deckt; beim Titelwechsel ist die Lampe außerdem auf 22 % gedimmt, die leere Wand zeigt nur
+  einen Hauch Licht (≈ 1,6 %).
+- **Klangplatten:** drei bis sechs runde Bögen (Höhe ≤ 1,5 r/(n² − 1), sonst entstehen Spitzen),
+  äußerster Ring bei 64 % des Radius, Sand nur innerhalb von 74–84 %.
+- **Abendtext** nimmt den Farbton der Lampe an statt den des Covers (ein Rosa unter
+  Bernsteinlicht wirkt pink). Weiße Cover enden bei etwa L* 88, damit sie den Raum nicht
+  aufhellen und die Helligkeitsbegrenzung des Fernsehers nicht anspringt (nicht auf dem Gerät
+  geprüft).
+- **Passepartout** optisch zentriert (oben etwas weniger Karton als unten).
+- **Typografie:** Artikel und Adjektive bleiben bei ihrem Nomen („das Zugangstoken“, „ein neues
+  langlebiges Zugangstoken“); eine „Als Nächstes“-Zeile ganz in Arabisch läuft von rechts nach
+  links, Titel zuerst.
+
+Damit endet die Reihe der Kritikrunden vorerst: Die verbleibenden Fragen (wie das OLED die
+Stufen knapp über Schwarz zeigt, Bildrate, Helligkeitsbegrenzung) lassen sich nur auf dem
+echten Gerät beantworten.
+

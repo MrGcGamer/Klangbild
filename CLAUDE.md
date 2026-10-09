@@ -55,14 +55,17 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
 - **One style: Halo.** A lamp hidden behind the print, 40 dp (0.125 × print size) inside its
   edge on the sundial's side, throws a round pool whose *lightness* falls as (1 − (r/R)²)^1.5
   (R = 110 dp; 1.25× along a side, not at corners) in the cover's leading colour (hue groups,
-  area over brightness; warm hues → ~3300 K tungsten, neutral → warm white, cool hues drawn
-  40 % towards the lamp in OKLab, chroma ≤ 0.034). Brightest at the print's edge, about half
+  area over brightness; warm hues → ~3300 K tungsten, neutral and yellow-green (95–150°) →
+  warm white, cool hues keep their own hue at chroma 0.03 by day and become lamp light in
+  the evening – never grey or olive on the way). Brightest at the print's edge, about half
   the luminance at 25 dp, gone at 70 dp – it fits the 72 dp of free wall; near an outer edge
   the lamp moves deeper behind the print rather than being clipped. The 36 dp next to the
-  screen edges stay black (`EdgeBandTest` checks rendered pixels). The far side gets nothing –
-  a dark print gets a faint rim in the lamp's hue there (`rimMap`, ≤ 1.5 %, 20 dp). Night
-  0.28× day, saturation ≤ 50 %; dimmed light loses chroma; a cover at night gains at most
-  0.004 chroma. `render/DesignRulesTest` guards these numbers.
+  screen edges stay black in stage coordinates (`EdgeBandTest` checks rendered pixels; the
+  OLED drift moves the stage up to 12 dp). The far side gets nothing – a dark print gets an
+  8 dp wash with square corners in the lamp's hue (`rimMap`, 0.8 %, fading to 0.35 % away
+  from the lamp). Night 0.28× day, saturation ≤ 50 %; dimmed light loses chroma; a cover at
+  night gains at most 0.004 chroma; white prints top out near L* 88; evening text takes the
+  lamp's hue. `render/DesignRulesTest` guards these numbers.
 - **Light per frame:** lamp sprite (moved, rotated, stretched by its local matrix) × static
   wall mask × tint colour filter – one rectangle (two while a print is taken down), plus the
   rim drawn with `Lighten` (never `Plus`: sums of sRGB values overshoot). Shaders are made
@@ -71,28 +74,30 @@ config/         Settings + SettingsStore (DataStore), LaunchExtras (am start ext
   on the cover top, title grows upward from 44 dp above the artist baseline (350 dp), time
   line on the cover bottom. Layout mirrors per album (burn-in), whole stage drifts ±12 dp.
 - **Honest resolution:** ≤ 1.1 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
-  small covers sit in a charcoal mat with grain and a 1 dp white bevel (a light mat would be
-  the largest static bright area on the OLED).
+  small covers sit optically centred in a charcoal mat with grain and a 1 dp white bevel (a
+  light mat would be the largest static bright area on the OLED).
 - **Per frame only cheap work:** blur/palette/resampling happen once per track in
   `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
 - **Typography:** Newsreader (titles, italics), Jost (spaced caps, figures). No caps, tracking
   or italics for CJK/Arabic (`isSpacingFriendly`); there the artist outranks the album.
   Titles ≤ 3 lines, prefer breaks after section dashes; artists on one line ("u. a." in
   italics); no mid-word breaks (`breaksInsideWord`); edge emoji dropped (`Emoji.trimEdges`),
-  inner ones dimmed; one separator `TimeLine.SEPARATOR` (its dot lifted next to RTL text);
-  `TrackText.typeset` for dashes and narrow no-break spaces after abbreviations; a short word
-  opening a sentence never ends a line.
-- **Calm motion:** track change 2.7 s in sequence (old print out 700 ms with its shadow while
-  the lamp goes down to 30 % → empty wall 500 ms, a dim round pool ≤ 2.5 %, colour morphs in
-  OKLCH → new print in 900 ms with the light → text). Unchanged lines stay, each compared on
+  inner ones dimmed; one separator `TimeLine.SEPARATOR` (its dot lifted next to RTL text; an
+  all-RTL up-next line is one right-to-left run); `TrackText.typeset` for dashes and narrow
+  no-break spaces after abbreviations; in UI prose a short word opening a sentence never ends
+  a line, and articles and adjectives stay with their noun.
+- **Calm motion:** track change 2.7 s in sequence (old print out 700 ms while the lamp goes
+  down to 22 % → empty wall 500 ms, a dim round pool ≈ 1.6 %, colour morphs in OKLCH → new
+  print in 900 ms with the light → text). A fading print hides the lamp while its opacity is
+  above 12 % (never tracing paper). Unchanged lines stay, each compared on
   its own (same text, place and colour); a clock that has to move holds at 60 % through the
   dark moment and cross-dissolves to its new place (never below 60 %). Same picture (album)
   → only text; same track in new light → old text fades on top. Pause dims lamp, cover and text over 2.4 s; time line cross-fades 600 ms. Screens
   switch by fading through dark.
-- **Generated art:** Chladni plates are ring modes – two or three nodal circles inside 0.68 of
-  the radius – made wavy by a second mode (3–8 lobes, its share capped so circles never
-  touch), mirror-symmetric, no sand beyond 0.82–0.90 of the radius. No nodal diameters (they
-  make crosses, wheels and rosettes), no single circle or two lobes (an "O").
+- **Generated art:** Chladni plates are ring modes – two or three nodal circles inside 0.64 of
+  the radius – made wavy by a second mode (3–6 lobes, rounded: amplitude ≤ 1.5 r/(n² − 1),
+  share capped so circles never touch), mirror-symmetric, no sand beyond 0.74–0.84 of the
+  radius. No nodal diameters (crosses, wheels, rosettes), no single circle or two lobes ("O").
 - **Rest screen:** serif clock ("H:mm") under a dim lamp that moves with it; re-hung every
   15 min; night: black wall, only the time.
 - **German UI texts**, 24 h clock, numbers up to twelve in words in the time line.

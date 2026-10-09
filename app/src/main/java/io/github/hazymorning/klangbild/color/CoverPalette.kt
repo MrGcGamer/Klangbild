@@ -56,6 +56,14 @@ object CoverPalette {
     /** Default hue for neutral covers: a warm, amber "lamp light" hue. */
     const val WARM_HUE = 72f
 
+    /** Hue [a] moved towards [b] by [t] along the shorter arc (degrees). */
+    private fun mixHue(a: Float, b: Float, t: Float): Float {
+        var d = (b - a) % 360f
+        if (d > 180f) d -= 360f
+        if (d < -180f) d += 360f
+        return ((a + d * t) % 360f + 360f) % 360f
+    }
+
     /**
      * Analyses ARGB pixels (typically a 48–64 px thumbnail). Deterministic for equal input.
      */
@@ -179,11 +187,15 @@ object CoverPalette {
         val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
         val t = 1f - 0.10f * nightness
         val base = Lch(0.115f, min(neutralChroma * 1.1f, 0.016f), hue).toLab()
-        val ink = Lch(0.91f * t, min(neutralChroma * 1.2f, 0.018f), hue).toLab()
-        val inkMuted = Lch(0.79f * t, neutralChroma * 1.3f, hue).toLab()
-        val inkFaint = Lch(0.665f * t, neutralChroma * 1.2f, hue).toLab()
-        val inkQuiet = Lch(0.59f * t, neutralChroma * 1.1f, hue).toLab()
-        val inkHush = Lch(0.54f * t, neutralChroma, hue).toLab()
+        // In the evening the text takes the lamp's hue rather than the cover's: a rosy tint
+        // under amber light reads as pink.
+        val evening = ((lighting.warmth - Lighting.DAY.warmth) / (Lighting.EVENING.warmth - Lighting.DAY.warmth)).coerceIn(0f, 1f)
+        val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
+        val ink = Lch(0.91f * t, min(neutralChroma * 1.2f, 0.018f), inkHue).toLab()
+        val inkMuted = Lch(0.79f * t, neutralChroma * 1.3f, inkHue).toLab()
+        val inkFaint = Lch(0.665f * t, neutralChroma * 1.2f, inkHue).toLab()
+        val inkQuiet = Lch(0.59f * t, neutralChroma * 1.1f, inkHue).toLab()
+        val inkHush = Lch(0.54f * t, neutralChroma, inkHue).toLab()
 
         val accent = if (lead == null) {
             Lch(0.82f, 0.055f, WARM_HUE).toLab() // brass
