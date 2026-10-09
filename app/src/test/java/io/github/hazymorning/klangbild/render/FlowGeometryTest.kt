@@ -16,9 +16,20 @@ class FlowGeometryTest {
         assertThat(c[0]).isWithin(0.01f).of(layout.artRect.left)
         assertThat(c[1]).isWithin(0.01f).of(layout.artRect.top)
         assertThat(c[2] - c[0]).isWithin(0.01f).of(300f)
-        // the text column starts 148 dp to the right of it and leaves 50 dp
-        assertThat(layout.columnLeft).isWithin(0.01f).of(570f)
-        assertThat(layout.columnWidth).isWithin(0.01f).of(340f)
+        // the text column starts 145 dp to the right of it and is 314 dp wide
+        assertThat(layout.columnLeft).isWithin(0.01f).of(598f)
+        assertThat(layout.columnWidth).isWithin(0.01f).of(314f)
+    }
+
+    @Test
+    fun `the strip and the column stand in the middle of the screen`() {
+        // As much room left of the strip's outermost card as right of the column …
+        g.corners(-2f, c)
+        val right = layout.screen.widthDp - (layout.columnLeft + layout.columnWidth)
+        assertThat(c[0]).isWithin(1f).of(right)
+        // … and the middle card as far from the top as from the bottom.
+        g.corners(0f, c)
+        assertThat(c[1]).isWithin(0.01f).of(layout.screen.heightDp - c[1] - g.side)
     }
 
     @Test

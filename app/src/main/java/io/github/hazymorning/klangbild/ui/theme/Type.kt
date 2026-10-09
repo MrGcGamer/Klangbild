@@ -8,6 +8,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
@@ -138,5 +140,28 @@ fun rememberFigures(style: TextStyle, face: Face): Figures {
         val sizePx = measurer.measure("0", plain).let { r -> r.layoutInput.density.run { plain.fontSize.toPx() } }
         val advance = FloatArray(10) { d -> measurer.measure(d.toString(), plain, softWrap = false).getLineRight(0) / sizePx }
         Figures(advance.max(), advance, if (style.letterSpacing.isEm) style.letterSpacing.value else 0f, face.colonRaise)
+    }
+}
+
+/**
+ * How far [text] in [style] has to move right so that what is seen – its ink, not its
+ * advance box – stands centred where the box would be (px). A large "10:12" leans left by its
+ * first figure's side bearing; a clock in the middle of the screen must not.
+ */
+@Composable
+fun rememberInkShift(text: String, style: TextStyle): Float {
+    val resolver = LocalFontFamilyResolver.current
+    val density = LocalDensity.current
+    return remember(text, style, resolver, density) {
+        val typeface = resolver.resolve(style.fontFamily, style.fontWeight ?: FontWeight.Normal).value as? android.graphics.Typeface
+            ?: return@remember 0f
+        val paint = android.graphics.Paint().apply {
+            this.typeface = typeface
+            textSize = with(density) { style.fontSize.toPx() }
+            if (style.letterSpacing.isEm) letterSpacing = style.letterSpacing.value
+        }
+        val ink = android.graphics.Rect()
+        paint.getTextBounds(text, 0, text.length, ink)
+        paint.measureText(text) / 2f - (ink.left + ink.right) / 2f
     }
 }

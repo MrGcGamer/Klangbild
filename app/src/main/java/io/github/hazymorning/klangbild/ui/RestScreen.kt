@@ -5,29 +5,29 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import io.github.hazymorning.klangbild.art.stableHash
+import androidx.compose.ui.unit.sp
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lab
@@ -41,6 +41,7 @@ import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
+import io.github.hazymorning.klangbild.ui.theme.rememberInkShift
 import io.github.hazymorning.klangbild.ui.theme.textType
 import io.github.hazymorning.klangbild.ui.theme.titleType
 import java.time.Instant
@@ -103,10 +104,9 @@ object RestTexts {
 }
 
 /**
- * The rest screen's light and composition: the clock hangs on the wall where a lamp lights
- * it – a soft oval of warm light just above the clock block, both re-hung together every
- * quarter of an hour so no stroke stays in place. By day the lamp is a breath of light, in
- * the evening and at night less – turned down, never off.
+ * The rest screen's light: a soft oval of warm light behind the clock, both exactly in the
+ * screen's middle. By day the lamp is a breath of light, in the evening and at night less –
+ * turned down, never off.
  */
 object RestLight {
     const val MAP_W = 480
@@ -150,19 +150,13 @@ object RestLight {
         val k = ((lighting.brightness - 0.7f) / 0.3f).coerceIn(0f, 1f)
         return 0.006f + 0.008f * k
     }
-
-    /** Offsets (dp) of the clock block, one per quarter hour. */
-    private val positions = listOf(0f to 0f, -150f to -26f, 140f to 18f, -70f to 34f, 110f to -30f, -160f to 12f)
-
-    fun blockOffset(epochMs: Long): Pair<Float, Float> {
-        val slot = epochMs / (15 * 60_000L)
-        return positions[Math.floorMod(stableHash(slot.toString()), positions.size)]
-    }
 }
 
 /**
  * Nothing is playing: a quiet clock on a dim, lamp-lit wall, the date, and one line that
- * says why – never an error code. At night the lamp is turned down; nothing is left out.
+ * says why – never an error code. The clock stands exactly in the screen's middle, measured
+ * on what is seen (from the top of the figures to their baseline); the lines hang under it.
+ * At night the lamp is turned down; nothing is left out.
  */
 @Composable
 fun RestScreen(
@@ -186,70 +180,108 @@ fun RestScreen(
 
     Box(modifier.fillMaxSize()) {
         BaseWall(colors.wall)
-        val slot = nowMs / (15 * 60_000L)
-        Crossfade(targetState = slot, animationSpec = tween(2_400, easing = Motion.Dimmer), label = "re-hang") { s ->
-            val (dx, dy) = RestLight.blockOffset(s * 15 * 60_000L)
-            // The lamp hangs just above the clock and moves with it.
-            val field = rememberOffMain(tint, s) {
-                tint?.let {
-                    val px = RestLight.field(480f + dx, 270f + dy - 18f - 35f, screen, SceneBuilder.ditherFor(it))
-                    Bitmap.createBitmap(px, RestLight.MAP_W, RestLight.MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()
-                }
+        val field = rememberOffMain(tint) {
+            tint?.let {
+                val px = RestLight.field(screen.widthDp / 2f, screen.heightDp / 2f, screen, SceneBuilder.ditherFor(it))
+                Bitmap.createBitmap(px, RestLight.MAP_W, RestLight.MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()
             }
-            Box(Modifier.fillMaxSize()) {
-                if (field != null && tint != null) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        drawImage(
-                            field,
-                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                            colorFilter = ColorFilter.tint(Color(tint), BlendMode.Modulate),
-                            filterQuality = FilterQuality.Low,
-                        )
-                    }
+        }
+        if (field != null && tint != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawImage(
+                    field,
+                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                    colorFilter = ColorFilter.tint(Color(tint), BlendMode.Modulate),
+                    filterQuality = FilterQuality.Low,
+                )
+            }
+        }
+        RestBlock(
+            time = RestTexts.time(nowMs, zone),
+            date = RestTexts.date(nowMs, zone),
+            label = lines.label,
+            sentence = lines.sentence,
+            colors = colors,
+        )
+    }
+}
+
+/**
+ * The clock and the lines under it, each centred on the screen's vertical axis; the clock's
+ * figures centred on its horizontal one.
+ */
+@Composable
+private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
+    val clock = titleType(CLOCK_SP, 320, colors.primary, lineHeight = 140f, tracking = -0.01f).merge(TextStyle(textAlign = TextAlign.Center))
+    Layout(
+        content = {
+            // The figures keep their own widths (in cells this large the "1" would stand apart);
+            // a new minute dissolves in, so the re-centred line never jumps.
+            Crossfade(targetState = time, Modifier.layoutId(CLOCK), animationSpec = tween(700, easing = Motion.Dimmer), label = "minute") { t ->
+                // Centred on its ink: the figures' side bearings differ.
+                val shift = rememberInkShift(t, clock)
+                BasicText(t, Modifier.offset { IntOffset(shift.roundToInt(), 0) }, style = clock)
+            }
+            if (date != null) {
+                BasicText(date, Modifier.layoutId(DATE), style = textType(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))
+            }
+            if (label != null) {
+                BasicText(label, Modifier.layoutId(LABEL), style = textType(16f, 500, colors.label).merge(TextStyle(textAlign = TextAlign.Center)))
+            }
+            if (sentence != null) {
+                BasicText(
+                    sentence,
+                    Modifier.layoutId(SENTENCE).widthIn(max = 480.dp),
+                    style = textType(19f, 420, colors.secondary, lineHeight = 27f).merge(
+                        TextStyle(
+                            textAlign = TextAlign.Center,
+                            lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),
+                        ),
+                    ),
+                )
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val placed = measurables.map { it.layoutId to it.measure(loose) }
+        // Baselines one under the other (px, from the clock's baseline): the gap before each line
+        // is measured from the previous baseline to this line's cap height.
+        val baselines = FloatArray(placed.size)
+        var last = 0f
+        for ((i, pair) in placed.withIndex()) {
+            val (id, p) = pair
+            if (i > 0) {
+                val (size, gap) = when (id) {
+                    DATE -> 22f to 22f
+                    LABEL -> 16f to 30f
+                    else -> 19f to (if (placed[i - 1].first == LABEL) 14f else 30f)
                 }
-                Box(Modifier.fillMaxSize().offset(dx.dp, (dy - 18f).dp), contentAlignment = Alignment.Center) {
-                    RestBlock(
-                        time = RestTexts.time(nowMs, zone),
-                        date = RestTexts.date(nowMs, zone),
-                        label = lines.label,
-                        sentence = lines.sentence,
-                        colors = colors,
-                    )
-                }
+                last += (gap + CAP * size).sp.toPx()
+            }
+            baselines[i] = last
+            // A line of several rows ends on its last baseline.
+            if (i > 0) last += (p[LastBaseline] - p[FirstBaseline]).toFloat()
+        }
+        // The clock's figures (from their top to the baseline) in the very middle; the quieter
+        // lines hang under it.
+        val origin = constraints.maxHeight / 2f + (CAP * CLOCK_SP).sp.toPx() / 2f
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            for ((i, pair) in placed.withIndex()) {
+                val p = pair.second
+                val x = (constraints.maxWidth - p.width) / 2
+                val y = origin + baselines[i] - p[FirstBaseline]
+                p.place(x, y.roundToInt())
             }
         }
     }
 }
 
-@Composable
-private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        val clock = titleType(132f, 320, colors.primary, lineHeight = 140f, tracking = -0.01f).merge(TextStyle(textAlign = TextAlign.Center))
-        // The figures keep their own widths (in cells this large the "1" would stand apart);
-        // a new minute dissolves in, so the re-centred line never jumps.
-        Crossfade(targetState = time, Modifier.fillMaxWidth(), animationSpec = tween(700, easing = Motion.Dimmer), label = "minute") { t ->
-            BasicText(t, Modifier.fillMaxWidth(), style = clock)
-        }
-        if (date != null) {
-            Spacer(Modifier.height(4.dp))
-            BasicText(date, style = textType(22f, 420, colors.secondary).merge(TextStyle(textAlign = TextAlign.Center)))
-        }
-        if (label != null) {
-            Spacer(Modifier.height(28.dp))
-            BasicText(label, style = textType(16f, 500, colors.label).merge(TextStyle(textAlign = TextAlign.Center)))
-        }
-        if (sentence != null) {
-            Spacer(Modifier.height(if (label != null) 10.dp else 28.dp))
-            BasicText(
-                sentence,
-                style = textType(19f, 420, colors.secondary, lineHeight = 27f).merge(
-                    TextStyle(
-                        textAlign = TextAlign.Center,
-                        lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default),
-                    ),
-                ),
-                modifier = Modifier.widthIn(max = 480.dp),
-            )
-        }
-    }
-}
+private const val CLOCK = "clock"
+private const val DATE = "date"
+private const val LABEL = "label"
+private const val SENTENCE = "sentence"
+
+/** The clock's size (sp) and both faces' cap height (share of the size; the figures stand as high). */
+private const val CLOCK_SP = 132f
+private const val CAP = 0.70f

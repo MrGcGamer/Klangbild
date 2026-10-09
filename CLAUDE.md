@@ -97,12 +97,16 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   The artwork is the heaviest element and always the tallest: the text block beside it takes
   at most 62 % of its height (`BLOCK_SHARE`, measured from the first cap height to the last
   baseline, never from text boxes).
-- **Grid** (960 × 540 dp, `HaloLayout`): artwork 368 dp at 96 dp from the left, group lifted
-  8 dp above the centre (optical centre); 64 dp gap; text column 352 dp; 80 dp right margin.
-  Text block centred on the artwork; the status line ("21:47 · Wohnzimmer + 5") hangs with its
-  cap height from the artwork's top edge, "Als Nächstes" stands with its baseline on the
-  bottom edge; every line starts on the column's left edge. No mirroring; the whole stage
-  drifts ±12 dp against burn-in. Square artwork has 8 dp corners.
+- **Centred, measured on what is seen** (the user checks this; `CentringTest` measures rendered
+  pixels): the stage grid (960 × 540 dp, `HaloLayout`) is artwork 368 dp at 88 dp from the
+  left, exactly centred vertically; 64 dp gap; text column 352 dp; 88 dp right margin – as much
+  room left of the artwork as right of the progress bar. Text block centred on the artwork; the
+  status line ("21:47 · Wohnzimmer + 5") hangs with its cap height from the artwork's top edge,
+  "Als Nächstes" stands with its baseline on the bottom edge; every line starts on the column's
+  left edge. The rest clock's figures (top to baseline, ink-centred across: side bearings
+  differ) stand in the very middle, its lines under it; setup: code + longest text line
+  centred as a group; menu on the stage grid. No optical lifts, no re-hanging. The whole
+  screen drifts only ±6 dp against burn-in. Square artwork has 8 dp corners.
 - **Two faces, one voice:** Jost (Owen Earl, OFL) for titles ≥ 24 sp, the large clock,
   headings and all figures (`titleType()`); DM Sans (Colophon, OFL, optical size = size in
   sp) for everything ≤ 21 sp (`textType()`). Both shipped unmodified, both cap height 0.70.
@@ -170,9 +174,10 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   update or a better cover just wait. Lines on their way up stop where they are when a change
   hurries and leave from there (`RisingText`): the skipped song's lines never come up; if the
   skip comes to nothing (back to the same song), they rise the rest of the way.
-- **Cover Flow** (`StageView.FLOW`): middle cover 300 dp centred 272 dp from the left, two
-  cards per side turned 60° in one shared perspective (outer edges 222.5/255 dp beside the
-  centre, 92 % height), mirrored on a glossy floor; column from 570 dp, 50 dp right margin;
+- **Cover Flow** (`StageView.FLOW`): middle cover 300 dp centred 303 dp from the left and
+  vertically, two cards per side turned 60° in one shared perspective (outer edges 222.5/255 dp
+  beside the centre, 92 % height), mirrored on a glossy floor; column from 598 dp, 314 dp wide –
+  48 dp left of the outermost card and right of the column;
   every other rule holds. A card is one textured quad (print, corners and – on the dark gloss
   only – its reflection baked; a half-size copy against shimmer – HWUI has no mipmaps). Side
   cards at 55 % / 40 %, and on the dark wall a much lighter card steps back further beside a
@@ -243,8 +248,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   the radius – made wavy by a second mode (3–6 lobes, rounded: amplitude ≤ 1.5 r/(n² − 1),
   share capped so circles never touch), mirror-symmetric, no sand beyond 0.74–0.84 of the
   radius. No nodal diameters (crosses, wheels, rosettes), no single circle or two lobes ("O").
-- **Rest screen:** large light clock ("H:mm", 132 sp, `Figures`) under a dim pool of light
-  that moves with it; re-hung every 15 min; one plain sentence when something is wrong
+- **Rest screen:** large light clock ("H:mm", 132 sp, natural figures) in the very middle of
+  a dim pool of light; one plain sentence when something is wrong
   ("Home Assistant ist nicht erreichbar."); at night the lamp is turned down, nothing left out.
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.

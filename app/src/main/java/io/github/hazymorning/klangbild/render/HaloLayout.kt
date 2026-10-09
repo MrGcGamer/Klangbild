@@ -30,11 +30,11 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
  * artwork's edges: the status line (time, where the music plays) from its top edge, what
  * comes next on its bottom edge. Every line in the column starts on one left edge.
  *
- * The whole group sits 8 dp above the screen's centre – the optical centre, as a framer
- * gives a picture a little more mat below than above.
+ * The group stands exactly in the middle of the screen: as much room above the artwork as
+ * below it, as much left of it as right of the column (the progress bar's end).
  *
  *  ┌──────────────────────────────────────────────────────────┐
- *  │            96            368          64       352     80 │
+ *  │            88            368          64       352     88 │
  *  │        ╭──────────────╮      21:47 · Überall            │  ← artwork top
  *  │        │              │      Title                       │
  *  │        │   artwork    │      Artist                      │  ← artwork centre
@@ -45,21 +45,22 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
  *  └──────────────────────────────────────────────────────────┘
  *
  * Cover Flow ([StageView.FLOW]) keeps every rule but makes room for the cards beside the
- * middle one: the middle cover is 300 dp with its centre 272 dp from the left, the column
- * starts at 570 dp and leaves 50 dp on the right (see [FlowGeometry]).
+ * middle one: the middle cover is 300 dp with its centre 303 dp from the left, so the strip's
+ * outer edge (255 dp beside it, see [FlowGeometry]) keeps 48 dp from the screen's edge – as
+ * much as the column (from 598 dp) keeps on the right.
  */
 data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SINGLE) {
     private val sx = screen.widthDp / 960f
     private val sy = screen.heightDp / 540f
     private val grid = if (view == StageView.FLOW) FLOW else SINGLE
 
-    /** Left margin before the artwork; the right margin is a little narrower (text is ragged). */
+    /** Left margin before the artwork, and after the column on the right. */
     val margin = grid.margin * sx
     val rightMargin = grid.rightMargin * sx
 
     /** Side of the artwork's square. */
     val art = grid.art * sy
-    val artTop = (screen.heightDp - art) / 2f - LIFT * sy
+    val artTop = (screen.heightDp - art) / 2f
     val artRect: RectDp get() = RectDp(margin, artTop, art, art)
 
     /** Space between artwork and text. */
@@ -90,11 +91,8 @@ data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SI
     private class Grid(val margin: Float, val art: Float, val gap: Float, val rightMargin: Float)
 
     companion object {
-        private val SINGLE = Grid(margin = 96f, art = 368f, gap = 64f, rightMargin = 80f)
-        private val FLOW = Grid(margin = 122f, art = 300f, gap = 148f, rightMargin = 50f)
-
-        /** How far the group sits above the screen's centre (dp). */
-        const val LIFT = 8f
+        private val SINGLE = Grid(margin = 88f, art = 368f, gap = 64f, rightMargin = 88f)
+        private val FLOW = Grid(margin = 153f, art = 300f, gap = 145f, rightMargin = 48f)
 
         /** Corner radius of square artwork (dp at 960 × 540, for the single view's 368 dp). */
         const val RADIUS = 8f

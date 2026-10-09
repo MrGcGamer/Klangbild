@@ -91,7 +91,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
             .background(Color.Black)
             .graphicsLayer {
                 alpha = entrance.value
-                val (dx, dy) = Motion.drift(wall.value, 12f * density)
+                val (dx, dy) = Motion.drift(wall.value, DRIFT_DP * density)
                 translationX = dx.toFloat()
                 translationY = dy.toFloat()
             },
@@ -171,6 +171,12 @@ private sealed interface Content {
 }
 
 private const val QUIET_START_MS = 4_000L
+
+/**
+ * How far the whole screen drifts against burn-in (dp): enough to soften every edge on an
+ * OLED, too little to see anything stand off the middle.
+ */
+private const val DRIFT_DP = 6f
 
 /** A switch of screens is over after this long (900 ms out, then 1.3 s in after 900 ms), with room to spare. */
 private const val SCREEN_SWITCH_MS = 3_000L
