@@ -99,11 +99,18 @@ fun Fensterblick(
         var shown by remember { mutableStateOf<PaperImages?>(null) }
         var leaving by remember { mutableStateOf<PaperImages?>(null) }
         val fade = remember { Animatable(1f) }
+        // The whole Fensterblick – picture and label – comes up out of the dark once baked.
+        val appear = remember { Animatable(if (still) 1f else 0f) }
         LaunchedEffect(images) {
             val next = images ?: return@LaunchedEffect
             val old = shown
-            if (old == null || still) {
+            if (still) {
                 shown = next
+                return@LaunchedEffect
+            }
+            if (old == null) {
+                shown = next
+                appear.animateTo(1f, tween(FIRST_FADE_MS, easing = Motion.Dimmer))
                 return@LaunchedEffect
             }
             leaving = old
@@ -115,12 +122,12 @@ fun Fensterblick(
         val look: () -> PaperLook = { frame.value; state.look }
         val places: () -> SkyPlaces = { frame.value; state.places }
         val motion: () -> PaperMotion = { frame.value; state.motion }
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear.value }) {
             leaving?.let { PaperView(it, look, places, motion, Modifier.fillMaxSize()) }
             shown?.let { s ->
                 PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
             }
-            content(look)
+            if (shown != null) content(look)
         }
     }
 }
@@ -130,6 +137,9 @@ private const val SHAPES_EVERY = 60L
 
 /** The picture's tick (ms): about twenty frames a second. */
 const val VISTA_TICK_MS = 50L
+
+/** The first picture fades in this long once it is baked. */
+private const val FIRST_FADE_MS = 1_200
 
 /** A new season's shapes fade in this slowly (a day's change, seen by nobody) – and quicker in the preview. */
 private const val SEASON_FADE_MS = 20_000

@@ -112,7 +112,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (controller.previewShowing) return previewKey(keyCode, event) || super.onKeyDown(keyCode, event)
-        if (wakingKey == keyCode) return true
+        // The waking key's repeats are spent too; a fresh press is a new key.
+        if (wakingKey == keyCode) {
+            if (event.repeatCount > 0) return true
+            wakingKey = null
+        }
         // Any key ends the Fensterblick and starts its delays again. The key is spent on that –
         // only the media keys still do what they say.
         if (event.repeatCount == 0 && keyCode in REMOTE_KEYS && controller.interaction() && keyCode !in MEDIA_KEYS) {

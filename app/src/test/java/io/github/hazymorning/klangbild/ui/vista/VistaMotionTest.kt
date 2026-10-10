@@ -37,11 +37,12 @@ class VistaMotionTest {
         val feed = VistaFeed(place = { berlin }, cover = { cover }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
         compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }
-        // The picture is baked off the main thread: give it the time it takes.
+        // The picture is baked off the main thread: give it the time it takes, then let it fade in.
         repeat(8) {
             Thread.sleep(400)
             compose.mainClock.advanceTimeBy(16)
         }
+        compose.mainClock.advanceTimeBy(1_500)
         compose.onRoot().captureRoboImage("build/screenshots/vista/motion/${name}_00.png")
         for (i in 1..frames) {
             wall += stepMs

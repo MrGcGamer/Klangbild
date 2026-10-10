@@ -160,6 +160,7 @@ class NowPlayingController(
 
     /** The Fensterblick's preview is open: it shows, and the keys set its hour, month and sky. */
     @Volatile private var previewOpen = false
+    @Volatile private var previewTouchedAt = 0L
 
     /** "Einschlafen": set from the menu, it pauses the music once ([SleepTimer]). */
     private val sleepTimer = SleepTimer()
@@ -305,8 +306,9 @@ class NowPlayingController(
         when (session.value.vista) {
             VistaRequest.SHOW -> showVista(timelapse = false)
             VistaRequest.TIMELAPSE -> showVista(timelapse = true)
+            // Asked to go: like a key press – it goes, and its delays start again.
             VistaRequest.HIDE -> synchronized(this) {
-                vistaPolicy.request(false)
+                vistaPolicy.interaction(now())
                 if (!previewOpen) vistaClock.real()
             }
             null -> Unit
@@ -359,6 +361,7 @@ class NowPlayingController(
     fun openPreview() {
         menuCursor = null
         previewOpen = true
+        previewTouchedAt = now()
         val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(now()), java.time.ZoneId.systemDefault())
         vistaClock.set(VistaClock.Preview(minuteOfDay = at.hour * 60 + at.minute, dayOfYear = at.dayOfYear - 1))
         recompute()
@@ -381,6 +384,7 @@ class NowPlayingController(
     /** Preview: an hour earlier (−1) or later (+1) – the first step lands on a full hour. */
     @Synchronized
     fun previewHour(direction: Int) {
+        previewTouchedAt = now()
         val p = vistaClock.preview
         val m = p.minuteOfDay ?: 12 * 60
         val next = when {
@@ -395,6 +399,7 @@ class NowPlayingController(
     /** Preview: the same day a month earlier (−1) or later (+1). */
     @Synchronized
     fun previewMonth(direction: Int) {
+        previewTouchedAt = now()
         val p = vistaClock.preview
         val year = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).year
         val d = java.time.LocalDate.ofYearDay(year, ((p.dayOfYear ?: 171) + 1).coerceIn(1, 365)).plusMonths(direction.toLong())
@@ -405,6 +410,7 @@ class NowPlayingController(
     /** Preview: the next sky – the weather's, clear, a few clouds, overcast. */
     @Synchronized
     fun previewSky() {
+        previewTouchedAt = now()
         val p = vistaClock.preview
         val next = when (p.cover) {
             null -> 0f
@@ -419,6 +425,7 @@ class NowPlayingController(
     /** Preview: a day in two minutes, or back to the hour it shows. */
     @Synchronized
     fun previewTimelapse() {
+        previewTouchedAt = now()
         val p = vistaClock.preview
         if (p.timelapse) {
             val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(vistaClock.sky()), java.time.ZoneId.systemDefault())
@@ -754,8 +761,14 @@ class NowPlayingController(
         val s = settings.value
         val src = _ui.value.source
         val t = now()
-        // A menu nobody uses closes by itself – it must not stand still on the OLED.
+        // A menu nobody uses closes by itself – it must not stand still on the OLED; so does a
+        // preview left alone (long enough to watch a day go by in it).
         if (menuCursor != null && t - menuTouchedAt > MENU_IDLE_MS) menuCursor = null
+        if (previewOpen && t - previewTouchedAt > PREVIEW_IDLE_MS) {
+            previewOpen = false
+            vistaClock.real()
+            vistaPolicy.interaction(t)
+        }
         val decision: ScreenDecision = machine.decide(src, t)
         val lighting = lightingFor(s, src)
         val appearance = appearanceFor(s, src)
@@ -909,6 +922,9 @@ class NowPlayingController(
 
         /** An untouched menu closes after this long. */
         const val MENU_IDLE_MS = 60_000L
+
+        /** The preview closes itself after this long without a key (two whole time-lapse days and more). */
+        const val PREVIEW_IDLE_MS = 10 * 60_000L
 
         /** Spoken word: left jumps back this far, right ahead this far (like most podcast apps). */
         const val BACK_MS = 15_000L
