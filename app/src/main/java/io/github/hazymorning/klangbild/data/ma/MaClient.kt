@@ -53,6 +53,11 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         return result as? JsonArray ?: throw IOException("Unexpected answer to player_queues/items")
     }
 
+    /** Adds what [playerId] plays to the favourites (a station's song looked up as a song); throws when Music Assistant cannot. */
+    suspend fun favoriteNowPlaying(playerId: String) {
+        command("players/add_currently_playing_to_favorites", buildJsonObject { put("player_id", playerId) })
+    }
+
     /** Whether address and token work, as the menu and the setup page say it. */
     suspend fun check(): MaLink = try {
         if (command("player_queues/all", JsonObject(emptyMap())) is JsonArray) MaLink.CONNECTED else MaLink.UNREACHABLE

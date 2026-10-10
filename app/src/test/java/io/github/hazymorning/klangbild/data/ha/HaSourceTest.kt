@@ -45,6 +45,9 @@ class HaSourceTest {
     private var queueAnswer: (() -> String)? = { """{"media_player.wz":{"queue_id":"q1","current_index":0,"current_item":{"name":"Erstes Lied","media_item":{"media_type":"track","name":"Erstes Lied"}},"next_item":null}}""" }
     private var subscription: String? = null
 
+    /** How Home Assistant renders the speaker template: the count, and after a "|" the favourite button. */
+    private var templateAnswer = "3"
+
     @Before
     fun setUp() {
         ha = MockWebServer()
@@ -78,7 +81,7 @@ class HaSourceTest {
                 }
                 "render_template" -> webSocket.send(
                     """[{"id":$id,"type":"result","success":true,"result":null},
-                       {"id":$id,"type":"event","event":{"result":3,"listeners":{"all":false,"domains":[],"entities":[],"time":false}}}]""",
+                       {"id":$id,"type":"event","event":{"result":"$templateAnswer","listeners":{"all":false,"domains":[],"entities":[],"time":false}}}]""",
                 )
                 "unsubscribe_events" -> webSocket.send("""{"id":$id,"type":"result","success":true,"result":null}""")
                 "call_service" -> {
@@ -197,5 +200,94 @@ class HaSourceTest {
         } finally {
             ma.close()
         }
+    }
+
+    @Test
+    fun `a station keeps the song's picture from Home Assistant and names itself in the bar's place`() = runBlocking {
+        player = """{"media_title":"Cold Little Heart","media_artist":"Michael Kiwanuka","media_content_id":"library://radio/7",
+            "media_album_name":"Radio Paradise","entity_picture":"/api/media_player_proxy/media_player.wz?token=t&cache=song",
+            "app_id":"music_assistant","mass_player_type":"player","active_queue":"q1"}"""
+        queueAnswer = {
+            """{"media_player.wz":{"queue_id":"q1","current_index":0,
+               "current_item":{"name":"Radio Paradise","stream_title":"Michael Kiwanuka - Cold Little Heart",
+                 "media_item":{"media_type":"radio","name":"Radio Paradise","image":"https://cdn.example/station.png"}},
+               "next_item":{"name":"SWR2","media_item":{"media_type":"radio","name":"SWR2","image":"https://cdn.example/swr2.png"}}}}"""
+        }
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.queueKnown } }
+        val t = s.state.value.player!!.track!!
+        assertThat(t.kind).isEqualTo(MediaKind.RADIO)
+        assertThat(t.source).isEqualTo("Radio Paradise")
+        assertThat(t.album).isNull()
+        // The song's picture as Home Assistant has it, never the station's logo instead.
+        assertThat(t.artworkUrl).endsWith("cache=song")
+        s.stop()
+    }
+
+    @Test
+    fun `a station's song picture from Music Assistant's own queue goes first`() = runBlocking {
+        player = """{"media_title":"Cold Little Heart","media_artist":"Michael Kiwanuka","media_content_id":"library://radio/7",
+            "media_album_name":"Radio Paradise","entity_picture":"/api/media_player_proxy/media_player.wz?token=t&cache=station",
+            "app_id":"music_assistant","mass_player_type":"player","active_queue":"q1"}"""
+        queueAnswer = {
+            """{"media_player.wz":{"queue_id":"q1","current_index":0,
+               "current_item":{"name":"Radio Paradise","stream_title":"Michael Kiwanuka - Cold Little Heart",
+                 "media_item":{"media_type":"radio","name":"Radio Paradise","image":"https://cdn.example/station.png"}},
+               "next_item":null}}"""
+        }
+        val ma = MockWebServer()
+        ma.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val command = Json.parseToJsonElement(request.body!!.utf8()).jsonObject["command"]!!.jsonPrimitive.content
+                maCommands += command
+                return when (command) {
+                    "player_queues/items" -> MockResponse.Builder().body(
+                        """[{"queue_id":"q1","queue_item_id":"a","name":"Radio Paradise",
+                            "streamdetails":{"stream_title":"Michael Kiwanuka - Cold Little Heart",
+                              "stream_metadata":{"title":"Cold Little Heart","artist":"Michael Kiwanuka","album":"Love & Hate",
+                                "image_url":"https://img.example/love-and-hate.jpg"}},
+                            "media_item":{"media_type":"radio","name":"Radio Paradise",
+                              "image":{"path":"https://cdn.example/station.png","provider":"radiobrowser","remotely_accessible":true}}}]""",
+                    ).build()
+                    else -> MockResponse.Builder().body("[]").build()
+                }
+            }
+        }
+        ma.start()
+        try {
+            val s = source(ma = MaClient(http, ma.url("/").toString().trimEnd('/'), "ma-token"))
+            s.start()
+            val t = withTimeout(5_000) { s.state.first { it.player?.track?.artworkUrl?.contains("love-and-hate") == true } }.player!!.track!!
+            assertThat(t.album).isEqualTo("Love & Hate")
+            assertThat(t.source).isEqualTo("Radio Paradise")
+            s.stop()
+        } finally {
+            ma.close()
+        }
+    }
+
+    @Test
+    fun `the favourite goes through the speaker's own button`() = runBlocking {
+        templateAnswer = "3|button.wz_favorite_current_song"
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.favorites } }
+        assertThat(s.favorite()).isTrue()
+        val press = calls.last { it["domain"]?.jsonPrimitive?.content == "button" }
+        assertThat(press["service"]!!.jsonPrimitive.content).isEqualTo("press")
+        assertThat(press["target"]!!.jsonObject["entity_id"]!!.jsonPrimitive.content).isEqualTo("button.wz_favorite_current_song")
+        s.stop()
+    }
+
+    @Test
+    fun `without a button and without Music Assistant there are no favourites`() = runBlocking {
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player != null } }
+        delay(300)
+        assertThat(s.state.value.favorites).isFalse()
+        assertThat(s.favorite()).isFalse()
+        s.stop()
     }
 }

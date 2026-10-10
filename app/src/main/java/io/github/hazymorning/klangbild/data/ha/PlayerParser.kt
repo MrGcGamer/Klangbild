@@ -43,11 +43,17 @@ object PlayerParser {
         } else {
             val picture = HaUrls.resolve(baseUrl, entity.string("entity_picture"))
             val localPicture = HaUrls.resolve(baseUrl, entity.string("entity_picture_local"))
-            val source = entity.string("media_channel") ?: entity.string("source")?.takeIf { entity.string("app_id") == "radio" }
+            var source = entity.string("media_channel") ?: entity.string("source")?.takeIf { entity.string("app_id") == "radio" }
             val kind = MediaKind.fromUri(entity.string("media_content_id")) ?: if (source != null) MediaKind.RADIO else MediaKind.MUSIC
             // Music Assistant puts an item's description where the album would be when it has
             // none – for a book its blurb, paragraphs long. That is never an album line.
             var album = entity.string("media_album_name")?.trim()?.takeIf { it.isNotEmpty() && !isDescription(it) && kind != MediaKind.AUDIOBOOK }
+            // A station: Music Assistant names it where the album would be, unless the song brings
+            // its own album (then the queue names the station). It is the source, not an album.
+            if (kind == MediaKind.RADIO && source == null) {
+                source = album
+                album = null
+            }
             var artists = if (kind == MediaKind.AUDIOBOOK) splitAuthors(entity.string("media_artist")) else splitArtists(entity.string("media_artist"))
             // An episode: the show's name (in the album's place) stands where an artist would.
             if (kind == MediaKind.PODCAST && artists.isEmpty() && album != null) {
@@ -141,10 +147,11 @@ object PlayerParser {
         val year = (album?.get("year") as? JsonPrimitive)?.intOrNull
         val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
         val isRadio = kind == MediaKind.RADIO
-        // Radio: the station is the source, the stream title (if any) is what plays now.
+        // Radio: the station is the source, the stream title (if any) is what plays now – its
+        // song's title after the artist ("Artist - Title"), as Music Assistant splits it too.
         val streamTitle = item.string("stream_title")?.takeIf { it.isNotBlank() }
         val title = when {
-            isRadio -> streamTitle ?: name
+            isRadio -> streamTitle?.let { t -> t.substringAfter(" - ", t).trim().ifEmpty { t } } ?: name
             version != null -> "$name ($version)"
             else -> name
         }

@@ -98,8 +98,9 @@ class HaSource(
 
     override fun start() {
         connection.start(config, listOf(playerEntity, sunEntity) + weatherEntities)
-        // How many Music Assistant speakers there are: a group of all of them is "everywhere".
-        connection.watchTemplate(SPEAKER_COUNT_TEMPLATE)
+        // How many Music Assistant speakers there are (a group of all of them is "everywhere"),
+        // and the speaker's button that adds what plays to the favourites.
+        connection.watchTemplate(speakerTemplate(playerEntity))
         collector = scope.launch {
             combine(connection.status, connection.entities, connection.templateResult, connection.config) { st, ents, _, _ -> st to ents }
                 .collect { (st, ents) -> publish(st, ents) }
@@ -141,6 +142,39 @@ class HaSource(
         }
         runCatching { connection.callService("media_player", service, playerEntity) }
     }
+
+    /**
+     * Adds what plays to Music Assistant's favourites: through the speaker's own button in Home
+     * Assistant ("Favorite current song"), else through Music Assistant itself. A station's song
+     * is looked up as a song by Music Assistant; it fails when it cannot find one.
+     */
+    override suspend fun favorite(): Boolean {
+        val button = favoriteButton()
+        if (button != null) {
+            return try {
+                connection.callService("button", "press", button)
+                true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val client = ma ?: return false
+        val player = lastSnapshot?.activeQueue ?: return false
+        return try {
+            client.favoriteNowPlaying(player)
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** The speaker's favourite button, as the template found it (null without one). */
+    private fun favoriteButton(): String? =
+        connection.templateResult.value?.substringAfter('|', "")?.trim()?.takeIf { it.startsWith("button.") }
 
     /** Home Assistant passes whole seconds on to Music Assistant, whatever the speed: the item's own time. */
     override suspend fun seek(positionMs: Long) {
@@ -206,6 +240,7 @@ class HaSource(
             coming = currentWindow?.coming.orEmpty(),
             played = currentWindow?.played.orEmpty(),
             ma = if (ma == null) null else maLink,
+            favorites = player?.isMusicAssistant == true && (favoriteButton() != null || (ma != null && player.activeQueue != null)),
             place = placeOf(connection.config.value) ?: _state.value.place,
             weather = weather?.state?.takeIf { it != "unavailable" && it != "unknown" } ?: _state.value.weather.takeIf { weather == null },
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
@@ -237,6 +272,7 @@ class HaSource(
      */
     private fun enrich(p: PlayerSnapshot): PlayerSnapshot {
         val track = p.track ?: return p
+        if (track.kind == MediaKind.RADIO) return enrichStation(p, track)
         val q = queue ?: return p
         val current = q.current ?: return p
         if (queueForKey != trackKey(track) || !sameTitle(current.title, track.title)) return p
@@ -253,8 +289,31 @@ class HaSource(
                 source = current.source ?: track.source,
                 kind = listOf(track.kind, mine?.kind, current.kind).firstOrNull { it != null && it != MediaKind.MUSIC } ?: MediaKind.MUSIC,
                 chapters = mine?.chapters.orEmpty(),
+                favorite = mine?.favorite == true,
             ),
             speed = w?.speed ?: p.speed,
+        )
+    }
+
+    /**
+     * A station: the song it plays keeps Home Assistant's picture (the song's own when Music
+     * Assistant knows it) unless Music Assistant's queue brings the song's picture itself – the
+     * station's picture only ever stands behind. The queue names the station; a name in the
+     * album's place that is not the station's is the song's album.
+     */
+    private fun enrichStation(p: PlayerSnapshot, track: TrackInfo): PlayerSnapshot {
+        if (queueForKey != trackKey(track)) return p
+        val mine = window?.current?.takeIf { it.kind == MediaKind.RADIO && sameTitle(it.title, track.title) }
+        val station = queue?.current?.takeIf { it.kind == MediaKind.RADIO }?.source ?: mine?.source ?: track.source
+        val album = track.album ?: mine?.album ?: track.source?.takeIf { station != null && !it.equals(station, ignoreCase = true) }
+        val song = mine?.takeIf { it.songPicture }
+        return p.copy(
+            track = track.copy(
+                album = album,
+                artworkUrl = song?.artworkUrl ?: track.artworkUrl ?: queue?.current?.artworkUrl,
+                artworkFallbackUrl = if (song != null) track.artworkUrl ?: song.artworkFallbackUrl else track.artworkFallbackUrl ?: queue?.current?.artworkUrl,
+                source = station,
+            ),
         )
     }
 
@@ -322,7 +381,7 @@ class HaSource(
             maLink = MaLink.CONNECTED
             windowReadAt = now()
             windowFor = Triple(q.queueId, q.currentIndex, q.next?.key)
-            w.takeIf { a -> val b = q.current; a.current != null && b != null && sameTitle(a.current.title, b.title) }
+            w.takeIf { a -> val b = q.current; a.current != null && b != null && (sameTitle(a.current.title, b.title) || sameStation(a.current, b)) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: MaAuthException) {
@@ -336,7 +395,7 @@ class HaSource(
 
     /** All of the house's speakers play together (and there are at least three). */
     private fun isEverywhere(g: SpeakerGroup): Boolean {
-        val all = connection.templateResult.value?.trim()?.toIntOrNull() ?: return false
+        val all = connection.templateResult.value?.substringBefore('|')?.trim()?.toIntOrNull() ?: return false
         return g.name == null && all >= 3 && g.others.size + 1 >= all
     }
 
@@ -356,8 +415,21 @@ class HaSource(
             "{{ states.media_player | selectattr('attributes.mass_player_type', 'eq', 'player') " +
                 "| rejectattr('state', 'eq', 'unavailable') | list | count }}"
 
+        /**
+         * The speaker count, then after a "|" the button Music Assistant gives [player] in Home
+         * Assistant to add what plays to the favourites (empty without one).
+         */
+        fun speakerTemplate(player: String): String =
+            SPEAKER_COUNT_TEMPLATE + "|{% set d = device_id('" + player.replace("'", "") + "') %}" +
+                "{{ ((device_entities(d) if d else []) | select('match', 'button') " +
+                "| select('in', integration_entities('music_assistant')) | list + [''])[0] }}"
+
         fun norm(s: String): String =
             Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }
+
+        /** Two descriptions of one station (the song each names may differ by a moment). */
+        fun sameStation(a: TrackInfo, b: TrackInfo): Boolean =
+            a.kind == MediaKind.RADIO && b.kind == MediaKind.RADIO && a.source != null && a.source == b.source
 
         fun sameTitle(a: String, b: String): Boolean {
             val x = norm(a)

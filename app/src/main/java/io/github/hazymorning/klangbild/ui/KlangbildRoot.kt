@@ -31,6 +31,7 @@ import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.config.MotionLevel
 import io.github.hazymorning.klangbild.config.VolumeDisplay
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
@@ -250,7 +251,8 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     val pace = ui.sleepAt?.let { StageTexts.sleep(it) } ?: TimeLine.speed(player?.speed ?: 1f)?.takeIf { spoken }
     val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, pace = pace)
     val statusLine = StatusLine(lead, clock)
-    val nextTrack = stageScreen?.next?.takeIf { display.next }
+    // A station has no next song to tell (what its queue holds next is another station).
+    val nextTrack = stageScreen?.next?.takeIf { display.next && stageScreen.track.kind != MediaKind.RADIO }
     val chapter = ui.chapter
     val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek, chapter) {
         { s: StageData ->

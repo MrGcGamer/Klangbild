@@ -169,6 +169,9 @@ class PlayerParserTest {
             base,
         ).track!!
         assertThat(station.kind).isEqualTo(MediaKind.RADIO)
+        // Music Assistant names the station where the album would be: it is the source, no album.
+        assertThat(station.source).isEqualTo("SWR2")
+        assertThat(station.album).isNull()
         val described = PlayerParser.player(
             entity("playing", """{"media_title":"Z","media_album_name":"${"Ein langer Text über diese Aufnahme. ".repeat(6)}"}"""),
             base,
