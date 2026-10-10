@@ -91,5 +91,12 @@ class VistaGalleryTest {
         // A full moon over snow: 3 January 2026.
         shot("5_weather_5_full_moon", ZonedDateTime.of(2026, 1, 3, 22, 0, 0, 0, Fixtures.zone), "clear-night")
         shot("5_weather_6_no_label", noon.withMonth(7).withDayOfMonth(16).withHour(19), "sunny", side = MiniPlayer.OFF)
+        shot("5_weather_7_pouring", noon, "pouring")
+        shot("5_weather_8_storm", noon, "lightning-rainy")
+        shot("5_weather_9_fog", noon.withHour(9), "fog")
+        shot("5_weather_a_snow", ZonedDateTime.of(2026, 1, 22, 13, 0, 0, 0, Fixtures.zone), "snowy")
+        shot("5_weather_b_snow_night", ZonedDateTime.of(2026, 1, 22, 21, 0, 0, 0, Fixtures.zone), "snowy")
+        shot("5_weather_c_rain_dusk", noon.withHour(18).withMinute(50), "rainy")
+        shot("5_weather_d_windy", noon, "windy")
     }
 }

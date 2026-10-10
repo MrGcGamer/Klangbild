@@ -47,13 +47,17 @@ object World {
     }
 
     /**
-     * What the sky does at [epochMs] over [place] – everything the picture's light depends on –
-     * and where the heavens stand; [cover] is the clouds as a mood.
+     * What the sky does at [epochMs] over [place] in [weather] – everything the picture's light
+     * depends on – and where the heavens stand.
      */
-    fun sky(epochMs: Long, place: Place, zone: ZoneId, cover: Float): Pair<SkyState, Heavens> {
+    fun sky(epochMs: Long, place: Place, zone: ZoneId, weather: Weather): Pair<SkyState, Heavens> {
         val h = heavens(epochMs, place)
         val (season, shapes) = season(epochMs, zone, place.latitude)
-        return SkyState(h.sunElevation, h.sunAzimuth, h.moonElevation, h.moonAzimuth, h.moonFraction, cover = cover, season = season, blossom = shapes.blossom) to h
+        return SkyState(
+            h.sunElevation, h.sunAzimuth, h.moonElevation, h.moonAzimuth, h.moonFraction,
+            cover = weather.cover, rain = weather.rain, snow = weather.snow, fog = weather.fog, storm = weather.storm,
+            season = season, blossom = shapes.blossom,
+        ) to h
     }
 
     /** Local mean sidereal time in degrees (the standard formula, good to a fraction of a degree). */
@@ -123,30 +127,86 @@ object World {
 }
 
 /**
- * Home Assistant's weather, read only as the light's mood: how cloudy the sky is. Rain, snow,
- * fog or storms never fall in the picture – they only make it quieter.
+ * The weather as the picture shows it: how cloudy the sky is ([cover], 0 clear … 1 overcast),
+ * what falls ([rain], [snow], 0 none … 1 as hard as it gets), fog in the valley ([fog]), a
+ * storm's dark sky ([storm]) and the wind ([wind], 0 still … 1 a gale) – the clouds go faster
+ * with it, and the trees, the flames and what falls lean with it.
+ */
+data class Weather(
+    val cover: Float,
+    val rain: Float = 0f,
+    val snow: Float = 0f,
+    val fog: Float = 0f,
+    val storm: Float = 0f,
+    val wind: Float = BREEZE,
+) {
+    /** On the way from this weather to [to], [t] (0..1) of it. */
+    fun towards(to: Weather, t: Float): Weather {
+        if (t <= 0f) return this
+        if (t >= 1f) return to
+        fun m(a: Float, b: Float) = a + (b - a) * t
+        return Weather(m(cover, to.cover), m(rain, to.rain), m(snow, to.snow), m(fog, to.fog), m(storm, to.storm), m(wind, to.wind))
+    }
+
+    /** The largest step from this weather to [o] in what the light depends on (not the wind). */
+    fun distance(o: Weather): Float = maxOf(
+        kotlin.math.abs(cover - o.cover), kotlin.math.abs(rain - o.rain), kotlin.math.abs(snow - o.snow),
+        maxOf(kotlin.math.abs(fog - o.fog), kotlin.math.abs(storm - o.storm)),
+    )
+
+    companion object {
+        /** A breeze: what the trees and the clouds do on a calm day. */
+        const val BREEZE = 0.2f
+
+        /** Without a weather entity: a fair sky with a few clouds and a breeze. */
+        val FAIR = Weather(cover = 0.25f)
+    }
+}
+
+/**
+ * Home Assistant's weather entity as [Weather]: its state (`sunny`, `rainy`, `snowy` …), its
+ * `cloud_coverage` (%) and its `wind_speed` (km/h). No lightning flashes: a storm only darkens
+ * the sky and drives the rain.
  */
 object WeatherMood {
-    /** Cover 0 (clear) … 1 (overcast) for a weather entity's [state] and its `cloud_coverage` (%), or null when unknown. */
-    fun cover(state: String?, cloudCoverage: Double?): Float? {
+    /** The weather for an entity's [state], cloud cover (%) and wind (km/h), or null when nothing is known. */
+    fun of(state: String?, cloudCoverage: Double?, windKmh: Double? = null): Weather? {
         val byState = when (state) {
-            "sunny", "clear-night" -> 0.05f
-            "windy" -> 0.2f
-            "partlycloudy" -> 0.45f
-            "windy-variant" -> 0.5f
-            "exceptional" -> 0.6f
-            "cloudy" -> 0.85f
-            "fog" -> 0.9f
-            "rainy", "pouring", "snowy", "snowy-rainy", "hail", "lightning", "lightning-rainy" -> 1f
+            "sunny", "clear-night" -> Weather(cover = 0.05f)
+            "partlycloudy" -> Weather(cover = 0.45f)
+            "cloudy" -> Weather(cover = 0.88f)
+            "fog" -> Weather(cover = 0.75f, fog = 1f, wind = 0.05f)
+            "rainy" -> Weather(cover = 1f, rain = 0.55f, wind = 0.3f)
+            "pouring" -> Weather(cover = 1f, rain = 1f, wind = 0.45f)
+            "snowy" -> Weather(cover = 0.95f, snow = 0.7f, wind = 0.2f)
+            "snowy-rainy" -> Weather(cover = 1f, rain = 0.35f, snow = 0.45f, wind = 0.3f)
+            "hail" -> Weather(cover = 1f, rain = 0.75f, storm = 0.4f, wind = 0.5f)
+            "lightning" -> Weather(cover = 1f, storm = 1f, wind = 0.55f)
+            "lightning-rainy" -> Weather(cover = 1f, rain = 0.85f, storm = 1f, wind = 0.6f)
+            "windy" -> Weather(cover = 0.25f, wind = 0.85f)
+            "windy-variant" -> Weather(cover = 0.6f, wind = 0.85f)
+            "exceptional" -> Weather(cover = 0.6f)
             else -> null
         }
         val byCoverage = cloudCoverage?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
-        return when {
-            byState != null && byCoverage != null -> (byState + byCoverage) / 2f
-            else -> byState ?: byCoverage
-        }
+        val w = byState ?: byCoverage?.let { Weather(cover = it) } ?: return null
+        val cover = if (byState != null && byCoverage != null) (byState.cover + byCoverage) / 2f else w.cover
+        // The measured wind counts – but a state that says "windy" is never calmer than that.
+        val wind = windKmh?.let { windOf(it) }?.let { if (state == "windy" || state == "windy-variant") maxOf(it, 0.6f) else it } ?: w.wind
+        return w.copy(cover = cover, wind = wind)
     }
 
-    /** Without a weather entity: a fair sky with a few clouds. */
-    const val FAIR = 0.25f
+    /** Wind 0..1 from km/h: still at 0, a breeze about 10, 0.6 at 40, a gale from about 90. */
+    fun windOf(kmh: Double): Float = (0.05 + 0.95 * (1.0 - kotlin.math.exp(-kmh.coerceAtLeast(0.0) / 45.0))).toFloat()
+
+    /** [value] of a wind speed in [unit] (as Home Assistant names it) in km/h; null for an unknown unit. */
+    fun kmh(value: Double, unit: String?): Double? = when (unit?.trim()?.lowercase()) {
+        null, "", "km/h" -> value
+        "m/s" -> value * 3.6
+        "mph" -> value * 1.609344
+        "kn", "kt", "knots" -> value * 1.852
+        "ft/s" -> value * 1.09728
+        "bft", "beaufort" -> 3.01 * Math.pow(value, 1.5)
+        else -> null
+    }
 }

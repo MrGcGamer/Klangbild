@@ -60,6 +60,7 @@ import io.github.hazymorning.klangbild.setup.SetupServer
 import io.github.hazymorning.klangbild.vista.PaperLight
 import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
+import io.github.hazymorning.klangbild.vista.Weather
 import io.github.hazymorning.klangbild.vista.WeatherMood
 import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.CoroutineScope
@@ -985,12 +986,12 @@ class NowPlayingController(
         val zone = java.time.ZoneId.systemDefault()
         val place = src.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(zone)
         val sky = vistaClock.sky()
-        val cover = WeatherMood.cover(src.weather, src.cloudCoverage) ?: WeatherMood.FAIR
+        val weather = WeatherMood.of(src.weather, src.cloudCoverage, src.windKmh) ?: Weather.FAIR
         // The fire burns on the other side of the clearing from the label (without one, right of the middle).
         val fireOnRight = mini != MiniPlayer.RIGHT
-        val key = listOf(sky / VISTA_BARS_STEP_MS, (cover * 20).toInt(), place, fireOnRight)
+        val key = listOf(sky / VISTA_BARS_STEP_MS, weather.copy(wind = 0f), place, fireOnRight)
         vistaBars?.takeIf { it.first == key }?.let { return it.second }
-        val look = PaperLight.look(World.sky(sky, place, zone, cover).first)
+        val look = PaperLight.look(World.sky(sky, place, zone, weather).first)
         return VistaBars(look, fireOnRight).also { vistaBars = key to it }
     }
 

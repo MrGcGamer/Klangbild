@@ -7,6 +7,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.ui.Fixtures
 import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
+import io.github.hazymorning.klangbild.vista.Weather
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -21,7 +22,7 @@ class FensterblickTest {
 
     private fun at(name: String, month: Int, day: Int, hour: Int, minute: Int, cover: Float? = 0.3f) {
         val t = java.time.ZonedDateTime.of(2026, month, day, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
-        val feed = VistaFeed(place = { berlin }, cover = { cover }, clock = VistaClock(now = { t }), zone = { Fixtures.zone }, wall = { t })
+        val feed = VistaFeed(place = { berlin }, weather = { cover?.let { Weather(cover = it) } }, clock = VistaClock(now = { t }), zone = { Fixtures.zone }, wall = { t })
         captureRoboImage("build/screenshots/vista/real/$name.png") {
             Fixtures.Still { Fensterblick(feed, Modifier.fillMaxSize()) }
         }

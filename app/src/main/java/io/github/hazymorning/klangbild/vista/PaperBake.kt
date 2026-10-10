@@ -196,8 +196,10 @@ object PaperBake {
     /** How soft a sheet's shadow is (dp) for its [depth]. */
     fun shadowBlurDp(depth: Float): Float = 1.4f + 2.8f * depth
 
-    /** How many cloud designs there are; the sky draws them in an order that never repeats. */
-    const val CLOUD_DESIGNS = 5
+    /** How many cloud designs there are – long strips, then heaps; the sky draws them in an order that never repeats. */
+    const val CLOUD_STRIPS = 5
+    const val CLOUD_HEAPS = 3
+    const val CLOUD_DESIGNS = CLOUD_STRIPS + CLOUD_HEAPS
 
     /** The clouds hang this far (dp) in front of the sky. */
     const val CLOUD_DEPTH = 0.8f
@@ -1430,6 +1432,10 @@ object PaperBake {
         listOf(floatArrayOf(0f, 0f, 300f, 17f), floatArrayOf(110f, -11f, 140f, 12f)),
         listOf(floatArrayOf(0f, 0f, 140f, 10f)),
         listOf(floatArrayOf(0f, 0f, 240f, 14f), floatArrayOf(60f, -9f, 100f, 9f)),
+        // Heaps: a wide, flat base and rounded humps of tissue laid over it.
+        listOf(floatArrayOf(0f, 0f, 250f, 24f), floatArrayOf(36f, -14f, 140f, 24f), floatArrayOf(98f, -24f, 96f, 22f), floatArrayOf(158f, -9f, 72f, 16f)),
+        listOf(floatArrayOf(0f, 0f, 320f, 26f), floatArrayOf(52f, -18f, 160f, 26f), floatArrayOf(140f, -30f, 110f, 24f), floatArrayOf(214f, -12f, 80f, 18f)),
+        listOf(floatArrayOf(0f, 0f, 380f, 20f), floatArrayOf(64f, -11f, 200f, 20f), floatArrayOf(92f, -22f, 92f, 16f), floatArrayOf(206f, -18f, 128f, 18f)),
     )
 
     /** Tissue lets a little of the sky through. */

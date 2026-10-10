@@ -36,7 +36,7 @@ import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.SkyState
 import io.github.hazymorning.klangbild.vista.VistaCamera
 import io.github.hazymorning.klangbild.vista.VistaClock
-import io.github.hazymorning.klangbild.vista.WeatherMood
+import io.github.hazymorning.klangbild.vista.Weather
 import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
@@ -48,12 +48,12 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-/** What the Fensterblick needs from the world outside: where it is, the weather's cover, its clock. */
+/** What the Fensterblick needs from the world outside: where it is, the weather, its clock. */
 @Stable
 class VistaFeed(
     val place: () -> Place,
-    /** The weather's cloud cover 0..1, or null when there is no weather entity. */
-    val cover: () -> Float?,
+    /** The weather outside, or null when there is no weather entity (a fair sky then). */
+    val weather: () -> Weather?,
     val clock: VistaClock,
     val zone: () -> ZoneId = ZoneId::systemDefault,
     /** The wall clock (ms) for what moves by itself: the clouds, the fire, the stars. */
@@ -232,8 +232,9 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         private set
 
     private var lookSky = Long.MIN_VALUE
-    private var lookCover = -1f
-    private var cover = -1f
+    private var lookWeather: Weather? = null
+    private var weather: Weather? = null
+    private var cloudTime = 0.0
     private var lastWall = 0L
     private val clouds = ArrayList<CloudPlace>()
 
@@ -248,23 +249,27 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         frames++
         val wall = feed.wall()
         val sky = feed.clock.sky()
-        // The cover glides towards the weather's over a few minutes.
-        val target = feed.cover() ?: WeatherMood.FAIR
-        val dt = if (lastWall == 0L) Double.MAX_VALUE else (wall - lastWall).coerceAtLeast(0L) / 1000.0
+        // The weather glides towards the weather outside over a few minutes: rain sets in, clouds gather.
+        val target = feed.weather() ?: Weather.FAIR
+        val dt = if (lastWall == 0L) -1.0 else (wall - lastWall).coerceAtLeast(0L) / 1000.0
         lastWall = wall
-        cover = if (cover < 0f || dt == Double.MAX_VALUE) target else cover + (target - cover) * (1f - exp(-dt / COVER_TAU_S).toFloat())
+        val w = weather?.takeIf { dt >= 0.0 }?.towards(target, (1.0 - exp(-dt / WEATHER_TAU_S)).toFloat()) ?: target
+        weather = w
+        val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
+        // The clouds' own clock runs faster in the wind; a gust speeds them up, it never moves them.
+        cloudTime = if (dt < 0.0) seconds * CloudField.speed(w.wind) else cloudTime + dt * CloudField.speed(w.wind)
         val moving = feed.clock.timelapse
-        val relit = moving || abs(sky - lookSky) >= LOOK_EVERY_MS || abs(cover - lookCover) > 0.01f
+        val relit = moving || abs(sky - lookSky) >= LOOK_EVERY_MS || lookWeather?.let { it.distance(w) > 0.01f } != false
         if (relit) {
             lookSky = sky
-            lookCover = cover
-            val (s, heavens) = World.sky(sky, feed.place(), feed.zone(), cover)
+            lookWeather = w
+            val (s, heavens) = World.sky(sky, feed.place(), feed.zone(), w)
             look = PaperLight.look(s)
             places = SkyMap.places(s, heavens.siderealDeg, heavens.latitude)
         }
-        val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
         // A still shows the camera at rest: the whole picture.
-        motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)), if (still) VistaCamera.REST else VistaCamera.at(seconds, label))
+        val camera = if (still) VistaCamera.REST else VistaCamera.at(seconds, label)
+        motion = PaperMotion(seconds, ArrayList(CloudField.places(cloudTime, CloudField.density(w.cover), clouds)), camera, w)
         return relit
     }
 
@@ -278,8 +283,8 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         /** The colours are worked out anew after this much of the sky's own time. */
         const val LOOK_EVERY_MS = 10_000L
 
-        /** How fast the cover follows the weather (s). */
-        const val COVER_TAU_S = 150.0
+        /** How fast the picture's weather follows the weather outside (s). */
+        const val WEATHER_TAU_S = 150.0
 
         /** Origin of the clock for what moves by itself: 1 January 2026 (keeps the numbers small). */
         const val MOTION_EPOCH_MS = 1_767_225_600_000L

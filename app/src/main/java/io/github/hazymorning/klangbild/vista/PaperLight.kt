@@ -17,8 +17,13 @@ data class SkyState(
     val moonAzimuth: Float = 180f,
     /** The moon's lit fraction, 0 (new) to 1 (full). */
     val moonFraction: Float = 0f,
-    /** Cloud cover as a mood: 0 clear, about 0.4 a few clouds, 1 overcast. */
+    /** Cloud cover: 0 clear, about 0.4 a few clouds, 1 overcast. */
     val cover: Float = 0f,
+    /** Rain and snow falling (0..1), fog in the valley, a storm's dark sky – see [Weather]. */
+    val rain: Float = 0f,
+    val snow: Float = 0f,
+    val fog: Float = 0f,
+    val storm: Float = 0f,
     /** Where the year stands. */
     val season: SeasonMix = SeasonMix.SUMMER,
     /** Blossom on the broad-leaved trees, 0 to 1 (a few weeks of spring). */
@@ -66,6 +71,8 @@ class PaperLook(
     /** The inks of every sheet; both near banks share one set. */
     val sheets: Map<SheetId, Inks>,
     val cloud: Inks,
+    /** The tissue of an overcast sky's ceiling: darker the heavier the rain, darkest in a storm. */
+    val deck: Inks,
     /** The flames: yellow, orange, red – brighter at night. */
     val flame: Inks,
     val sunDisc: Int,
@@ -86,6 +93,10 @@ class PaperLook(
     /** Where the shadows fall: −1 to the left … 1 to the right; and how long they are (about 1). */
     val shadowSide: Float,
     val shadowLength: Float,
+    /** Rain streaks and snowflakes (sRGB), and the valley's mist – what the weather lets fall and lie. */
+    val rainInk: Int,
+    val snowInk: Int,
+    val mist: Int,
     /** How strongly the campfire lights the clearing (0..1), the colour of its light and how far it reaches (dp). */
     val fire: Float,
     val fireGlow: Int,
@@ -109,9 +120,12 @@ class PaperLook(
 /**
  * The colours of the diorama: a series of plates through the day – the morning's and the
  * evening's their own, the night shared – blended by the sun's elevation; the moon lights the
- * night, clouds mute everything. Every sheet is a paper of the season's colour under that
- * light: the faces turned towards the sun (or the moon) lit, the others in the sky's light, the
- * far ones veiled a little by the horizon's colour.
+ * night. The weather has its own skies: a clear day's deeper blue, the flat grey of a cloud deck,
+ * the slate of rain, a storm's dark sky over a pale horizon, the bright grey of snow, the milk
+ * of fog – and under them the land: muted by clouds, darker in rain and storm, the far sheets
+ * fading into falling snow, rain and fog. Every sheet is a paper of the season's colour under
+ * that light: the faces turned towards the sun (or the moon) lit, the others in the sky's
+ * light, the far ones veiled a little by the horizon's colour.
  */
 object PaperLight {
     private fun c(hex: Long) = hex.toInt()
@@ -221,6 +235,18 @@ object PaperLight {
     /** The blossom some broad-leaved crowns wear for a few weeks of spring. */
     private val BLOSSOM = c(0xFFF0D8E2)
 
+    /** How far back a sheet stands, 0 (the near banks) … 1 (the far range): how much falling weather and fog veil it. */
+    private fun distance(id: SheetId): Float = when (id) {
+        SheetId.SKY, SheetId.RANGE_FAR, SheetId.SNOW -> 1f
+        SheetId.RANGE_NEAR -> 0.85f
+        SheetId.WOOD_FAR -> 0.7f
+        SheetId.WOOD_NEAR, SheetId.LEAVES -> 0.55f
+        SheetId.MEADOW, SheetId.BLOOMS -> 0.36f
+        SheetId.STANDEES, SheetId.CROWNS, SheetId.TENT, SheetId.PROPS, SheetId.FIREWOOD -> 0.3f
+        SheetId.MEADOW_NEAR, SheetId.BLOOMS_NEAR -> 0.14f
+        SheetId.FRONT_LEFT, SheetId.FRONT_RIGHT -> 0f
+    }
+
     /** How much of the horizon's colour veils each far sheet. */
     private fun haze(id: SheetId): Float = when (id) {
         SheetId.RANGE_FAR -> 0.14f
@@ -238,6 +264,10 @@ object PaperLight {
         val moon = moonlight(s)
         val clear = plateFor(s.sunElevation, s.sunAzimuth).let { if (moon > 0f) blend(it, moonlitOf(it), moon) else it }
         val cover = s.cover.coerceIn(0f, 1f)
+        val rain = s.rain.coerceIn(0f, 1f)
+        val snow = s.snow.coerceIn(0f, 1f)
+        val fog = s.fog.coerceIn(0f, 1f)
+        val storm = s.storm.coerceIn(0f, 1f)
         val p = clear
         val papers = seasonal(s.season)
 
@@ -249,21 +279,27 @@ object PaperLight {
         val raw = sunSide * sunUp + moonSide * (1f - sunUp) * moon
         // Some light from the upper right always: at noon (the sun in front) the folds still read.
         val side = (raw + 0.45f * (1f - abs(raw))).coerceIn(-1f, 1f)
-        val contrast = p.contrast * (1f - 0.6f * cover)
+        val contrast = p.contrast * (1f - 0.6f * cover) * (1f - 0.5f * fog)
         val night = 1f - smooth(-8f, 2f, s.sunElevation)
         // The direct light gives way to the sky's under clouds.
         val key = FloatArray(3) { p.key[it] + (p.fill[it] * 1.05f - p.key[it]) * 0.7f * cover }
         val fill = p.fill
-        val horizon = p.sky[2]
+        // Rain and a storm darken the land; falling snow lightens it a little.
+        val level = p.level * (1f - 0.16f * rain - 0.3f * storm + 0.05f * snow)
+        val sky = weatherSky(p.sky, s, 1f - night)
+        val horizon = sky[2]
 
         fun lit(paper: Int, n: Float, c: Float): Int {
             val k = (n * side).coerceAtLeast(0f)
-            val strength = p.level * (1f - c + 2f * c * k)
+            val strength = level * (1f - c + 2f * c * k)
             return scaled(paper, FloatArray(3) { strength * (key[it] * k + fill[it] * (1f - k)) })
         }
 
+        // The far sheets fade into the horizon's colour: a little always, much more behind falling snow and rain, most in fog.
         fun veiled(argb: Int, id: SheetId): Int {
-            val h = haze(id) * p.haze
+            val far = distance(id)
+            val weather = fog * (0.05f + 0.85f * far) + (0.42f * snow + 0.3f * rain + 0.12f * storm) * far * far
+            val h = (1f - (1f - haze(id) * p.haze) * (1f - weather.coerceAtMost(0.92f))).coerceIn(0f, 1f)
             return if (h <= 0f) argb else mixRgb(argb, horizon, h)
         }
 
@@ -271,8 +307,8 @@ object PaperLight {
 
         // White paper sinks into the night more than the coloured ones: no margin may glow in the dark.
         val dusk = 1f - 0.4f * night
-        val white = scaled(WHITE, FloatArray(3) { dusk * p.level * (key[it] * 0.5f + fill[it] * 0.5f) })
-        val whiteLit = scaled(WHITE, FloatArray(3) { dusk * p.level * (1f + 0.5f * contrast) * (key[it] * 0.7f + fill[it] * 0.3f) })
+        val white = scaled(WHITE, FloatArray(3) { dusk * level * (key[it] * 0.5f + fill[it] * 0.5f) })
+        val whiteLit = scaled(WHITE, FloatArray(3) { dusk * level * (1f + 0.5f * contrast) * (key[it] * 0.7f + fill[it] * 0.3f) })
 
         fun folded(paper: Int, id: SheetId, c: Float = contrast): Pair<Int, Int> = veiled(lit(paper, -1f, c), id) to veiled(lit(paper, 1f, c), id)
 
@@ -307,7 +343,7 @@ object PaperLight {
         // The birches on the meadow: their crowns in the leaves' colours, close by (no haze).
         put(SheetId.CROWNS, lit(papers.leaves[0], 0f, 0f), lit(papers.leaves[1], 0f, 0f), lit(papers.leaves[2], 0f, 0f))
         put(SheetId.FIREWOOD, lit(BARK, 0f, 0f), lit(STONE, 0f, 0f), lit(WOOD, 0f, 0f))
-        sheets[SheetId.SKY] = Inks(muted(p.sky[0]), muted(p.sky[1]), muted(horizon))
+        sheets[SheetId.SKY] = Inks(sky[0], sky[1], sky[2])
 
         // The flames shine by themselves: brighter against the night.
         val flameLight = 0.92f + 0.22f * night
@@ -318,29 +354,113 @@ object PaperLight {
         val low = 1f - smooth(8f, 50f, lightEl)
         val shadowAlpha = p.shadowAlpha * (1f - 0.8f * cover)
 
-        val moonLit = mixOk(c(0xFFF6EED8), horizon, 0.06f + 0.4f * cover)
+        val moonLit = mixOk(c(0xFFF6EED8), horizon, 0.06f + 0.4f * cover + 0.3f * fog)
         // The moon's unlit part a breath lighter than the sky: the whole disc reads, as a paper disc would.
         val moonDark = mixOk(p.sky[1], moonLit, 0.16f)
 
         val front = sheets.getValue(SheetId.FRONT_LEFT)
         val label = labelInks(front.mix(0.5f, 0f), s.sunElevation)
         // Behind a thick sky the sun is only a brightness: its disc and its glow fade out, the moon's too.
-        val veil = Shapes.smoothstep(0.55f, 0.95f, cover)
+        val veil = maxOf(Shapes.smoothstep(0.55f, 0.95f, cover), fog)
+        // The clouds' tissue: white on a fair day, grey under a deck, slate in rain, dark in a storm.
+        val gloom = (0.28f * cover + 0.42f * rain + 0.55f * storm - 0.3f * snow).coerceIn(0f, 0.85f)
+        val slate = Oklab.fromArgb(sky[1]).let { Lab(it.l * (0.8f - 0.12f * storm), it.a * 0.6f, it.b * 0.6f).toArgb() }
+        val cloudLit = mixRgb(whiteLit, mixOk(slate, sky[1], 0.45f), gloom)
+        val cloudShade = mixRgb(scaled(white, FloatArray(3) { 0.86f }), slate, gloom)
+        val cloudRim = mixRgb(white, mixOk(slate, sky[1], 0.25f), gloom * 0.85f)
+        // The ceiling: the same tissue, heavier – in a storm a dark slate with lighter rims.
+        val heavy = (0.25f * cover + 0.35f * rain + 0.6f * storm - 0.25f * snow).coerceIn(0f, 0.9f)
+        val deckDark = Oklab.fromArgb(slate).let { Lab(it.l * (0.86f - 0.18f * storm), it.a, it.b).toArgb() }
+        val deck = Inks(mixRgb(cloudLit, deckDark, heavy * 0.55f), mixRgb(cloudShade, deckDark, heavy), mixRgb(cloudRim, slate, heavy * 0.5f))
+        // Rain falls as threads a little lighter than the sky behind; snow as flakes of white paper; the mist is the horizon's colour, lighter.
+        val rainInk = mixOk(sky[1], c(0xFFE6ECF2), 0.45f - 0.25f * night)
+        val snowInk = scaled(WHITE, FloatArray(3) { dusk * (0.93f + 0.07f * (1f - night)) * maxOf(0.42f, level) })
+        val mist = mixOk(horizon, c(0xFFF2F2EE), 0.3f * (1f - night))
         return PaperLook(
             sheets = sheets,
-            cloud = Inks(muted(whiteLit), muted(scaled(white, FloatArray(3) { 0.86f })), muted(white)),
+            cloud = Inks(muted(cloudLit), muted(cloudShade), muted(cloudRim)),
+            deck = Inks(muted(deck.base), muted(deck.first), muted(deck.second)),
             flame = flame,
             sunDisc = p.sunDisc, discAlpha = 1f - veil,
             glow = p.glow, glowAlpha = p.glowAlpha * (1f - 0.8f * cover),
             horizonGlow = p.horizonGlow, horizonGlowAlpha = p.horizonGlowAlpha * (1f - 0.75f * cover),
             moonLit = moonLit, moonDark = moonDark, moonAlpha = (1f - veil) * (0.5f + 0.5f * night), moonDarkAlpha = (1f - veil) * night,
-            stars = p.stars * (1f - cover),
-            shadow = p.shadow, shadowAlpha = shadowAlpha, shadowSide = -side, shadowLength = 0.7f + 0.5f * low,
+            stars = p.stars * (1f - cover) * (1f - fog),
+            shadow = p.shadow, shadowAlpha = shadowAlpha * (1f - 0.7f * fog), shadowSide = -side, shadowLength = 0.7f + 0.5f * low,
+            rainInk = rainInk, snowInk = snowInk, mist = mist,
             fire = p.fire, fireGlow = FIRE_GLOW, fireReach = 46f + 70f * night,
             lantern = smooth(0.15f, 0.8f, night),
             label = label,
             labelCover = 1f - 0.3f * night,
         )
+    }
+
+    /**
+     * The sky's wash (zenith, middle, horizon) for the weather: a clear day's blue a little
+     * deeper overhead; a cloud deck draws the three together into a soft grey of the hour; rain
+     * darkens it to slate, a storm far more – over a pale, yellowish horizon; snow lifts it to a
+     * bright, even grey; fog turns it to milk. [day] is 1 by day … 0 at night.
+     */
+    private fun weatherSky(plate: IntArray, s: SkyState, day: Float): IntArray {
+        val cover = s.cover.coerceIn(0f, 1f)
+        val rain = s.rain.coerceIn(0f, 1f)
+        val snow = s.snow.coerceIn(0f, 1f)
+        val fog = s.fog.coerceIn(0f, 1f)
+        val storm = s.storm.coerceIn(0f, 1f)
+        val l = FloatArray(3)
+        val c = FloatArray(3)
+        val h = FloatArray(3)
+        for (i in 0..2) Oklab.fromArgb(plate[i]).toLch().let { l[i] = it.l; c[i] = it.c; h[i] = it.h }
+        // A clear day: crisper overhead – once the sun stands well up (dawn and dusk keep their own colours).
+        val clear = (1f - cover) * (1f - cover) * smooth(4f, 24f, s.sunElevation)
+        c[0] *= 1f + 0.28f * clear
+        c[1] *= 1f + 0.16f * clear
+        l[0] -= 0.025f * clear
+        // A cloud deck: the gradient drawn together, the colour going grey (a breath of blue left).
+        val mean = (l[0] + l[1] + l[2]) / 3f
+        val deck = 0.65f * cover
+        val towards = floatArrayOf(mean - 0.02f, mean + 0.005f, mean + 0.03f)
+        for (i in 0..2) {
+            l[i] += (towards[i] - l[i]) * deck
+            c[i] *= 1f - 0.72f * cover
+            h[i] = hueTowards(h[i], 250f, cover)
+        }
+        // Rain: slate; a storm: dark over a pale band at the horizon.
+        val darker = floatArrayOf(0.2f * rain + 0.3f * storm, 0.13f * rain + 0.26f * storm, 0.05f * rain + 0.02f * storm)
+        for (i in 0..2) {
+            l[i] *= 1f - darker[i]
+            c[i] += (0.022f - c[i]) * 0.6f * rain * (if (i == 2) 0.5f else 1f)
+            h[i] = hueTowards(h[i], 245f, rain)
+        }
+        c[0] += (0.028f - c[0]) * 0.7f * storm
+        h[0] = hueTowards(h[0], 275f, storm)
+        c[2] += (0.04f - c[2]) * 0.7f * storm * day
+        h[2] = hueTowards(h[2], 98f, storm * day)
+        // Snow: a bright, even grey (at night the snow lights the sky a little).
+        val snowL = floatArrayOf(0.84f, 0.865f, 0.89f)
+        for (i in 0..2) {
+            val target = snowL[i] * day + (l[i] + 0.05f) * (1f - day)
+            l[i] += (target - l[i]) * 0.78f * snow
+            c[i] *= 1f - 0.65f * snow
+            h[i] = hueTowards(h[i], 230f, snow)
+        }
+        // Fog: milk, the same from the zenith down.
+        val fogL = floatArrayOf(0.86f, 0.875f, 0.89f)
+        for (i in 0..2) {
+            val target = fogL[i] * day + (l[2] + 0.04f) * (1f - day)
+            l[i] += (target - l[i]) * 0.82f * fog
+            c[i] *= 1f - 0.75f * fog
+        }
+        return IntArray(3) { i -> Oklab.gamutMap(Lch(l[i].coerceIn(0f, 1f), c[i].coerceAtLeast(0f), h[i]).toLab()).toArgb() }
+    }
+
+    /** Hue [h] turned towards [to] by [t] (0..1), the short way round (°). */
+    private fun hueTowards(h: Float, to: Float, t: Float): Float {
+        if (t <= 0f) return h
+        var d = (to - h) % 360f
+        if (d > 180f) d -= 360f
+        if (d < -180f) d += 360f
+        return h + d * t.coerceIn(0f, 1f)
     }
 
     /** How brightly the moon lights the land, 0..1: its phase, its height, and the night around it. */

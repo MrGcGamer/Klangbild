@@ -9,7 +9,6 @@ import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.data.ma.MaQueue
 import io.github.hazymorning.klangbild.data.ma.QueueWindow
-import io.github.hazymorning.klangbild.lights.LightBridge
 import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
@@ -17,6 +16,8 @@ import io.github.hazymorning.klangbild.domain.QueueInfo
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.lights.LightBridge
+import io.github.hazymorning.klangbild.vista.WeatherMood
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -244,6 +245,8 @@ class HaSource(
             place = placeOf(connection.config.value) ?: _state.value.place,
             weather = weather?.state?.takeIf { it != "unavailable" && it != "unknown" } ?: _state.value.weather.takeIf { weather == null },
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
+            windKmh = weather?.let { w -> w.number("wind_speed")?.let { WeatherMood.kmh(it, w.string("wind_speed_unit")) } }
+                ?: _state.value.windKmh.takeIf { weather == null },
         )
     }
 

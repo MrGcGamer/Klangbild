@@ -41,7 +41,7 @@ fun rememberVistaFeed(ui: UiState, clock: VistaClock, now: () -> Long): VistaFee
     return remember(clock) {
         VistaFeed(
             place = { latest.source.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(ZoneId.systemDefault()) },
-            cover = { WeatherMood.cover(latest.source.weather, latest.source.cloudCoverage) },
+            weather = { WeatherMood.of(latest.source.weather, latest.source.cloudCoverage, latest.source.windKmh) },
             clock = clock,
             wall = now,
         )

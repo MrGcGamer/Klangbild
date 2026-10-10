@@ -82,12 +82,29 @@ class WorldTest {
     }
 
     @Test
-    fun `the weather is read only as how cloudy the sky is`() {
-        assertThat(WeatherMood.cover("sunny", null)).isLessThan(0.1f)
-        assertThat(WeatherMood.cover("partlycloudy", null)).isWithin(0.01f).of(0.45f)
-        assertThat(WeatherMood.cover("rainy", null)).isEqualTo(1f)
-        assertThat(WeatherMood.cover("cloudy", 40.0)).isWithin(0.01f).of(0.625f)
-        assertThat(WeatherMood.cover(null, 20.0)).isWithin(0.01f).of(0.2f)
-        assertThat(WeatherMood.cover("unknown", null)).isNull()
+    fun `the weather as the picture shows it`() {
+        assertThat(WeatherMood.of("sunny", null)!!.cover).isLessThan(0.1f)
+        assertThat(WeatherMood.of("partlycloudy", null)!!.cover).isWithin(0.01f).of(0.45f)
+        WeatherMood.of("rainy", null)!!.let {
+            assertThat(it.cover).isEqualTo(1f)
+            assertThat(it.rain).isGreaterThan(0.3f)
+            assertThat(it.snow).isEqualTo(0f)
+        }
+        assertThat(WeatherMood.of("snowy", null)!!.snow).isGreaterThan(0.3f)
+        assertThat(WeatherMood.of("fog", null)!!.fog).isEqualTo(1f)
+        assertThat(WeatherMood.of("lightning-rainy", null)!!.storm).isEqualTo(1f)
+        assertThat(WeatherMood.of("cloudy", 40.0)!!.cover).isWithin(0.01f).of(0.64f)
+        assertThat(WeatherMood.of(null, 20.0)!!.cover).isWithin(0.01f).of(0.2f)
+        assertThat(WeatherMood.of("unknown", null)).isNull()
+    }
+
+    @Test
+    fun `the wind as Home Assistant measures it`() {
+        assertThat(WeatherMood.of("sunny", null, windKmh = 2.0)!!.wind).isLessThan(0.15f)
+        assertThat(WeatherMood.of("sunny", null, windKmh = 40.0)!!.wind).isWithin(0.05f).of(0.6f)
+        assertThat(WeatherMood.of("windy", null, windKmh = 10.0)!!.wind).isAtLeast(0.6f)
+        assertThat(WeatherMood.kmh(10.0, "m/s")).isWithin(0.01).of(36.0)
+        assertThat(WeatherMood.kmh(10.0, "mph")).isWithin(0.01).of(16.09)
+        assertThat(WeatherMood.kmh(10.0, "furlongs")).isNull()
     }
 }

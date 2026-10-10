@@ -43,6 +43,7 @@ import io.github.hazymorning.klangbild.vista.Sheet
 import io.github.hazymorning.klangbild.vista.SheetId
 import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.VistaCamera
+import io.github.hazymorning.klangbild.vista.Weather
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.max
@@ -65,11 +66,12 @@ class PaperImages(val baked: PaperBaked) {
     val glow = img(baked.glow)
 }
 
-/** What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the breeze, the camera. */
+/** What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the wind, the camera, what falls. */
 class PaperMotion(
     val time: Double,
     val clouds: List<CloudPlace>,
     val camera: CameraPose = VistaCamera.REST,
+    val weather: Weather = Weather.FAIR,
 )
 
 /**
@@ -298,20 +300,23 @@ private fun DrawScope.drawMoving(images: PaperImages, l: PaperLook, p: SkyPlaces
         }
     }
     val cloudFilter = f.of(l.cloud)
+    val deckFilter = f.of(l.deck)
     val shadowFilter = f.tint(l.shadow)
     val depth = PaperBake.CLOUD_DEPTH
     for (c in m.clouds) {
+        // The ceiling's heaps hang upside down: their humps towards the ground, their shadow still below them.
+        val flip = if (c.deck) -1f else 1f
         withTransform({
             translate(b.px(c.x), b.px(c.y))
-            scale(c.scale, c.scale, pivot = Offset.Zero)
+            scale(c.scale, c.scale * flip, pivot = Offset.Zero)
         }) {
             if (l.shadowAlpha > 0.01f) {
                 sheet(
                     images.cloudShadows[c.design], b.cloudShadows[c.design], shadowFilter, c.alpha * l.shadowAlpha * 0.5f,
-                    l.shadowSide * (1f + 3.8f * depth) * l.shadowLength * d, (1.4f + 1.6f * depth) * d,
+                    l.shadowSide * (1f + 3.8f * depth) * l.shadowLength * d, flip * (1.4f + 1.6f * depth) * d,
                 )
             }
-            sheet(images.clouds[c.design], b.clouds[c.design], cloudFilter, c.alpha)
+            sheet(images.clouds[c.design], b.clouds[c.design], if (c.deck) deckFilter else cloudFilter, c.alpha)
         }
     }
 }

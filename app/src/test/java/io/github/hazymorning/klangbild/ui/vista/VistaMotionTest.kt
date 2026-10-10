@@ -9,6 +9,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.ui.Fixtures
 import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
+import io.github.hazymorning.klangbild.vista.Weather
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,7 +35,7 @@ class VistaMotionTest {
         var wall = start
         val clock = VistaClock(now = { wall })
         if (timelapse) clock.timelapse(true)
-        val feed = VistaFeed(place = { berlin }, cover = { cover }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
+        val feed = VistaFeed(place = { berlin }, weather = { Weather(cover = cover) }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
         compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }
         // The picture is baked off the main thread: give it the time it takes, then let it fade in.

@@ -24,8 +24,8 @@ class CloudFieldTest {
             val after = CloudField.places(t + 1.0 / 30.0, density)
             for (c in after) {
                 if (c.x + 420f * c.scale < -PaperMotif.OVERSCAN || c.x > PaperMotif.WIDTH + PaperMotif.OVERSCAN) continue
-                // The same strip a frame earlier: a hair to the right, as full as now.
-                val was = before.firstOrNull { it.design == c.design && abs(it.y - c.y) < 0.01f && it.x - c.x in 0f..0.1f }
+                // The same cloud a frame earlier: a hair to the right (at most 6 dp a second), as full as now.
+                val was = before.firstOrNull { it.design == c.design && abs(it.y - c.y) < 0.01f && it.x - c.x in 0f..0.2f }
                 assertThat(was).isNotNull()
                 assertThat(abs(was!!.alpha - c.alpha)).isLessThan(0.01f)
             }
