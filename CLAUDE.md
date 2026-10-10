@@ -2,10 +2,13 @@
 
 Android TV "now playing" display for Home Assistant + Music Assistant. Runs on a Google TV
 Streamer (Android TV 14, 4K, weak PowerVR GPU, OLED TV). Sideload only.
-Docs for humans are German; code and comments are English. The README stays under 400
-characters (what it is, what is special) and the release notes short: effort goes into the
-app, not into documents (`docs/` holds only the release notes that CI publishes, and old
-design records that are no longer kept up).
+Code, comments and the README are English; release notes and the old design records German.
+The README stays under 400 characters of text (one sentence on what it is, the main features
+as a short list, three screenshots from `docs/screenshots/`; plain words, no emoji, no bold,
+no dashes for effect) and the release notes short: effort goes into the app, not into
+documents (`docs/` holds only the release notes that CI publishes, the README's screenshots
+– renders from the tests, re-rendered when the look changes – and old design records that
+are no longer kept up).
 
 ## Build & test
 
@@ -29,7 +32,11 @@ python3 tools/make_launcher_assets.py                          # re-render banne
 - Motion is judged as contact sheets: `FlowMotionTest`/`TransitionTest` render frames to
   `app/build/screenshots/…`; tile them with Pillow and look at them.
 - Look at renders with the Read tool; build contact sheets with Pillow for motion.
-- The emulator smoke test (CI) talks to a stand-in Home Assistant: `ci/fake_ha.py`.
+- The emulator smoke test (CI) talks to a stand-in Home Assistant: `ci/fake_ha.py`. With it
+  running locally, `-Pklangbild.fakeHa=http://127.0.0.1:8123` lets `FirstLaunchTest` talk to it
+  for a few minutes. The app logs its connection steps with the tag `Klangbild` (never a token).
+- Run Gradle with a UTF-8 locale (`export LC_ALL=C.UTF-8`): test names hold dashes and
+  umlauts, and the test report fails without it.
 
 ## Architecture (data source → state model → UI)
 
@@ -42,7 +49,7 @@ data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swa
                 LocalNetwork (cleartext only in LAN, every redirect hop), ArtworkUrls (CDN hi-res
                 rewrites), HaSource (NowPlayingSource + LightBridge: player + sun.sun + MA queue
                 (one read at a time, only for MA players with a queue) + speaker count for
-                "Überall" + the optional MA queue window, seek, the light bars' states and calls)
+                "Überall" + the optional MA queue window, seek, shuffle, the light bars' states and calls)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
                 speed; books' authors, episodes' shows, chapters; pictures via imageproxy)
@@ -55,24 +62,46 @@ domain/         TrackInfo (+ pictureKey, kind, chapters), PlayerSnapshot (+ Spea
                 (SINGLE / FLOW), CoverStrip (the cover flow's cards: one per picture, ids kept),
                 Spoken (MediaKind, Chapter/Chapters/ChapterPlace: chapters, labels, jumps),
                 SleepTimer ("Einschlafen": minutes or an end reached by playing), FieldClock (the
-                colour field's own time, shared by screen and light bars)
+                colour field's own time, shared by screen and light bars), VistaPolicy (when the
+                Fensterblick takes the screen)
 color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, inks, both walls), Lighting
-                (time of day), Appearance (LIGHT / DARK, by the sun)
+                (the renderer's lamp; the app always passes DAY), Appearance (LIGHT / DARK, by the sun)
 render/         HaloLayout (the grid, per view), CoverField ("Coverfarben": ground + soft pools in
-                the cover's colours, the veil with text shade and cast shadow) + FieldMotion (where
-                each pool stands at a field time) + FieldModel (the field on the CPU: text shade,
-                the bars' colours), WallGlow (the artwork's light on the dark wall),
-                WallShade (its shadow on paper), HaloLight (PrintShape; lamp tint for rest and
-                menu), SceneBuilder (per-track precompute: Lanczos cover at exact px, wall, palette,
+                the cover's colours, the veil with text shade) + FieldMotion (where each pool stands
+                at a field time) + FieldModel (the field on the CPU: text shade, the bars'
+                colours), WallGlow (the artwork's light on the dark wall), HaloLight (PrintShape;
+                lamp tint for rest and menu), SceneBuilder (per-track precompute: Lanczos cover at exact px, wall, palette,
                 flow card; relight), FlowGeometry (the shared perspective), FlowCards (baked card
                 textures), FlowLight (the pool of light above the cards), ImageOps
 art/            ChladniArt (missing-cover art), StableHash
-lights/         LightSync (the colour lights behind the TV via Home Assistant: the field's colour
-                at the screen edge next to each bar, snapshot/restore, rate limits, takeover by others), HueColor (xy in
-                gamut C, greys as warm white, brightness floor)
+vista/          The Fensterblick, a paper diorama: PaperMotif (folded mountains, forest lines, the
+                clearing, the near banks, standees, birches, tent, boulders and the fire per label
+                side – mirrored on the right), PaperBake (sheets as two ink weights + the paper's
+                light + coverage in boxes of their own, cut front to back with the shade of what
+                stands in front, each on a Depth layer; snow caps, folds, silhouette forests,
+                clustered crowns, flowers and fallen leaves, the tent; the meadow's cut-outs and the
+                near banks' tall firs as Standee sprites about their feet (the firs cut whole beyond
+                the canvas); tissue clouds – strips and heaps – and flames, focus blur, shadows),
+                PaperGrain (pulp clouds, fibres, tooth per sheet), Inks/InkRaster/Coverage/Shapes
+                (colour matrices, exact AA, outlines), PaperLight (plates per hour: sky, key and
+                fill light, folds, haze, fire, lantern; season papers, moonlight, the weather's
+                skies and veils, mist, smoke, fireflies, label inks), VistaCamera (the journey:
+                zoom and a wandering view within the paper's reach, CameraPose per Depth), SkyMap
+                (south view, elevations from the skyline, stars by sidereal time), World (suncalc:
+                sun, moon, phase; season by date), Weather + WeatherMood (state, cloud coverage and
+                wind of the weather entity → cover, rain, snow, fog, storm, wind), CloudField (lanes,
+                hashed, never repeats; strips, heaps, the overcast ceiling hung upside down),
+                Weatherfall (snow and rain at three depths) + MistField, VistaClock (real time; a
+                day in two minutes only for measuring), Noise
+lights/         LightSync (the colour lights behind the TV via Home Assistant: a colour per bar,
+                snapshot/restore, rate limits, takeover by others), BarColours (CoverBars: the
+                cover's colours kept apart, placed as in the cover, moving on with "Bewegung";
+                VistaBars: the Fensterblick's own palette – sky, meadow or moonlit wood, mountains,
+                sun glow, fire), HueColor (xy in gamut C: a colour's hue at its purest, greys as
+                white – neutral by day, warmer at night – brightness floor)
 app/            NowPlayingController (single source of truth → StateFlow<UiState>; chapters, jumps
-                with the remote, sleep timer, light bars), Scenes (scene cache + builds off the
-                main thread), KlangbildApp/AppGraph
+                with the remote, sleep timer, shuffle, light bars, quick settings, favourites),
+                Scenes (scene cache + builds off the main thread), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API, token bound to its address), SetupPage
                 (HTML), SetupServer (+ QR, discovery)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), stage/ (Stage layers,
@@ -82,12 +111,21 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 main thread, at once in stills),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
+                QuickBar (the quick settings along the bottom edge),
                 RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
-                at a time, hurrying, held lines), DebugOverlay
+                at a time, hurrying, held lines), DebugOverlay,
+                vista/ (Fensterblick: bake off the main thread and ahead of time, 20 fps tick,
+                season cross-fade, the weather glided in over minutes; PaperView: sky, far range,
+                clearing and near banks as layers redrawn only when the light moves on, each only
+                as tall as its paper, moved by the camera as a whole; stars, clouds, mist, snow
+                and rain, swaying cut-outs and firs, the fire, its smoke, sparks and light,
+                fireflies every frame; VistaScreen + VistaLabel: the mini-player on the near bank,
+                standing still while the camera moves)
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
-                (entries, values, German explanations, steps; "Effekte"), LaunchExtras (am start extras)
+                (entries, values, German explanations, steps; "Effekte"), QuickMenu (the quick
+                settings' entries and values), LaunchExtras (am start extras)
 test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME, a book
                 and an episode), Fixtures, the static stages for stills
 ```
@@ -131,24 +169,26 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   adjectives stay with their noun.
 - **Text colour:** three levels only – title; artist, clock and the bar's fill; everything
   else (like white at 100 / 80 / 62 %; on paper Oklab L 0.24 / 0.37 / 0.49, the quietest
-  still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009, a little
-  warmer in the evening, never above 0.018), never #FFF, never ivory. However late it is,
-  every level keeps 4.5:1 (`NIGHT_INK_FLOOR` on black, `lightestInkOn` on paper).
-- **Day and night (`Lighting`, setting "Nachtmodus"):** the evening and the night only
-  dim and warm – light, artwork and text; they never hide anything (no line, no side card).
-  The light keeps at least 0.55 × its daytime strength (`HaloLight.nightLight`). Hiding
-  lines at dusk looked like a crash on the device (v3.0.2).
+  still 4.5:1) – near-neutral with a breath of the cover's hue (chroma ≤ 0.009), never #FFF,
+  never ivory. Every level keeps 4.5:1 (`NIGHT_INK_FLOOR` on black, `lightestInkOn` on paper).
+- **No night mode:** the stage looks the same at every hour (`Lighting.DAY`); only the wall
+  (Erscheinungsbild) and the light bars' brightness follow the sun. The "Nachtmodus" (warmer
+  in the evening, dimmer at night) was removed in 5.2 – nobody had asked for it; hiding lines
+  at dusk had looked like a crash before (v3.0.2). Never hide anything by the time of day.
 - **Light and dark wall (`Appearance`):** automatic by the sun – light from sunrise to sunset
   (elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) – or fixed. The
   light wall is warm paper (Oklab L 0.915) with a breath of the cover's colour pulled towards
-  warm and kept within hues 50–90° (a cool cover gives less colour, never mint), never white; there the artwork casts a soft shadow (`WallShade`) instead of light, a
-  white cover gets a dark hairline, small covers an ivory mat. A wall change cross-fades the
-  stage in 2.4 s.
+  warm and kept within hues 50–90° (a cool cover gives less colour, never mint), never white.
+  **Nothing frames a cover** – no shadow, no hairline, no mat, on either wall and in Cover
+  Flow: every soft shadow under the artwork read as an uneven, broken frame (v5.1;
+  `NoFrameTest` checks rendered pixels). A wall change cross-fades the stage in 2.4 s; every
+  ground reaches beyond the screen's edges (`BEYOND_EDGES_DP`), so no strip of the old wall
+  ever shows at a side (`EdgesTest`).
 - **Light (`WallGlow`):** a tight halo in the colours of the artwork's own edges, the same on
   every side: each wall point takes the nearest edge colour, averaged over a stretch that
   grows with distance (diffuse, no streaks); at most L* ≈ 17 at the edge and never more than
-  0.4 × the edge's own luminance (a dark cover gives little light, a matted one only its
-  mat's), falling as a Gaussian with σ = 26 dp, gone before the text column (which stands on
+  0.4 × the edge's own luminance (a dark cover gives little light), falling as a Gaussian
+  with σ = 26 dp, gone before the text column (which stands on
   black). It fills 2 dp under the artwork's edge so the anti-aliased rim never shows black.
   The 36 dp next to the screen edges stay black (`EdgeBandTest` checks rendered pixels),
   faded in as a product of a horizontal and a vertical ramp (a min() of edge distances
@@ -160,12 +200,15 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   Hidden by setting, back on a key press.
 - **Per frame only cheap work:** blur/palette/resampling/glow happen once per track in
   `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
-- **Honest resolution:** ≤ 1.3 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
-  small covers sit optically centred in a near-black mat with grain and a 1 dp white bevel.
-- **Calm motion** (`Motion`): a track change (1.25 s) dips through dark instead of
-  double-exposing – the old artwork goes dark (0–320 ms), the new one comes up (300–900 ms)
-  and settles from 1.5 % larger, the light turns to the new colours (0–900 ms); old text
-  leaves in 200 ms, new lines rise one after another from 560 ms. Same picture (album) → only
+- **Every cover fills its square:** a small one (a station's picture) is enlarged once with
+  Lanczos. No passe-partout: a smaller print in a mat (v5.0) read as a half-transparent frame on
+  paper and, optically centred, as a print that had slipped (`CoverFillTest`).
+- **Calm motion** (`Motion`): a track change (1 s) never goes dark – the new artwork comes up
+  over the old (0–600 ms), the old one goes once it is covered (600–750 ms), the light turns
+  to the new colours (0–800 ms) while the old wall stays whole until the new one is up; old
+  text leaves in 220 ms, new lines rise one after another from 260 ms (the dip through dark
+  of 5.1 read as a glitch on every skip). Up to 4 s without music between two songs, the
+  stage stays (`Timing.betweenSongsMs`) instead of flashing the rest screen. Same picture (album) → only
   text; same track in new light → quiet cross-fade. Pause (600 ms) dims light, artwork and
   text – nothing moves, so the lines hung on the artwork's edges stay aligned. Mute is only
   a word; a lost link dims like a pause. Nothing slides, nothing bounces. Screens switch by
@@ -183,8 +226,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   only – its reflection baked; a half-size copy against shimmer – HWUI has no mipmaps). Side
   cards at 55 % / 40 %, and on the dark wall a much lighter card steps back further beside a
   dark middle one. Dark: a soft oval of light above the middle card in its top edge's colour,
-  ≤ L* 8 and following that edge's lightness (`FlowLight`); paper: no reflection, a soft
-  shadow below each card. The strip turns over in
+  ≤ L* 8 and following that edge's lightness (`FlowLight`); paper: no reflection, no shadow.
+  The strip turns over in
   1.3 s (`Motion.Turn`, peak ≤ 2× average speed); leaving cards swing aside early so crossing
   cards never intersect (tested); cards that make way dissolve first (300 ms), then new ones
   roll in opaque from beyond the strip's end, their centre crossing the screen at an even
@@ -194,6 +237,22 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **States say it in words**, in the status line, place first and state last: "Wohnzimmer
   · Pausiert", "Küche · Stumm", "Lautstärke 35 %" (3.5 s), "Überall";
   "Verbindung wird wiederhergestellt …" in the progress bar's place.
+- **Remote:** OK plays and pauses, held it opens the settings; left / right change the song
+  (spoken word: jump); down opens the quick settings and, pressed again, closes them; up
+  brings the Fensterblick and, pressed again, leaves it (both also show hidden parts for a
+  moment; with "Hoch und runter: Lautstärke" both turn the speaker's volume instead); back
+  closes what lies on top (settings, quick settings, Fensterblick), else the app.
+- **Quick settings** (`QuickMenu`, `QuickBar`; down on the remote): one row along the bottom
+  edge, rising 22 dp as it fades in – where the key points: Ansicht (Einzelnes Cover / Cover
+  Flow / Fensterblick, taken 0.9 s after the last press so no view in between shows), Favorit
+  (with Music Assistant), Lichtleisten An / Aus (off remembers the level), Zufallswiedergabe
+  An / Aus (only where the player can shuffle; the sleep timer lives in the menu). Left /
+  right choose, OK changes, down, up or back close, 20 s alone close them. Each entry is its name
+  (15 sp, quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as wide as
+  its widest value (only the last is as wide as what it says), so nothing moves when a value
+  changes; the chosen one lit from below like the menu's line. An opaque veil (black, paper)
+  from 448 dp down, softened above: nothing behind shows through. They leave the Fensterblick
+  as it was.
 - **Settings menu** (OK long-press / Menu): the stage's grid, heading and the chosen line's
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
   a soft, low band of light (σ 120 × 12 dp, ≈ L* 10) that lights it alone; the list glides
@@ -201,11 +260,13 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   clamp, OK wraps), closes itself after 60 s. Options show or hide parts, choose the view and
   the wall, and dim the light – no fonts, colours or layout variants.
   Labels are the common words people know from TVs and phones, values plain words: sections
-  Bild (Ansicht: Einzelnes Cover / Cover Flow, Erscheinungsbild, Nachtmodus), Informationen
+  Bild (Ansicht: Einzelnes Cover / Cover Flow, Erscheinungsbild), Informationen
   (Uhrzeit, Fortschrittsbalken, Nächster Titel, Album und Jahr, Lautsprechergruppe,
   Lautstärke), Effekte (Hintergrund: Einfarbig / Coverfarben, Intensität, Bewegung: Aus /
-  Langsam / Mittel / Schnell, Lichtleisten), Fernbedienung (Musik steuern, Pfeil hoch und
-  runter, Hörbücher, Podcasts: Spulen / Titel wechseln), Timer (Sleep-Timer, Ausschalten nach,
+  Langsam / Mittel / Schnell, Lichtleisten: Aus / 10–100 % with a slider), Fensterblick (Bei
+  Pause, Während der Musik, Mini-Player: Unten links / Unten rechts / Aus), Fernbedienung
+  (Musik steuern, Hoch und runter: Fensterblick, Menü / Lautstärke, Hörbücher, Podcasts:
+  Spulen / Titel wechseln), Timer (Sleep-Timer, Ausschalten nach,
   Beim Ausschalten: App schließen / Bildschirmschoner), Verbindung. Label + value must fit the
   352 dp column on one line.
 - **Coverfarben** (setting "Hintergrund", `BackgroundMode.COVER`): the cover's own colours as the
@@ -218,8 +279,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   chroma ≤ ~0.5 × L), paper L 0.86–0.975 (pale washes). Each pool is one quad with a radial
   gradient in a quarter-size layer (`FieldLayer`), saturation 1.2 after mixing; grain against
   banding; a veil with a shade under the text worked out per cover (sampled over 20 min of
-  motion, aiming at 4.8:1 so the quietest text keeps 4.5:1 – tested on rendered pixels) and
-  the artwork's shadow. No vignette. `FieldModel` computes the same field on the CPU (text
+  motion, aiming at 4.8:1 so the quietest text keeps 4.5:1 – tested on rendered pixels). No
+  shadow under the artwork, no vignette. `FieldModel` computes the same field on the CPU (text
   shade, light bars). On colour the lower inks stand a little lighter (0.82 / 0.71, night floors
   0.71 / 0.62); the progress bar takes the cover's leading hue. "Intensität" sets how strong the
   colours are. Cover Flow on the field: the cards pass the screen's edges (`FlowStrip(edges = false)`).
@@ -227,10 +288,23 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   once in ≈ 470 / 230 / 140 s): only while music plays, on the field's own clock (`FieldClock`) –
   a pause freezes it, nothing jumps; screen and light bars read the same clock. One frame tick
   (~30/s) for the field and the progress bar, never two loops out of step.
-- **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus / Schwach /
-  Normal / Stark = 10 / 20 / 40 % brightness): each bar takes the field's colour at the screen
-  edge next to it (left and right edge, the middle bar the top edge), as xy within gamut C, greys as warm white (2700 K, evening
-  2300 K), dark covers softly; night × 0.6, pause × 0.5 (after 2 s). Before taking the bars over
+- **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus or 10–100 %
+  in steps of 10, default 60 %, a slider in the menu): brighter by day – the level as set while
+  the sun is up, down to × 0.45 at night (sun elevation 6° → −8°) – so they show in daylight
+  and stay calm in the evening. Three bars, three colours (`BarColours`). From the
+  cover (`CoverBars`): its most telling colours (colour counts more than size), kept ≥ 0.09
+  Oklab apart, placed as they sit in the cover – leftmost colour left, rightmost right, the
+  third above the TV; one colour gives itself and its neighbours ±32° round the hue circle, a
+  grey cover three whites. With "Bewegung" the colours move on from bar to bar (a step per 90 s
+  of field time, resting 70 % of it). In the Fensterblick (`VistaBars`) its own palette: above
+  the TV its sky (the weather's too), on the side away from the fire the clearing's green (by
+  night the moonlit wood), on the fire's side the mountains' paper and at night the fire's
+  light, the glow of dawn or dusk on the sun's side; worked out every 30 s of its sky's time,
+  sent at most every 20 s in 15 s fades, no pause dimming while it shows. As xy within gamut C
+  (`HueColor`): light on a wall looks far paler than a screen, so a colour goes as its hue at
+  its purest, 42–92 % of the way from white (more for more colourful colours); only real greys
+  are white – 4300 K by day, 3000 K at night, never the amber of 2700 K, which read as plain
+  orange (5.1); dark colours softly; pause × 0.5 (after 2 s). Before taking the bars over
   their state is noted; it is given back after the music has ended for 5 minutes, when the
   option goes off and when the app closes (bars that were off: dimmed, then off without a fade).
   At most one call per bar a second, none for invisible changes, a new song after 1.5 s
@@ -265,7 +339,60 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   a dim pool of light (the user wants it centred; burn-in care is the ±6 dp drift, the
   changing figures and the screen ending after "Ausschalten nach"); one plain sentence when
   something is wrong
-  ("Home Assistant ist nicht erreichbar."); at night the lamp is turned down, nothing left out.
+  ("Home Assistant ist nicht erreichbar.").
+- **Fensterblick** (`vista/`, docs/fensterblick.md): a diorama of real paper, not a flat
+  illustration (the smooth paper cut read as a comic) and not a photograph – every sheet with
+  its grain (pulp clouds, fibres, tooth; breaking off at every cut), edges cut by an uneven
+  hand, mountains folded from card (the faces towards the sun or moon lit, some light from the
+  upper right always), snow caps of torn white paper a hair wider than their mountain, forest
+  strips as silhouettes, standees (firs, birches) with a narrow margin of the card's light core
+  (a breath of the tree in it, never plain white) and slim trunks (a tall fir's no bell), broad
+  trees with clustered crowns, soft shadows and the shade of what stands close in front, the
+  far sheets a little out of focus. Mountains and forest, a campfire of crumpled tissue in the
+  clearing (always burning; at night the light of the clearing; sparks rising, thin smoke
+  drifting off with the wind), a tent beside it (a lantern flickering in its door at night),
+  boulders, flowers in spring and summer, fallen leaves in autumn, fireflies on summer nights;
+  no lake, no figures, animals or events, no lightning flashes.
+  Plates per hour (morning and evening apart) blended by the sun; papers per season; white
+  paper sinks into the night more than colour; moonlight; seasons by date (south half a year
+  on), shapes re-cut in 1/16 steps and cross-faded (blossom only colours). **The weather is
+  seen** (`Weather` from the entity's state, `cloud_coverage` and `wind_speed`, glided in over
+  minutes): a clear day's deeper blue; strips of tissue, heaps as it clouds over, an overcast
+  ceiling of heaps hung upside down; the slate of rain, a storm's dark ceiling over a pale
+  horizon; the bright grey of snow; fog's milk swallowing the far range; rain and storm darken
+  the land, falling weather veils the far sheets. Snowflakes of white paper (each with a
+  breath of shadow) and rain as fine threads fall at three depths with their layers and land
+  on the meadow; mist lies as thin tissue in the valley and the forest (fog, rain, calm
+  mornings), never over the clearing. The wind drives the clouds (on a clock of their own, so
+  a gust never makes them jump), bends the flames and the rain, and sways the cut-outs. The
+  user found 5.1 far too subtle: motion must be **visible**, calm but plain. Clouds cross the
+  screen in a few minutes; the cut-outs sway 1.1–4° about their feet (leaning into the wind,
+  gusts shared by the meadow), the tall firs on the near banks (sprites cut whole beyond the
+  screen) a little less; never a loop, 20 fps; light recomputed every 10 s, each step below
+  one level. The camera (`VistaCamera`) journeys: zoom 1.01–1.11 about the screen's middle, the
+  view wandering as far as the paper reaches at that zoom (±6 dp drift on top) – but never so far
+  that the near bank would leave the label (`BANK_MARGIN`); a swing in about two minutes, sums
+  of sines in the golden ratio; each layer follows by its `Depth` (sky 0.15, far range 0.35,
+  clearing 0.65, near banks 1) – the parallax is plain to see. The label stands still: it is no
+  part of the scenery (riding the bank's scale and pan, its text shimmered – 5.2); the camera
+  keeps its bank under it. No edge and no gap between layers ever shows (`VistaCameraTest`
+  renders every corner of the range, `VistaCameraJourneyTest` checks six hours of poses, the
+  bank under the label included); stills show it at rest. No preview in
+  the menu (removed in 5.2: never build features nobody asked for); the time-lapse is only the
+  `fensterblick=zeitraffer` extra for measuring. Comes after the pause delay (default 3 min;
+  the rest clock first), during music only if set, never over trouble, setup or the menu;
+  up on the remote or the quick settings ("Ansicht") bring it whatever plays, until it is left
+  (up again, back, or another view there). Every key starts the delays again – one that came by itself goes with
+  any key, which still does its work. Baked ahead while it is on its way. The label (cover
+  56 dp, Jost 24 / DM Sans 17, bar) lies on the dark near bank (snow only along its edge), the
+  fire on the other side; beside the cover one block exactly centred on it – the title's cap
+  height to the bar's lower edge (filling the cover's height), or without a bar (a station) to
+  the last baseline (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1 on its
+  lightest grain (`PaperLightTest`). Every sheet in its own box, baked only down to where
+  nearer paper hides it, each piece cut in a box of its own; sky, far range, clearing and near
+  banks stand as layers between light changes, each only as tall as its paper, moved by the
+  camera as a whole; what falls is drawn in a few batched calls (fill and memory: see the CI's
+  Messlauf; 5.1 measured ≈ 2.9 screens of fill per frame and 55 MB at 1080p).
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,

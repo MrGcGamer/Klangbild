@@ -103,7 +103,15 @@ class OptionsTest {
         MenuScreen(menu(MenuEntry.LIGHT, configured.copy(light = LightLevel.SUBTLE)), Lighting.DAY)
     }
 
+    @Test fun menuBars() = shot("menu_bars") {
+        MenuScreen(menu(MenuEntry.BARS, configured.copy(bars = io.github.hazymorning.klangbild.config.LightBars(left = "light.l", right = "light.r"), barLevel = io.github.hazymorning.klangbild.config.BarLevel.P60)), Lighting.DAY)
+    }
+
     @Test fun menuEveningSleep() = shot("menu_sleep_evening") { MenuScreen(menu(MenuEntry.SLEEP_AFTER), Lighting.EVENING) }
+
+    @Test fun menuVista() = shot("menu_vista") {
+        MenuScreen(menu(MenuEntry.VISTA_PLAYING, configured.copy(vistaPlayingSeconds = 1800)), Lighting.DAY)
+    }
 
     /** The list glides through the light when the cursor moves down by one line, then by three. */
     @Test fun menuGlide() {
@@ -116,7 +124,7 @@ class OptionsTest {
         grab()
         state = menu(MenuEntry.GROUP)
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
-        state = menu(MenuEntry.DAY_NIGHT)
+        state = menu(MenuEntry.APPEARANCE)
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
     }
 

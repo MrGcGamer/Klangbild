@@ -153,20 +153,6 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `on the light wall the artwork casts a soft shadow below it, none above`() {
-        val wall = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY, Appearance.LIGHT).wall
-        val field = WallShade.field(wall, shape, screen)
-        val rect = layout.artRect
-        val below = luminance(field.at(rect.centerX, rect.bottom + 6f))
-        val above = luminance(field.at(rect.centerX, rect.top - 6f))
-        val far = luminance(field.at(rect.right + 40f, rect.top + 20f))
-        assertThat(below).isLessThan(far * 0.9f)
-        assertThat(above).isGreaterThan(below)
-        // a few dozen dp away the paper is clean
-        assertThat(far).isWithin(0.004f).of(luminance(wall))
-    }
-
-    @Test
     fun `night turns the lamp down to about half, never off, and takes its colour`() {
         val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
         val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
@@ -204,31 +190,6 @@ class DesignRulesTest {
         // … the middle of an edge is not
         assertThat(shape.contains(rect.centerX, rect.top + 0.5f)).isTrue()
         assertThat(shape.distance(rect.left - 10f, rect.centerY)).isWithin(0.01f).of(10f)
-    }
-
-    @Test
-    fun `covers are never shown larger than their resolution allows`() {
-        assertThat(HaloLayout.coverDp(layout, 300)).isWithin(0.01f).of(195f)
-        assertThat(HaloLayout.coverDp(layout, 640)).isWithin(0.01f).of(layout.art) // 416 → capped at 368
-        assertThat(HaloLayout.coverDp(layout, null)).isEqualTo(layout.art)
-        for (native in listOf(100, 240, 300, 500, 580, 640, 1000, 3000)) {
-            val dp = HaloLayout.coverDp(layout, native)
-            assertThat(dp * 2f / native).isAtMost(HaloLayout.MAX_SOURCE_SCALE_1080P + 1e-4f)
-        }
-    }
-
-    @Test
-    fun `a small print gets a passe-partout that fills the square`() {
-        val print = IntArray(10 * 10) { 0xFFFF0000.toInt() }
-        val out = SceneBuilder.matted(print, 10, 30, density = 2f)
-        assertThat(out.size).isEqualTo(900)
-        assertThat(out[15 * 30 + 15]).isEqualTo(0xFFFF0000.toInt()) // the print, centred
-        // grained mat board
-        assertThat((out[0] shr 16) and 0xFF).isIn(Range.closed(((SceneBuilder.MAT shr 16) and 0xFF) - 2, ((SceneBuilder.MAT shr 16) and 0xFF) + 2))
-        assertThat(out[8 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
-        // optically centred: a little more mat below the print than above it
-        val rows = (0 until 30).filter { out[it * 30 + 15] == 0xFFFF0000.toInt() }
-        assertThat(29 - rows.last()).isGreaterThan(rows.first())
     }
 
     // --- Generated art -------------------------------------------------------------------

@@ -27,9 +27,11 @@ import androidx.compose.ui.platform.LocalDensity
 import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
+import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.config.MotionLevel
 import io.github.hazymorning.klangbild.config.VolumeDisplay
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
@@ -44,6 +46,11 @@ import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
+import io.github.hazymorning.klangbild.ui.vista.FensterblickAhead
+import io.github.hazymorning.klangbild.ui.vista.VistaScreen
+import io.github.hazymorning.klangbild.ui.vista.labelSide
+import io.github.hazymorning.klangbild.ui.vista.rememberVistaFeed
+import io.github.hazymorning.klangbild.vista.VistaClock
 import kotlinx.coroutines.delay
 
 /** A wall clock that ticks every [periodMs] (the UI needs minutes, the drift whole pixels). */
@@ -64,6 +71,8 @@ class RootHooks(
     val now: () -> Long = System::currentTimeMillis,
     /** The colour field's time (seconds): it runs while music plays, at the motion setting's speed. */
     val fieldTime: () -> Double = { 0.0 },
+    /** The moment the Fensterblick's sky shows. */
+    val vistaClock: VistaClock = VistaClock(now),
 )
 
 /**
@@ -96,6 +105,8 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 translationY = dy.toFloat()
             },
     ) {
+        // The Fensterblick's picture is baked while it is only on its way: it comes at once.
+        ui.vistaAhead?.let { FensterblickAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
         // Animate between *kinds* of screens only (stage/rest/setup). The latest content
         // per kind is kept, so a track change stays inside the stage (its own transition)
         // and an outgoing screen keeps showing what it showed.
@@ -131,6 +142,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     lightFactor = ui.display.light.factor,
                     appearance = c.appearance,
                 )
+                is Content.VistaContent -> VistaScreen(ui, c.vista, hooks.vistaClock, hooks.positionNow, hooks.now)
                 is Content.SetupContent -> {
                     val scene = rememberOffMain(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
                     if (scene != null) SetupScreen(c.reason, ui.setup, scene) else Box(Modifier.fillMaxSize())
@@ -138,7 +150,9 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
         }
-        // The settings menu lies over everything and fades in and out on its own.
+        // The quick settings rise from the bottom edge over whatever shows (over the landscape on
+        // its dark ground); the settings menu lies over everything. Both come and go on their own.
+        QuickBarOverlay(ui.quick, ui.lighting, if (content is Content.VistaContent) Appearance.DARK else ui.appearance)
         MenuOverlay(ui.menu, ui.lighting, ui.appearance)
     }
 }
@@ -165,6 +179,11 @@ private sealed interface Content {
         override val key = "setup:$reason:$appearance"
     }
 
+    data class VistaContent(val vista: VistaUi) : Content {
+        // The Fensterblick changes its label and its light inside; it comes and goes through the dark.
+        override val key = "vista"
+    }
+
     data object Dark : Content {
         override val key = "dark"
     }
@@ -181,7 +200,7 @@ private const val DRIFT_DP = 6f
 /** A switch of screens is over after this long (900 ms out, then 1.3 s in after 900 ms), with room to spare. */
 private const val SCREEN_SWITCH_MS = 3_000L
 
-private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s = ui.screen) {
+private fun contentKey(ui: UiState, quietStart: Boolean): Content = if (ui.vista != null) Content.VistaContent(ui.vista) else when (val s = ui.screen) {
     is Screen.Stage ->
         if (ui.view == StageView.FLOW) ui.flow?.let { Content.FlowContent(it) } ?: Content.Dark
         else ui.stage?.let { Content.StageContent(it) } ?: Content.Dark
@@ -232,7 +251,8 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     val pace = ui.sleepAt?.let { StageTexts.sleep(it) } ?: TimeLine.speed(player?.speed ?: 1f)?.takeIf { spoken }
     val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, pace = pace)
     val statusLine = StatusLine(lead, clock)
-    val nextTrack = stageScreen?.next?.takeIf { display.next }
+    // A station has no next song to tell (what its queue holds next is another station).
+    val nextTrack = stageScreen?.next?.takeIf { display.next && stageScreen.track.kind != MediaKind.RADIO }
     val chapter = ui.chapter
     val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek, chapter) {
         { s: StageData ->

@@ -9,8 +9,8 @@ import kotlin.math.min
 /**
  * The wall behind the cover flow in the dark: a soft oval of light above the middle card, in
  * the colour of its top edge – as if the picture lit the wall above it. It is at most ≈ L* 8
- * and follows the edge's lightness: a dark edge gives a faint glow, a matted print only its
- * mat's; it fades out long before the text column, the floor (where the mirror images stand
+ * and follows the edge's lightness: a dark edge gives a faint glow; it fades out long before
+ * the text column, the floor (where the mirror images stand
  * on black) and the screen's edges – no edge of it shows.
  *
  * One dithered bitmap per scene at half the dp resolution (the light is soft), drawn as one

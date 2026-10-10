@@ -89,6 +89,11 @@ class HaConnection(
     /** The latest rendering of the template set with [watchTemplate]; null until rendered or on error. */
     val templateResult: StateFlow<String?> = _templateResult.asStateFlow()
 
+    private val _config = MutableStateFlow<JsonObject?>(null)
+
+    /** Home Assistant's own configuration (`get_config`: its location, time zone …), once a session has asked for it. */
+    val config: StateFlow<JsonObject?> = _config.asStateFlow()
+
     @Volatile private var session: Session? = null
 
     fun start(config: HaConfig, entityIds: List<String>) {
@@ -294,6 +299,17 @@ class HaConnection(
             _status.value = HaStatus.Connected
             onConnected()
             s.lastPong = System.currentTimeMillis()
+            // Where Home Assistant stands (for the Fensterblick's sun and moon): asked once, on the side.
+            launch {
+                val answer = try {
+                    s.command(handshakeTimeoutMs) { id -> buildJsonObject { put("id", id); put("type", "get_config") } }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                (answer as? JsonObject)?.let { _config.value = it }
+            }
 
             val pinger = launch {
                 while (isActive) {

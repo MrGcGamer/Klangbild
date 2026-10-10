@@ -24,8 +24,15 @@ data class SpeakerOption(val entityId: String, val name: String, val state: Stri
 /** One colour light offered for the bars behind the TV. */
 data class LightOption(val entityId: String, val name: String, val state: String)
 
+/** One weather entity offered for the Fensterblick's sky. */
+data class WeatherOption(val entityId: String, val name: String, val state: String)
+
 sealed interface DiscoverResult {
-    data class Ok(val speakers: List<SpeakerOption>, val lights: List<LightOption> = emptyList()) : DiscoverResult
+    data class Ok(
+        val speakers: List<SpeakerOption>,
+        val lights: List<LightOption> = emptyList(),
+        val weather: List<WeatherOption> = emptyList(),
+    ) : DiscoverResult
     data class Failed(val message: String) : DiscoverResult
 }
 
@@ -114,13 +121,13 @@ class SetupHandler(
                 put("sleepMinutes", s.sleepAfterMinutes)
                 put("sleepAction", s.sleepAction.name.lowercase())
                 put("clock", s.showClock)
-                put("dayNight", s.dayNight)
                 put("remote", s.remoteControl)
                 put("maUrl", s.maUrl ?: maGuess() ?: "")
                 put("hasMaToken", !s.maToken.isNullOrBlank())
                 put("barsLeft", s.bars.left ?: "")
                 put("barsCenter", s.bars.center ?: "")
                 put("barsRight", s.bars.right ?: "")
+                put("weather", s.weatherEntity ?: "")
             }.toString(),
         )
     }
@@ -155,6 +162,15 @@ class SetupHandler(
                             put("id", l.entityId)
                             put("name", l.name)
                             put("state", l.state)
+                        })
+                    }
+                })
+                put("weather", buildJsonArray {
+                    r.weather.forEach { w ->
+                        add(buildJsonObject {
+                            put("id", w.entityId)
+                            put("name", w.name)
+                            put("state", w.state)
                         })
                     }
                 })
@@ -201,12 +217,20 @@ class SetupHandler(
             if (ids.any { it.isNotEmpty() && !LaunchExtras.isLightId(it) }) return MiniHttp.Response.json(400, error("Bitte nur Lichter als Lichtleisten wählen."))
             LightBars(ids[0].ifEmpty { null }, ids[1].ifEmpty { null }, ids[2].ifEmpty { null })
         }
+        // The Fensterblick's weather: "" finds Home Assistant's own, "none" keeps the sky fair; absent stays as it was.
+        val weather = when (val w = body.str("weather")?.trim()) {
+            null -> current.weatherEntity
+            "" -> null
+            Settings.NO_WEATHER -> Settings.NO_WEATHER
+            else -> w.takeIf { it.startsWith("weather.") && LaunchExtras.isEntityId(it) }
+                ?: return MiniHttp.Response.json(400, error("Bitte eine Wetter-Entität wählen."))
+        }
         val updated = withMa.copy(
+            weatherEntity = weather,
             entityId = entity,
             sleepAfterMinutes = minutes,
             sleepAction = action,
             showClock = body.bool("clock") ?: current.showClock,
-            dayNight = body.bool("dayNight") ?: current.dayNight,
             remoteControl = body.bool("remote") ?: current.remoteControl,
             bars = bars,
         )

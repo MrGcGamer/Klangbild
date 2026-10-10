@@ -21,6 +21,10 @@ data class TrackInfo(
     val kind: MediaKind = MediaKind.MUSIC,
     /** The chapters of a book or an episode (from Music Assistant), sorted; empty without any. */
     val chapters: List<Chapter> = emptyList(),
+    /** Music Assistant has it among the favourites (only its own queue says so). */
+    val favorite: Boolean = false,
+    /** A station's song with its own picture (from the stream) – it goes before any other. */
+    val songPicture: Boolean = false,
     /** Stable identity used for transitions and caching. */
     val key: String = listOf(title, artists.joinToString(), album.orEmpty()).joinToString("|"),
 ) {

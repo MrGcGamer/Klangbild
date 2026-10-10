@@ -189,7 +189,30 @@ class SetupServer(
                 val name = (attrs?.get("friendly_name") as? JsonPrimitive)?.content ?: id
                 LightOption(id, name, germanState((o["state"] as? JsonPrimitive)?.content ?: "unknown"))
             }.sortedBy { it.name.lowercase() }
-            return DiscoverResult.Ok(speakers, lights)
+            // Weather entities: their clouds set the Fensterblick's sky.
+            val weather = arr.mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                val id = (o["entity_id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                if (!id.startsWith("weather.")) return@mapNotNull null
+                val attrs = o["attributes"] as? JsonObject
+                val name = (attrs?.get("friendly_name") as? JsonPrimitive)?.content ?: id
+                WeatherOption(id, name, germanWeather((o["state"] as? JsonPrimitive)?.content ?: "unknown"))
+            }.sortedBy { it.name.lowercase() }
+            return DiscoverResult.Ok(speakers, lights, weather)
+        }
+
+        private fun germanWeather(state: String) = when (state) {
+            "sunny" -> "sonnig"
+            "clear-night" -> "klar"
+            "partlycloudy" -> "teils bewölkt"
+            "cloudy" -> "bewölkt"
+            "fog" -> "Nebel"
+            "rainy", "pouring" -> "Regen"
+            "snowy", "snowy-rainy" -> "Schnee"
+            "hail" -> "Hagel"
+            "lightning", "lightning-rainy" -> "Gewitter"
+            "windy", "windy-variant" -> "windig"
+            else -> germanState(state)
         }
 
         /** The colour modes a light needs to take the cover's colours. */

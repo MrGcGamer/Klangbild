@@ -46,11 +46,33 @@ import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/** The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in the light. */
+/**
+ * The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in
+ * the light. It reaches [BEYOND_EDGES_DP] beyond the screen on every side: the screen's drift
+ * against burn-in never uncovers an edge. [beyondOnly] draws only that margin – a new wall's
+ * colour coming up with its light during a change; [alpha] fades it.
+ */
 @Composable
-fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxSize()) { drawRect(color) }
+fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier, alpha: () -> Float = { 1f }, beyondOnly: Boolean = false) {
+    Canvas(modifier.fillMaxSize()) {
+        val a = alpha().coerceIn(0f, 1f)
+        if (a <= 0.002f) return@Canvas
+        val m = BEYOND_EDGES_DP * density
+        val w = size.width
+        val h = size.height
+        if (!beyondOnly) {
+            drawRect(color, Offset(-m, -m), Size(w + 2 * m, h + 2 * m), alpha = a)
+        } else {
+            drawRect(color, Offset(-m, -m), Size(m, h + 2 * m), alpha = a)
+            drawRect(color, Offset(w, -m), Size(m, h + 2 * m), alpha = a)
+            drawRect(color, Offset(0f, -m), Size(w, m), alpha = a)
+            drawRect(color, Offset(0f, h), Size(w, m), alpha = a)
+        }
+    }
 }
+
+/** How far every full-screen ground reaches beyond the screen (dp): more than the drift (±6 dp) ever moves it. */
+const val BEYOND_EDGES_DP = 24f
 
 /**
  * The wall around the artwork, one static bitmap scaled softly to the screen: in the dark the
@@ -95,8 +117,8 @@ private fun scaleFilter(k: Float) = ColorFilter.colorMatrix(
 /**
  * The artwork, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
  * size) with softly rounded corners. [dim] (pause) darkens it through the colour matrix, not
- * through transparency; [scale] lets it settle during a change. A
- * hairline of light inside a dark artwork's edge keeps it from dissolving into the black wall.
+ * through transparency; [scale] lets it settle during a change. Nothing is drawn round it:
+ * no frame, no line, no shadow.
  */
 @Composable
 fun ArtworkLayer(
@@ -111,9 +133,6 @@ fun ArtworkLayer(
     }
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
-    val edge = remember(scene) {
-        SceneBuilder.edgeLine(scene.palette.kind, scene.shape.round, scene.appearance).takeIf { it != 0 }?.let { Color(it) }
-    }
     Canvas(
         modifier
             .fillMaxSize()
@@ -134,16 +153,6 @@ fun ArtworkLayer(
         val corner = CornerRadius(scene.corner * density)
         shader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(x, y) })
         drawRoundRect(ShaderBrush(shader), Offset(x, y), Size(w, h), corner, colorFilter = filter)
-        if (edge != null) {
-            val line = (density / 2f).coerceAtLeast(1f)
-            drawRoundRect(
-                edge,
-                Offset(x + line / 2f, y + line / 2f),
-                Size(w - line, h - line),
-                CornerRadius((scene.corner * density - line / 2f).coerceAtLeast(0f)),
-                style = Stroke(width = line),
-            )
-        }
     }
 }
 

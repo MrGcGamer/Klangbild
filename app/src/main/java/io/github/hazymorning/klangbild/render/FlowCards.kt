@@ -26,12 +26,6 @@ import kotlin.math.roundToInt
 class FlowCard(
     val full: Bitmap,
     val half: Bitmap,
-    /**
-     * A soft shadow around the card on the light wall (alpha only, small – it is all blur):
-     * the card's outline grown by [SHADOW_MARGIN] of its side on every side. None on the dark
-     * wall, where the cards cast no shadow.
-     */
-    val shadow: Bitmap?,
     /** The print's mean lightness (Oklab L), so a bright card beside a dark one can step back. */
     val lightness: Float,
 ) {
@@ -43,9 +37,6 @@ class FlowCard(
 
     companion object {
         const val PAD = 2
-
-        /** How far the shadow bitmap reaches beyond the card, as a share of its side. */
-        const val SHADOW_MARGIN = 0.08f
     }
 }
 
@@ -54,11 +45,11 @@ object FlowCards {
     const val REFLECTION = 0.3f
 
     /**
-     * The card for [cover] (the print at its exact size, [cover] square, already matted if
-     * small), [round] for a generated plate (already transparent outside its disc), with
-     * corners of [cornerPx] and [geometry]'s gap and reflection height; a hairline of
-     * [edgeLine] (ARGB, 0 for none) inside the edge where the print would dissolve into the
-     * wall; [lightness] is the print's mean lightness. On paper there is no mirror image.
+     * The card for [cover] (the print at its exact size, [cover] square), [round] for a
+     * generated plate (already transparent outside its disc), with
+     * corners of [cornerPx] and [geometry]'s gap and reflection height; [lightness] is the
+     * print's mean lightness. On paper there is no mirror image – and nowhere a frame, a line
+     * or a shadow round the card: the print alone.
      */
     fun build(
         cover: Bitmap,
@@ -67,7 +58,6 @@ object FlowCards {
         geometry: FlowGeometry,
         density: Float,
         appearance: Appearance,
-        edgeLine: Int = 0,
         lightness: Float = 0.5f,
     ): FlowCard {
         val side = cover.width
@@ -89,16 +79,6 @@ object FlowCards {
             if (round) c.drawRect(rect, print) else c.drawRoundRect(rect, radius, radius, print)
         }
         card(pad.toFloat(), flipped = false)
-        if (edgeLine != 0 && !round) {
-            val line = (density / 2f).coerceAtLeast(1f)
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = line
-                color = edgeLine
-            }
-            val r = RectF(pad + line / 2f, pad + line / 2f, pad + side - line / 2f, pad + side - line / 2f)
-            c.drawRoundRect(r, radius - line / 2f, radius - line / 2f, p)
-        }
         if (appearance == Appearance.DARK) {
             // The mirror image: the card upside down below a hairline gap, fading out on the way down.
             val top = (pad + side + gap).toFloat()
@@ -119,33 +99,8 @@ object FlowCards {
         out.prepareToDraw()
         val half = Bitmap.createScaledBitmap(out, out.width / 2, out.height / 2, true)
         half.prepareToDraw()
-        val shadow = if (appearance == Appearance.LIGHT) shadow(round, cornerPx / side).also { it.prepareToDraw() } else null
-        return FlowCard(out, half, shadow, lightness)
+        return FlowCard(out, half, lightness)
     }
-
-    /** The soft shadow of a card (or a disc, [round]) as alpha: blurred, for any size. */
-    private fun shadow(round: Boolean, corner: Float): Bitmap {
-        val n = SHADOW_PX
-        val card = n / (1f + 2f * FlowCard.SHADOW_MARGIN)
-        val inset = (n - card) / 2f
-        val mask = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
-        val c = Canvas(mask)
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
-        val r = RectF(inset, inset, inset + card, inset + card)
-        if (round) c.drawOval(r, p) else c.drawRoundRect(r, corner * card, corner * card, p)
-        // Blur the alpha in linear steps (a few box passes ≈ Gaussian).
-        val a = IntArray(n * n)
-        mask.getPixels(a, 0, n, 0, 0, n, n)
-        val img = LinearImage(n, n)
-        for (i in a.indices) img.r[i] = (a[i] ushr 24) / 255f
-        ImageOps.blur(img, radius = (n * 0.06f).roundToInt().coerceAtLeast(1))
-        for (i in a.indices) a[i] = ((img.r[i] * 255f).roundToInt().coerceIn(0, 255) shl 24)
-        mask.setPixels(a, 0, n, 0, 0, n, n)
-        return mask
-    }
-
-    /** Size of the shadow bitmap (pixels): it is drawn stretched, being nothing but blur. */
-    private const val SHADOW_PX = 96
 
     private fun alpha(a: Float) = (a.coerceIn(0f, 1f) * 255f).roundToInt() shl 24
 }

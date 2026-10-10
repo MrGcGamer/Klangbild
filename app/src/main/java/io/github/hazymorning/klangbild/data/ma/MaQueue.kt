@@ -54,7 +54,9 @@ object MaQueue {
     /**
      * One queue item as a track: title (with its version), artists, album and year, picture. A
      * book names its authors and an episode its show where a song names its artists; both bring
-     * their chapters.
+     * their chapters. A station's item is the song it plays now, as far as the stream says
+     * (title, artist, album and the song's own picture), the station its source – and its
+     * picture only behind the song's.
      */
     fun track(item: JsonObject, baseUrl: String): TrackInfo? {
         val media = item["media_item"] as? JsonObject
@@ -63,31 +65,46 @@ object MaQueue {
         val album = media?.get("album") as? JsonObject
         val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
         val isRadio = kind == MediaKind.RADIO
-        val streamTitle = (item["streamdetails"] as? JsonObject)?.string("stream_title")?.takeIf { it.isNotBlank() }
+        val stream = item["streamdetails"] as? JsonObject
+        val streamTitle = stream?.string("stream_title")?.takeIf { it.isNotBlank() }
+        val playing = (stream?.get("stream_metadata") as? JsonObject).takeIf { isRadio }
         val picture = image(item["image"] as? JsonObject, baseUrl)
             ?: image(media?.get("image") as? JsonObject, baseUrl)
             ?: image(album?.get("image") as? JsonObject, baseUrl)
-        val durationMs = (item["duration"] as? JsonPrimitive)?.doubleOrNull?.takeIf { it > 0 }?.let { (it * 1000).roundToLong() }
+        // The song's own picture, as the stream gives it: before the station's, always. A plain
+        // http address outside the home goes through Music Assistant's proxy (Klangbild fetches
+        // cleartext only inside the home network).
+        val songPicture = playing?.string("image_url")?.let { url ->
+            when {
+                url.startsWith("https://") || url.startsWith("$baseUrl/") -> url
+                url.startsWith("http://") -> "$baseUrl/imageproxy?path=${java.net.URLEncoder.encode(url, "UTF-8")}&provider=builtin&size=$PROXY_SIZE"
+                else -> null
+            }
+        }
+        val durationMs = ((playing?.get("duration") ?: item["duration"]) as? JsonPrimitive)?.doubleOrNull?.takeIf { it > 0 }?.let { (it * 1000).roundToLong() }
         val artists = when (kind) {
             MediaKind.AUDIOBOOK -> names(media?.get("authors"))
             MediaKind.PODCAST -> listOfNotNull((media?.get("podcast") as? JsonObject)?.string("name")?.trim()?.takeIf { it.isNotEmpty() })
+            MediaKind.RADIO -> listOfNotNull(playing?.string("artist")?.trim()?.takeIf { it.isNotEmpty() })
             else -> names(media?.get("artists"))
         }
         return TrackInfo(
             title = when {
-                isRadio -> streamTitle ?: name
+                isRadio -> playing?.string("title")?.takeIf { it.isNotBlank() } ?: streamTitle ?: name
                 version != null -> "$name ($version)"
                 else -> name
             },
             artists = artists,
-            album = album?.string("name")?.takeIf { it.isNotBlank() },
-            year = (album?.get("year") as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 },
+            album = if (isRadio) playing?.string("album")?.takeIf { it.isNotBlank() && !it.equals(name, ignoreCase = true) } else album?.string("name")?.takeIf { it.isNotBlank() },
+            year = (album?.get("year") as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 && !isRadio },
             durationMs = durationMs,
-            artworkUrl = picture?.first?.let { ArtworkUrls.upgrade(it) },
-            artworkFallbackUrl = picture?.second,
+            artworkUrl = (songPicture ?: picture?.first)?.let { ArtworkUrls.upgrade(it) },
+            artworkFallbackUrl = if (songPicture != null) picture?.first ?: songPicture else picture?.second,
             source = if (isRadio) name else null,
             kind = kind,
             chapters = if (kind.spoken) chapters(media, durationMs) else emptyList(),
+            favorite = !isRadio && (media?.get("favorite") as? JsonPrimitive)?.booleanOrNull == true,
+            songPicture = songPicture != null,
         )
     }
 

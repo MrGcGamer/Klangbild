@@ -13,6 +13,7 @@ import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.domain.StageView
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 
 /** What to do once the sleep timeout has passed without music. */
 enum class SleepAction {
@@ -64,13 +65,33 @@ enum class MotionLevel(val speed: Float) {
     LIVELY(1f),
 }
 
-/** How brightly the light bars behind the TV glow, as a share of their full brightness. */
+/**
+ * How brightly the light bars behind the TV glow by day, as a share of their full brightness –
+ * in steps of a tenth; at night they dim on their own.
+ */
 enum class BarLevel(val brightness: Float) {
-    OFF(0f),
-    SUBTLE(0.1f),
-    NORMAL(0.2f),
-    STRONG(0.4f),
+    OFF(0f), P10(0.1f), P20(0.2f), P30(0.3f), P40(0.4f), P50(0.5f), P60(0.6f), P70(0.7f), P80(0.8f), P90(0.9f), P100(1f);
+
+    val percent: Int get() = (brightness * 100f).roundToInt()
+
+    companion object {
+        val DEFAULT = P60
+
+        /** A stored level by name – the four steps of earlier versions read as their nearest. */
+        fun named(name: String): BarLevel? = when (name) {
+            "SUBTLE" -> P30
+            "NORMAL" -> P50
+            "STRONG" -> P80
+            else -> entries.firstOrNull { it.name == name }
+        }
+
+        /** The step nearest to [percent] (1–100); 0 or less is off. */
+        fun ofPercent(percent: Int): BarLevel = if (percent <= 0) OFF else entries.drop(1).minBy { kotlin.math.abs(it.percent - percent) }
+    }
 }
+
+/** Where the music's label sits in the Fensterblick. */
+enum class MiniPlayer { LEFT, RIGHT, OFF }
 
 /** The colour lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
 data class LightBars(val left: String? = null, val center: String? = null, val right: String? = null) {
@@ -106,8 +127,6 @@ data class Settings(
     val sleepAction: SleepAction = SleepAction.RELEASE,
     val showClock: Boolean = true,
     val remoteControl: Boolean = true,
-    /** Light by the time of day: warmer in the evening, dimmer at night – it never hides anything. */
-    val dayNight: Boolean = true,
     val showTimeLine: Boolean = true,
     val showNext: Boolean = true,
     val showAlbum: Boolean = true,
@@ -123,12 +142,36 @@ data class Settings(
     val maToken: String? = null,
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
-    /** The colour lights behind the TV and how brightly they join in. */
+    /** The colour lights behind the TV and how brightly they join in (by day; at night they dim on their own). */
     val bars: LightBars = LightBars(),
-    val barLevel: BarLevel = BarLevel.NORMAL,
+    val barLevel: BarLevel = BarLevel.DEFAULT,
     /** With an audiobook or a podcast, left and right jump back 15 and ahead 30 seconds. */
     val spokenSkip: Boolean = true,
+    /** The Fensterblick takes the screen after the music has been paused this long (s); 0 never. */
+    val vistaPauseSeconds: Int = 180,
+    /** … and while music plays, after this long without a key pressed (s); 0 never. */
+    val vistaPlayingSeconds: Int = 0,
+    /** Where the music's label sits in the Fensterblick. */
+    val miniPlayer: MiniPlayer = MiniPlayer.LEFT,
+    /** The weather entity whose clouds set the Fensterblick's sky; null finds Home Assistant's own, [NO_WEATHER] none. */
+    val weatherEntity: String? = null,
 ) {
+    /** The weather entities to follow: the one chosen, else Home Assistant's usual forecast entities. */
+    val weatherEntities: List<String>
+        get() = when (weatherEntity) {
+            null -> DEFAULT_WEATHER
+            NO_WEATHER -> emptyList()
+            else -> listOf(weatherEntity)
+        }
+
+    companion object {
+        /** No weather entity: the Fensterblick's sky stays fair. */
+        const val NO_WEATHER = "none"
+
+        /** The entities Home Assistant's own weather integration (Met.no) creates. */
+        val DEFAULT_WEATHER = listOf("weather.forecast_home", "weather.home")
+    }
+
     val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && !haToken.isNullOrBlank() && !entityId.isNullOrBlank()
 
     val hasMusicAssistant: Boolean get() = !maUrl.isNullOrBlank() && !maToken.isNullOrBlank()
@@ -161,7 +204,12 @@ data class Settings(
 data class SessionOptions(
     val showSetup: Boolean = false,
     val debugOverlay: Boolean = false,
+    /** The Fensterblick shown at once (`fensterblick=an`), or with the day passing in two minutes (`zeitraffer`). */
+    val vista: VistaRequest? = null,
 )
+
+/** A Fensterblick asked for from outside (a link, `am start`, Home Assistant). */
+enum class VistaRequest { SHOW, TIMELAPSE, HIDE }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -175,7 +223,6 @@ class SettingsStore(private val context: Context) {
         val sleepAction = stringPreferencesKey("sleep_action")
         val clock = booleanPreferencesKey("show_clock")
         val remote = booleanPreferencesKey("remote_control")
-        val dayNight = booleanPreferencesKey("day_night")
         val timeLine = booleanPreferencesKey("show_time_line")
         val next = booleanPreferencesKey("show_next")
         val album = booleanPreferencesKey("show_album")
@@ -194,6 +241,10 @@ class SettingsStore(private val context: Context) {
         val barsRight = stringPreferencesKey("bars_right")
         val barLevel = stringPreferencesKey("bar_level")
         val spokenSkip = booleanPreferencesKey("spoken_skip")
+        val vistaPause = intPreferencesKey("vista_pause_s")
+        val vistaPlaying = intPreferencesKey("vista_playing_s")
+        val miniPlayer = stringPreferencesKey("mini_player")
+        val weather = stringPreferencesKey("weather_entity")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -206,7 +257,6 @@ class SettingsStore(private val context: Context) {
             sleepAction = p[Keys.sleepAction]?.let { runCatching { SleepAction.valueOf(it) }.getOrNull() } ?: SleepAction.RELEASE,
             showClock = p[Keys.clock] ?: true,
             remoteControl = p[Keys.remote] ?: true,
-            dayNight = p[Keys.dayNight] ?: true,
             showTimeLine = p[Keys.timeLine] ?: true,
             showNext = p[Keys.next] ?: true,
             showAlbum = p[Keys.album] ?: true,
@@ -221,8 +271,12 @@ class SettingsStore(private val context: Context) {
             background = p[Keys.background]?.let { runCatching { BackgroundMode.valueOf(it) }.getOrNull() } ?: BackgroundMode.WALL,
             motion = p[Keys.motion]?.let { runCatching { MotionLevel.valueOf(it) }.getOrNull() } ?: MotionLevel.OFF,
             bars = LightBars(p[Keys.barsLeft], p[Keys.barsCenter], p[Keys.barsRight]),
-            barLevel = p[Keys.barLevel]?.let { runCatching { BarLevel.valueOf(it) }.getOrNull() } ?: BarLevel.NORMAL,
+            barLevel = p[Keys.barLevel]?.let { BarLevel.named(it) } ?: BarLevel.DEFAULT,
             spokenSkip = p[Keys.spokenSkip] ?: true,
+            vistaPauseSeconds = p[Keys.vistaPause] ?: 180,
+            vistaPlayingSeconds = p[Keys.vistaPlaying] ?: 0,
+            miniPlayer = p[Keys.miniPlayer]?.let { runCatching { MiniPlayer.valueOf(it) }.getOrNull() } ?: MiniPlayer.LEFT,
+            weatherEntity = p[Keys.weather],
         )
     }
 
@@ -240,7 +294,6 @@ class SettingsStore(private val context: Context) {
             p[Keys.sleepAction] = s.sleepAction.name
             p[Keys.clock] = s.showClock
             p[Keys.remote] = s.remoteControl
-            p[Keys.dayNight] = s.dayNight
             p[Keys.timeLine] = s.showTimeLine
             p[Keys.next] = s.showNext
             p[Keys.album] = s.showAlbum
@@ -259,6 +312,10 @@ class SettingsStore(private val context: Context) {
             putOrRemove(Keys.barsRight, s.bars.right)
             p[Keys.barLevel] = s.barLevel.name
             p[Keys.spokenSkip] = s.spokenSkip
+            p[Keys.vistaPause] = s.vistaPauseSeconds
+            p[Keys.vistaPlaying] = s.vistaPlayingSeconds
+            p[Keys.miniPlayer] = s.miniPlayer.name
+            putOrRemove(Keys.weather, s.weatherEntity)
         }
     }
 }
@@ -290,7 +347,6 @@ object LaunchExtras {
     const val VOLUME = "volume"
     const val LIGHT = "light"
     const val VOLUME_KEYS = "volume_keys"
-    const val DAY_NIGHT = "day_night"
     const val REMOTE = "remote"
     const val APPEARANCE = "appearance"
     const val VIEW = "view"
@@ -301,13 +357,18 @@ object LaunchExtras {
     const val BARS_RIGHT = "bars_right"
     const val BAR_LEVEL = "bar_level"
     const val SPOKEN_SKIP = "spoken_skip"
+    const val VISTA_PAUSE = "fensterblick_pause"
+    const val VISTA_PLAYING = "fensterblick_musik"
+    const val MINI_PLAYER = "mini_player"
+    const val WEATHER = "weather"
     const val SETUP = "setup"
     const val DEBUG = "debug"
+    const val VISTA = "fensterblick"
 
     private val stored = listOf(
         HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
-        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
-        SPOKEN_SKIP,
+        VOLUME_KEYS, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
+        SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, WEATHER,
     )
 
     /** Applies stored-setting extras to [s]. Unknown or invalid values are ignored. */
@@ -333,7 +394,6 @@ object LaunchExtras {
         boolOf(extras[ALBUM])?.let { out = out.copy(showAlbum = it) }
         boolOf(extras[GROUP])?.let { out = out.copy(showGroup = it) }
         boolOf(extras[VOLUME_KEYS])?.let { out = out.copy(volumeKeys = it) }
-        boolOf(extras[DAY_NIGHT])?.let { out = out.copy(dayNight = it) }
         boolOf(extras[REMOTE])?.let { out = out.copy(remoteControl = it) }
         (extras[VOLUME] as? String)?.let { v ->
             when (v.trim().lowercase()) {
@@ -383,13 +443,15 @@ object LaunchExtras {
                 else -> null
             }?.let { out = out.copy(motion = it) }
         }
-        (extras[BAR_LEVEL] as? String)?.let { v ->
-            when (v.trim().lowercase()) {
+        // A word, or how bright in percent ("60", "60 %").
+        extras[BAR_LEVEL]?.let { raw ->
+            val v = raw.toString().trim().lowercase()
+            when (v) {
                 "off", "aus" -> BarLevel.OFF
-                "subtle", "dezent" -> BarLevel.SUBTLE
-                "normal" -> BarLevel.NORMAL
-                "strong", "kraeftig", "kräftig" -> BarLevel.STRONG
-                else -> null
+                "subtle", "dezent", "schwach" -> BarLevel.P30
+                "normal" -> BarLevel.P50
+                "strong", "kraeftig", "kräftig", "stark" -> BarLevel.P80
+                else -> v.removeSuffix("%").trim().toIntOrNull()?.let { BarLevel.ofPercent(it) }
             }?.let { out = out.copy(barLevel = it) }
         }
         // A light given as "" or "none" is removed; anything but a light entity is ignored.
@@ -402,12 +464,41 @@ object LaunchExtras {
             out = out.copy(bars = LightBars(bar(BARS_LEFT, out.bars.left), bar(BARS_CENTER, out.bars.center), bar(BARS_RIGHT, out.bars.right)))
         }
         boolOf(extras[SPOKEN_SKIP])?.let { out = out.copy(spokenSkip = it) }
+        // The Fensterblick's delays in seconds ("aus" or 0 for never), within what the menu offers.
+        secondsOf(extras[VISTA_PAUSE])?.takeIf { it in 0..3_600 }?.let { out = out.copy(vistaPauseSeconds = it) }
+        secondsOf(extras[VISTA_PLAYING])?.takeIf { it in 0..7_200 }?.let { out = out.copy(vistaPlayingSeconds = it) }
+        (extras[MINI_PLAYER] as? String)?.let { v ->
+            when (v.trim().lowercase()) {
+                "left", "links", "unten_links" -> MiniPlayer.LEFT
+                "right", "rechts", "unten_rechts" -> MiniPlayer.RIGHT
+                "off", "aus" -> MiniPlayer.OFF
+                else -> null
+            }?.let { out = out.copy(miniPlayer = it) }
+        }
+        (extras[WEATHER] as? String)?.trim()?.let { v ->
+            when {
+                v.isEmpty() || v == "auto" -> out = out.copy(weatherEntity = null)
+                v == Settings.NO_WEATHER || v == "keine" -> out = out.copy(weatherEntity = Settings.NO_WEATHER)
+                v.startsWith("weather.") && isEntityId(v) -> out = out.copy(weatherEntity = v)
+            }
+        }
         return out
+    }
+
+    private fun secondsOf(v: Any?): Int? = when (v) {
+        is String -> if (v.trim().lowercase() in setOf("aus", "off", "nie", "never")) 0 else intOf(v)
+        else -> intOf(v)
     }
 
     fun session(extras: Map<String, Any?>) = SessionOptions(
         showSetup = boolOf(extras[SETUP]) ?: false,
         debugOverlay = boolOf(extras[DEBUG]) ?: false,
+        vista = when ((extras[VISTA] as? String)?.trim()?.lowercase() ?: (extras[VISTA] as? Boolean)?.toString()) {
+            "an", "on", "true", "1", "ja", "zeigen" -> VistaRequest.SHOW
+            "zeitraffer", "timelapse" -> VistaRequest.TIMELAPSE
+            "aus", "off", "false", "0", "nein" -> VistaRequest.HIDE
+            else -> null
+        },
     )
 
     fun hasStoredExtras(extras: Map<String, Any?>) = stored.any { extras.containsKey(it) }
@@ -434,8 +525,8 @@ object LaunchExtras {
      * speaker or the lights to control. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(
-        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
-        APPEARANCE, VIEW, BACKGROUND, MOTION, BAR_LEVEL, SPOKEN_SKIP,
+        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
+        APPEARANCE, VIEW, BACKGROUND, MOTION, BAR_LEVEL, SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, VISTA,
     )
 
     /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */

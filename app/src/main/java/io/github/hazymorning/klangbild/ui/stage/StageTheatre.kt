@@ -51,11 +51,10 @@ enum class Change {
 }
 
 /**
- * The stage with its transitions. On a track change the old artwork goes dark first, then
- * the new one comes up and settles from a hair larger to its size – the two only overlap
- * while both are faint, so no double image – while the light on the wall turns from the old
- * colours to the new. The old text leaves first; the new lines rise into place one after
- * another once the new picture stands. A pause dims light, artwork and text; nothing moves.
+ * The stage with its transitions. On a track change the new artwork comes up over the old one
+ * – a plain cross-fade, the screen never goes dark – while the light on the wall turns from
+ * the old colours to the new. The old text leaves first; the new lines rise into place one
+ * after another. A pause dims light, artwork and text; nothing moves.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
@@ -156,15 +155,15 @@ fun StageTheatre(
 
     val level: () -> Float = { pausedLevel * breathing.value * lightFactor() }
     val pictureChanges = prev != null && kind != Change.TEXT
-    // A new picture: the old one goes dark, then the new one comes up (a soft swap of the same
-    // track's picture simply cross-fades).
+    // A new picture comes up over the old one; the old goes once it is covered (a picture of
+    // another shape – a round plate – lets the old one's corners fade with it).
     val oldPicture: () -> Float = {
-        if (kind == Change.FULL) 1f - p(0, Motion.ART_OUT_MS, Motion.Accelerate) else 1f
+        if (kind == Change.FULL) 1f - p(Motion.ART_OUT_START_MS, Motion.ART_OUT_END_MS, Motion.Sine) else 1f
     }
     val newPicture: () -> Float = {
         when {
             !pictureChanges -> 1f
-            kind == Change.FULL -> p(Motion.ART_IN_START_MS, Motion.ART_IN_END_MS, Motion.Decelerate)
+            kind == Change.FULL -> p(0, Motion.ART_IN_END_MS, Motion.Sine)
             else -> p(0, total, Motion.Sine)
         }
     }
@@ -176,9 +175,6 @@ fun StageTheatre(
             else -> p(0, total, Motion.Sine)
         }
     }
-    val settle: () -> Float = {
-        if (prev == null || kind != Change.FULL) 1f else 1f + 0.015f * (1f - p(Motion.ART_IN_START_MS, total, Motion.Decelerate))
-    }
     // The text: the old block leaves first (from where it stood), the new lines follow one after
     // another; a new look of the same song cross-fades in place.
     val textIn: (TextLine) -> Float = { line -> text.level(line) }
@@ -186,11 +182,17 @@ fun StageTheatre(
     val stood: (TextLine) -> Float = { line -> if (kind.isSoft) text.level(line) else text.leaving(line) }
 
     Box(modifier.fillMaxSize()) {
-        BaseWall(cur.scene.palette.wall.asColor())
-        if (prev != null && pictureChanges) WallLayer(prev.scene, level = level)
+        // The old wall stays whole until the new one – its light and its colour beyond the screen's
+        // edges – has come up over it: a new wall never shows the old one in a strip at the side.
+        val oldWall = prev?.scene?.takeIf { pictureChanges }
+        BaseWall((oldWall ?: cur.scene).palette.wall.asColor())
+        if (oldWall != null) {
+            WallLayer(oldWall, level = level)
+            BaseWall(cur.scene.palette.wall.asColor(), alpha = newGlow, beyondOnly = true)
+        }
         WallLayer(cur.scene, alpha = newGlow, level = level)
         if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
-        ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim }, scale = settle)
+        ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim })
         if (prevModel != null && prevPlan != null) {
             TextLayer(
                 prevModel,

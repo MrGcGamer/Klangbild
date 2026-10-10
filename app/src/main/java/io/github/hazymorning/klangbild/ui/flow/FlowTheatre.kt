@@ -204,8 +204,13 @@ fun FlowTheatre(
     val stood: (TextLine) -> Float = { row -> if (softText) text.level(row) else text.leaving(row) }
 
     Box(modifier.fillMaxSize()) {
-        BaseWall(wall)
-        if (prev != null && (kind == FlowChange.MOVE || restrip)) WallLayer(prev.middle.scene, level = level)
+        // As on the single stage: the old wall stays whole until the new one has come up over it.
+        val oldWall = prev?.middle?.scene?.takeIf { kind == FlowChange.MOVE || restrip }
+        BaseWall(oldWall?.palette?.wall?.asColor() ?: wall)
+        if (oldWall != null) {
+            WallLayer(oldWall, level = level)
+            BaseWall(wall, alpha = newWall, beyondOnly = true)
+        }
         WallLayer(middle.scene, alpha = newWall, level = level)
         if (prev != null && restrip) {
             // A new look of the same strip: the old cards stay underneath while the new ones come up.

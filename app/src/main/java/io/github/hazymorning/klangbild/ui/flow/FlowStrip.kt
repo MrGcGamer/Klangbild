@@ -126,7 +126,6 @@ fun FlowStrip(
                 val a = alphas[i]
                 if (a <= 0.004f) continue
                 val card = cards[i].card
-                card.shadow?.let { shadow(native, it, pos[i], a, geometry, density, tools) }
                 geometry.corners(pos[i], tools.dp)
                 for (k in 0 until 8) tools.dst[k] = tools.dp[k] * density
                 val light = geometry.light(pos[i]) * d * stepBack(card.lightness, middleLightness, pos[i], appearance)
@@ -172,28 +171,6 @@ private class DrawTools {
     val src = FloatArray(8)
     val matrix = Matrix()
     val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-}
-
-/**
- * On paper a card casts a soft shadow around itself and onto the floor at its foot – drawn
- * in the card's own plane, a little lower, from a small blurred bitmap.
- */
-private fun shadow(canvas: android.graphics.Canvas, shadow: Bitmap, position: Float, alpha: Float, geometry: FlowGeometry, density: Float, tools: DrawTools) {
-    val half = geometry.side / 2f
-    val m = FlowCard.SHADOW_MARGIN * geometry.side
-    val drop = SHADOW_DROP * geometry.side
-    geometry.cornersOf(position, -half - m, -half - m + drop, half + m, half + m + drop, tools.dp)
-    for (k in 0 until 8) tools.dst[k] = tools.dp[k] * density
-    val n = shadow.width.toFloat()
-    val s = tools.src
-    s[0] = 0f; s[1] = 0f
-    s[2] = n; s[3] = 0f
-    s[4] = n; s[5] = n
-    s[6] = 0f; s[7] = n
-    tools.matrix.setPolyToPoly(s, 0, tools.dst, 0, 4)
-    tools.paint.alpha = (alpha.coerceIn(0f, 1f) * SHADOW_ALPHA * 255f).roundToInt()
-    tools.paint.colorFilter = null
-    canvas.drawBitmap(shadow, tools.matrix, tools.paint)
 }
 
 /** Draws [card]'s texture (the half-size one if [half]) onto the quad in [tools].dst. */
@@ -268,10 +245,6 @@ private const val PAPER_FOG = 0.3f
 
 /** A card beside the middle one is at most this much lighter than it (dark wall). */
 private const val STEP_BACK_RATIO = 1.1f
-
-/** The shadow on paper: how dark at most, and how far below the card it falls (share of the side). */
-private const val SHADOW_ALPHA = 0.18f
-private const val SHADOW_DROP = 0.06f
 
 /** Squeezed below this share of its width a card starts to take the half-size texture, fully below [HALF_TO]. */
 private const val HALF_FROM = 0.62f

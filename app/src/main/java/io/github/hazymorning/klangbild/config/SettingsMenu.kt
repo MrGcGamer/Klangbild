@@ -13,6 +13,7 @@ enum class MenuSection(val title: String) {
     PICTURE("Bild"),
     INFO("Informationen"),
     EFFECTS("Effekte"),
+    VISTA("Fensterblick"),
     REMOTE("Fernbedienung"),
     TIMER("Timer"),
     CONNECTION("Verbindung"),
@@ -22,7 +23,6 @@ enum class MenuSection(val title: String) {
 enum class MenuEntry(val section: MenuSection, val label: String) {
     VIEW(MenuSection.PICTURE, "Ansicht"),
     APPEARANCE(MenuSection.PICTURE, "Erscheinungsbild"),
-    DAY_NIGHT(MenuSection.PICTURE, "Nachtmodus"),
     CLOCK(MenuSection.INFO, "Uhrzeit"),
     TIME_LINE(MenuSection.INFO, "Fortschrittsbalken"),
     NEXT(MenuSection.INFO, "Nächster Titel"),
@@ -33,8 +33,11 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     LIGHT(MenuSection.EFFECTS, "Intensität"),
     MOTION(MenuSection.EFFECTS, "Bewegung"),
     BARS(MenuSection.EFFECTS, "Lichtleisten"),
+    VISTA_PAUSE(MenuSection.VISTA, "Bei Pause"),
+    VISTA_PLAYING(MenuSection.VISTA, "Während der Musik"),
+    MINI_PLAYER(MenuSection.VISTA, "Mini-Player"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
-    UP_DOWN(MenuSection.REMOTE, "Pfeil hoch und runter"),
+    UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
     SPOKEN(MenuSection.REMOTE, "Hörbücher, Podcasts"),
     SLEEP_TIMER(MenuSection.TIMER, "Sleep-Timer"),
     SLEEP_AFTER(MenuSection.TIMER, "Ausschalten nach"),
@@ -56,8 +59,8 @@ data class MenuContext(
     val kind: MediaKind? = null,
 )
 
-/** A line as the menu shows it: the value in words and what the option does. */
-data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
+/** A line as the menu shows it: the value in words and what the option does; [level] (0..1) for a value shown on a slider. */
+data class MenuRow(val entry: MenuEntry, val value: String, val description: String, val level: Float? = null)
 
 /**
  * The settings menu, operated with the remote: up and down choose a line, left and right
@@ -71,7 +74,13 @@ object SettingsMenu {
     /** Minutes offered for the sleep timeout. */
     val sleepChoices = listOf(5, 10, 15, 20, 30, 45, 60, 90, 120)
 
-    fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx)) }
+    fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx), level(it, s)) }
+
+    /** Where a slider stands: the light bars' brightness. */
+    fun level(e: MenuEntry, s: Settings): Float? = when (e) {
+        MenuEntry.BARS -> s.barLevel.brightness.takeIf { s.bars.isSet }
+        else -> null
+    }
 
     fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
         MenuEntry.VIEW -> if (s.view == StageView.FLOW) "Cover Flow" else "Einzelnes Cover"
@@ -92,12 +101,7 @@ object SettingsMenu {
             MotionLevel.MEDIUM -> "Mittel"
             MotionLevel.LIVELY -> "Schnell"
         }
-        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else when (s.barLevel) {
-            BarLevel.OFF -> "Aus"
-            BarLevel.SUBTLE -> "Schwach"
-            BarLevel.NORMAL -> "Normal"
-            BarLevel.STRONG -> "Stark"
-        }
+        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else if (s.barLevel == BarLevel.OFF) "Aus" else "${s.barLevel.percent}\u00A0%"
         MenuEntry.APPEARANCE -> when (s.appearance) {
             AppearanceMode.AUTO -> "Automatisch"
             AppearanceMode.LIGHT -> "Hell"
@@ -109,9 +113,15 @@ object SettingsMenu {
             LightLevel.SUBTLE -> "Schwach"
             LightLevel.OFF -> "Aus"
         }
-        MenuEntry.DAY_NIGHT -> onOff(s.dayNight)
+        MenuEntry.VISTA_PAUSE -> delay(s.vistaPauseSeconds)
+        MenuEntry.VISTA_PLAYING -> delay(s.vistaPlayingSeconds)
+        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
+            MiniPlayer.LEFT -> "Unten links"
+            MiniPlayer.RIGHT -> "Unten rechts"
+            MiniPlayer.OFF -> "Aus"
+        }
         MenuEntry.REMOTE -> onOff(s.remoteControl)
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Infos zeigen"
+        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Fensterblick, Menü"
         MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
         MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind)
         MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
@@ -143,9 +153,6 @@ object SettingsMenu {
             AppearanceMode.LIGHT -> "Immer hell: heller Hintergrund, dunkle Schrift."
             AppearanceMode.DARK -> "Immer dunkel: dunkler Hintergrund, helle Schrift."
         }
-        MenuEntry.DAY_NIGHT ->
-            if (s.dayNight) "Abends wird alles wärmer, nachts gedämpfter – nach dem Stand der Sonne. Es fehlt nie etwas."
-            else "Den ganzen Tag gleich hell und gleich warm."
         MenuEntry.CLOCK -> "Die Uhrzeit oben in der ersten Zeile."
         MenuEntry.TIME_LINE ->
             "Der Balken mit gespielter Zeit und Länge. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz."
@@ -203,20 +210,38 @@ object SettingsMenu {
             "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
                 "OK zeigt den QR-Code; am Handy wählst du sie aus Home\u00A0Assistant aus."
         } else {
-            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben am Bildschirmrand; nach der Musik sind sie wieder wie vorher. " + when (s.barLevel) {
-                BarLevel.OFF -> "Aus: Sie behalten ihr eigenes Licht."
-                BarLevel.SUBTLE -> "Schwach: ein Schimmer an der Wand."
-                BarLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-                BarLevel.STRONG -> "Stark: für helle Räume."
+            if (s.barLevel == BarLevel.OFF) {
+                "Die Lichtleisten hinter dem Fernseher behalten ihr eigenes Licht. Rechts schaltet sie zu."
+            } else {
+                "Jede Lichtleiste hinter dem Fernseher leuchtet in einer Farbe des Bildes. So hell bei Tag; abends und nachts " +
+                    "werden sie von selbst dunkler. Nach der Musik sind sie wieder wie vorher."
             }
+        }
+        MenuEntry.VISTA_PAUSE -> if (s.vistaPauseSeconds == 0) {
+            "Ist die Musik angehalten, bleibt das Cover stehen; nach drei\u00A0Minuten erscheint die Uhr."
+        } else {
+            "Ist die Musik so lange angehalten, erscheint eine Landschaft aus Papier, deren Licht der\u00A0echten Tageszeit folgt. " +
+                "Jede Taste holt das Cover zurück."
+        }
+        MenuEntry.VISTA_PLAYING -> if (s.vistaPlayingSeconds == 0) {
+            if (s.volumeKeys) "Während Musik läuft, bleibt das Cover."
+            else "Während Musik läuft, bleibt das Cover. Den\u00A0Fensterblick gibt es jederzeit: Pfeil hoch."
+        } else {
+            "Läuft die Musik so lange ohne Tastendruck, wird sie zum\u00A0Fensterblick\u00A0– mit dem\u00A0Mini-Player in der\u00A0Ecke."
+        }
+        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
+            MiniPlayer.LEFT -> "Cover, Titel und Fortschritt unten links in\u00A0der Landschaft."
+            MiniPlayer.RIGHT -> "Cover, Titel und Fortschritt unten rechts in\u00A0der Landschaft."
+            MiniPlayer.OFF -> "Der Fensterblick zeigt nur die\u00A0Landschaft."
         }
         MenuEntry.REMOTE ->
             if (s.remoteControl) "OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel."
             else "Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü."
         MenuEntry.UP_DOWN -> if (s.volumeKeys) {
-            "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers."
+            "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers; die\u00A0Schnelleinstellungen gibt es dann nicht."
         } else {
-            "Pfeil hoch und runter zeigen ausgeblendete Infos wie Uhrzeit und Fortschrittsbalken kurz an."
+            "Pfeil hoch zeigt den Fensterblick; noch einmal hoch oder Zurück holt das Cover zurück. " +
+                "Pfeil runter öffnet unten die\u00A0Schnelleinstellungen, noch einmal runter schließt\u00A0sie."
         }
         MenuEntry.SPOKEN -> if (s.spokenSkip) {
             "Bei Hörbüchern und Podcasts spult links 15\u00A0Sekunden zurück, rechts 30\u00A0Sekunden vor. " +
@@ -267,7 +292,9 @@ object SettingsMenu {
         MenuEntry.BARS -> if (s.bars.isSet) s.copy(barLevel = move(BAR_ORDER, s.barLevel, direction, wrap)) else null
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
-        MenuEntry.DAY_NIGHT -> s.copy(dayNight = !s.dayNight)
+        MenuEntry.VISTA_PAUSE -> s.copy(vistaPauseSeconds = move(PAUSE_DELAYS, nearest(PAUSE_DELAYS, s.vistaPauseSeconds), direction, wrap))
+        MenuEntry.VISTA_PLAYING -> s.copy(vistaPlayingSeconds = move(PLAYING_DELAYS, nearest(PLAYING_DELAYS, s.vistaPlayingSeconds), direction, wrap))
+        MenuEntry.MINI_PLAYER -> s.copy(miniPlayer = move(MINI_ORDER, s.miniPlayer, direction, wrap))
         MenuEntry.REMOTE -> s.copy(remoteControl = !s.remoteControl)
         MenuEntry.UP_DOWN -> s.copy(volumeKeys = !s.volumeKeys)
         MenuEntry.SPOKEN -> s.copy(spokenSkip = !s.spokenSkip)
@@ -277,6 +304,21 @@ object SettingsMenu {
         )
         MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER -> null
     }
+
+    /** The delays offered for the Fensterblick (s): when paused, and while music plays; 0 is "Aus". */
+    val PAUSE_DELAYS = listOf(0, 5, 15, 30, 60, 180, 300, 600)
+    val PLAYING_DELAYS = listOf(0, 60, 120, 300, 600, 900, 1800)
+
+    /** "Aus", "15 Sekunden", "Drei Minuten" … */
+    fun delay(seconds: Int): String = when {
+        seconds <= 0 -> "Aus"
+        seconds <= 12 -> numberWords[seconds].replaceFirstChar { it.uppercase() } + " Sekunden"
+        seconds < 60 -> "$seconds Sekunden"
+        else -> minutes(seconds / 60)
+    }
+
+    /** The offered value nearest to [v] (which may have been set by ADB). */
+    private fun nearest(choices: List<Int>, v: Int): Int = choices.minByOrNull { kotlin.math.abs(it - v) } ?: choices.first()
 
     /** "Aus", "30 Minuten", "Eine Stunde", "Ende des Kapitels", "Ende der Folge" … */
     fun sleepValue(choice: SleepChoice, kind: MediaKind?): String = when (choice) {
@@ -298,7 +340,8 @@ object SettingsMenu {
     private val LIGHT_ORDER = listOf(LightLevel.OFF, LightLevel.SUBTLE, LightLevel.NORMAL, LightLevel.STRONG)
     private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
     private val MOTION_ORDER = listOf(MotionLevel.OFF, MotionLevel.GENTLE, MotionLevel.MEDIUM, MotionLevel.LIVELY)
-    private val BAR_ORDER = listOf(BarLevel.OFF, BarLevel.SUBTLE, BarLevel.NORMAL, BarLevel.STRONG)
+    private val BAR_ORDER = BarLevel.entries
+    private val MINI_ORDER = listOf(MiniPlayer.OFF, MiniPlayer.LEFT, MiniPlayer.RIGHT)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {
         val i = order.indexOf(current).coerceAtLeast(0) + direction

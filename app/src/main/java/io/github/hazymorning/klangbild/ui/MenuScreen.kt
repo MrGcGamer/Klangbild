@@ -5,12 +5,15 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.drawBehind
+import io.github.hazymorning.klangbild.ui.stage.BEYOND_EDGES_DP
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -27,7 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
@@ -101,15 +109,18 @@ fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, mo
     // The last menu stays while it fades out.
     val last = remember { arrayOfNulls<MenuState>(1) }
     if (menu != null) last[0] = menu
-    AnimatedVisibility(
-        visible = menu != null,
-        modifier = modifier,
-        enter = fadeIn(tween(450, easing = Motion.Dimmer)),
-        exit = fadeOut(tween(600, easing = Motion.Dimmer)),
-        label = "menu",
-    ) {
-        (menu ?: last[0])?.let { MenuScreen(it, lighting, appearance) }
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(menu != null) {
+        shown.animateTo(if (menu != null) 1f else 0f, tween(if (menu != null) 450 else 600, easing = Motion.Dimmer))
     }
+    if (menu == null && shown.value <= 0f) return
+    val state = menu ?: last[0] ?: return
+    // Faded draw by draw, not through a layer of the screen's size: the menu's ground reaches
+    // beyond the screen's edges, and a layer would cut it off there while it fades.
+    MenuScreen(state, lighting, appearance, modifier.graphicsLayer {
+        alpha = shown.value
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+    })
 }
 
 private sealed interface MenuLine {
@@ -200,7 +211,13 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
     val cursor = menu.cursor.coerceIn(0, menu.rows.size - 1)
     val row = menu.rows[cursor]
 
-    BoxWithConstraints(modifier.fillMaxSize().background(colors.wall)) {
+    BoxWithConstraints(
+        modifier.fillMaxSize().drawBehind {
+            // The ground reaches beyond the screen: the drift against burn-in never shows what lies under it.
+            val m = BEYOND_EDGES_DP * density
+            drawRect(colors.wall, Offset(-m, -m), Size(size.width + 2 * m, size.height + 2 * m))
+        },
+    ) {
         val density = LocalDensity.current.density
         val screen = ScreenSpec((maxWidth.value * density).roundToInt(), (maxHeight.value * density).roundToInt(), density)
         val layout = HaloLayout(screen)
@@ -284,9 +301,24 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
 private fun MenuItem(row: MenuRow, focused: Boolean, labelStyle: TextStyle, valueStyle: TextStyle, colors: MenuColors) {
     val labelColor by animateColorAsState(if (focused) colors.labelFocus else colors.label, tween(260, easing = Motion.Dimmer), label = "label")
     val valueColor by animateColorAsState(if (focused) colors.valueFocus else colors.value, tween(260, easing = Motion.Dimmer), label = "value")
+    val lift = with(LocalDensity.current) { SLIDER_LIFT.dp.roundToPx() }
     Row(Modifier.fillMaxWidth()) {
         BasicText(row.entry.label, Modifier.alignByBaseline(), style = labelStyle, color = { labelColor }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
+        // A value on a scale shows where it stands: a slim track like the progress bar's, before the number.
+        row.level?.let { level ->
+            val fill by animateFloatAsState(level, tween(260, easing = Motion.Dimmer), label = "level")
+            Canvas(
+                Modifier
+                    .alignBy { it.measuredHeight + lift }
+                    .padding(end = SLIDER_GAP.dp)
+                    .size(SLIDER_WIDTH.dp, SLIDER_HEIGHT.dp),
+            ) {
+                val r = CornerRadius(size.height / 2f)
+                drawRoundRect(valueColor.copy(alpha = valueColor.alpha * SLIDER_TRACK), cornerRadius = r)
+                if (fill > 0f) drawRoundRect(valueColor, size = Size(maxOf(size.height, size.width * fill), size.height), cornerRadius = r)
+            }
+        }
         Crossfade(
             targetState = row.value,
             modifier = Modifier.alignByBaseline(),
@@ -309,6 +341,13 @@ private fun BaselineAt(x: Float, baseline: Float, width: Float, content: @Compos
         }
     }
 }
+
+/** The slider of a value on a scale: its size (dp), its gap to the number, how strongly its track shows, how far above the baseline its lower edge sits (its middle on the figures' middle). */
+private const val SLIDER_WIDTH = 72f
+private const val SLIDER_HEIGHT = 4f
+private const val SLIDER_GAP = 14f
+private const val SLIDER_TRACK = 0.28f
+private const val SLIDER_LIFT = 4f
 
 /** From a line's centre to its label's baseline (21 sp in a 40 dp line). */
 private const val LABEL_BASELINE_FROM_CENTRE = 7f

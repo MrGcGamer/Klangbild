@@ -44,7 +44,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Optional system screensaver; on Google TV it can only be selected via ADB (see README). -->
+        <!-- Optional system screensaver; on Google TV it can only be selected via ADB (see KlangbildDream). -->
         <service
             android:name=".dream.KlangbildDream"
             android:exported="true"

@@ -42,6 +42,14 @@ data class SourceState(
     val played: List<TrackInfo> = emptyList(),
     /** The optional link to Music Assistant; null when it is not set up. */
     val ma: MaLink? = null,
+    /** Where Home Assistant stands (degrees), from its configuration; null until known. */
+    val place: Pair<Double, Double>? = null,
+    /** The weather entity's state (`sunny`, `cloudy` …), its cloud cover in % and its wind in km/h, as far as known. */
+    val weather: String? = null,
+    val cloudCoverage: Double? = null,
+    val windKmh: Double? = null,
+    /** What plays can be added to Music Assistant's favourites. */
+    val favorites: Boolean = false,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
@@ -54,4 +62,10 @@ interface NowPlayingSource {
 
     /** Plays on from [positionMs] in the item's own time. */
     suspend fun seek(positionMs: Long)
+
+    /** Adds what plays to Music Assistant's favourites (a station's song as the song); whether it worked. */
+    suspend fun favorite(): Boolean = false
+
+    /** Turns shuffle on or off; whether the call went out. */
+    suspend fun shuffle(on: Boolean): Boolean = false
 }

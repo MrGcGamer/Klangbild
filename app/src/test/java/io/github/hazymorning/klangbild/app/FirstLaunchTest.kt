@@ -1,0 +1,60 @@
+package io.github.hazymorning.klangbild.app
+
+import android.content.Intent
+import android.os.Looper
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.truth.Truth.assertWithMessage
+import io.github.hazymorning.klangbild.MainActivity
+import io.github.hazymorning.klangbild.data.LinkState
+import io.github.hazymorning.klangbild.domain.Screen
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * The very first start, with the connection in its extras (as Home Assistant or the CI sends
+ * it): the app takes it at once and connects – and stays connected; it never falls back to the
+ * setup page. With `-Pklangbild.fakeHa=http://127.0.0.1:8123` (ci/fake_ha.py running) it talks
+ * to the stand-in Home Assistant for a few minutes.
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
+class FirstLaunchTest {
+    @Test
+    fun theFirstStartTakesTheConnectionFromItsExtrasAndKeepsIt() {
+        val ha = System.getProperty("klangbild.fakeHa")
+        val app = ApplicationProvider.getApplicationContext<KlangbildApp>()
+        val intent = Intent(app, MainActivity::class.java)
+            .putExtra("ha_url", ha ?: "http://127.0.0.1:9")
+            .putExtra("token", "smoke")
+            .putExtra("entity", "media_player.wohnzimmer")
+            .putExtra("fensterblick", "an")
+        Robolectric.buildActivity(MainActivity::class.java, intent).setup()
+        val controller = app.graph.controller
+        val seconds = if (ha != null) 200 else 10
+        val start = System.currentTimeMillis()
+        var connected = false
+        var last: String? = null
+        while (System.currentTimeMillis() - start < seconds * 1_000L) {
+            shadowOf(Looper.getMainLooper()).idle()
+            val ui = controller.ui.value
+            val now = "${ui.source.link} ${ui.screen::class.simpleName}${(ui.screen as? Screen.Setup)?.reason ?: ""}"
+            if (now != last) {
+                println("FirstLaunch ${(System.currentTimeMillis() - start) / 1000.0} s: $now")
+                last = now
+            }
+            if (ui.source.link != LinkState.UNCONFIGURED && ui.source.link != LinkState.CONNECTING) connected = true
+            if (connected || ha == null) {
+                assertWithMessage("link after ${(System.currentTimeMillis() - start) / 1000} s").that(ui.source.link).isNotEqualTo(LinkState.UNCONFIGURED)
+            }
+            if (ha == null && ui.source.link != LinkState.UNCONFIGURED) return
+            Thread.sleep(50)
+        }
+        if (ha == null) assertWithMessage("link after the first start").that(controller.ui.value.source.link).isNotEqualTo(LinkState.UNCONFIGURED)
+    }
+}

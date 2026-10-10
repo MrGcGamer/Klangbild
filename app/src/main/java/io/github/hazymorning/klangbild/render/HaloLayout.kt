@@ -97,17 +97,5 @@ data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SI
         /** Corner radius of square artwork (dp at 960 × 540, for the single view's 368 dp). */
         const val RADIUS = 8f
 
-        /**
-         * Honest cover size: at most 1.3 source pixels per 1080p pixel. A 640 px streaming cover
-         * fills the square with a gentle Lanczos upscale – invisible from the sofa – while a
-         * 300 px radio logo stays small and crisp in its mat instead of turning into mush.
-         */
-        const val MAX_SOURCE_SCALE_1080P = 1.3f
-
-        fun coverDp(layout: HaloLayout, nativePx: Int?): Float {
-            val max = layout.art
-            if (nativePx == null) return max
-            return min(max, nativePx * MAX_SOURCE_SCALE_1080P / 2f) // 1 dp = 2 px at 1080p
-        }
     }
 }
