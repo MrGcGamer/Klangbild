@@ -35,9 +35,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The camera's slow drift: in every corner of its range, and with the screen's own drift
- * against burn-in on top, the picture fills the screen – no edge of any layer ever shows. And
- * the layers part as they should: the near ones move most (a contact sheet of the drift).
+ * The camera's journey: in every corner of its range, and with the screen's own drift against
+ * burn-in on top, the picture fills the screen – no edge of any layer shows, at the screen's
+ * edges or between the layers. And the layers part as they should: the near ones move most (a
+ * contact sheet of the journey).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -46,18 +47,20 @@ class VistaCameraTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val images by lazy { PaperImages(PaperBake.bake(1920, 1080, 2f, SeasonShapes(flowers = 1f), LabelSide.LEFT)) }
+    private val baked = HashMap<LabelSide, PaperImages>()
+    private fun imagesFor(side: LabelSide) = baked.getOrPut(side) { PaperImages(PaperBake.bake(1920, 1080, 2f, SeasonShapes(flowers = 1f), side)) }
+    private val images get() = imagesFor(LabelSide.LEFT)
     private val look = PaperLight.look(SkyState(sunElevation = 32f, sunAzimuth = 200f))
     private val places = SkyMap.places(SkyState(sunElevation = 32f, sunAzimuth = 200f))
 
     private var shown by mutableStateOf<(@Composable () -> Unit)?>(null)
 
-    private fun render(pose: CameraPose, driftX: Float = 0f, driftY: Float = 0f): Bitmap {
+    private fun render(pose: CameraPose, driftX: Float = 0f, driftY: Float = 0f, side: LabelSide = LabelSide.LEFT): Bitmap {
         val content: @Composable () -> Unit = {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize().background(MAGENTA)) {
                     PaperView(
-                        images, { look }, { places }, { PaperMotion(0.0, emptyList(), pose) },
+                        imagesFor(side), { look }, { places }, { PaperMotion(0.0, emptyList(), pose) },
                         Modifier.fillMaxSize().offset(driftX.dp, driftY.dp),
                     )
                 }
@@ -71,16 +74,18 @@ class VistaCameraTest {
 
     @Test
     fun noEdgeEverShows() {
-        val z = listOf(VistaCamera.ZOOM_MIN, VistaCamera.ZOOM_MAX)
-        val px = listOf(-VistaCamera.PAN_X, VistaCamera.PAN_X)
-        val py = listOf(-VistaCamera.PAN_Y, VistaCamera.PAN_Y)
-        for (zoom in z) for (x in px) for (y in py) {
-            for ((dx, dy) in listOf(-6f to -6f, 6f to 6f, -6f to 6f, 6f to -6f)) {
-                val bmp = render(CameraPose(zoom, x, y), dx, dy)
-                var bad = 0
-                for (yy in 0 until bmp.height) for (xx in listOf(0, 1, bmp.width - 2, bmp.width - 1)) if (bmp.getPixel(xx, yy) == MAGENTA_ARGB) bad++
-                for (xx in 0 until bmp.width) for (yy in listOf(0, 1, bmp.height - 2, bmp.height - 1)) if (bmp.getPixel(xx, yy) == MAGENTA_ARGB) bad++
-                assertWithMessage("zoom $zoom, pan $x/$y, drift $dx/$dy: background showing at the edges").that(bad).isEqualTo(0)
+        val drift = VistaCamera.DRIFT
+        for (side in LabelSide.entries) for (zoom in listOf(VistaCamera.ZOOM_MIN, (VistaCamera.ZOOM_MIN + VistaCamera.ZOOM_MAX) / 2f, VistaCamera.ZOOM_MAX)) {
+            val (x0, x1) = VistaCamera.rangeX(zoom, side)
+            val (y0, y1) = VistaCamera.rangeY(zoom, side)
+            for (cx in listOf(x0, x1)) for (cy in listOf(y0, y1)) {
+                for ((dx, dy) in listOf(-drift to -drift, drift to drift, -drift to drift, drift to -drift)) {
+                    val bmp = render(VistaCamera.pose(zoom, cx, cy), dx, dy, side)
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    val bad = px.count { it == MAGENTA_ARGB }
+                    assertWithMessage("$side, zoom $zoom, view at $cx/$cy, drift $dx/$dy: background showing").that(bad).isEqualTo(0)
+                }
             }
         }
     }
@@ -106,9 +111,9 @@ class VistaCameraTest {
 
     @Test
     fun theLayersDriftApart() {
-        // Ten minutes of the camera, a frame a minute and a half: the near banks move most.
+        // Three minutes of the camera, a frame every half minute: the near banks move most.
         for (i in 0..6) {
-            val pose = VistaCamera.at(i * 90.0 + 1_000.0)
+            val pose = VistaCamera.at(i * 30.0 + 1_000.0, LabelSide.LEFT)
             captureRoboImage("build/screenshots/vista/camera/drift_%02d.png".format(i)) {
                 Fixtures.Still { PaperView(images, { look }, { places }, { PaperMotion(0.0, emptyList(), pose) }, Modifier.fillMaxSize()) }
             }

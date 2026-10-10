@@ -79,7 +79,7 @@ fun Fensterblick(
         val h = constraints.maxHeight
         val density = LocalDensity.current.density
         val still = LocalStill.current
-        val state = remember(feed) { VistaFrameState(feed, still) }
+        val state = remember(feed, label) { VistaFrameState(feed, label, still) }
         val frame = remember { mutableLongStateOf(0L) }
         // The light moves on only every few seconds: what is drawn from it alone waits for that.
         val light = remember { mutableIntStateOf(0) }
@@ -221,7 +221,7 @@ private const val TIMELAPSE_SEASON_FADE_MS = 1_500
  * moved on by [LOOK_EVERY_MS] of its own time – each step far below a visible level – except
  * in the time-lapse, where every frame counts.
  */
-private class VistaFrameState(private val feed: VistaFeed, private val still: Boolean = false) {
+private class VistaFrameState(private val feed: VistaFeed, private val label: LabelSide = LabelSide.NONE, private val still: Boolean = false) {
     var frames = 0L
         private set
     var look: PaperLook = PaperLight.look(SkyState(30f, 180f))
@@ -264,7 +264,7 @@ private class VistaFrameState(private val feed: VistaFeed, private val still: Bo
         }
         val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
         // A still shows the camera at rest: the whole picture.
-        motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)), if (still) VistaCamera.REST else VistaCamera.at(seconds))
+        motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)), if (still) VistaCamera.REST else VistaCamera.at(seconds, label))
         return relit
     }
 
