@@ -10,63 +10,63 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
-/** Where a bar stands behind the TV. */
-enum class BarSlot { LEFT, CENTER, RIGHT }
+/** Where a light stands: left of the screen, behind its middle (above it), right of it. */
+enum class LightSlot { LEFT, CENTER, RIGHT }
 
-/** Where the bars' colours come from: what the screen shows. */
-interface BarColours {
-    /** The colour (linear sRGB, 0..1) for the bar at [slot] at the field's time [t] (seconds). */
-    fun colour(slot: BarSlot, t: Double, out: FloatArray)
+/** Where the lights' colors come from: what the screen shows. */
+interface LightColors {
+    /** The color (linear sRGB, 0..1) for the light at [slot] at the field's time [t] (seconds). */
+    fun color(slot: LightSlot, t: Double, out: FloatArray)
 }
 
 /**
- * Three bars, three colours: each bar shows a colour of its own from the cover – the cover's
- * most telling colours, kept apart (a cover of one colour gives that colour and two neighbours
- * of it, a grey one three whites), placed as they sit in the cover: the colour that stands
- * leftmost in the field goes to the left bar, the rightmost to the right one, the third above
- * the TV. With "Bewegung" the colours move on from bar to bar as the field moves, slowly, each
- * resting a while before it passes on.
+ * Three lights, three colors: each light shows a color of its own from the cover. These are the
+ * cover's most telling colors, kept apart (a cover of one color gives that color and two
+ * neighbors of it, a gray one three whites), placed as they sit in the cover: the color that
+ * stands leftmost in the field goes to the left light, the rightmost to the right one, the third
+ * to the middle. With motion on, the colors move on from light to light as the field moves,
+ * slowly, each resting a while before it passes on.
  */
-class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
-    /** The bars' colours (linear sRGB), the left bar's first: three, or up to five when they move on. */
-    val colours: List<FloatArray> = palette(field)
+class CoverLightColors(field: FieldScene, private val moving: Boolean) : LightColors {
+    /** The lights' colors (linear sRGB), the left light's first: three, or up to five when they move on. */
+    val colors: List<FloatArray> = palette(field)
 
-    override fun colour(slot: BarSlot, t: Double, out: FloatArray) {
-        val n = colours.size
+    override fun color(slot: LightSlot, t: Double, out: FloatArray) {
+        val n = colors.size
         val i = slot.ordinal
         if (!moving || n < 2) {
-            colours[i % n].copyInto(out)
+            colors[i % n].copyInto(out)
             return
         }
-        // One step along the bars every ROTATE_S of the field's time; most of it resting.
+        // One step along the lights every ROTATE_S of the field's time; most of it resting.
         val p = t / ROTATE_S + i
         val k = floor(p)
         val f = smoothstep(HOLD, 1f, (p - k).toFloat())
-        val a = colours[Math.floorMod(k.toLong(), n.toLong()).toInt()]
-        val b = colours[Math.floorMod(k.toLong() + 1, n.toLong()).toInt()]
+        val a = colors[Math.floorMod(k.toLong(), n.toLong()).toInt()]
+        val b = colors[Math.floorMod(k.toLong() + 1, n.toLong()).toInt()]
         mixOklab(a, b, f, out)
     }
 
     companion object {
-        /** The colours move on by one bar in this much of the field's time (s): at "Mittel" about every two and a half minutes. */
+        /** The colors move on by one light in this much of the field's time (s): at medium motion about every two and a half minutes. */
         const val ROTATE_S = 90.0
 
-        /** The share of each step a colour rests before it passes on. */
+        /** The share of each step a color rests before it passes on. */
         const val HOLD = 0.7f
 
-        /** Two colours closer than this (Oklab) are one. */
+        /** Two colors closer than this (Oklab) are one. */
         private const val SAME = 0.09f
 
-        /** A cover of one colour: its neighbours this far round the hue circle (°). */
+        /** A cover of one color: its neighbors this far round the hue circle (degrees). */
         private const val NEIGHBOUR_HUE = 32f
 
-        /** The cover's colours for the bars: the most telling ones, kept apart, ordered as they sit from left to right. */
+        /** The cover's colors for the lights: the most telling ones, kept apart, ordered as they sit from left to right. */
         fun palette(field: FieldScene): List<FloatArray> {
             class C(val rgb: FloatArray, val lab: Lab, val x: Float, var weight: Float)
             val found = ArrayList<C>()
             fun add(rgb: FloatArray, x: Float, weight: Float) {
                 val lab = Oklab.fromLinear(rgb[0].coerceAtLeast(0f), rgb[1].coerceAtLeast(0f), rgb[2].coerceAtLeast(0f))
-                // Colour counts for more than size: a small red patch tells more than a big grey.
+                // Color counts for more than size: a small red patch tells more than a big gray.
                 val telling = weight * (0.25f + lab.toLch().c * 6f) * (0.4f + lab.l)
                 val same = found.firstOrNull { distance(it.lab, lab) < SAME }
                 if (same != null) {
@@ -78,11 +78,12 @@ class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
             for (b in field.blobs) add(b.light, b.homeX, b.alpha * b.radius * b.radius * if (b.glow) 0.6f else 1f)
             add(field.baseLight, 0.5f, 0.05f)
             val chosen = found.sortedByDescending { it.weight }.take(5).toMutableList()
-            // Fewer than three: the strongest colour's neighbours round the hue circle, or – grey – whites a little warmer and cooler.
+            // Fewer than three: the strongest color's neighbors round the hue circle, or for a
+            // gray cover whites a little warmer and cooler.
             if (chosen.size < 3) {
                 val lead = chosen.firstOrNull()?.lab?.toLch() ?: Lch(0.7f, 0f, 0f)
-                val extra = if (lead.c < HueColor.GREY_CHROMA) {
-                    // Whites a breath warmer and cooler: barely past what the light shows as grey.
+                val extra = if (lead.c < LightColor.GREY_CHROMA) {
+                    // Whites a breath warmer and cooler: just past what the light shows as gray.
                     listOf(Lch(lead.l, 0.018f, 70f), Lch(lead.l, 0.018f, 250f))
                 } else {
                     listOf(Lch(lead.l, lead.c, lead.h - NEIGHBOUR_HUE), Lch(lead.l, lead.c, lead.h + NEIGHBOUR_HUE))
@@ -93,7 +94,7 @@ class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
                     chosen += C(Oklab.toLinear(lab), lab, if (n == 0) 0f else 1f, 0f)
                 }
             }
-            // The three most telling, as they sit from left to right; the others follow (they join when the colours move on).
+            // The three most telling, as they sit from left to right; the others follow (they join when the colors move on).
             val three = chosen.take(3).sortedBy { it.x }
             return (three + chosen.drop(3)).map { it.rgb }
         }
@@ -108,13 +109,13 @@ class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
 }
 
 /**
- * The Fensterblick's light on the wall, three colours from its own palette: above the TV its
- * sky; on the side away from the campfire the clearing's green (by night the moonlit wood); on
- * the fire's side the mountains' paper – and at night the fire's warm light.
- * Where the sun stands low, its side takes the glow of dawn or dusk. The bars stand round the
- * window as the picture's colours stand in it.
+ * The window view's light, three colors from its own palette: in the middle its sky; on the
+ * side away from the campfire the clearing's green (by night the moonlit wood); on the fire's
+ * side the mountains' paper, and at night the fire's warm light. Where the sun stands low, its
+ * side takes the glow of dawn or dusk. The lights stand round the window as the picture's
+ * colors stand in it.
  */
-class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
+class VistaLightColors(look: PaperLook, fireOnRight: Boolean) : LightColors {
     private val left: FloatArray
     private val center: FloatArray
     private val right: FloatArray
@@ -125,7 +126,7 @@ class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
         val middle = linear(sky.first)
         val horizon = linear(sky.second)
         center = FloatArray(3) { zenith[it] * 0.55f + middle[it] * 0.45f }
-        // Day 1 … night 0: the stars come out as the day goes.
+        // Day 1, night 0: the stars come out as the day goes.
         val day = 1f - look.stars.coerceIn(0f, 1f)
         val meadow = linear(look.inks(SheetId.MEADOW).base)
         val mountains = linear(look.inks(SheetId.RANGE_FAR).base)
@@ -147,11 +148,11 @@ class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
         right = side(1f, fireOnRight)
     }
 
-    override fun colour(slot: BarSlot, t: Double, out: FloatArray) {
+    override fun color(slot: LightSlot, t: Double, out: FloatArray) {
         when (slot) {
-            BarSlot.LEFT -> left
-            BarSlot.CENTER -> center
-            BarSlot.RIGHT -> right
+            LightSlot.LEFT -> left
+            LightSlot.CENTER -> center
+            LightSlot.RIGHT -> right
         }.copyInto(out)
     }
 
@@ -167,7 +168,7 @@ class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
     )
 }
 
-/** [a] and [b] (linear sRGB) mixed by [f] in Oklab: a passing colour never goes grey on the way. */
+/** [a] and [b] (linear sRGB) mixed by [f] in Oklab: a passing color never goes gray on the way. */
 private fun mixOklab(a: FloatArray, b: FloatArray, f: Float, out: FloatArray) {
     when {
         f <= 0f -> a.copyInto(out)

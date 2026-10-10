@@ -7,9 +7,9 @@ import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.FieldClock
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.StageView
-import io.github.hazymorning.klangbild.lights.CoverBars
+import io.github.hazymorning.klangbild.lights.CoverLightColors
 import io.github.hazymorning.klangbild.lights.LightSync
-import io.github.hazymorning.klangbild.lights.VistaBars
+import io.github.hazymorning.klangbild.lights.VistaLightColors
 import io.github.hazymorning.klangbild.render.FieldScene
 import io.github.hazymorning.klangbild.vista.PaperLight
 import io.github.hazymorning.klangbild.vista.Place
@@ -31,21 +31,21 @@ internal class LightTargets(
     private val now: () -> Long,
 ) {
     /** The colors for a cover's field, made once per field (a new object fades the lights to it). */
-    private var coverColors: Pair<Any, CoverBars>? = null
+    private var coverColors: Pair<Any, CoverLightColors>? = null
 
     /** The colors for the window view as it looked when they were worked out. */
-    private var vistaColors: Pair<List<Any?>, VistaBars>? = null
+    private var vistaColors: Pair<List<Any?>, VistaLightColors>? = null
 
     /** The target for the lights now, or null when they have nothing to show. */
     fun target(s: Settings, ui: UiState, stage: Screen.Stage?, playing: Boolean, vista: VistaUi?): LightSync.Target? {
-        if (!s.bars.isSet) return null
+        if (!s.roomLights.isSet) return null
         // By the sun: full brightness by day, dimmer from dusk, when the room around the TV is dark.
         val night = night(ui.source)
         if (vista != null) {
             return LightSync.Target(
-                bars = s.bars,
-                level = s.barLevel,
-                colours = vistaColors(ui.source, vista.miniPlayer),
+                lights = s.roomLights,
+                level = s.roomLightLevel,
+                colors = vistaColors(ui.source, vista.miniPlayer),
                 song = VISTA_SONG,
                 playing = true,
                 night = night,
@@ -59,9 +59,9 @@ internal class LightTargets(
         val shown = if (s.view == StageView.FLOW) ui.flow?.middle?.stage else ui.stage
         val field = shown?.scene?.field ?: return null
         return LightSync.Target(
-            bars = s.bars,
-            level = s.barLevel,
-            colours = coverColors(field, s.motion.speed > 0f),
+            lights = s.roomLights,
+            level = s.roomLightLevel,
+            colors = coverColors(field, s.motion.speed > 0f),
             song = shown.track.key,
             playing = playing,
             night = night,
@@ -71,10 +71,10 @@ internal class LightTargets(
         )
     }
 
-    private fun coverColors(field: FieldScene, moving: Boolean): CoverBars {
+    private fun coverColors(field: FieldScene, moving: Boolean): CoverLightColors {
         val key = field to moving
         coverColors?.takeIf { it.first == key }?.let { return it.second }
-        return CoverBars(field, moving).also { coverColors = key to it }
+        return CoverLightColors(field, moving).also { coverColors = key to it }
     }
 
     /**
@@ -82,7 +82,7 @@ internal class LightTargets(
      * weather), worked out again only when the sky has moved on a little: the lights follow in
      * long fades anyway.
      */
-    private fun vistaColors(src: SourceState, mini: MiniPlayer): VistaBars {
+    private fun vistaColors(src: SourceState, mini: MiniPlayer): VistaLightColors {
         val zone = ZoneId.systemDefault()
         val place = src.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(zone)
         val sky = vistaClock.sky()
@@ -92,7 +92,7 @@ internal class LightTargets(
         val key = listOf(sky / VISTA_STEP_MS, weather.copy(wind = 0f), place, fireOnRight)
         vistaColors?.takeIf { it.first == key }?.let { return it.second }
         val look = PaperLight.look(World.sky(sky, place, zone, weather).first)
-        return VistaBars(look, fireOnRight).also { vistaColors = key to it }
+        return VistaLightColors(look, fireOnRight).also { vistaColors = key to it }
     }
 
     /** 0 by day to 1 at night, by the sun (Home Assistant's elevation, else the local clock): how far the lights dim. */
