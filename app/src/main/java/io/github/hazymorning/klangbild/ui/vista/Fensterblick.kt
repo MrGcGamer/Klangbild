@@ -24,6 +24,7 @@ import io.github.hazymorning.klangbild.ui.TICK_MS
 import io.github.hazymorning.klangbild.ui.rememberOffMain
 import io.github.hazymorning.klangbild.vista.CloudField
 import io.github.hazymorning.klangbild.vista.CloudPlace
+import io.github.hazymorning.klangbild.vista.LabelSide
 import io.github.hazymorning.klangbild.vista.PaperBake
 import io.github.hazymorning.klangbild.vista.PaperLight
 import io.github.hazymorning.klangbild.vista.PaperLook
@@ -54,12 +55,18 @@ class VistaFeed(
 
 /**
  * The Fensterblick: the paper cut, its light following [feed]'s clock, its clouds and grass
- * moving with the wall clock. The picture is baked once for the screen and the season's shapes;
- * when the season changes them (snow, leaves, blossom – every few days) a new bake fades in over
- * [SEASON_FADE_MS]. [content] lies on top (the music's label).
+ * moving with the wall clock. The picture is baked once for the screen, the season's shapes and
+ * the bank cut wide for the [label]; when the season changes the shapes (snow, leaves, blossom –
+ * every few days) a new bake fades in over [SEASON_FADE_MS]. [content] lies on top (the music's
+ * label), reading the colours of the moment.
  */
 @Composable
-fun Fensterblick(feed: VistaFeed, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit = {}) {
+fun Fensterblick(
+    feed: VistaFeed,
+    modifier: Modifier = Modifier,
+    label: LabelSide = LabelSide.LEFT,
+    content: @Composable BoxScope.(look: () -> PaperLook) -> Unit = {},
+) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val w = constraints.maxWidth
         val h = constraints.maxHeight
@@ -83,8 +90,8 @@ fun Fensterblick(feed: VistaFeed, modifier: Modifier = Modifier, content: @Compo
         } else {
             state.advance()
         }
-        val images = rememberOffMain(w, h, density, shapes) {
-            if (w > 0 && h > 0) PaperImages(PaperBake.bake(w, h, density, shapes)) else null
+        val images = rememberOffMain(w, h, density, shapes, label) {
+            if (w > 0 && h > 0) PaperImages(PaperBake.bake(w, h, density, shapes, label)) else null
         }
         // A new season's bake fades in over the old one.
         var shown by remember { mutableStateOf<PaperImages?>(null) }
@@ -111,7 +118,7 @@ fun Fensterblick(feed: VistaFeed, modifier: Modifier = Modifier, content: @Compo
             shown?.let { s ->
                 PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
             }
-            content()
+            content(look)
         }
     }
 }

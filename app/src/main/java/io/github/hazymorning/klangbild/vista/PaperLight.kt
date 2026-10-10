@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.vista
 
+import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lab
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Oklab
@@ -69,6 +70,8 @@ class PaperLook(
     val sheets: Map<SheetId, Inks>,
     val trunk: Inks,
     val crown: Inks,
+    /** The broad-leaved trees among each wood's firs: base, second and third colour, shade. */
+    val accents: Map<SheetId, Inks>,
     val cloud: Inks,
     val sunDisc: Int,
     val glow: Int,
@@ -86,6 +89,13 @@ class PaperLook(
     /** The light on the water under the sun or moon. */
     val glint: Int,
     val glintAlpha: Float,
+    /**
+     * The music's label on the near bank: title; artist and the bar's fill; everything else –
+     * near-neutral with a breath of the bank's hue, each keeping 4.5:1 on it.
+     */
+    val label: IntArray,
+    /** How bright the label's cover is: at night it dims with everything else. */
+    val labelCover: Float,
 ) {
     fun inks(id: SheetId): Inks = sheets[id] ?: sheets.getValue(SheetId.FRONT_LEFT)
 }
@@ -104,13 +114,13 @@ object PaperLight {
     // --- the plates: sky (top, high, low, horizon) and land (far range … near bank) ------------
 
     private val NIGHT = Plate(
-        -16f, ints(0xFF0A1124, 0xFF101A34, 0xFF172340, 0xFF1F2E4C), ints(0xFF1E2A46, 0xFF19243E, 0xFF151F37, 0xFF111A30, 0xFF10182C, 0xFF0E1527, 0xFF080B17),
-        waterFar = c(0xFF19253F), waterNear = c(0xFF0F172B), snow = c(0xFF2C3A5C), sunDisc = c(0xFFFFE9C8), glow = c(0xFF8090C0), glowAlpha = 0f,
-        horizonGlow = c(0xFF2A3560), horizonGlowAlpha = 0f, cloudLit = c(0xFF26324E), cloudShade = c(0xFF1A2440), shadow = c(0xFF04060E), stars = 1f,
+        -16f, ints(0xFF080E20, 0xFF0E1730, 0xFF16223F, 0xFF233353), ints(0xFF18233F, 0xFF141E37, 0xFF111A30, 0xFF0F172B, 0xFF0D1427, 0xFF0B1222, 0xFF05080F),
+        waterFar = c(0xFF1A2744), waterNear = c(0xFF0C1427), snow = c(0xFF2E3C5E), sunDisc = c(0xFFFFE9C8), glow = c(0xFF8090C0), glowAlpha = 0f,
+        horizonGlow = c(0xFF2A3560), horizonGlowAlpha = 0f, cloudLit = c(0xFF222E4A), cloudShade = c(0xFF161F38), shadow = c(0xFF03050C), stars = 1f,
     )
     private val MOONLIT = Plate(
-        -16f, ints(0xFF0E1830, 0xFF16243F, 0xFF203152, 0xFF2B3E60), ints(0xFF31446A, 0xFF29395C, 0xFF213050, 0xFF1A2744, 0xFF18233E, 0xFF162038, 0xFF0A0E1E),
-        waterFar = c(0xFF2A3B5C), waterNear = c(0xFF16213A), snow = c(0xFF6D7EA6), sunDisc = c(0xFFFFE9C8), glow = c(0xFF8090C0), glowAlpha = 0f,
+        -16f, ints(0xFF0E1730, 0xFF152340, 0xFF1F3153, 0xFF2D4266), ints(0xFF2A3B5E, 0xFF233353, 0xFF1D2B49, 0xFF18243F, 0xFF16213A, 0xFF141D34, 0xFF090D1C),
+        waterFar = c(0xFF2C3E61), waterNear = c(0xFF141E36), snow = c(0xFF6D7EA6), sunDisc = c(0xFFFFE9C8), glow = c(0xFF8090C0), glowAlpha = 0f,
         horizonGlow = c(0xFF2A3560), horizonGlowAlpha = 0f, cloudLit = c(0xFF4A5A80), cloudShade = c(0xFF26324E), shadow = c(0xFF04060E), stars = 0.55f,
     )
     private val BLUE_EVENING = Plate(
@@ -129,7 +139,7 @@ object PaperLight {
         horizonGlow = c(0xFFFFB070), horizonGlowAlpha = 0.55f, cloudLit = c(0xFFFFC7A0), cloudShade = c(0xFFB386A6), shadow = c(0xFF24163A), stars = 0f,
     )
     private val GOLDEN = Plate(
-        6.5f, ints(0xFF6C8DC1, 0xFFB2B8CE, 0xFFEFD1A7, 0xFFF8E1B3), ints(0xFFE6C8AD, 0xFFD2AD97, 0xFFAF8C84, 0xFF7D6A6D, 0xFF6A5962, 0xFF8C7D51, 0xFF392E37),
+        6.5f, ints(0xFF6C8DC1, 0xFFB2B8CE, 0xFFEFD1A7, 0xFFF8E1B3), ints(0xFFE6C9AE, 0xFFD4B096, 0xFFAE977E, 0xFF7A7458, 0xFF68644B, 0xFFA08C52, 0xFF36322A),
         waterFar = c(0xFFF2D8B3), waterNear = c(0xFF9E8384), snow = c(0xFFFCEAD8), sunDisc = c(0xFFFFF2D2), glow = c(0xFFFFD9A0), glowAlpha = 0.45f,
         horizonGlow = c(0xFFFFD49A), horizonGlowAlpha = 0.32f, cloudLit = c(0xFFFFEFD6), cloudShade = c(0xFFD6BBB4), shadow = c(0xFF2E2236), stars = 0f,
     )
@@ -191,10 +201,12 @@ object PaperLight {
                 else -> mixOk(base, behind, 0.42f)
             }
             // The woods' firs (and the far shore's tree line) keep the evergreen of the hour, whatever
-            // the season does to the slopes around them; other sheets get a lit paper edge.
+            // the season does to the slopes around them – darker in winter, against the snow; other
+            // sheets get a lit paper edge.
             val evergreen = id == SheetId.WOOD_LEFT || id == SheetId.WOOD_RIGHT || id == SheetId.SHORE
-            val edge = if (evergreen) shift(winterOnly(plate.land[index], season), -0.025f) else shift(base, if (index <= 2) 0.035f else 0.05f)
-            val snow = mixOk(plate.snow, base, 0.12f + 0.06f * index)
+            val edge = if (evergreen) shift(winterOnly(plate.land[index], season), -0.025f - 0.07f * season.winter) else shift(base, if (index <= 2) 0.035f else 0.05f)
+            // Snow stays light on every sheet; nearer, it takes a little more of the sky's shade.
+            val snow = mixOk(plate.snow, plate.sky[1], 0.03f * index)
             return Inks(base, foot, edge, snow)
         }
 
@@ -204,9 +216,15 @@ object PaperLight {
         sheets[SheetId.LAKE] = Inks(plate.waterFar, mixOk(plate.waterFar, plate.waterNear, 0.55f), plate.waterNear, plate.waterFar)
 
         val meadow = sheets.getValue(SheetId.MEADOW).base
-        val crownColour = crownOf(season, plate.land[5], plate)
-        val crown = Inks(crownColour, shift(crownColour, -0.07f), crownColour, mixOk(c(0xFFF6DDE4), meadow, 0.25f))
+        val day = smooth(2f, 12f, s.sunElevation) * (1f - 0.5f * cover)
+        val crownColour = crownOf(season, sheets.getValue(SheetId.WOOD_RIGHT).base, day)
+        val crown = Inks(crownColour, shift(crownColour, -0.07f), crownColour, mixOk(BLOSSOM, meadow, 0.1f + 0.5f * (1f - day)))
         val trunk = mixOk(TRUNK, sheets.getValue(SheetId.FRONT_LEFT).base, 0.55f)
+        val accents = listOf(SheetId.WOOD_LEFT, SheetId.WOOD_RIGHT).associateWith { id ->
+            val evergreen = sheets.getValue(id).second
+            val tones = ACCENTS.map { own -> accentOf(season, own, evergreen, day) }
+            Inks(tones[0], tones[1], tones[2], shift(evergreen, -0.02f))
+        }
 
         // Shadows fall away from the light: sideways by its azimuth, longer when it is low.
         val sunUp = smooth(-1.5f, 1.5f, s.sunElevation)
@@ -219,11 +237,15 @@ object PaperLight {
         val shadowDy = 1.6f + 1.8f * low
 
         val moonLit = mixOk(c(0xFFF6EED8), plate.sky[3], 0.06f + 0.4f * cover)
-        val moonDark = mixOk(plate.sky[1], c(0xFF0A0F1E), 0.15f)
+        // The moon's unlit part a breath lighter than the sky: the whole disc reads, as in a print.
+        val moonDark = mixOk(plate.sky[1], moonLit, 0.16f)
         val glintAlpha = if (sunUp > 0f) 0.85f * sunUp * (1f - smooth(16f, 36f, s.sunElevation)) * (1f - cover) else 0.7f * moon * (1f - cover)
 
+        val label = labelInks(sheets.getValue(SheetId.FRONT_LEFT).base, s.sunElevation)
         return PaperLook(
-            sheets = sheets, trunk = Inks.flat(trunk), crown = crown,
+            label = label,
+            labelCover = 1f - 0.3f * (1f - smooth(-8f, 2f, s.sunElevation)),
+            sheets = sheets, trunk = Inks.flat(trunk), crown = crown, accents = accents,
             cloud = Inks(plate.cloudLit, plate.cloudShade, plate.cloudLit, plate.cloudLit),
             sunDisc = plate.sunDisc, glow = plate.glow, glowAlpha = plate.glowAlpha,
             horizonGlow = plate.horizonGlow, horizonGlowAlpha = plate.horizonGlowAlpha,
@@ -298,70 +320,143 @@ object PaperLight {
     }
 
     /**
-     * The season's turn on a sheet: spring makes the woods and the meadow fresher, autumn turns
-     * them towards ochre and copper, winter cools and quietens everything – always within the
-     * hour's light, so night stays night.
+     * The season's turn on a sheet: spring makes the woods and the meadow fresher; autumn turns
+     * the meadow to straw and only warms the woods a little (firs, most of them – the broad
+     * tree carries the season's colour); winter cools and quietens everything. Always within
+     * the hour's light, so night stays night.
      */
     private fun seasoned(argb: Int, id: SheetId, s: SeasonMix, p: Plate): Int {
-        val lab = Oklab.fromArgb(argb)
-        val lch = lab.toLch()
         // The season's colours show by daylight; in the blue hour and at night they fade into the hour's own.
         val light = 0.15f + 0.85f * smooth(-6f, 8f, p.elevation)
-        var out = lab
+        var out = Oklab.fromArgb(argb)
         val woods = id == SheetId.WOOD_LEFT || id == SheetId.WOOD_RIGHT
-        val green = woods || id == SheetId.MEADOW || id == SheetId.SHORE || id == SheetId.FRONT_LEFT
+        val meadow = id == SheetId.MEADOW
+        val green = woods || meadow || id == SheetId.SHORE || id == SheetId.FRONT_LEFT
         if (green && s.autumn > 0f) {
-            // Larches and beeches among the firs: the woods go copper, the meadow ochre.
-            val k = s.autumn * light * when (id) {
-                SheetId.MEADOW -> 0.7f
-                SheetId.WOOD_LEFT, SheetId.WOOD_RIGHT -> 0.7f
-                SheetId.SHORE -> 0.45f
-                else -> 0.2f
+            val lch = out.toLch()
+            out = if (meadow) {
+                val target = Lch(lch.l + 0.035f, max(lch.c, 0.02f + 0.06f * light), 86f).toLab()
+                out.lerp(target, s.autumn * light * 0.8f)
+            } else {
+                turned(out, 95f, s.autumn * light * if (woods) 0.15f else if (id == SheetId.SHORE) 0.2f else 0.1f)
             }
-            val target = Lch(lch.l * (if (id == SheetId.MEADOW) 1.06f else 1.02f), max(lch.c, 0.07f + 0.05f * light), if (id == SheetId.MEADOW) 80f else 52f).toLab()
-            out = out.lerp(target, k)
         }
         if (green && s.spring > 0f) {
-            val k = s.spring * light * (if (id == SheetId.MEADOW) 0.55f else 0.3f)
-            val target = Lch(lch.l * 1.04f, lch.c * 1.15f, 128f).toLab()
-            out = out.lerp(target, k)
+            val lch = out.toLch()
+            val target = Lch(lch.l + 0.025f, lch.c * 1.2f + 0.01f, 128f).toLab()
+            out = out.lerp(target, s.spring * light * if (meadow) 0.6f else 0.3f)
         }
         if (s.winter > 0f) {
+            // The near banks keep their dark colour (and the label its ground); the rest goes cool and quiet.
+            val k = s.winter * if (id == SheetId.FRONT_LEFT) 0.4f else 1f
             val o = out.toLch()
-            val k = s.winter
-            var dh = 235f - o.h
-            if (dh > 180f) dh -= 360f
-            if (dh < -180f) dh += 360f
-            out = Lch(o.l, o.c * (1f - 0.45f * k), o.h + dh * 0.35f * k).toLab()
+            out = Lch(o.l, o.c * (1f - 0.45f * k), o.h + hueStep(o.h, 235f) * 0.35f * k).toLab()
         }
         return out.toArgb()
+    }
+
+    /** [lab]'s hue turned towards [hue] by the share [k] along the shorter way; lightness and chroma kept. */
+    private fun turned(lab: Lab, hue: Float, k: Float): Lab {
+        val o = lab.toLch()
+        return Lch(o.l, o.c, o.h + hueStep(o.h, hue) * k.coerceIn(0f, 1f)).toLab()
+    }
+
+    /** The signed shorter way from hue [from] to hue [to] (degrees). */
+    private fun hueStep(from: Float, to: Float): Float {
+        var d = to - from
+        while (d > 180f) d -= 360f
+        while (d < -180f) d += 360f
+        return d
     }
 
     /** Only winter's cooling, for what stays green all year (the firs). */
     private fun winterOnly(argb: Int, s: SeasonMix): Int {
         if (s.winter <= 0f) return argb
         val o = Oklab.fromArgb(argb).toLch()
-        var dh = 235f - o.h
-        if (dh > 180f) dh -= 360f
-        if (dh < -180f) dh += 360f
-        return Lch(o.l, o.c * (1f - 0.4f * s.winter), o.h + dh * 0.3f * s.winter).toArgb()
+        return Lch(o.l, o.c * (1f - 0.15f * s.winter), o.h + hueStep(o.h, 235f) * 0.15f * s.winter).toArgb()
     }
 
-    /** The broad tree's crown for the season, toned into the meadow's light. */
-    private fun crownOf(s: SeasonMix, meadow: Int, p: Plate): Int {
-        val sp = Oklab.fromArgb(c(0xFF9CC47A))
-        val su = Oklab.fromArgb(c(0xFF5E8F55))
-        val au = Oklab.fromArgb(c(0xFFD9853A))
-        val wi = Oklab.fromArgb(c(0xFF7A6E66))
-        val lab = Lab(
-            sp.l * s.spring + su.l * s.summer + au.l * s.autumn + wi.l * s.winter,
-            sp.a * s.spring + su.a * s.summer + au.a * s.autumn + wi.a * s.winter,
-            sp.b * s.spring + su.b * s.summer + au.b * s.autumn + wi.b * s.winter,
-        )
-        // The crown is a step of the hour's ramp with the season's hue in it: in daylight its own
-        // colour shows most, towards evening and night it sinks into the meadow's light.
-        val own = 0.12f + 0.46f * smooth(3f, 22f, p.elevation)
-        return mixOk(lab.toArgb(), meadow, 1f - own)
+    /**
+     * The broad tree's crown for the season: its own colour by daylight ([day] 1), sinking
+     * into the hour's colour of the woods behind it towards evening and night ([day] 0).
+     */
+    private fun crownOf(s: SeasonMix, woods: Int, day: Float): Int {
+        val own = seasonal(s, CROWN_SPRING, CROWN_SUMMER, CROWN_AUTUMN, CROWN_WINTER)
+        return mixOk(woods, own, 0.12f + 0.78f * day)
+    }
+
+    /**
+     * One of the colours the broad-leaved trees among the firs take: beside the evergreen in
+     * summer, gold, orange or rust in autumn, fresh in spring – by daylight; towards night the
+     * evergreen of the hour.
+     */
+    private fun accentOf(s: SeasonMix, own: IntArray, evergreen: Int, day: Float): Int {
+        val colour = seasonal(s, own[0], own[1], own[2], own[3])
+        val summerLike = s.summer + s.winter
+        // Summer's broad-leaved trees are only a little lighter than the firs around them.
+        val t = (0.1f + 0.75f * day) * (1f - 0.55f * summerLike)
+        return mixOk(evergreen, colour, t)
+    }
+
+    /** The four seasons' colours, mixed in Oklab by [s]. */
+    private fun seasonal(s: SeasonMix, spring: Int, summer: Int, autumn: Int, winter: Int): Int {
+        val a = Oklab.fromArgb(spring)
+        val b = Oklab.fromArgb(summer)
+        val c = Oklab.fromArgb(autumn)
+        val d = Oklab.fromArgb(winter)
+        return Lab(
+            a.l * s.spring + b.l * s.summer + c.l * s.autumn + d.l * s.winter,
+            a.a * s.spring + b.a * s.summer + c.a * s.autumn + d.a * s.winter,
+            a.b * s.spring + b.b * s.summer + c.b * s.autumn + d.b * s.winter,
+        ).toArgb()
+    }
+
+    private val CROWN_SPRING = c(0xFF9CC47A)
+    private val CROWN_SUMMER = c(0xFF5E8F55)
+    private val CROWN_AUTUMN = c(0xFFC8682E)
+    private val CROWN_WINTER = c(0xFF7A6E66)
+    private val BLOSSOM = c(0xFFF4CCD8)
+
+    /** The broad-leaved trees' three colours through the year: spring, summer, autumn, winter each. */
+    private val ACCENTS = listOf(
+        ints(0xFFA6CC7E, 0xFF6E9A62, 0xFFE0A33C, 0xFF6F7A74),
+        ints(0xFFEFE2EA, 0xFF79A06A, 0xFFD5762F, 0xFF6F7A74),
+        ints(0xFF8CBF84, 0xFF638F60, 0xFFB24A2C, 0xFF6F7A74),
+    )
+
+    /**
+     * The label's three inks on the near bank [ground]: like white at 93 / 80 / 66.5 % (a little
+     * lower at night, so the text does not outshine the picture), with a breath of the bank's
+     * hue – and never darker than keeps 4.5:1 on it, the steps between the levels kept.
+     */
+    fun labelInks(ground: Int, sunElevation: Float): IntArray {
+        val g = Oklab.fromArgb(ground).toLch()
+        val night = 1f - smooth(-8f, 0f, sunElevation)
+        val t = 1f - 0.1f * night
+        val levels = floatArrayOf(0.93f * t, 0.8f * t, 0.665f * t)
+        val floor = darkestLightInkOn(ground)
+        val chroma = minOf(0.009f, g.c * 0.15f + 0.002f)
+        return IntArray(3) { i ->
+            val l = maxOf(levels[i], CoverPalette.NIGHT_INK_FLOOR[i], floor + 0.1f * (2 - i)).coerceAtMost(0.97f)
+            Lch(l, chroma, g.h).toArgb()
+        }
+    }
+
+    /** The darkest light, near-neutral ink (Oklab L) that keeps 4.5:1 (with a little margin) on [ground]. */
+    fun darkestLightInkOn(ground: Int): Float {
+        val y = relativeLuminance(ground)
+        return Math.cbrt((4.6 * (y + 0.05) - 0.05).coerceAtLeast(0.0)).toFloat()
+    }
+
+    /** WCAG relative luminance of an sRGB colour. */
+    fun relativeLuminance(argb: Int): Float =
+        0.2126f * Oklab.srgbToLinear(argb shr 16) + 0.7152f * Oklab.srgbToLinear(argb shr 8) + 0.0722f * Oklab.srgbToLinear(argb)
+
+    /** WCAG contrast ratio of two colours. */
+    fun contrast(a: Int, b: Int): Float {
+        val la = relativeLuminance(a)
+        val lb = relativeLuminance(b)
+        return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
     }
 
     // --- colour helpers -------------------------------------------------------------------

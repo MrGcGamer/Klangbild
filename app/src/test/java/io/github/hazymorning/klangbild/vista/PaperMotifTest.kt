@@ -1,0 +1,50 @@
+package io.github.hazymorning.klangbild.vista
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Test
+
+class PaperMotifTest {
+    @Test
+    fun `the wide bank keeps clear of the label on its side`() {
+        for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) {
+            val fg = PaperMotif.foreground(side)
+            val line = Shapes.line(if (side == LabelSide.LEFT) fg.frontLeft else fg.frontRight)
+            val left = if (side == LabelSide.LEFT) PaperMotif.LABEL_LEFT_X else PaperMotif.LABEL_RIGHT_X
+            val top = PaperMotif.LABEL_BOTTOM - PaperMotif.LABEL_HEIGHT
+            var x = left
+            while (x <= left + PaperMotif.LABEL_MAX_WIDTH) {
+                assertThat(line.yAt(x)).isAtMost(top - PaperMotif.LABEL_CLEARANCE)
+                x += 1f
+            }
+        }
+    }
+
+    @Test
+    fun `the label keeps its margins from the screen's edges`() {
+        assertThat(PaperMotif.LABEL_LEFT_X).isAtLeast(48f)
+        assertThat(PaperMotif.LABEL_RIGHT_X + PaperMotif.LABEL_MAX_WIDTH).isAtMost(PaperMotif.WIDTH - 48f)
+        assertThat(PaperMotif.LABEL_BOTTOM).isAtMost(PaperMotif.HEIGHT - 27f)
+    }
+
+    @Test
+    fun `lines give their height in both directions`() {
+        val down = Shapes.line(listOf(Knot(0f, 0f), Knot(100f, 100f)))
+        val back = Shapes.line(listOf(Knot(100f, 100f), Knot(0f, 0f)))
+        for (x in listOf(-10f, 0f, 25f, 50f, 99f, 120f)) {
+            assertThat(back.yAt(x)).isWithin(0.01f).of(down.yAt(x))
+        }
+        assertThat(back.yAt(30f)).isWithin(0.01f).of(30f)
+    }
+
+    @Test
+    fun `the near banks stand in front of everything at the bottom`() {
+        // Each bank's outline closes beyond the screen's bottom and side.
+        for (side in LabelSide.entries) {
+            val fg = PaperMotif.foreground(side)
+            assertThat(fg.frontLeft.first().x).isLessThan(-PaperMotif.OVERSCAN)
+            assertThat(fg.frontRight.first().x).isGreaterThan(PaperMotif.WIDTH + PaperMotif.OVERSCAN)
+            assertThat(fg.frontLeft.last().y).isGreaterThan(PaperMotif.HEIGHT + PaperMotif.OVERSCAN)
+            assertThat(fg.frontRight.last().y).isGreaterThan(PaperMotif.HEIGHT + PaperMotif.OVERSCAN)
+        }
+    }
+}

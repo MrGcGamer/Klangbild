@@ -34,18 +34,23 @@ class Outline(val xs: FloatArray, val ys: FloatArray) {
 class Polyline(val xs: FloatArray, val ys: FloatArray) {
     val size: Int get() = xs.size
 
-    /** The line's height at [x] (dp) – for lines running left to right. */
+    /** The line's height at [x] (dp) – for lines running left to right or right to left; beyond its ends, the end's height. */
     fun yAt(x: Float): Float {
-        if (x <= xs[0]) return ys[0]
-        if (x >= xs[size - 1]) return ys[size - 1]
+        val ascending = xs[0] <= xs[size - 1]
+        val first = if (ascending) 0 else size - 1
+        val last = if (ascending) size - 1 else 0
+        if (x <= xs[first]) return ys[first]
+        if (x >= xs[last]) return ys[last]
+        // Binary search in the line's own direction: lo and hi bracket x.
         var lo = 0
         var hi = size - 1
         while (hi - lo > 1) {
             val mid = (lo + hi) / 2
-            if (xs[mid] <= x) lo = mid else hi = mid
+            if ((xs[mid] <= x) == ascending) lo = mid else hi = mid
         }
-        val t = (x - xs[lo]) / (xs[hi] - xs[lo]).coerceAtLeast(1e-6f)
-        return ys[lo] + (ys[hi] - ys[lo]) * t
+        val dx = xs[hi] - xs[lo]
+        val t = if (dx == 0f) 0f else (x - xs[lo]) / dx
+        return ys[lo] + (ys[hi] - ys[lo]) * t.coerceIn(0f, 1f)
     }
 
     /** Closed down to [bottom]: the shape of a layer of paper under this line. */
@@ -108,6 +113,30 @@ object Shapes {
         val b1x = lerp(a1x, a2x, t0, t2); val b1y = lerp(a1y, a2y, t0, t2)
         val b2x = lerp(a2x, a3x, t1, t3); val b2y = lerp(a2y, a3y, t1, t3)
         return lerp(b1x, b2x, t1, t2) to lerp(b1y, b2y, t1, t2)
+    }
+
+    /**
+     * A closed smooth outline through [knots] (centripetal Catmull-Rom all the way round, no
+     * corners), sampled about every [step] dp.
+     */
+    fun loop(knots: List<Knot>, step: Float = 1f): Outline {
+        val xs = ArrayList<Float>()
+        val ys = ArrayList<Float>()
+        val n = knots.size
+        for (i in 0 until n) {
+            val p0 = knots[(i - 1 + n) % n]
+            val p1 = knots[i]
+            val p2 = knots[(i + 1) % n]
+            val p3 = knots[(i + 2) % n]
+            val len = hypot(p2.x - p1.x, p2.y - p1.y)
+            val m = max(2, (len / step).toInt())
+            for (k in 0 until m) {
+                val (x, y) = catmullRom(p0, p1, p2, p3, k / m.toFloat())
+                xs += x
+                ys += y
+            }
+        }
+        return Outline(xs.toFloatArray(), ys.toFloatArray())
     }
 
     /** A circle (dp). */
@@ -229,23 +258,26 @@ object Shapes {
     }
 
     /**
-     * A cloud strip: [length] long, a flat underside at [y], its top rising in [humps] wide,
-     * low swells to about [thickness]; the ends taper round. [phase] shifts where the swells sit.
+     * A cloud cut as a band of paper: [length] long, a nearly flat underside at [y], its top
+     * rising to about [thickness] in [swells] long, low swells; both ends taper out slowly to a
+     * point, like a willow leaf – a band of mist, never a puff. [phase] shifts the swells.
      */
-    fun cloudStrip(x: Float, y: Float, length: Float, thickness: Float, humps: Int, phase: Float, segments: Int = 120): Outline {
+    fun cloudStrip(x: Float, y: Float, length: Float, thickness: Float, swells: Int, phase: Float, segments: Int = 160): Outline {
         val pts = ArrayList<Pair<Float, Float>>()
+        fun envelope(t: Float): Float {
+            // Long tapers at both ends (the left one a little shorter: the wind comes from there).
+            val left = smoothstep(0f, 0.2f, t)
+            val right = 1f - smoothstep(0.74f, 1f, t)
+            return sqrt(left * right)
+        }
         for (i in 0..segments) {
             val t = i / segments.toFloat()
-            // Ends: a quarter circle's rise over the first and last half thickness.
-            val e = (min(t, 1 - t) * length / (thickness * 0.9f)).coerceIn(0f, 1f)
-            val end = sqrt(1 - (1 - e) * (1 - e))
-            val swell = 0.74f + 0.26f * abs(sin((t * humps + phase * 0.31f) * PI.toFloat()))
-            pts += (x + length * t) to (y - thickness * end * swell)
+            val swell = 0.84f + 0.16f * sin((t * swells + phase * 0.31f) * PI.toFloat()).let { it * it }
+            pts += (x + length * t) to (y - thickness * envelope(t) * swell)
         }
         for (i in segments downTo 0) {
             val t = i / segments.toFloat()
-            val e = (min(t, 1 - t) * length / (thickness * 0.9f)).coerceIn(0f, 1f)
-            pts += (x + length * t) to (y + thickness * 0.06f * sqrt(e))
+            pts += (x + length * t) to (y + thickness * 0.07f * envelope(t))
         }
         return Outline.of(pts)
     }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -46,6 +45,7 @@ class PaperImages(val baked: PaperBaked) {
     val trunks = baked.trees.map { img(it.trunk) }
     val crowns = baked.trees.map { t -> t.crown?.let { img(it) } }
     val treeShadows = baked.treeShadows.map { img(it) }
+    val accents: Map<SheetId, ImageBitmap> = baked.accents.mapValues { img(it.value) }
     val sway = baked.sway.map { img(it.sheet) }
     val clouds = baked.clouds.map { img(it) }
     val glow = img(baked.glow)
@@ -172,10 +172,18 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
     land(SheetId.SHORE)
     land(SheetId.LAKE)
     drawGlints(l, p, m, d, b)
+    // The broad-leaved trees among each wood's firs, as strong as their leaves.
+    fun accents(id: SheetId) {
+        if (b.leafAlpha <= 0.01f) return
+        val s = b.accents[id] ?: return
+        sheet(images.accents.getValue(id), s, f.of(l.accents.getValue(id)), b.leafAlpha)
+    }
     shadowOf(SheetId.WOOD_RIGHT)
     land(SheetId.WOOD_RIGHT)
+    accents(SheetId.WOOD_RIGHT)
     shadowOf(SheetId.WOOD_LEFT)
     land(SheetId.WOOD_LEFT)
+    accents(SheetId.WOOD_LEFT)
     shadowOf(SheetId.MEADOW)
     land(SheetId.MEADOW)
 
@@ -186,7 +194,7 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
         sheet(images.trunks[i], t.trunk, f.of(l.trunk))
         val crown = images.crowns[i] ?: continue
         val angle = (Noise.wander(m.time, 7.0, 40 + i) * 0.45 + Noise.wander(m.time, 2.3, 60 + i) * 0.15).toFloat()
-        rotate(angle, pivot = Offset(t.pivotX, t.pivotY)) { sheet(crown, t.crown!!, f.of(l.crown)) }
+        rotate(angle, pivot = Offset(t.pivotX, t.pivotY)) { sheet(crown, t.crown!!, f.of(l.crown), t.crownAlpha) }
     }
 
     shadowOf(SheetId.FRONT_LEFT)
@@ -202,7 +210,10 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
     }
 }
 
-/** The light on the lake under the sun or moon: a few slim strips, shorter towards the far shore. */
+/**
+ * The light on the lake under the sun or moon: a few slim slivers of paper, shorter and
+ * thinner towards the far shore, each breathing a little on its own.
+ */
 private fun DrawScope.drawGlints(l: PaperLook, p: SkyPlaces, m: PaperMotion, d: Float, b: PaperBaked) {
     if (l.glintAlpha <= 0.01f) return
     val x = if (p.sunY < PaperMotif.HORIZON) p.sunX else p.moonX
@@ -211,12 +222,12 @@ private fun DrawScope.drawGlints(l: PaperLook, p: SkyPlaces, m: PaperMotion, d: 
     val colour = Color(l.glint)
     for (k in 0 until GLINTS) {
         val f = k / (GLINTS - 1f)
-        val y = PaperMotif.HORIZON + 5f + 52f * f * f + 6f * f
-        val w = (14f + 46f * f) * (0.75f + 0.25f * Noise.wander(m.time, 3.1, 120 + k).toFloat())
-        val h = 1.4f + 1.6f * f
-        val a = (l.glintAlpha * (0.55f + 0.45f * Noise.wander(m.time, 1.7, 140 + k).toFloat()) * (1f - 0.35f * f)).coerceIn(0f, 1f)
-        val cx = x + 6f * Noise.wander(m.time, 4.3, 160 + k).toFloat()
-        drawRoundRect(colour, Offset(b.px(cx - w / 2), b.px(y)), Size(w * d, h * d), CornerRadius(h * d / 2), alpha = a)
+        val y = PaperMotif.HORIZON + 4f + 44f * f * f + 5f * f
+        val w = (12f + 44f * f) * (0.7f + 0.3f * Noise.wander(m.time, 3.1, 120 + k).toFloat())
+        val h = 1.1f + 1.5f * f
+        val a = (l.glintAlpha * (0.5f + 0.5f * Noise.wander(m.time, 1.7, 140 + k).toFloat()) * (1f - 0.3f * f)).coerceIn(0f, 1f)
+        val cx = x + 5f * Noise.wander(m.time, 4.3, 160 + k).toFloat() + (if (k % 2 == 0) -3f else 3f) * f
+        drawOval(colour, Offset(b.px(cx - w / 2), b.px(y)), Size(w * d, h * d), alpha = a)
     }
 }
 
@@ -225,7 +236,7 @@ private fun DrawScope.drawMoon(l: PaperLook, p: SkyPlaces, d: Float) {
     val r = MOON_RADIUS * d
     val cx = (p.moonX + PaperMotif.OVERSCAN) * d
     val cy = (p.moonY + PaperMotif.OVERSCAN) * d
-    drawCircle(Color(l.moonDark), radius = r, center = Offset(cx, cy), alpha = 0.55f)
+    drawCircle(Color(l.moonDark), radius = r, center = Offset(cx, cy))
     val f = p.moonFraction.coerceIn(0f, 1f)
     // Turned so the lit limb faces the sun (its place on the sky, even below the horizon).
     val angle = Math.toDegrees(atan2((p.sunY - p.moonY).toDouble(), (p.sunX - p.moonX).toDouble())).toFloat()
@@ -247,7 +258,7 @@ private fun DrawScope.drawMoon(l: PaperLook, p: SkyPlaces, d: Float) {
 }
 
 private val STAR = Color(0xFFF3EEDF)
-private const val GLINTS = 6
+private const val GLINTS = 5
 
 /** The sun's and the moon's size on the sky (dp radius): drawn large, as a print would. */
 const val SUN_RADIUS = 15f

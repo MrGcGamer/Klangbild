@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.ui.Fixtures
 import io.github.hazymorning.klangbild.vista.CloudPlace
+import io.github.hazymorning.klangbild.vista.LabelSide
 import io.github.hazymorning.klangbild.vista.PaperBake
 import io.github.hazymorning.klangbild.vista.PaperLight
 import io.github.hazymorning.klangbild.vista.SeasonMix
@@ -24,8 +25,8 @@ import org.robolectric.annotation.GraphicsMode
 class PaperStudyTest {
     private val clouds = listOf(CloudPlace(0, 120f, 110f, 0.86f, 1f), CloudPlace(2, 560f, 70f, 1f, 1f), CloudPlace(4, 700f, 166f, 0.74f, 1f))
 
-    private fun study(name: String, sky: SkyState, shapes: SeasonShapes = SeasonShapes(), lst: Double = 60.0) {
-        val baked = PaperBake.bake(1920, 1080, 2f, shapes)
+    private fun study(name: String, sky: SkyState, shapes: SeasonShapes = SeasonShapes(), lst: Double = 60.0, label: LabelSide = LabelSide.LEFT) {
+        val baked = PaperBake.bake(1920, 1080, 2f, shapes, label)
         val images = PaperImages(baked)
         val look = PaperLight.look(sky)
         val places = SkyMap.places(sky, lst)
@@ -59,5 +60,16 @@ class PaperStudyTest {
         study("22_spring", SkyState(30f, 170f, season = SeasonMix.SPRING), SeasonShapes(leaves = 0.7f, blossom = 1f, peaks = 0.6f))
         study("23_autumn", SkyState(14f, 220f, season = SeasonMix.AUTUMN), SeasonShapes(leaves = 0.8f, peaks = 0.4f))
         study("24_winter", SkyState(12f, 190f, season = SeasonMix.WINTER), SeasonShapes(snow = 1f, peaks = 1f, leaves = 0f))
+        study("25_leaf_fall", SkyState(18f, 200f, season = SeasonMix.AUTUMN), SeasonShapes(leaves = 0.35f, peaks = 0.5f))
+        study("26_early_winter", SkyState(8f, 200f, season = SeasonMix(0f, 0f, 0.3f, 0.7f)), SeasonShapes(snow = 0.4f, peaks = 0.9f, leaves = 0f))
+        study("27_winter_dusk", SkyState(-3f, 240f, season = SeasonMix.WINTER), SeasonShapes(snow = 1f, peaks = 1f, leaves = 0f))
+        study("28_winter_moon", SkyState(-25f, 330f, moonElevation = 30f, moonAzimuth = 170f, moonFraction = 1f, season = SeasonMix.WINTER), SeasonShapes(snow = 1f, peaks = 1f, leaves = 0f))
+    }
+
+    @Test
+    fun labelSides() {
+        study("30_label_right", SkyState(30f, 200f), label = LabelSide.RIGHT)
+        study("31_label_none", SkyState(30f, 200f), label = LabelSide.NONE)
+        study("32_label_right_sunset", SkyState(1.5f, 270f), label = LabelSide.RIGHT)
     }
 }

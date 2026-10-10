@@ -1,5 +1,8 @@
 package io.github.hazymorning.klangbild.vista
 
+/** Where the music's label lies in the picture: the near bank on that side is cut wide and calm for it. */
+enum class LabelSide { LEFT, RIGHT, NONE }
+
 /**
  * The one picture, as a paper cut: every contour placed by hand on the 960 × 540 dp screen
  * (and [OVERSCAN] beyond, so the slow drift never shows an edge). The view faces south down a
@@ -8,8 +11,9 @@ package io.github.hazymorning.klangbild.vista
  *
  * From the back: sky; two ranges of mountains; the far shore, its tree line cut fine; the
  * lake; two wooded ridges, a high one from the left and a lower one from the right, their
- * firs close as a fringe; a meadow in the middle with one broad tree; and the near bank, dark,
- * with a tall fir on the right and grasses and reeds – the calm ground the music's label rests on.
+ * firs close as a fringe; a meadow in the middle with one broad tree; and the near banks, dark,
+ * with a tall fir on the right and grasses and reeds. The bank under the music's label is cut
+ * wide and nearly level ([Foreground]), so the label lies on calm dark paper in every light.
  */
 object PaperMotif {
     const val WIDTH = 960f
@@ -79,28 +83,84 @@ object PaperMotif {
         Knot(740f, 418f), Knot(830f, 420f), Knot(R, 428f),
     )
 
-    /** The broad tree on the meadow: foot x, foot y (on the contour), height, crown radius. */
-    val trees = listOf(RoundTree(708f, 420f, 104f, 40f))
+    /**
+     * The near banks, the broad tree, the grasses and the reeds for a label on [side]: the bank
+     * under it reaches far in and stays nearly level, the other one falls away low.
+     */
+    fun foreground(side: LabelSide): Foreground = when (side) {
+        LabelSide.LEFT -> Foreground(
+            frontLeft = frontLeftWide, frontRight = frontRightLow,
+            tree = BroadTree(708f, 112f, 66f),
+            grassLeft = listOf(18f to 0.84f, 150f to 0.7f, 286f to 0.9f, 404f to 0.66f),
+            grassRight = listOf(784f to 0.8f, 856f to 0.95f),
+            reeds = listOf(Triple(452f, 470f, 0.9f)),
+        )
+        LabelSide.RIGHT -> Foreground(
+            frontLeft = frontLeftLow, frontRight = frontRightWide,
+            tree = BroadTree(480f, 104f, 62f),
+            grassLeft = listOf(14f to 0.9f, 120f to 1.0f, 236f to 0.9f),
+            grassRight = listOf(540f to 0.7f, 680f to 0.86f, 820f to 0.72f),
+            reeds = listOf(Triple(352f, 524f, 1.0f)),
+        )
+        LabelSide.NONE -> Foreground(
+            frontLeft = frontLeftLow, frontRight = frontRightLow,
+            tree = BroadTree(708f, 112f, 66f),
+            grassLeft = listOf(14f to 0.9f, 64f to 0.72f, 120f to 1.0f, 176f to 0.78f, 236f to 0.9f, 300f to 0.7f),
+            grassRight = listOf(784f to 0.8f, 856f to 0.95f),
+            reeds = listOf(Triple(352f, 524f, 1.0f)),
+        )
+    }
 
-    /** The near bank on the left: dark and calm, rising to the corner. */
-    val frontLeft = listOf(
+    /** The near bank on the left, low: rising to the corner. */
+    private val frontLeftLow = listOf(
         Knot(L, 440f), Knot(60f, 446f), Knot(140f, 458f), Knot(214f, 474f), Knot(280f, 494f), Knot(330f, 514f),
         Knot(372f, 534f), Knot(400f, BOTTOM),
     )
 
-    /** The near bank on the right, under the tall fir. */
-    val frontRight = listOf(
+    /** The near bank on the left, wide: a long, low swell, nearly level under the label, falling to the water late. */
+    private val frontLeftWide = listOf(
+        Knot(L, 428f), Knot(70f, 425f), Knot(170f, 425f), Knot(270f, 428f), Knot(350f, 432f), Knot(400f, 439f),
+        Knot(436f, 452f), Knot(460f, 476f), Knot(474f, 506f), Knot(480f, BOTTOM),
+    )
+
+    /** The near bank on the right, low, under the tall fir. */
+    private val frontRightLow = listOf(
         Knot(R, 470f), Knot(930f, 472f), Knot(872f, 480f), Knot(820f, 492f), Knot(776f, 508f), Knot(744f, 528f),
         Knot(728f, BOTTOM),
     )
 
+    /** The near bank on the right, wide: level under the label, the tall fir at its end. */
+    private val frontRightWide = listOf(
+        Knot(R, 430f), Knot(890f, 427f), Knot(800f, 428f), Knot(700f, 430f), Knot(620f, 433f), Knot(566f, 438f),
+        Knot(530f, 450f), Knot(506f, 472f), Knot(492f, 502f), Knot(486f, BOTTOM),
+    )
+
     /** The tall fir on the right bank: x, height, tiers. */
-    val bigFir = Triple(924f, 220f, 9)
+    val bigFir = Triple(936f, 224f, 9)
 
-    /** Grass along the near banks: clumps at x (dp) with their size; the reeds stand by the water. */
-    val grassLeft = listOf(14f to 0.9f, 64f to 0.72f, 120f to 1.0f, 176f to 0.78f, 236f to 0.9f, 300f to 0.7f)
-    val grassRight = listOf(784f to 0.8f, 846f to 0.95f, 892f to 0.7f)
-    val reeds = listOf(Triple(352f, 524f, 1.0f))
+    /**
+     * Where the label lies (dp): its left edge on either side, its bottom, and the widest it
+     * may be – the wide bank's top keeps clear of it by at least [LABEL_CLEARANCE].
+     */
+    const val LABEL_LEFT_X = 64f
+    const val LABEL_RIGHT_X = 560f
+    const val LABEL_BOTTOM = 508f
+    const val LABEL_HEIGHT = 56f
+    const val LABEL_MAX_WIDTH = 336f
+    const val LABEL_CLEARANCE = 12f
 
-    data class RoundTree(val x: Float, val footY: Float, val height: Float, val crown: Float)
+    /** The near banks and what stands on them. */
+    class Foreground(
+        val frontLeft: List<Knot>,
+        val frontRight: List<Knot>,
+        val tree: BroadTree,
+        /** Grass clumps along the banks' tops: x (dp) and size. */
+        val grassLeft: List<Pair<Float, Float>>,
+        val grassRight: List<Pair<Float, Float>>,
+        /** Reeds by the water: x, foot y (dp) and size. */
+        val reeds: List<Triple<Float, Float, Float>>,
+    )
+
+    /** The broad tree on the meadow: foot x, its height and its crown's width (dp); it stands on the meadow's contour. */
+    data class BroadTree(val x: Float, val height: Float, val width: Float)
 }
