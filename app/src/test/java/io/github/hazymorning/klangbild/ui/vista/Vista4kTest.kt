@@ -41,7 +41,7 @@ class Vista4kTest {
             source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "partlycloudy"),
             vista = VistaUi(track, PlayerStatus.PLAYING, MiniPlayer.LEFT),
         )
-        val clock = VistaClock(now = { t }, zone = { Fixtures.zone })
+        val clock = VistaClock(now = { t })
         captureRoboImage("build/screenshots/vista/4k/autumn_afternoon.png") {
             Fixtures.Still { VistaScreen(ui, ui.vista!!, clock, positionNow = { 100_000L }, now = { t }, modifier = Modifier.fillMaxSize()) }
         }

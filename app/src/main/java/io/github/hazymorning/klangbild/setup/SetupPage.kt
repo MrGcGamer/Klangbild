@@ -98,7 +98,6 @@ object SetupPage {
     <label class="row"><input type="radio" name="action" value="release" checked> Bildschirmschoner des Fernsehers</label>
     <label class="row"><input type="radio" name="action" value="close"> App schließen</label>
     <label class="row"><input id="clock" type="checkbox" checked> Uhrzeit anzeigen</label>
-    <label class="row"><input id="dayNight" type="checkbox" checked> Nachtmodus: abends wärmer, nachts gedämpft</label>
     <label class="row"><input id="remote" type="checkbox" checked> Fernbedienung steuert die Musik (OK: Pause, ◀ ▶: Titel)</label>
   </section>
 
@@ -198,7 +197,7 @@ object SetupPage {
     ${'$'}('entity').value = s.entity || '';
     ${'$'}('sleep').value = s.sleepMinutes || 10;
     document.querySelectorAll('input[name=action]').forEach((r) => r.checked = (r.value === s.sleepAction));
-    ${'$'}('clock').checked = !!s.clock; ${'$'}('dayNight').checked = !!s.dayNight; ${'$'}('remote').checked = !!s.remote;
+    ${'$'}('clock').checked = !!s.clock; ${'$'}('remote').checked = !!s.remote;
     ${'$'}('maUrl').value = s.maUrl || '';
     bars = { barsLeft: s.barsLeft || '', barsCenter: s.barsCenter || '', barsRight: s.barsRight || '' };
     weather = s.weather || ''; ${'$'}('weather').value = weather;
@@ -226,7 +225,7 @@ object SetupPage {
       const body = {
         url: ${'$'}('url').value, token: ${'$'}('token').value, entity: ${'$'}('entity').value.trim(),
         sleepMinutes: parseInt(${'$'}('sleep').value, 10), sleepAction: action,
-        clock: ${'$'}('clock').checked, dayNight: ${'$'}('dayNight').checked, remote: ${'$'}('remote').checked,
+        clock: ${'$'}('clock').checked, remote: ${'$'}('remote').checked,
         maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value };
       // The weather once the page has listed it, or when it was chosen – a stored entity the page could not list stays.
       const w = ${'$'}('weather').value;

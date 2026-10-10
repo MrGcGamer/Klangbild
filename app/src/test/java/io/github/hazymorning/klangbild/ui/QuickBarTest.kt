@@ -102,7 +102,7 @@ class QuickBarTest {
             source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "partlycloudy"),
             vista = VistaUi(track, PlayerStatus.PLAYING, MiniPlayer.LEFT),
         )
-        val clock = VistaClock(now = { t }, zone = { Fixtures.zone })
+        val clock = VistaClock(now = { t })
         captureRoboImage("build/screenshots/quick/vista.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {

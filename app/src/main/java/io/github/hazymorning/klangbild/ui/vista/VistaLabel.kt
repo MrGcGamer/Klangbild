@@ -52,15 +52,12 @@ import io.github.hazymorning.klangbild.vista.PaperMotif
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** What the label on the near bank says: the music, or – while the preview is open – the moment it shows. */
+/** What the label on the near bank says: the music. */
 sealed interface LabelText {
     /** What plays (or played last): its cover's scene once it is ready, and whether it plays. */
     class Music(val track: TrackInfo, val scene: ArtworkScene?, val playing: Boolean, val positionNow: () -> Long?) : LabelText {
         val key: String get() = track.key
     }
-
-    /** The preview: the hour and the day ("14:00 · 12. März"), the sky, and how to leave. */
-    data class Preview(val moment: String, val sky: String, val hint: String) : LabelText
 }
 
 /**
@@ -71,13 +68,12 @@ sealed interface LabelText {
  * the title's cap height to the bar's lower edge – filling the cover's height – or, where there
  * is no bar (a station has no length), to the last baseline. The inks are the bank's
  * ([io.github.hazymorning.klangbild.vista.PaperLight.labelInks]): 4.5:1 in every light. A new
- * track's label cross-fades in place; the preview's caption takes the same place.
+ * track's label cross-fades in place.
  */
 @Composable
 fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, coverLight: () -> Float = { 1f }, modifier: Modifier = Modifier) {
-    // Only another track (or the preview) cross-fades; a pause, a new cover or the preview's next
-    // hour change the label in place – the one shown always reads the latest, the one leaving
-    // keeps what it said.
+    // Only another track cross-fades; a pause or a new cover change the label in place – the one
+    // shown always reads the latest, the one leaving keeps what it said.
     val latest by rememberUpdatedState(text)
     val said = remember { HashMap<Any, LabelText>() }
     val key = keyOf(text)
@@ -92,7 +88,6 @@ fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, coverLigh
         val t = if (k == keyOf(latest)) latest else said[k]
         when (t) {
             is LabelText.Music -> MusicLabel(t, side, inks, coverLight)
-            is LabelText.Preview -> PreviewLabel(t, side, inks)
             null -> Unit
         }
     }
@@ -100,7 +95,6 @@ fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, coverLigh
 
 private fun keyOf(t: LabelText): Any = when (t) {
     is LabelText.Music -> t.key
-    is LabelText.Preview -> "preview"
 }
 
 /** The label's box on the screen (dp): left edge, top, the cover's side, the text column's left edge and width. */
@@ -192,38 +186,6 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
     }
 }
 
-@Composable
-private fun PreviewLabel(p: LabelText.Preview, side: LabelSide, inks: () -> IntArray) {
-    val box = remember(side) { LabelBox(side) }
-    val density = LocalDensity.current.density
-    val titleStyle = remember { titleType(TITLE_SP, 400) }
-    val lineStyle = remember { textType(ARTIST_SP, 460) }
-    val hintStyle = remember { textType(HINT_SP, 440) }
-    Layout(
-        modifier = Modifier.fillMaxSize(),
-        content = {
-            BasicText(p.moment, style = titleStyle, maxLines = 1, color = { Color(inks()[0]) })
-            BasicText(p.sky, style = lineStyle, maxLines = 1, color = { Color(inks()[1]) })
-            BasicText(p.hint, style = hintStyle, maxLines = 1, color = { Color(inks()[2]) })
-        },
-    ) { measurables, constraints ->
-        fun px(dp: Float) = (dp * density).roundToInt()
-        val c = Constraints(maxWidth = px(PaperMotif.LABEL_MAX_WIDTH + 60f))
-        val parts = measurables.map { it.measure(c) }
-        fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: height
-        // Without a cover the caption starts at the label's left edge, its last line on the label's bottom.
-        val left = px(box.left)
-        val hintBaseline = px(PaperMotif.LABEL_BOTTOM) - px(2f)
-        val lineBaseline = hintBaseline - px(HINT_STEP_DP)
-        val titleBaseline = lineBaseline - px(ARTIST_STEP_DP)
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            parts[0].place(left, titleBaseline - parts[0].first())
-            parts[1].place(left, lineBaseline - parts[1].first())
-            parts[2].place(left, hintBaseline - parts[2].first())
-        }
-    }
-}
-
 /** Darker by [k] (0..1), colours kept. */
 private fun dimmer(k: Float) = ColorFilter.colorMatrix(
     ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, 1f, 0f)),
@@ -242,9 +204,7 @@ private fun miniCover(src: Bitmap, size: Int): ImageBitmap {
 private const val GAP = 18f
 private const val TITLE_SP = 24f
 private const val ARTIST_SP = 17f
-private const val HINT_SP = 15f
 private const val ARTIST_STEP_DP = 23f
-private const val HINT_STEP_DP = 21f
 private const val BAR_DP = 3f
 private const val BAR_WIDTH_DP = 190f
 

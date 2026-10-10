@@ -32,8 +32,8 @@ class VistaMotionTest {
     private fun run(name: String, hour: Int, minute: Int, frames: Int, stepMs: Long, timelapse: Boolean = false, cover: Float = 0.6f) {
         val start = java.time.ZonedDateTime.of(2026, 10, 10, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         var wall = start
-        val clock = VistaClock(now = { wall }, zone = { Fixtures.zone })
-        if (timelapse) clock.set(VistaClock.Preview(timelapse = true))
+        val clock = VistaClock(now = { wall })
+        if (timelapse) clock.timelapse(true)
         val feed = VistaFeed(place = { berlin }, cover = { cover }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
         compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }

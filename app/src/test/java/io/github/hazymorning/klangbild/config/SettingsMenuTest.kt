@@ -61,7 +61,7 @@ class SettingsMenuTest {
         for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa, withBars)) {
             // The lines that act rather than set: the connections, the sleep timer – and the light bars until they are set up.
             val actions = setOfNotNull(
-                MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.VISTA_PREVIEW, MenuEntry.BARS.takeIf { !s.bars.isSet },
+                MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.BARS.takeIf { !s.bars.isSet },
             )
             for (ctx in contexts) {
                 for (row in SettingsMenu.rows(s, ctx)) {

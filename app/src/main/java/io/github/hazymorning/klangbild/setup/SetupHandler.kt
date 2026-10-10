@@ -121,7 +121,6 @@ class SetupHandler(
                 put("sleepMinutes", s.sleepAfterMinutes)
                 put("sleepAction", s.sleepAction.name.lowercase())
                 put("clock", s.showClock)
-                put("dayNight", s.dayNight)
                 put("remote", s.remoteControl)
                 put("maUrl", s.maUrl ?: maGuess() ?: "")
                 put("hasMaToken", !s.maToken.isNullOrBlank())
@@ -232,7 +231,6 @@ class SetupHandler(
             sleepAfterMinutes = minutes,
             sleepAction = action,
             showClock = body.bool("clock") ?: current.showClock,
-            dayNight = body.bool("dayNight") ?: current.dayNight,
             remoteControl = body.bool("remote") ?: current.remoteControl,
             bars = bars,
         )

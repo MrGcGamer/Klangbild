@@ -36,6 +36,7 @@ import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.SkyState
 import io.github.hazymorning.klangbild.vista.VistaCamera
 import io.github.hazymorning.klangbild.vista.VistaClock
+import io.github.hazymorning.klangbild.vista.WeatherMood
 import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
@@ -93,8 +94,8 @@ fun Fensterblick(
                     // The season's shapes are looked at now and then; they change over days.
                     if (state.frames % SHAPES_EVERY == 0L) state.shapesNow().let { if (it != shapes) shapes = it }
                     // Everything here moves slowly: twenty pictures a second are smooth – the
-                    // preview's gliding light gets the stage's thirty.
-                    delay(if (feed.clock.preview.active) TICK_MS else VISTA_TICK_MS)
+                    // time-lapse's racing light gets the stage's thirty.
+                    delay(if (feed.clock.timelapse) TICK_MS else VISTA_TICK_MS)
                 }
             }
         } else {
@@ -124,7 +125,7 @@ fun Fensterblick(
             leaving = old
             shown = next
             fade.snapTo(0f)
-            fade.animateTo(1f, tween(if (feed.clock.preview.active) PREVIEW_SEASON_FADE_MS else SEASON_FADE_MS, easing = Motion.Sine))
+            fade.animateTo(1f, tween(if (feed.clock.timelapse) TIMELAPSE_SEASON_FADE_MS else SEASON_FADE_MS, easing = Motion.Sine))
             leaving = null
         }
         val look: () -> PaperLook = { light.intValue; state.look }
@@ -210,15 +211,15 @@ const val VISTA_TICK_MS = 50L
 /** The first picture fades in this long once it is baked. */
 private const val FIRST_FADE_MS = 1_200
 
-/** A new season's shapes fade in this slowly (a day's change, seen by nobody) – and quicker in the preview. */
+/** A new season's shapes fade in this slowly (a day's change, seen by nobody) – and quicker in the time-lapse. */
 private const val SEASON_FADE_MS = 20_000
-private const val PREVIEW_SEASON_FADE_MS = 1_500
+private const val TIMELAPSE_SEASON_FADE_MS = 1_500
 
 /**
  * What the picture shows at this frame, worked out once per frame (or less): the colours, the
  * sun's and moon's places, the clouds. The colours are only worked out anew when the sky has
  * moved on by [LOOK_EVERY_MS] of its own time – each step far below a visible level – except
- * while the preview glides or runs the time-lapse, where every frame counts.
+ * in the time-lapse, where every frame counts.
  */
 private class VistaFrameState(private val feed: VistaFeed, private val still: Boolean = false) {
     var frames = 0L
@@ -239,9 +240,7 @@ private class VistaFrameState(private val feed: VistaFeed, private val still: Bo
     fun shapesNow(): SeasonShapes {
         val sky = feed.clock.sky()
         val place = feed.place()
-        val day = feed.clock.preview.dayOfYear
-        val shapes = if (day != null) World.seasonOnDay(day.toFloat()).second else World.season(sky, feed.zone(), place.latitude).second
-        return quantised(shapes)
+        return quantised(World.season(sky, feed.zone(), place.latitude).second)
     }
 
     /** Moves on to this frame; true when the light (colours, sun, moon) was worked out anew. */
@@ -249,18 +248,17 @@ private class VistaFrameState(private val feed: VistaFeed, private val still: Bo
         frames++
         val wall = feed.wall()
         val sky = feed.clock.sky()
-        // The cover glides towards the weather's (or the preview's) over a few minutes.
-        val target = feed.clock.cover(feed.cover())
+        // The cover glides towards the weather's over a few minutes.
+        val target = feed.cover() ?: WeatherMood.FAIR
         val dt = if (lastWall == 0L) Double.MAX_VALUE else (wall - lastWall).coerceAtLeast(0L) / 1000.0
         lastWall = wall
-        val tau = if (feed.clock.preview.cover != null) PREVIEW_COVER_TAU_S else COVER_TAU_S
-        cover = if (cover < 0f || dt == Double.MAX_VALUE) target else cover + (target - cover) * (1f - exp(-dt / tau).toFloat())
-        val moving = feed.clock.preview.active
+        cover = if (cover < 0f || dt == Double.MAX_VALUE) target else cover + (target - cover) * (1f - exp(-dt / COVER_TAU_S).toFloat())
+        val moving = feed.clock.timelapse
         val relit = moving || abs(sky - lookSky) >= LOOK_EVERY_MS || abs(cover - lookCover) > 0.01f
         if (relit) {
             lookSky = sky
             lookCover = cover
-            val (s, heavens) = World.sky(sky, feed.place(), feed.zone(), cover, feed.clock.preview.dayOfYear)
+            val (s, heavens) = World.sky(sky, feed.place(), feed.zone(), cover)
             look = PaperLight.look(s)
             places = SkyMap.places(s, heavens.siderealDeg, heavens.latitude)
         }
@@ -280,9 +278,8 @@ private class VistaFrameState(private val feed: VistaFeed, private val still: Bo
         /** The colours are worked out anew after this much of the sky's own time. */
         const val LOOK_EVERY_MS = 10_000L
 
-        /** How fast the cover follows the weather (s), and the preview's choice. */
+        /** How fast the cover follows the weather (s). */
         const val COVER_TAU_S = 150.0
-        const val PREVIEW_COVER_TAU_S = 0.8
 
         /** Origin of the clock for what moves by itself: 1 January 2026 (keeps the numbers small). */
         const val MOTION_EPOCH_MS = 1_767_225_600_000L

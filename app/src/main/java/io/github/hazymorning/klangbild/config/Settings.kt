@@ -127,8 +127,6 @@ data class Settings(
     val sleepAction: SleepAction = SleepAction.RELEASE,
     val showClock: Boolean = true,
     val remoteControl: Boolean = true,
-    /** Light by the time of day: warmer in the evening, dimmer at night – it never hides anything. */
-    val dayNight: Boolean = true,
     val showTimeLine: Boolean = true,
     val showNext: Boolean = true,
     val showAlbum: Boolean = true,
@@ -225,7 +223,6 @@ class SettingsStore(private val context: Context) {
         val sleepAction = stringPreferencesKey("sleep_action")
         val clock = booleanPreferencesKey("show_clock")
         val remote = booleanPreferencesKey("remote_control")
-        val dayNight = booleanPreferencesKey("day_night")
         val timeLine = booleanPreferencesKey("show_time_line")
         val next = booleanPreferencesKey("show_next")
         val album = booleanPreferencesKey("show_album")
@@ -260,7 +257,6 @@ class SettingsStore(private val context: Context) {
             sleepAction = p[Keys.sleepAction]?.let { runCatching { SleepAction.valueOf(it) }.getOrNull() } ?: SleepAction.RELEASE,
             showClock = p[Keys.clock] ?: true,
             remoteControl = p[Keys.remote] ?: true,
-            dayNight = p[Keys.dayNight] ?: true,
             showTimeLine = p[Keys.timeLine] ?: true,
             showNext = p[Keys.next] ?: true,
             showAlbum = p[Keys.album] ?: true,
@@ -298,7 +294,6 @@ class SettingsStore(private val context: Context) {
             p[Keys.sleepAction] = s.sleepAction.name
             p[Keys.clock] = s.showClock
             p[Keys.remote] = s.remoteControl
-            p[Keys.dayNight] = s.dayNight
             p[Keys.timeLine] = s.showTimeLine
             p[Keys.next] = s.showNext
             p[Keys.album] = s.showAlbum
@@ -352,7 +347,6 @@ object LaunchExtras {
     const val VOLUME = "volume"
     const val LIGHT = "light"
     const val VOLUME_KEYS = "volume_keys"
-    const val DAY_NIGHT = "day_night"
     const val REMOTE = "remote"
     const val APPEARANCE = "appearance"
     const val VIEW = "view"
@@ -373,7 +367,7 @@ object LaunchExtras {
 
     private val stored = listOf(
         HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
-        VOLUME_KEYS, DAY_NIGHT, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
+        VOLUME_KEYS, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
         SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, WEATHER,
     )
 
@@ -400,7 +394,6 @@ object LaunchExtras {
         boolOf(extras[ALBUM])?.let { out = out.copy(showAlbum = it) }
         boolOf(extras[GROUP])?.let { out = out.copy(showGroup = it) }
         boolOf(extras[VOLUME_KEYS])?.let { out = out.copy(volumeKeys = it) }
-        boolOf(extras[DAY_NIGHT])?.let { out = out.copy(dayNight = it) }
         boolOf(extras[REMOTE])?.let { out = out.copy(remoteControl = it) }
         (extras[VOLUME] as? String)?.let { v ->
             when (v.trim().lowercase()) {
@@ -532,7 +525,7 @@ object LaunchExtras {
      * speaker or the lights to control. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(
-        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, DAY_NIGHT, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
+        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
         APPEARANCE, VIEW, BACKGROUND, MOTION, BAR_LEVEL, SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, VISTA,
     )
 

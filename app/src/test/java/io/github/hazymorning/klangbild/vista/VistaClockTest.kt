@@ -10,37 +10,19 @@ class VistaClockTest {
     private val zone = ZoneId.of("Europe/Berlin")
     private val start = ZonedDateTime.of(2026, 10, 10, 13, 37, 0, 0, zone).toInstant().toEpochMilli()
     private var wall = start
-    private val clock = VistaClock(now = { wall }, zone = { zone })
+    private val clock = VistaClock(now = { wall })
 
     @Test
-    fun `without a preview the sky is the real one`() {
+    fun `the sky is the real one`() {
         assertThat(clock.sky()).isEqualTo(start)
         wall += 60_000L
         assertThat(clock.sky()).isEqualTo(start + 60_000L)
     }
 
     @Test
-    fun `a preview glides to the hour and day it sets, never jumps`() {
-        clock.set(VistaClock.Preview(minuteOfDay = 21 * 60, dayOfYear = 195))
-        var prev = clock.sky()
-        assertThat(prev).isEqualTo(start)
-        var biggest = 0L
-        repeat(200) {
-            wall += 16L
-            val now = clock.sky()
-            biggest = maxOf(biggest, abs(now - prev))
-            prev = now
-        }
-        val target = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock.sky()), zone)
-        assertThat(target.hour).isEqualTo(21)
-        assertThat(target.dayOfYear).isEqualTo(196)
-        // The glide's largest step per frame is a small part of the way.
-        assertThat(biggest).isLessThan(abs(clock.sky() - start) / 40)
-    }
-
-    @Test
-    fun `the time-lapse lets a day pass in two minutes`() {
-        clock.set(VistaClock.Preview(timelapse = true))
+    fun `the time-lapse lets a day pass in two minutes, from where the picture is`() {
+        clock.timelapse(true)
+        assertThat(clock.sky()).isEqualTo(start)
         wall += 4_000L
         val a = clock.sky()
         wall += 60_000L
@@ -49,22 +31,23 @@ class VistaClockTest {
     }
 
     @Test
-    fun `back to the real world it glides too`() {
-        clock.set(VistaClock.Preview(minuteOfDay = 2 * 60))
-        wall += 5_000L
-        clock.real()
-        val right = clock.sky()
-        wall += 16L
-        assertThat(abs(clock.sky() - right)).isLessThan(VistaClock.DAY_MS / 100)
+    fun `back to the real world it glides, never jumps`() {
+        clock.timelapse(true)
+        wall += 30_000L
+        clock.timelapse(false)
+        var prev = clock.sky()
+        val away = abs(prev - wall)
+        assertThat(away).isGreaterThan(VistaClock.DAY_MS / 8)
+        var biggest = 0L
+        repeat(100) {
+            wall += 16L
+            val now = clock.sky()
+            biggest = maxOf(biggest, abs(now - prev))
+            prev = now
+        }
+        // The glide's largest step per frame is a small part of the way.
+        assertThat(biggest).isLessThan(away / 40)
         wall += 5_000L
         assertThat(clock.sky()).isEqualTo(wall)
-    }
-
-    @Test
-    fun `the preview's sky wins over the weather's, which wins over a fair sky`() {
-        assertThat(clock.cover(null)).isEqualTo(WeatherMood.FAIR)
-        assertThat(clock.cover(0.8f)).isEqualTo(0.8f)
-        clock.set(VistaClock.Preview(cover = 0f))
-        assertThat(clock.cover(0.8f)).isEqualTo(0f)
     }
 }

@@ -23,7 +23,6 @@ enum class MenuSection(val title: String) {
 enum class MenuEntry(val section: MenuSection, val label: String) {
     VIEW(MenuSection.PICTURE, "Ansicht"),
     APPEARANCE(MenuSection.PICTURE, "Erscheinungsbild"),
-    DAY_NIGHT(MenuSection.PICTURE, "Nachtmodus"),
     CLOCK(MenuSection.INFO, "Uhrzeit"),
     TIME_LINE(MenuSection.INFO, "Fortschrittsbalken"),
     NEXT(MenuSection.INFO, "Nächster Titel"),
@@ -37,7 +36,6 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     VISTA_PAUSE(MenuSection.VISTA, "Bei Pause"),
     VISTA_PLAYING(MenuSection.VISTA, "Während der Musik"),
     MINI_PLAYER(MenuSection.VISTA, "Mini-Player"),
-    VISTA_PREVIEW(MenuSection.VISTA, "Vorschau"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
     UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
     SPOKEN(MenuSection.REMOTE, "Hörbücher, Podcasts"),
@@ -115,7 +113,6 @@ object SettingsMenu {
             LightLevel.SUBTLE -> "Schwach"
             LightLevel.OFF -> "Aus"
         }
-        MenuEntry.DAY_NIGHT -> onOff(s.dayNight)
         MenuEntry.VISTA_PAUSE -> delay(s.vistaPauseSeconds)
         MenuEntry.VISTA_PLAYING -> delay(s.vistaPlayingSeconds)
         MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
@@ -123,7 +120,6 @@ object SettingsMenu {
             MiniPlayer.RIGHT -> "Unten rechts"
             MiniPlayer.OFF -> "Aus"
         }
-        MenuEntry.VISTA_PREVIEW -> "Öffnen"
         MenuEntry.REMOTE -> onOff(s.remoteControl)
         MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Fensterblick, Menü"
         MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
@@ -157,9 +153,6 @@ object SettingsMenu {
             AppearanceMode.LIGHT -> "Immer hell: heller Hintergrund, dunkle Schrift."
             AppearanceMode.DARK -> "Immer dunkel: dunkler Hintergrund, helle Schrift."
         }
-        MenuEntry.DAY_NIGHT ->
-            if (s.dayNight) "Abends wird alles wärmer, nachts gedämpfter – nach dem Stand der Sonne. Es fehlt nie etwas."
-            else "Den ganzen Tag gleich hell und gleich warm."
         MenuEntry.CLOCK -> "Die Uhrzeit oben in der ersten Zeile."
         MenuEntry.TIME_LINE ->
             "Der Balken mit gespielter Zeit und Länge. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz."
@@ -241,9 +234,6 @@ object SettingsMenu {
             MiniPlayer.RIGHT -> "Cover, Titel und Fortschritt unten rechts in\u00A0der Landschaft."
             MiniPlayer.OFF -> "Der Fensterblick zeigt nur die\u00A0Landschaft."
         }
-        MenuEntry.VISTA_PREVIEW ->
-            "OK zeigt den\u00A0Fensterblick zu jeder Stunde und Jahreszeit: links und rechts die\u00A0Uhrzeit, hoch und runter den\u00A0Monat, " +
-                "OK das\u00A0Wetter. OK lange lässt einen Tag in zwei\u00A0Minuten vergehen."
         MenuEntry.REMOTE ->
             if (s.remoteControl) "OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel."
             else "Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü."
@@ -302,7 +292,6 @@ object SettingsMenu {
         MenuEntry.BARS -> if (s.bars.isSet) s.copy(barLevel = move(BAR_ORDER, s.barLevel, direction, wrap)) else null
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
-        MenuEntry.DAY_NIGHT -> s.copy(dayNight = !s.dayNight)
         MenuEntry.VISTA_PAUSE -> s.copy(vistaPauseSeconds = move(PAUSE_DELAYS, nearest(PAUSE_DELAYS, s.vistaPauseSeconds), direction, wrap))
         MenuEntry.VISTA_PLAYING -> s.copy(vistaPlayingSeconds = move(PLAYING_DELAYS, nearest(PLAYING_DELAYS, s.vistaPlayingSeconds), direction, wrap))
         MenuEntry.MINI_PLAYER -> s.copy(miniPlayer = move(MINI_ORDER, s.miniPlayer, direction, wrap))
@@ -313,7 +302,7 @@ object SettingsMenu {
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.VISTA_PREVIEW -> null
+        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER -> null
     }
 
     /** The delays offered for the Fensterblick (s): when paused, and while music plays; 0 is "Aus". */

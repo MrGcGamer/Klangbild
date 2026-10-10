@@ -124,7 +124,7 @@ class OptionsTest {
         grab()
         state = menu(MenuEntry.GROUP)
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
-        state = menu(MenuEntry.DAY_NIGHT)
+        state = menu(MenuEntry.APPEARANCE)
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
     }
 

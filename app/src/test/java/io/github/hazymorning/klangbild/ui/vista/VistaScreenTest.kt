@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.util.TimeZone
 
-/** The Fensterblick as the app shows it: the picture of the moment in Berlin with the music's label, and the preview's caption. */
+/** The Fensterblick as the app shows it: the picture of the moment in Berlin with the music's label. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
@@ -41,7 +41,6 @@ class VistaScreenTest {
         cover: SyntheticCover = SyntheticCover.NACHTFAHRT,
         status: PlayerStatus = PlayerStatus.PAUSED,
         weather: String? = "partlycloudy",
-        preview: VistaClock.Preview? = null,
     ) {
         val t = java.time.ZonedDateTime.of(2026, month, day, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         val track = Fixtures.track(cover)
@@ -49,15 +48,9 @@ class VistaScreenTest {
             screen = Screen.Stage(track, status, null),
             stage = Fixtures.stage(track),
             source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = weather),
-            vista = VistaUi(track, status, side, preview),
+            vista = VistaUi(track, status, side),
         )
-        // The preview glides to what it sets: the picture is taken once the glide is over.
-        var wall = t
-        val clock = VistaClock(now = { wall }, zone = { Fixtures.zone })
-        if (preview != null) {
-            clock.set(preview)
-            wall += 5_000L
-        }
+        val clock = VistaClock(now = { t })
         captureRoboImage("build/screenshots/vista/screen/$name.png") {
             Fixtures.Still {
                 VistaScreen(ui, ui.vista!!, clock, positionNow = { (track.durationMs ?: 0L) / 3 }, now = { t + 60_000L }, modifier = Modifier.fillMaxSize())
@@ -74,11 +67,5 @@ class VistaScreenTest {
         shot("label_right_noon", 10, 10, 13, 0, side = MiniPlayer.RIGHT, cover = SyntheticCover.KAMMERMUSIK)
         shot("label_right_sunset", 10, 10, 18, 25, side = MiniPlayer.RIGHT)
         shot("label_off", 10, 10, 15, 0, side = MiniPlayer.OFF)
-    }
-
-    @Test
-    fun preview() {
-        shot("preview_july_evening", 10, 10, 13, 0, preview = VistaClock.Preview(minuteOfDay = 21 * 60, dayOfYear = 195, cover = 0f))
-        shot("preview_january", 10, 10, 13, 0, preview = VistaClock.Preview(minuteOfDay = 11 * 60, dayOfYear = 20, cover = 0.45f))
     }
 }

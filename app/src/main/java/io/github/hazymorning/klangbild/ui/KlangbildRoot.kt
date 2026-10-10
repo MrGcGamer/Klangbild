@@ -71,7 +71,7 @@ class RootHooks(
     val now: () -> Long = System::currentTimeMillis,
     /** The colour field's time (seconds): it runs while music plays, at the motion setting's speed. */
     val fieldTime: () -> Double = { 0.0 },
-    /** The moment the Fensterblick's sky shows (the preview can turn it). */
+    /** The moment the Fensterblick's sky shows. */
     val vistaClock: VistaClock = VistaClock(now),
 )
 
@@ -180,7 +180,7 @@ private sealed interface Content {
     }
 
     data class VistaContent(val vista: VistaUi) : Content {
-        // The Fensterblick changes its label, its light and its preview inside; it comes and goes through the dark.
+        // The Fensterblick changes its label and its light inside; it comes and goes through the dark.
         override val key = "vista"
     }
 

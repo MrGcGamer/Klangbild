@@ -90,7 +90,7 @@ class SetupHandlerTest {
         val ok = post(
             "/api/save",
             """{"code":"${handler.code}","url":"192.168.1.5:8123","token":"","entity":"media_player.wz",
-               "sleepMinutes":25,"sleepAction":"close","clock":false,"dayNight":true,"remote":false}""",
+               "sleepMinutes":25,"sleepAction":"close","clock":false,"remote":false}""",
         )
         assertThat(ok.status).isEqualTo(200)
         assertThat(stored.haUrl).isEqualTo("http://192.168.1.5:8123")

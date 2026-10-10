@@ -137,15 +137,11 @@ data class UiState(
     val vistaAhead: MiniPlayer? = null,
 )
 
-/**
- * The Fensterblick while it shows: what plays (for the mini-player), where the label sits, and
- * – while the preview is open – what the preview has set.
- */
+/** The Fensterblick while it shows: what plays (for the mini-player) and where the label sits. */
 data class VistaUi(
     val track: TrackInfo?,
     val status: PlayerStatus?,
     val miniPlayer: MiniPlayer,
-    val preview: VistaClock.Preview? = null,
 )
 
 /**
@@ -177,10 +173,6 @@ class NowPlayingController(
     /** When the Fensterblick takes the screen ([VistaPolicy]), and the time its sky shows. */
     private val vistaPolicy = VistaPolicy()
     val vistaClock = VistaClock(now)
-
-    /** The Fensterblick's preview is open: it shows, and the keys set its hour, month and sky. */
-    @Volatile private var previewOpen = false
-    @Volatile private var previewTouchedAt = 0L
 
     /** "Einschlafen": set from the menu, it pauses the music once ([SleepTimer]). */
     private val sleepTimer = SleepTimer()
@@ -324,7 +316,7 @@ class NowPlayingController(
         session.value = LaunchExtras.session(extras)
         machine.requestSetup(session.value.showSetup)
         when (session.value.vista) {
-            VistaRequest.SHOW -> showVista(timelapse = false)
+            VistaRequest.SHOW -> showVista()
             VistaRequest.TIMELAPSE -> showVista(timelapse = true)
             // Asked to go: like up on the remote – it goes, and its delays start again.
             VistaRequest.HIDE -> hideVista()
@@ -350,8 +342,6 @@ class NowPlayingController(
     /** Whether the Fensterblick has the screen now. */
     val vistaShowing: Boolean get() = _ui.value.vista != null
 
-    val previewShowing: Boolean get() = previewOpen
-
     /**
      * A key was pressed: the Fensterblick's delays start again – one that came by itself goes,
      * a chosen one stays; the key goes on to do its work. Returns whether the Fensterblick was
@@ -359,17 +349,20 @@ class NowPlayingController(
      */
     @Synchronized
     fun interaction(): Boolean {
-        val was = _ui.value.vista != null && !previewOpen
+        val was = _ui.value.vista != null
         vistaPolicy.interaction(now())
         if (was) recompute()
         return was
     }
 
-    /** The Fensterblick now, whatever plays, until it is left (down, the quick menu, a link); [timelapse] lets a day pass in two minutes. */
+    /**
+     * The Fensterblick now, whatever plays, until it is left (up, back, the quick menu, a link);
+     * [timelapse] lets a day pass in two minutes (for measuring on the device).
+     */
     @Synchronized
     fun showVista(timelapse: Boolean = false) {
         vistaPolicy.request(true)
-        if (timelapse) vistaClock.set(VistaClock.Preview(timelapse = true)) else if (!previewOpen) vistaClock.real()
+        vistaClock.timelapse(timelapse)
         recompute()
     }
 
@@ -385,92 +378,11 @@ class NowPlayingController(
      */
     @Synchronized
     fun hideVista(): Boolean {
-        if (previewOpen) return false
         val was = _ui.value.vista != null || vistaPolicy.requested
         vistaPolicy.leave(now())
-        vistaClock.real()
+        vistaClock.timelapse(false)
         recompute()
         return was
-    }
-
-    /** Opens the preview: the Fensterblick at the real moment, ready to be turned. */
-    @Synchronized
-    fun openPreview() {
-        menuCursor = null
-        previewOpen = true
-        previewTouchedAt = now()
-        val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(now()), java.time.ZoneId.systemDefault())
-        vistaClock.set(VistaClock.Preview(minuteOfDay = at.hour * 60 + at.minute, dayOfYear = at.dayOfYear - 1))
-        recompute()
-    }
-
-    /** Closes the preview: the picture glides back to the real moment – and, from the remote, the menu comes back where it was. */
-    @Synchronized
-    fun closePreview(toMenu: Boolean = false) {
-        if (!previewOpen) return
-        previewOpen = false
-        vistaClock.real()
-        vistaPolicy.interaction(now())
-        if (toMenu) {
-            menuCursor = SettingsMenu.entries.indexOf(MenuEntry.VISTA_PREVIEW).coerceAtLeast(0)
-            menuTouchedAt = now()
-        }
-        recompute()
-    }
-
-    /** Preview: an hour earlier (−1) or later (+1) – the first step lands on a full hour. */
-    @Synchronized
-    fun previewHour(direction: Int) {
-        previewTouchedAt = now()
-        val p = vistaClock.preview
-        val m = p.minuteOfDay ?: 12 * 60
-        val next = when {
-            m % 60 == 0 -> m + 60 * direction
-            direction > 0 -> (m / 60 + 1) * 60
-            else -> m / 60 * 60
-        }
-        vistaClock.set(p.copy(minuteOfDay = Math.floorMod(next, 24 * 60), timelapse = false))
-        recompute()
-    }
-
-    /** Preview: the same day a month earlier (−1) or later (+1). */
-    @Synchronized
-    fun previewMonth(direction: Int) {
-        previewTouchedAt = now()
-        val p = vistaClock.preview
-        val year = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).year
-        val d = java.time.LocalDate.ofYearDay(year, ((p.dayOfYear ?: 171) + 1).coerceIn(1, 365)).plusMonths(direction.toLong())
-        vistaClock.set(p.copy(dayOfYear = d.withYear(year).dayOfYear - 1))
-        recompute()
-    }
-
-    /** Preview: the next sky – the weather's, clear, a few clouds, overcast. */
-    @Synchronized
-    fun previewSky() {
-        previewTouchedAt = now()
-        val p = vistaClock.preview
-        val next = when (p.cover) {
-            null -> 0f
-            0f -> 0.45f
-            0.45f -> 1f
-            else -> null
-        }
-        vistaClock.set(p.copy(cover = next))
-        recompute()
-    }
-
-    /** Preview: a day in two minutes, or back to the hour it shows. */
-    @Synchronized
-    fun previewTimelapse() {
-        previewTouchedAt = now()
-        val p = vistaClock.preview
-        if (p.timelapse) {
-            val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(vistaClock.sky()), java.time.ZoneId.systemDefault())
-            vistaClock.set(p.copy(timelapse = false, minuteOfDay = at.hour * 60 + at.minute))
-        } else {
-            vistaClock.set(p.copy(timelapse = true))
-        }
-        recompute()
     }
 
     fun networkAvailable() {
@@ -644,7 +556,6 @@ class NowPlayingController(
             }
             // The sleep timer is no setting: it lives until it has paused the music once.
             entry == MenuEntry.SLEEP_TIMER -> stepSleep(direction, wrap)
-            entry == MenuEntry.VISTA_PREVIEW -> openPreview()
             else -> SettingsMenu.step(entry, settings.value, direction, wrap)?.let(::applySettings)
         }
     }
@@ -687,7 +598,7 @@ class NowPlayingController(
     /** Opens the quick settings (down on the remote), on the view. */
     @Synchronized
     fun openQuick() {
-        if (menuCursor != null || previewOpen || quickCursor != null) return
+        if (menuCursor != null || quickCursor != null) return
         quickCursor = QuickItem.PICTURE
         quickTouchedAt = now()
         quickHold = _ui.value.vista != null
@@ -955,23 +866,16 @@ class NowPlayingController(
         val s = settings.value
         val src = _ui.value.source
         val t = now()
-        // A menu nobody uses closes by itself – it must not stand still on the OLED; so does a
-        // preview left alone (long enough to watch a day go by in it).
+        // A menu nobody uses closes by itself – it must not stand still on the OLED.
         if (menuCursor != null && t - menuTouchedAt > MENU_IDLE_MS) menuCursor = null
-        if (quickCursor != null && (t - quickTouchedAt > QUICK_IDLE_MS || menuCursor != null || previewOpen)) {
+        if (quickCursor != null && (t - quickTouchedAt > QUICK_IDLE_MS || menuCursor != null)) {
             quickCursor = null
             quickHold = null
             if (pendingPicture != null) scope.launch { applyPicture() }
         }
-        if (previewOpen && t - previewTouchedAt > PREVIEW_IDLE_MS) {
-            previewOpen = false
-            vistaClock.real()
-            vistaPolicy.interaction(t)
-        }
         val decision: ScreenDecision = machine.decide(src, t)
-        val lighting = lightingFor(s, src)
         val appearance = appearanceFor(s, src)
-        val look = Look(lighting, appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
+        val look = Look(Lighting.DAY, appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
         val stage = decision.screen as? Screen.Stage
         val playing = stage?.status == PlayerStatus.PLAYING && !stage.linkDown
         val speed = src.player?.speed ?: 1f
@@ -989,27 +893,17 @@ class NowPlayingController(
         scheduleSleep(sleepTimer.wakeAt)
         val previous = _ui.value
         val menu = menuState(s, appearance, stage?.track)
-        // The Fensterblick waits while the menu is open (the preview is the menu's own).
+        // The Fensterblick waits while the menu is open.
         val quietLongEnough = vistaPolicy.shows(decision.screen, t, s.vistaPauseSeconds * 1000L, s.vistaPlayingSeconds * 1000L)
         // While the quick settings are open, the Fensterblick stays as it was (unless they change it).
         val vistaOn = quickHold?.takeIf { quickCursor != null } ?: quietLongEnough
-        val vista = if (previewOpen || (vistaOn && menu == null)) {
-            VistaUi(
-                track = stage?.track,
-                status = stage?.status,
-                miniPlayer = s.miniPlayer,
-                preview = vistaClock.preview.takeIf { previewOpen },
-            )
-        } else {
-            null
-        }
+        val vista = if (vistaOn && menu == null) VistaUi(track = stage?.track, status = stage?.status, miniPlayer = s.miniPlayer) else null
         val quick = quickState(quickContext(decision.screen, vista != null))
         _ui.value = previous.copy(
             screen = decision.screen,
             keepScreenOn = decision.keepScreenOn || menu != null || quick != null,
             asleep = decision.asleep && menu == null && quick == null,
             sleepAction = s.sleepAction,
-            lighting = lighting,
             appearance = appearance,
             display = s.display,
             session = session.value,
@@ -1091,13 +985,12 @@ class NowPlayingController(
         val zone = java.time.ZoneId.systemDefault()
         val place = src.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(zone)
         val sky = vistaClock.sky()
-        val cover = vistaClock.cover(WeatherMood.cover(src.weather, src.cloudCoverage))
-        val day = vistaClock.preview.dayOfYear
+        val cover = WeatherMood.cover(src.weather, src.cloudCoverage) ?: WeatherMood.FAIR
         // The fire burns on the other side of the clearing from the label (without one, right of the middle).
         val fireOnRight = mini != MiniPlayer.RIGHT
-        val key = listOf(sky / VISTA_BARS_STEP_MS, (cover * 20).toInt(), place, day, fireOnRight)
+        val key = listOf(sky / VISTA_BARS_STEP_MS, (cover * 20).toInt(), place, fireOnRight)
         vistaBars?.takeIf { it.first == key }?.let { return it.second }
-        val look = PaperLight.look(World.sky(sky, place, zone, cover, day).first)
+        val look = PaperLight.look(World.sky(sky, place, zone, cover).first)
         return VistaBars(look, fireOnRight).also { vistaBars = key to it }
     }
 
@@ -1107,13 +1000,6 @@ class NowPlayingController(
             .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
         val t = ((BAR_DAY_ELEVATION - elevation.toFloat()) / (BAR_DAY_ELEVATION - BAR_NIGHT_ELEVATION)).coerceIn(0f, 1f)
         return t * t * (3f - 2f * t)
-    }
-
-    private fun lightingFor(s: Settings, src: SourceState): Lighting {
-        if (!s.dayNight) return Lighting.DAY
-        src.sunElevation?.let { return Lighting.fromSunElevation(it) }
-        val c = Calendar.getInstance().apply { timeInMillis = now() }
-        return Lighting.fromLocalTime(c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
     }
 
     /**
@@ -1192,8 +1078,6 @@ class NowPlayingController(
         /** A view chosen in the quick settings is taken this long after the last press. */
         const val QUICK_SETTLE_MS = 900L
 
-        /** The preview closes itself after this long without a key (two whole time-lapse days and more). */
-        const val PREVIEW_IDLE_MS = 10 * 60_000L
 
         /** Spoken word: left jumps back this far, right ahead this far (like most podcast apps). */
         const val BACK_MS = 15_000L

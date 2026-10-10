@@ -108,7 +108,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (controller.previewShowing) return previewKey(keyCode, event) || super.onKeyDown(keyCode, event)
         // The quick settings take their keys first; they leave the Fensterblick as it is.
         if (controller.quickOpen && quickKey(keyCode)) return true
         val setup = controller.ui.value.screen is Screen.Setup
@@ -227,8 +226,7 @@ class MainActivity : ComponentActivity() {
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             centerLongPressed = true
-            // In the preview a held OK lets a day pass in two minutes; elsewhere it opens the menu.
-            if (controller.previewShowing) controller.previewTimelapse() else if (!controller.menuOpen) controller.openMenu()
+            if (!controller.menuOpen) controller.openMenu()
             return true
         }
         if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && !controller.menuOpen) {
@@ -258,36 +256,7 @@ class MainActivity : ComponentActivity() {
         return super.onKeyUp(keyCode, event)
     }
 
-    /**
-     * Keys while the Fensterblick's preview is open: left and right the hour, up and down the
-     * month, OK the sky (held: a day in two minutes, like the play key), Menu back to the menu.
-     * False lets the key through (volume, home).
-     */
-    private fun previewKey(keyCode: Int, event: KeyEvent): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> controller.previewHour(-1)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> controller.previewHour(+1)
-            KeyEvent.KEYCODE_DPAD_UP -> controller.previewMonth(+1)
-            KeyEvent.KEYCODE_DPAD_DOWN -> controller.previewMonth(-1)
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> if (event.repeatCount == 0) {
-                // Acts on release; held, it starts the time-lapse instead.
-                centerLongPressed = false
-                event.startTracking()
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE ->
-                if (event.repeatCount == 0) controller.previewTimelapse()
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> controller.closePreview(toMenu = true)
-            in REMOTE_KEYS -> Unit
-            else -> return false
-        }
-        return true
-    }
-
     private fun onCenterPressed() {
-        if (controller.previewShowing) {
-            controller.previewSky()
-            return
-        }
         if (controller.menuOpen) {
             controller.menuChange(+1, wrap = true)
             return
@@ -311,13 +280,12 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Back closes the app – or just what lies on top of the music: the preview (back to the
-     * menu), the settings, the quick menu, the Fensterblick, the setup code.
+     * Back closes the app – or just what lies on top of the music: the settings, the quick menu,
+     * the Fensterblick, the setup code.
      */
     private fun onBack() {
         val s = controller.ui.value.screen
         when {
-            controller.previewShowing -> controller.closePreview(toMenu = true)
             controller.menuOpen -> controller.closeMenu()
             controller.quickOpen -> controller.closeQuick()
             // The Fensterblick goes; the app stays.

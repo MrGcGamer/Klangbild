@@ -46,7 +46,7 @@ class VistaGalleryTest {
             source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = weather),
             vista = VistaUi(track, PlayerStatus.PAUSED, side),
         )
-        val clock = VistaClock(now = { t }, zone = { Fixtures.zone })
+        val clock = VistaClock(now = { t })
         captureRoboImage("build/screenshots/vista/gallery/$name.png") {
             Fixtures.Still {
                 VistaScreen(ui, ui.vista!!, clock, positionNow = { (track.durationMs ?: 0L) / 3 }, now = { t }, modifier = Modifier.fillMaxSize())

@@ -48,12 +48,11 @@ object World {
 
     /**
      * What the sky does at [epochMs] over [place] – everything the picture's light depends on –
-     * and where the heavens stand; [cover] is the clouds as a mood, [dayOfYear] a day the preview
-     * has chosen for the season instead of the calendar's.
+     * and where the heavens stand; [cover] is the clouds as a mood.
      */
-    fun sky(epochMs: Long, place: Place, zone: ZoneId, cover: Float, dayOfYear: Int? = null): Pair<SkyState, Heavens> {
+    fun sky(epochMs: Long, place: Place, zone: ZoneId, cover: Float): Pair<SkyState, Heavens> {
         val h = heavens(epochMs, place)
-        val (season, shapes) = if (dayOfYear != null) seasonOnDay(dayOfYear.toFloat()) else season(epochMs, zone, place.latitude)
+        val (season, shapes) = season(epochMs, zone, place.latitude)
         return SkyState(h.sunElevation, h.sunAzimuth, h.moonElevation, h.moonAzimuth, h.moonFraction, cover = cover, season = season, blossom = shapes.blossom) to h
     }
 
