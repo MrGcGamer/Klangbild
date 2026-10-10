@@ -2,10 +2,13 @@
 
 Android TV "now playing" display for Home Assistant + Music Assistant. Runs on a Google TV
 Streamer (Android TV 14, 4K, weak PowerVR GPU, OLED TV). Sideload only.
-Docs for humans are German; code and comments are English. The README stays under 400
-characters (what it is, what is special) and the release notes short: effort goes into the
-app, not into documents (`docs/` holds only the release notes that CI publishes, and old
-design records that are no longer kept up).
+Code, comments and the README are English; release notes and the old design records German.
+The README stays under 400 characters of text (one sentence on what it is, the main features
+as a short list, three screenshots from `docs/screenshots/`; plain words, no emoji, no bold,
+no dashes for effect) and the release notes short: effort goes into the app, not into
+documents (`docs/` holds only the release notes that CI publishes, the README's screenshots
+– renders from the tests, re-rendered when the look changes – and old design records that
+are no longer kept up).
 
 ## Build & test
 

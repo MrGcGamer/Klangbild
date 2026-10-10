@@ -1,10 +1,17 @@
 # Klangbild
 
-Android-TV-App für Home Assistant und Music Assistant: zeigt groß, was gerade läuft – Cover, Titel und Künstler in ruhiger Typografie.
+Klangbild is a now-playing screen for Home Assistant and Music Assistant on Android TV: the cover large, the type set with care.
 
-Besonders: Farben des Covers, Hue-Leisten, Hörbücher mit Kapiteln. Bei Pause wird der Fernseher zum Fensterblick: ein Papier-Diorama mit Bergen, Wald und Lagerfeuer im Licht der echten Tageszeit und des Wetters. Für OLED und Sofa, zum Sideloaden.
+- Backdrop and Hue lights in the cover's colours
+- Cover Flow through the queue
+- Fensterblick: a paper diorama in the light and weather outside
+- Audiobooks and podcasts with chapters
+- Made for OLED, set up from the phone
 
-## Fensterblick
+German interface. APK under [Releases](https://github.com/hazymorning/Klangbild/releases/latest).
 
-![Herbstmittag](docs/fensterblick/herbst-mittag.jpg)
-![Winter, goldene Stunde](docs/fensterblick/winter-abend.jpg)
+![Now playing](docs/screenshots/now-playing.jpg)
+
+![Cover Flow](docs/screenshots/cover-flow.jpg)
+
+![Fensterblick](docs/screenshots/fensterblick.jpg)
