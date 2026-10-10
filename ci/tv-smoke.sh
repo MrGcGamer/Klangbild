@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Starts a stand-in Home Assistant on the host (ci/fake_ha.py), installs the release APK on
 # the running Android TV emulator, points it at that server with ADB extras and walks through
-# the main states: playing, exact time on a key press, the settings menu, a track change and
-# new extras while running. Checks that the app is still alive and never crashed. Leaves
-# screenshots, logcat and gfxinfo in smoke/.
+# the main states: playing, exact time on a key press, the settings menu, a track change,
+# new extras while running and the Fensterblick. Checks that the app is still alive and
+# never crashed. Leaves screenshots, logcat and gfxinfo in smoke/.
 set -u
 APK="$1"
 PKG=io.github.hazymorning.klangbild
@@ -45,6 +45,14 @@ adb shell am start -n "$PKG/.MainActivity" --es light dezent
 sleep 4
 adb exec-out screencap -p > smoke/5-light-subtle.png
 
+# the Fensterblick on request (its picture is baked first), then a key brings the stage back
+adb shell am start -n "$PKG/.MainActivity" --es fensterblick an
+sleep 20
+adb exec-out screencap -p > smoke/6-fensterblick.png
+adb shell input keyevent KEYCODE_DPAD_CENTER
+sleep 5
+adb exec-out screencap -p > smoke/7-back-to-stage.png
+
 PID="$(adb shell pidof "$PKG" | tr -d '\r')"
 adb logcat -d > smoke/logcat.txt
 adb shell dumpsys gfxinfo "$PKG" > smoke/gfxinfo.txt || true
@@ -62,5 +70,8 @@ if ! grep -q "subscribe_entities" smoke/fake_ha.log; then
   echo "Klangbild hat sich nicht mit dem Ersatz-Home-Assistant verbunden:"
   cat smoke/fake_ha.log
   exit 1
+fi
+if ! grep -q "get_config" smoke/fake_ha.log; then
+  echo "Hinweis: Klangbild hat Home Assistant nicht nach seinem Standort gefragt."
 fi
 echo "Smoke-Test bestanden (PID $PID)."
