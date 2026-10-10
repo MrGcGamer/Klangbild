@@ -176,15 +176,17 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
             dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(l.horizonGlow), alpha = l.horizonGlowAlpha, filterQuality = FilterQuality.Low,
         )
     }
-    if (l.glowAlpha > 0.01f && p.sunY < PaperMotif.HORIZON) {
+    if (l.glowAlpha * l.discAlpha > 0.01f && p.sunY < PaperMotif.HORIZON) {
         val r = 150f * d
         drawImage(
             images.glow, dstOffset = IntOffset((dp(p.sunX) - r).roundToInt(), (dp(p.sunY) - r).roundToInt()),
-            dstSize = IntSize((2 * r).roundToInt(), (2 * r).roundToInt()), colorFilter = f.tint(l.glow), alpha = l.glowAlpha, filterQuality = FilterQuality.Low,
+            dstSize = IntSize((2 * r).roundToInt(), (2 * r).roundToInt()), colorFilter = f.tint(l.glow), alpha = l.glowAlpha * l.discAlpha, filterQuality = FilterQuality.Low,
         )
     }
-    if (p.sunY < PaperMotif.HORIZON + 20f) drawCircle(Color(l.sunDisc), radius = SUN_RADIUS * d, center = Offset(dp(p.sunX), dp(p.sunY)))
-    if (p.moonFraction > 0.01f && p.moonY < PaperMotif.HORIZON + 20f) drawMoon(l, p, d)
+    if (l.discAlpha > 0.01f && p.sunY < PaperMotif.HORIZON + 20f) {
+        drawCircle(Color(l.sunDisc), radius = SUN_RADIUS * d, center = Offset(dp(p.sunX), dp(p.sunY)), alpha = l.discAlpha)
+    }
+    if (l.discAlpha > 0.01f && p.moonFraction > 0.01f && p.moonY < PaperMotif.HORIZON + 20f) drawMoon(l, p, d)
 
     // Clouds: strips of paper drifting; the farther lanes smaller.
     val cloudFilter = f.of(l.cloud)
@@ -268,7 +270,7 @@ private fun DrawScope.drawMoon(l: PaperLook, p: SkyPlaces, d: Float) {
     val r = MOON_RADIUS * d
     val cx = (p.moonX + PaperMotif.OVERSCAN) * d
     val cy = (p.moonY + PaperMotif.OVERSCAN) * d
-    drawCircle(Color(l.moonDark), radius = r, center = Offset(cx, cy))
+    drawCircle(Color(l.moonDark), radius = r, center = Offset(cx, cy), alpha = l.discAlpha)
     val f = p.moonFraction.coerceIn(0f, 1f)
     // Turned so the lit limb faces the sun (its place on the sky, even below the horizon).
     val angle = Math.toDegrees(atan2((p.sunY - p.moonY).toDouble(), (p.sunX - p.moonX).toDouble())).toFloat()
@@ -285,7 +287,7 @@ private fun DrawScope.drawMoon(l: PaperLook, p: SkyPlaces, d: Float) {
         translate(cx, cy)
         rotate(angle, pivot = Offset.Zero)
     }) {
-        drawPath(path, Color(l.moonLit))
+        drawPath(path, Color(l.moonLit), alpha = l.discAlpha)
     }
 }
 

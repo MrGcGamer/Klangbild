@@ -74,6 +74,8 @@ class PaperLook(
     val accents: Map<SheetId, Inks>,
     val cloud: Inks,
     val sunDisc: Int,
+    /** How much of the sun's and the moon's discs shows: none behind an overcast sky. */
+    val discAlpha: Float,
     val glow: Int,
     val glowAlpha: Float,
     val horizonGlow: Int,
@@ -218,7 +220,8 @@ object PaperLight {
         val meadow = sheets.getValue(SheetId.MEADOW).base
         val day = smooth(2f, 12f, s.sunElevation) * (1f - 0.5f * cover)
         val crownColour = crownOf(season, sheets.getValue(SheetId.WOOD_RIGHT).base, day)
-        val crown = Inks(crownColour, shift(crownColour, -0.07f), crownColour, mixOk(BLOSSOM, meadow, 0.1f + 0.5f * (1f - day)))
+        // The blossom shows by day; towards night it sinks into the crown with everything else.
+        val crown = Inks(crownColour, shift(crownColour, -0.07f), crownColour, mixOk(BLOSSOM, crownColour, 0.12f + 0.8f * (1f - day)))
         val trunk = mixOk(TRUNK, sheets.getValue(SheetId.FRONT_LEFT).base, 0.55f)
         val accents = listOf(SheetId.WOOD_LEFT, SheetId.WOOD_RIGHT).associateWith { id ->
             val evergreen = sheets.getValue(id).second
@@ -242,7 +245,10 @@ object PaperLight {
         val glintAlpha = if (sunUp > 0f) 0.85f * sunUp * (1f - smooth(16f, 36f, s.sunElevation)) * (1f - cover) else 0.7f * moon * (1f - cover)
 
         val label = labelInks(sheets.getValue(SheetId.FRONT_LEFT).base, s.sunElevation)
+        // Behind a thick sky the sun is only a brightness: its disc and its glow fade out, the moon's too.
+        val veiled = Shapes.smoothstep(0.55f, 0.95f, cover)
         return PaperLook(
+            discAlpha = 1f - veiled,
             label = label,
             labelCover = 1f - 0.3f * (1f - smooth(-8f, 2f, s.sunElevation)),
             sheets = sheets, trunk = Inks.flat(trunk), crown = crown, accents = accents,

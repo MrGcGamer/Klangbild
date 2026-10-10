@@ -93,7 +93,7 @@ object PaperBake {
         val sheets = LinkedHashMap<SheetId, Sheet>()
         sheets[SheetId.SKY] = b.sky()
         sheets[SheetId.RANGE_FAR] = b.ridge(
-            m.rangeFar, foot = 12f to 70f, snow = { x, depth -> b.peakSnow(m.rangeFar, x, depth, shapes, 228f, 300f, 0, teeth = 10f) }, seed = 2,
+            m.rangeFar, foot = 12f to 70f, snow = { x, depth -> b.peakSnow(m.rangeFar, x, depth, shapes, 228f, 336f, 0, teeth = 10f) }, seed = 2,
             bottom = RANGE_FAR_BOTTOM,
         )
         sheets[SheetId.RANGE_NEAR] = b.ridge(
@@ -473,10 +473,13 @@ object PaperBake {
             val line = summer + (winter - summer) * season
             val reach = (line - ridgeY).coerceAtLeast(0f)
             if (reach <= 0f) return 0f
-            // The teeth grow with the cap: a thin cap gets small ones, a deep one up to [teeth] dp;
-            // without teeth the edge only swells gently, as snow lies on rounded hills.
+            // The teeth grow with the cap: a thin cap gets small ones, a deep one up to [teeth] dp –
+            // and they fade out as the snow line nears the range's foot (late autumn, early spring),
+            // where a row of teeth would read as a pattern. Without teeth the edge only swells
+            // gently, as snow lies on rounded hills.
             val cap = if (teeth > 0f) {
-                reach + (reach * 0.5f).coerceAtMost(teeth) * teeth(x, offset)
+                val low = 1f - Shapes.smoothstep(0.55f, 0.85f, shapes.peaks)
+                reach + (reach * 0.5f).coerceAtMost(teeth) * low * teeth(x, offset)
             } else {
                 reach + (reach * 0.4f).coerceAtMost(4f) * (0.6f * sin(x * 0.031f + offset) + 0.4f * sin(x * 0.083f + 2f * offset))
             }
