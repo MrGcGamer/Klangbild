@@ -17,31 +17,33 @@ package io.github.hazymorning.klangbild.domain
 data class TrackText(
     val title: String,
     val work: String?,
-    /** All artists, "A, B & C"; very long lists end with "u. a.". */
+    /** All artists, "A, B & C"; very long lists end with [others]. */
     val artists: String?,
     val album: String?,
     val version: String?,
     /** The individual artist names (featured artists included), for fitting onto one line. */
     val artistNames: List<String> = emptyList(),
+    /** What stands for the artists left out ("and others", "u. a."), in the language shown. */
+    val others: String,
 ) {
-    /** One artist, or two, or the first "u. a." – for the short "what comes next" line. */
+    /** One artist, or two, or the first and [others]: for the short "what comes next" line. */
     val shortArtists: String?
         get() = when {
             artistNames.isEmpty() -> artists
-            artistNames.size <= 2 -> formatArtists(artistNames)
-            else -> artistNames[0] + OTHERS
+            artistNames.size <= 2 -> formatArtists(artistNames, others)
+            else -> artistNames[0] + " " + others
         }
 
     /**
-     * Ways to set the artists, from complete to shortest: "A, B & C", "A, B u. a.",
-     * "A u. a.". The UI takes the first one that fits on a single line.
+     * Ways to set the artists, from complete to shortest: "A, B & C", "A, B and others",
+     * "A and others". The UI takes the first one that fits on a single line.
      */
     fun artistOptions(): List<String> {
         val names = artistNames
         if (names.size <= 1) return listOfNotNull(artists)
         val out = ArrayList<String>()
-        out += formatArtists(names, limit = Int.MAX_VALUE)!!
-        for (keep in names.size - 1 downTo 1) out += names.take(keep).joinToString(", ") + OTHERS
+        out += formatArtists(names, others, limit = Int.MAX_VALUE)!!
+        for (keep in names.size - 1 downTo 1) out += names.take(keep).joinToString(", ") + " " + others
         return out.distinct()
     }
 
@@ -58,10 +60,9 @@ data class TrackText(
 
         const val MAX_ARTISTS_CHARS = 72
 
-        /** "und andere", with a no-break space inside the abbreviation. */
-        const val OTHERS = " u. a."
 
-        fun from(track: TrackInfo): TrackText {
+        /** The typeset text of [track]; [others] stands for artists left out of a long list. */
+        fun from(track: TrackInfo, others: String): TrackText {
             var title = Emoji.trimEdges(track.title.trim())
             val artists = track.artists.map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
 
@@ -98,10 +99,11 @@ data class TrackText(
             return TrackText(
                 title = typeset(title.ifEmpty { track.title.trim() }),
                 work = work?.let(::typeset),
-                artists = formatArtists(artists),
+                artists = formatArtists(artists, others),
                 album = album?.takeUnless { work != null && it.equals(work, ignoreCase = true) }?.let(::typeset),
                 version = version,
                 artistNames = artists,
+                others = others,
             )
         }
 
@@ -121,8 +123,8 @@ data class TrackText(
             .replace(dottedAbbreviation) { it.groupValues[1] + ". " }
             .replace(catalogueSpace) { it.groupValues[1] + " " }
 
-        /** "A", "A & B", "A, B & C"; lists longer than [limit] characters end with "u. a.". */
-        fun formatArtists(names: List<String>, limit: Int = MAX_ARTISTS_CHARS): String? {
+        /** "A", "A & B", "A, B & C"; lists longer than [limit] characters end with [others]. */
+        fun formatArtists(names: List<String>, others: String, limit: Int = MAX_ARTISTS_CHARS): String? {
             if (names.isEmpty()) return null
             if (names.size == 1) return names[0]
             val full = names.dropLast(1).joinToString(", ") + " & " + names.last()
@@ -130,11 +132,11 @@ data class TrackText(
             val kept = ArrayList<String>()
             var length = 0
             for (n in names) {
-                if (kept.isNotEmpty() && length + n.length + 2 > limit - OTHERS.length) break
+                if (kept.isNotEmpty() && length + n.length + 2 > limit - others.length - 1) break
                 kept += n
                 length += n.length + 2
             }
-            return kept.joinToString(", ") + OTHERS
+            return kept.joinToString(", ") + " " + others
         }
     }
 }

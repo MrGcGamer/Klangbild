@@ -38,13 +38,13 @@ class SpokenStageTest {
 
     private fun lead(pace: String?) = pace
 
-    @Test fun audiobook() = shot("audiobook", spokenModel(book, 2_554_000L, lead(TimeLine.speed(1.25f))))
+    @Test fun audiobook() = shot("audiobook", spokenModel(book, 2_554_000L, lead(TimeLine.speed(1.25f, Fixtures.texts))))
 
-    @Test fun audiobookNumbered() = shot("audiobook_numbered", spokenModel(book, 4_100_000L, lead(StageTexts.sleep(Fixtures.at(23, 10), Fixtures.zone))))
+    @Test fun audiobookNumbered() = shot("audiobook_numbered", spokenModel(book, 4_100_000L, lead(StageTexts.sleep(Fixtures.at(23, 10), Fixtures.texts, Fixtures.zone))))
 
-    @Test fun audiobookPaper() = shot("audiobook_paper", spokenModel(book, 2_554_000L, lead(TimeLine.speed(1.5f)), appearance = Appearance.LIGHT))
+    @Test fun audiobookPaper() = shot("audiobook_paper", spokenModel(book, 2_554_000L, lead(TimeLine.speed(1.5f, Fixtures.texts)), appearance = Appearance.LIGHT))
 
-    @Test fun podcast() = shot("podcast", spokenModel(episode, 1_163_000L, lead(StageTexts.sleep(Fixtures.at(23, 10), Fixtures.zone)), next = Catalogue.nextEpisode))
+    @Test fun podcast() = shot("podcast", spokenModel(episode, 1_163_000L, lead(StageTexts.sleep(Fixtures.at(23, 10), Fixtures.texts, Fixtures.zone)), next = Catalogue.nextEpisode))
 
     @Test fun podcastFlow() = captureRoboImage("build/screenshots/spoken/podcast_flow.png") {
         val scenes = Fixtures.flowScenes(listOf(Fixtures.track(SyntheticCover.MOOS), episode, Fixtures.track(SyntheticCover.TERRAKOTTA)))

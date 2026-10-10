@@ -39,14 +39,14 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
-import io.github.hazymorning.klangbild.config.FavoriteState
-import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.QuickMenu
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.ui.stage.BEYOND_EDGES_DP
+import io.github.hazymorning.klangbild.text.Texts
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.theme.textType
 import kotlin.math.exp
 import kotlin.math.max
@@ -82,8 +82,11 @@ object QuickGrid {
     /** How far the row rises when it comes. */
     const val RISE = 22f
 
+    /** An entry's name over its value: size (sp) and weight. */
     const val LABEL_SP = 15f
+    const val LABEL_WEIGHT = 460
     const val VALUE_SP = 20f
+    const val VALUE_WEIGHT = 480
 }
 
 /**
@@ -150,36 +153,23 @@ private class QuickColors(
     }
 }
 
-/**
- * Every value an entry can show, so its place is as wide as the widest of them (the last entry
- * needs no place kept: nothing stands after it).
- */
-private fun valuesOf(item: QuickItem): List<String> = when (item) {
-    QuickItem.PICTURE -> QuickMenu.PICTURES.map(QuickMenu::pictureValue)
-    QuickItem.FAVORITE -> FavoriteState.entries.map(QuickMenu::favoriteValue)
-    QuickItem.BARS -> listOf("An", "Aus")
-    QuickItem.SHUFFLE -> listOf("An", "Aus")
-}
-
 @Composable
 fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
     // Like the menu: asking for a choice, it takes only a little of the evening's dimming.
     val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
     val colors = remember(light, appearance) { QuickColors.of(light, appearance) }
-    val labelStyle = remember { textType(QuickGrid.LABEL_SP, 460) }
-    val valueStyle = remember { textType(QuickGrid.VALUE_SP, 480) }
+    val labelStyle = remember { textType(QuickGrid.LABEL_SP, QuickGrid.LABEL_WEIGHT) }
+    val valueStyle = remember { textType(QuickGrid.VALUE_SP, QuickGrid.VALUE_WEIGHT) }
     val measurer = rememberTextMeasurer(cacheSize = 32)
+    val t = texts()
     val items = quick.rows.map { it.item }
     val values = quick.rows.map { it.value }
     // Each entry's place (dp): as wide as its name or its widest value, so a value that changes
-    // never moves the others – only the last one is as wide as what it says now.
+    // never moves the others; only the last one is as wide as what it says now (nothing stands
+    // after it).
     val density = LocalDensity.current.density
-    val widths = remember(items, values.last(), density) {
-        items.mapIndexed { i, item ->
-            fun w(text: String, style: androidx.compose.ui.text.TextStyle) = measurer.measure(AnnotatedString(text), style, maxLines = 1).size.width
-            val value = if (i == items.lastIndex) w(values[i], valueStyle) else valuesOf(item).maxOf { w(it, valueStyle) }
-            max(w(item.label, labelStyle), value) / density
-        }
+    val widths = remember(items, values.last(), density, t) {
+        quickWidths(quick, t, measurer, labelStyle, valueStyle, density)
     }
     val lefts = widths.runningFold(QuickGrid.LEFT) { x, w -> x + w + QuickGrid.GAP }.dropLast(1)
     val cursor = quick.cursor.coerceIn(0, items.size - 1)
@@ -225,13 +215,30 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
             val labelColor by animateColorAsState(if (focused) colors.labelFocus else colors.label, tween(240, easing = Motion.Dimmer), label = "quick-label")
             val valueColor by animateColorAsState(if (focused) colors.valueFocus else colors.value, tween(240, easing = Motion.Dimmer), label = "quick-value")
             Entry(x = lefts[i], labelBaseline = QuickGrid.LABEL_BASELINE, valueBaseline = QuickGrid.VALUE_BASELINE, width = widths[i]) {
-                BasicText(row.item.label, style = labelStyle, color = { labelColor }, maxLines = 1)
+                BasicText(row.label, style = labelStyle, color = { labelColor }, maxLines = 1)
                 Crossfade(targetState = row.value, animationSpec = tween(220, easing = Motion.Dimmer), label = "quick-value-text") { v ->
                     BasicText(v, style = valueStyle, color = { valueColor }, maxLines = 1)
                 }
             }
         }
     }
+}
+
+/**
+ * The places of the quick settings' entries (dp): each as wide as its name or the widest value
+ * it can show, the last as wide as what it says now.
+ */
+fun quickWidths(
+    quick: QuickState,
+    t: Texts,
+    measurer: androidx.compose.ui.text.TextMeasurer,
+    labelStyle: androidx.compose.ui.text.TextStyle,
+    valueStyle: androidx.compose.ui.text.TextStyle,
+    density: Float,
+): List<Float> = quick.rows.mapIndexed { i, row ->
+    fun w(text: String, style: androidx.compose.ui.text.TextStyle) = measurer.measure(AnnotatedString(text), style, maxLines = 1).size.width
+    val value = if (i == quick.rows.lastIndex) w(row.value, valueStyle) else QuickMenu.values(row.item, t).maxOf { w(it, valueStyle) }
+    max(w(row.label, labelStyle), value) / density
 }
 
 /** An entry: its name with its baseline at [labelBaseline], its value with its baseline at [valueBaseline] (dp), from [x]. */

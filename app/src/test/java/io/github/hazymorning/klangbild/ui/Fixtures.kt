@@ -21,10 +21,16 @@ import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
+import io.github.hazymorning.klangbild.text.LocalTexts
+import io.github.hazymorning.klangbild.text.TestTexts
+import io.github.hazymorning.klangbild.text.Texts
 
 /** Test content: the test catalogue plus helpers to turn it into scenes and models. */
 object Fixtures {
     val tracks = Catalogue.tracks
+
+    /** The words of most shots: German, as the catalogue's music and rooms are. */
+    val texts: Texts get() = TestTexts.german
 
     /** A 4K panel with the UI at 4K (xxxhdpi), to check crispness and the honest cover scale. */
     val TV_4K = ScreenSpec(3840, 2160, 4f)
@@ -40,7 +46,7 @@ object Fixtures {
     val radio: TrackInfo get() = tracks.first { it.artworkUrl == null }
 
     /** What comes next in most shots. */
-    val pärt = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
+    val spiegel = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
 
     fun scene(
         track: TrackInfo,
@@ -77,14 +83,15 @@ object Fixtures {
         lighting: Lighting = Lighting.DAY,
         clock: String? = "21:47",
         group: String? = null,
-        lead: String? = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false),
+        t: Texts = texts,
+        lead: String? = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, t = t),
         appearance: Appearance = Appearance.DARK,
         scene: ArtworkScene = scene(track, screen, lighting, appearance),
         album: Boolean = true,
         progress: Boolean = true,
         linkDown: Boolean = false,
     ): StageModel {
-        val text = TrackText.from(track)
+        val text = TrackText.from(track, t[io.github.hazymorning.klangbild.R.string.artists_others])
         return StageModel(
             scene = scene,
             text = if (album) text else text.copy(album = null),
@@ -93,16 +100,16 @@ object Fixtures {
             positionMs = { positionMs },
             year = track.year.takeIf { album },
             progress = progress,
-            line = StageTexts.line(linkDown, track),
-            next = StageTexts.next(next),
-            nextTitle = StageTexts.nextTitle(next),
+            line = StageTexts.line(linkDown, track, t),
+            next = StageTexts.next(next, t),
+            nextTitle = StageTexts.nextTitle(next, t),
             statusLine = StatusLine(lead, clock),
         )
     }
 
     /**
      * A book or an episode at [position] (ms in its own time): the chapter in the album's place,
-     * the bar over the chapter, the next chapter – or [next] – after it; [pace] in the status line.
+     * the bar over the chapter, the next chapter (or [next]) after it; [pace] in the status line.
      */
     fun spokenModel(
         track: TrackInfo,
@@ -113,17 +120,20 @@ object Fixtures {
         next: TrackInfo? = null,
         coverField: Boolean = false,
         group: String? = "Wohnzimmer",
+        t: Texts = texts,
     ): StageModel {
-        val chapter = io.github.hazymorning.klangbild.domain.ChapterPlace.at(track, position)
-        val lead = StageTexts.lead(PlayerStatus.PLAYING, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, pace = pace)
+        val chapter = io.github.hazymorning.klangbild.domain.ChapterPlace.at(track, position) { n ->
+            t.format(io.github.hazymorning.klangbild.R.string.chapter_number, n)
+        }
+        val lead = StageTexts.lead(PlayerStatus.PLAYING, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, t = t, pace = pace)
         return StageModel(
             scene = scene(track, appearance = appearance, view = view, coverField = coverField),
-            text = TrackText.from(track),
+            text = TrackText.from(track, t[io.github.hazymorning.klangbild.R.string.artists_others]),
             status = PlayerStatus.PLAYING,
             durationMs = chapter?.let { it.endMs - it.startMs } ?: track.durationMs,
             positionMs = { position },
-            next = chapter?.next ?: StageTexts.next(next),
-            nextTitle = if (chapter?.next != null) null else StageTexts.nextTitle(next),
+            next = chapter?.next ?: StageTexts.next(next, t),
+            nextTitle = if (chapter?.next != null) null else StageTexts.nextTitle(next, t),
             statusLine = StatusLine(lead, "21:47"),
             chapter = chapter?.label,
             rangeStartMs = chapter?.startMs ?: 0L,
@@ -132,8 +142,12 @@ object Fixtures {
 
     /** Content rendered as a still: no loops of its own, so the capture can wait for idle. */
     @Composable
-    fun Still(content: @Composable () -> Unit) {
-        CompositionLocalProvider(LocalStill provides true, content = content)
+    fun Still(content: @Composable () -> Unit) = Still(texts, content)
+
+    /** A still in [t]'s words. */
+    @Composable
+    fun Still(t: Texts, content: @Composable () -> Unit) {
+        CompositionLocalProvider(LocalStill provides true, LocalTexts provides t, content = content)
     }
 
     fun stage(
@@ -156,7 +170,7 @@ object Fixtures {
     /** The animated cover flow for one strip; what comes next is the card to the right. */
     @Composable
     fun FlowTheatreOf(flow: FlowData, status: PlayerStatus = PlayerStatus.PLAYING) {
-        val lead = StageTexts.lead(status, false, volumeFlash = false, volume = null, group = "Wohnzimmer + 5", volumeAlways = false)
+        val lead = StageTexts.lead(status, false, volumeFlash = false, volume = null, group = "Wohnzimmer + 5", volumeAlways = false, t = texts)
         val next = flow.cards.getOrNull(flow.current + 1)?.track
         io.github.hazymorning.klangbild.ui.flow.FlowTheatre(
             flow = flow,
@@ -176,7 +190,7 @@ object Fixtures {
         muted: Boolean = false,
         linkDown: Boolean = false,
     ) {
-        val lead = StageTexts.lead(status, muted, volumeFlash = false, volume = null, group = group, volumeAlways = false)
+        val lead = StageTexts.lead(status, muted, volumeFlash = false, volume = null, group = group, volumeAlways = false, t = texts)
         StageTheatre(
             stage = stage,
             status = status,

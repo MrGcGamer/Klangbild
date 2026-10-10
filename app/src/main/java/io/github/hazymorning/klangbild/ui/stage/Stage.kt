@@ -34,9 +34,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.ui.Motion
@@ -340,8 +342,9 @@ internal fun fitWords(measurer: TextMeasurer, text: String, style: TextStyle, wi
 /** What comes next; a new one (the next chapter, while a book plays on) cross-fades in place. */
 @Composable
 private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
+    val lead = texts()[R.string.stage_next]
     Crossfade(text, modifier, tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer), label = "next") { t ->
-        BasicText(nextText(t, styles), style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        BasicText(nextText(t, styles, lead), style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

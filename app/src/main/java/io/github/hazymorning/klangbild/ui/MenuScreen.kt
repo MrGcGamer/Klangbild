@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
@@ -66,6 +67,7 @@ import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.render.WallGlow
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.textType
 import io.github.hazymorning.klangbild.ui.theme.titleType
@@ -95,6 +97,19 @@ object MenuGrid {
     const val GLOW_SIGMA_X = 120f
     const val GLOW_SIGMA_Y = 12f
     const val GLOW_PEAK = 0.011f
+
+    /** A line's label and value: size (sp) and weight. */
+    const val LABEL_SP = 21f
+    const val LABEL_WEIGHT = 480
+    const val VALUE_SP = 17f
+    const val VALUE_WEIGHT = 440
+
+    /** A value on a scale has a slim track before it (dp): its length, and the room after it. */
+    const val SLIDER_WIDTH = 72f
+    const val SLIDER_GAP = 14f
+
+    /** The least room between a line's label and its value (dp): a line needs no more than the column. */
+    const val LABEL_GAP = 16f
 
     /** Opacity of a line at [distance] dp from the cursor's line. */
     fun fade(distance: Float): Float = 1f - HaloLight.smoothstep(FADE_FROM, FADE_TO, abs(distance))
@@ -210,6 +225,7 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
     val itemTops = remember(lines) { lines.filterIsInstance<MenuLine.Item>().associate { it.index to it.top } }
     val cursor = menu.cursor.coerceIn(0, menu.rows.size - 1)
     val row = menu.rows[cursor]
+    val t = texts()
 
     BoxWithConstraints(
         modifier.fillMaxSize().drawBehind {
@@ -246,7 +262,7 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
         // Left: the heading at the print's top edge, the explanation level with the chosen line.
         val headingStyle = titleType(36f, 420, colors.heading)
         BaselineAt(x = layout.margin, baseline = layout.artTop + 36f * Fonts.CAP_HEIGHT, width = layout.art) {
-            BasicText("Einstellungen", style = headingStyle)
+            BasicText(t[R.string.menu_heading], style = headingStyle)
         }
         Crossfade(
             targetState = row.description,
@@ -263,12 +279,12 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
             }
         }
         BaselineAt(x = layout.margin, baseline = layout.artTop + layout.art, width = layout.art) {
-            BasicText("OK ändert" + TimeLine.SEPARATOR + "Zurück schließt", style = textType(15f, 500, colors.hint, tracking = 0.01f))
+            BasicText(t[R.string.menu_hint], style = textType(15f, 500, colors.hint, tracking = 0.01f))
         }
 
         // Right: the lines in the text column.
-        val labelStyle = textType(21f, 480)
-        val valueStyle = textType(17f, 440)
+        val labelStyle = textType(MenuGrid.LABEL_SP, MenuGrid.LABEL_WEIGHT)
+        val valueStyle = textType(MenuGrid.VALUE_SP, MenuGrid.VALUE_WEIGHT)
         val headerStyle = textType(15f, 600, colors.header, tracking = 0.01f)
         for (line in lines) {
             val height = if (line is MenuLine.Header) MenuGrid.HEADER else MenuGrid.ROW
@@ -286,7 +302,7 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
             ) {
                 when (line) {
                     is MenuLine.Header -> BasicText(
-                        line.section.title,
+                        t[line.section.title],
                         style = headerStyle,
                         modifier = Modifier.padding(bottom = 9.dp),
                     )
@@ -303,7 +319,7 @@ private fun MenuItem(row: MenuRow, focused: Boolean, labelStyle: TextStyle, valu
     val valueColor by animateColorAsState(if (focused) colors.valueFocus else colors.value, tween(260, easing = Motion.Dimmer), label = "value")
     val lift = with(LocalDensity.current) { SLIDER_LIFT.dp.roundToPx() }
     Row(Modifier.fillMaxWidth()) {
-        BasicText(row.entry.label, Modifier.alignByBaseline(), style = labelStyle, color = { labelColor }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        BasicText(row.label, Modifier.alignByBaseline(), style = labelStyle, color = { labelColor }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
         // A value on a scale shows where it stands: a slim track like the progress bar's, before the number.
         row.level?.let { level ->
@@ -311,8 +327,8 @@ private fun MenuItem(row: MenuRow, focused: Boolean, labelStyle: TextStyle, valu
             Canvas(
                 Modifier
                     .alignBy { it.measuredHeight + lift }
-                    .padding(end = SLIDER_GAP.dp)
-                    .size(SLIDER_WIDTH.dp, SLIDER_HEIGHT.dp),
+                    .padding(end = MenuGrid.SLIDER_GAP.dp)
+                    .size(MenuGrid.SLIDER_WIDTH.dp, SLIDER_HEIGHT.dp),
             ) {
                 val r = CornerRadius(size.height / 2f)
                 drawRoundRect(valueColor.copy(alpha = valueColor.alpha * SLIDER_TRACK), cornerRadius = r)
@@ -343,9 +359,7 @@ private fun BaselineAt(x: Float, baseline: Float, width: Float, content: @Compos
 }
 
 /** The slider of a value on a scale: its size (dp), its gap to the number, how strongly its track shows, how far above the baseline its lower edge sits (its middle on the figures' middle). */
-private const val SLIDER_WIDTH = 72f
 private const val SLIDER_HEIGHT = 4f
-private const val SLIDER_GAP = 14f
 private const val SLIDER_TRACK = 0.28f
 private const val SLIDER_LIFT = 4f
 

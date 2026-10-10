@@ -34,9 +34,9 @@ class OptionsTest {
     @get:org.junit.Rule
     val compose = androidx.compose.ui.test.junit4.createComposeRule()
 
-    private val pärt = Fixtures.pärt
-    private val everywhere = SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Büro", "Flur", "Terrasse")))
-    private val two = SpeakerLabel.group(SpeakerGroup("Wohnzimmer Lautsprecher", listOf("Küche")))
+    private val spiegel = Fixtures.spiegel
+    private val everywhere = SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Büro", "Flur", "Terrasse")), Fixtures.texts)
+    private val two = SpeakerLabel.group(SpeakerGroup("Wohnzimmer Lautsprecher", listOf("Küche")), Fixtures.texts)
     private val configured = Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) =
@@ -44,16 +44,16 @@ class OptionsTest {
 
     private fun stage(name: String, model: StageModel) = shot(name) { Stage(model) }
 
-    @Test fun groupOfSix() = stage("stage_group", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = pärt, group = everywhere))
+    @Test fun groupOfSix() = stage("stage_group", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = spiegel, group = everywhere))
 
-    @Test fun groupOfTwo() = stage("stage_group_two", Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = pärt, group = two))
+    @Test fun groupOfTwo() = stage("stage_group_two", Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = spiegel, group = two))
 
     @Test fun groupAndVolumeAlways() = stage(
         "stage_group_volume",
         Fixtures.model(
             Fixtures.track(SyntheticCover.MOOS),
-            next = pärt,
-            lead = StageTexts.lead(PlayerStatus.PLAYING, false, false, SpeakerLabel.volume(0.35f, false), everywhere, volumeAlways = true),
+            next = spiegel,
+            lead = StageTexts.lead(PlayerStatus.PLAYING, false, false, SpeakerLabel.volume(0.35f, false, Fixtures.texts), everywhere, volumeAlways = true, t = Fixtures.texts),
         ),
     )
 
@@ -61,12 +61,12 @@ class OptionsTest {
         "stage_volume_flash",
         Fixtures.model(
             Fixtures.track(SyntheticCover.BAUHAUS),
-            next = pärt,
-            lead = StageTexts.lead(PlayerStatus.PLAYING, false, true, SpeakerLabel.volume(0.4f, false), everywhere, volumeAlways = false),
+            next = spiegel,
+            lead = StageTexts.lead(PlayerStatus.PLAYING, false, true, SpeakerLabel.volume(0.4f, false, Fixtures.texts), everywhere, volumeAlways = false, t = Fixtures.texts),
         ),
     )
 
-    @Test fun groupWithoutClock() = stage("stage_group_no_clock", Fixtures.model(Fixtures.track(SyntheticCover.TERRAKOTTA), next = pärt, clock = null, group = everywhere))
+    @Test fun groupWithoutClock() = stage("stage_group_no_clock", Fixtures.model(Fixtures.track(SyntheticCover.TERRAKOTTA), next = spiegel, clock = null, group = everywhere))
 
     @Test fun onlyTitleAndArtist() = stage(
         "stage_minimal",
@@ -93,7 +93,7 @@ class OptionsTest {
     }
 
     private fun menu(entry: MenuEntry, settings: Settings = configured, ctx: MenuContext = MenuContext(LinkState.CONNECTED)) =
-        MenuState(SettingsMenu.rows(settings, ctx), SettingsMenu.entries.indexOf(entry))
+        MenuState(SettingsMenu.rows(settings, ctx, Fixtures.texts), SettingsMenu.entries.indexOf(entry))
 
     @Test fun menuTop() = shot("menu_clock") { MenuScreen(menu(MenuEntry.CLOCK), Lighting.DAY) }
 
@@ -104,7 +104,7 @@ class OptionsTest {
     }
 
     @Test fun menuBars() = shot("menu_bars") {
-        MenuScreen(menu(MenuEntry.BARS, configured.copy(bars = io.github.hazymorning.klangbild.config.LightBars(left = "light.l", right = "light.r"), barLevel = io.github.hazymorning.klangbild.config.BarLevel.P60)), Lighting.DAY)
+        MenuScreen(menu(MenuEntry.LIGHTS, configured.copy(roomLights = io.github.hazymorning.klangbild.config.RoomLights(left = "light.l", right = "light.r"), roomLightLevel = io.github.hazymorning.klangbild.config.RoomLightLevel.P60)), Lighting.DAY)
     }
 
     @Test fun menuEveningSleep() = shot("menu_sleep_evening") { MenuScreen(menu(MenuEntry.SLEEP_AFTER), Lighting.EVENING) }

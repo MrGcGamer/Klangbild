@@ -53,12 +53,14 @@ internal class MenuControl(private val host: ControllerHost, private val sleep: 
         val s = host.settings
         when {
             // The connections, and the lights while none are set up, are set up on the phone.
-            entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.BARS && !s.bars.isSet) -> {
+            entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.LIGHTS && !s.roomLights.isSet) -> {
                 cursor = null
                 host.requestSetup(true)
             }
             // The sleep timer is no setting: it lives until it has paused the music once.
             entry == MenuEntry.SLEEP_TIMER -> sleep.step(direction, wrap)
+            // The language is kept by the system (or, before API 33, by the app on its own).
+            entry == MenuEntry.LANGUAGE -> host.language = SettingsMenu.stepLanguage(host.language, direction, wrap)
             else -> SettingsMenu.step(entry, s, direction, wrap)?.let(host::applySettings)
         }
     }
@@ -78,8 +80,9 @@ internal class MenuControl(private val host: ControllerHost, private val sleep: 
             sleep = sleep.choice,
             sleepAt = sleep.pausesAt,
             kind = track?.kind,
+            language = host.language,
         )
-        return MenuState(SettingsMenu.rows(s, ctx), c)
+        return MenuState(SettingsMenu.rows(s, ctx, host.texts), c)
     }
 
     companion object {

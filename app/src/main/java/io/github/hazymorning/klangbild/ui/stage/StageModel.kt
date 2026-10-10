@@ -10,7 +10,9 @@ import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.TrackText
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.render.ArtworkScene
+import io.github.hazymorning.klangbild.text.Texts
 import kotlin.math.pow
 
 /**
@@ -32,16 +34,16 @@ class StageModel(
     val progress: Boolean = true,
     /**
      * A line in the progress bar's place: the station of a radio without duration, or a
-     * notice ("Verbindung wird wiederhergestellt …"). Wins over the bar.
+     * notice ("Reconnecting…"). Wins over the bar.
      */
     val line: String? = null,
-    /** "Spiegel im Spiegel · Arvo Pärt": what comes next … */
+    /** "Spiegel im Spiegel · Arvo Pärt": what comes next ... */
     val next: String? = null,
-    /** … and its title alone, for when both don't fit. */
+    /** ... and its title alone, for when both don't fit. */
     val nextTitle: String? = null,
     /** The status line at the top right: where the music plays, the volume, the time. */
     val statusLine: StatusLine? = null,
-    /** The chapter of a book or an episode, in the album's place ("Die Verhaftung", "Kapitel 7"). */
+    /** The chapter of a book or an episode, in the album's place ("The Arrest", "Chapter 7"). */
     val chapter: String? = null,
     /** Where the progress bar starts in the item's time: the chapter's start. */
     val rangeStartMs: Long = 0L,
@@ -54,8 +56,8 @@ class StageModel(
 }
 
 /**
- * The quiet line at the top of the column: [clock], the time, then [lead] – where the music
- * plays, a pause or a passing volume ("Überall", "Pausiert", "Lautstärke 35 %").
+ * The quiet line at the top of the column: [clock], the time, then [lead]: where the music
+ * plays, a pause or a passing volume ("Everywhere", "Paused", "Volume 35%").
  */
 @Immutable
 data class StatusLine(val lead: String?, val clock: String?) {
@@ -64,13 +66,10 @@ data class StatusLine(val lead: String?, val clock: String?) {
 
 /** The stage's words for states and what comes next. */
 object StageTexts {
-    /** In the progress bar's place while the connection is lost. */
-    const val LINK_DOWN = "Verbindung wird wiederhergestellt …"
-
     /**
      * The status line's lead: a passing volume change wins, then mute and pause (after the
-     * place: "Wohnzimmer · Pausiert"), otherwise the place, how it plays ([pace]: "Pause um
-     * 23:10", "Tempo 1,5×") – and the volume, if it is always shown.
+     * place: "Living room · Paused"), otherwise the place, how it plays ([pace]: "Pauses at
+     * 11:10 PM", "Speed 1.5×") and the volume, if it is always shown.
      */
     fun lead(
         status: PlayerStatus,
@@ -79,27 +78,29 @@ object StageTexts {
         volume: String?,
         group: String?,
         volumeAlways: Boolean,
+        t: Texts,
         pace: String? = null,
     ): String? = when {
-        volumeFlash && !muted && volume != null -> "Lautstärke $volume"
-        muted -> listOfNotNull(group, "Stumm").joinToString(TimeLine.SEPARATOR)
-        status == PlayerStatus.PAUSED -> listOfNotNull(group, "Pausiert").joinToString(TimeLine.SEPARATOR)
+        volumeFlash && !muted && volume != null -> t.format(R.string.status_volume, volume)
+        muted -> listOfNotNull(group, t[R.string.status_muted]).joinToString(TimeLine.SEPARATOR)
+        status == PlayerStatus.PAUSED -> listOfNotNull(group, t[R.string.status_paused]).joinToString(TimeLine.SEPARATOR)
         else -> listOfNotNull(group, pace, volume.takeIf { volumeAlways }).joinToString(TimeLine.SEPARATOR).ifEmpty { null }
     }
 
-    /** "Pause um 23:10": when the sleep timer pauses the music. */
-    fun sleep(atMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String = "Pause um " + TimeLine.clock(atMs, zone)
+    /** "Pauses at 11:10 PM": when the sleep timer pauses the music. */
+    fun sleep(atMs: Long, t: Texts, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String =
+        t.format(R.string.status_pause_at, t.clock(atMs, zone))
 
     /** "Spiegel im Spiegel · Arvo Pärt". */
-    fun next(track: TrackInfo?): String? =
-        track?.let { TrackText.from(it) }?.let { listOfNotNull(it.title, it.shortArtists).joinToString(TimeLine.SEPARATOR) }
+    fun next(track: TrackInfo?, t: Texts): String? =
+        track?.let { TrackText.from(it, t[R.string.artists_others]) }?.let { listOfNotNull(it.title, it.shortArtists).joinToString(TimeLine.SEPARATOR) }
 
     /** "Spiegel im Spiegel". */
-    fun nextTitle(track: TrackInfo?): String? = track?.let { TrackText.from(it).title }
+    fun nextTitle(track: TrackInfo?, t: Texts): String? = track?.let { TrackText.from(it, t[R.string.artists_others]).title }
 
     /** A line in the progress bar's place: the lost connection, or a radio's station. */
-    fun line(linkDown: Boolean, track: TrackInfo): String? = when {
-        linkDown -> LINK_DOWN
+    fun line(linkDown: Boolean, track: TrackInfo, t: Texts): String? = when {
+        linkDown -> t[R.string.stage_link_down]
         track.durationMs == null -> track.source
         else -> null
     }

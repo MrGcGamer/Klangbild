@@ -1,14 +1,22 @@
 package io.github.hazymorning.klangbild.app
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
+import androidx.core.content.ContextCompat
 import android.net.ConnectivityManager
 import android.net.Network
 import io.github.hazymorning.klangbild.config.SettingsStore
 import io.github.hazymorning.klangbild.data.ha.LocalNetwork
+import io.github.hazymorning.klangbild.text.Localizer
+import io.github.hazymorning.klangbild.text.PlatformLanguageStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -26,14 +34,37 @@ class AppGraph(context: Context) {
         .addNetworkInterceptor(LocalNetwork.CleartextGuard())
         .build()
 
+    /** For requests that carry a token: no redirects, so a token never goes to another host than its own. */
+    val tokenHttp: OkHttpClient = http.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()
+
     val settings = SettingsStore(context.applicationContext)
 
-    val controller = NowPlayingController(scope, http, settings)
+    /** The words in the language chosen: the system's, or one from the menu. */
+    val localizer = Localizer(context.applicationContext, PlatformLanguageStore(context.applicationContext))
+
+    val controller = NowPlayingController(scope, http, tokenHttp, settings, localizer)
+
+    init {
+        // Tokens written by an earlier version are sealed now rather than on the next change.
+        scope.launch { settings.sealStoredSecrets() }
+    }
 }
 
 class KlangbildApp : Application() {
     lateinit var graph: AppGraph
         private set
+
+    /**
+     * A new language (chosen in the system's settings, or the system's own), and the system's
+     * 12 or 24 hour clock: the texts are made anew, on the screen and on the setup page.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        graph.localizer.refresh()
+    }
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
@@ -44,6 +75,18 @@ class KlangbildApp : Application() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
+        ContextCompat.registerReceiver(
+            this,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) = graph.localizer.refresh()
+            },
+            IntentFilter().apply {
+                // Sent when the system's 12 or 24 hour setting changes, too.
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_LOCALE_CHANGED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         // When the network comes back (Wi-Fi hiccup), reconnect right away instead of
         // waiting for the backoff timer.
         getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(

@@ -21,7 +21,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class CoverFieldTest {
-    private val pärt = Fixtures.pärt
+    private val spiegel = Fixtures.spiegel
 
     private fun stage(name: String, cover: SyntheticCover, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, at: Double = 0.0) {
         val track = Fixtures.track(cover)
@@ -29,7 +29,7 @@ class CoverFieldTest {
         captureRoboImage("build/screenshots/cover_field/$name.png") {
             Fixtures.Still {
                 CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) {
-                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
+                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
                 }
             }
         }
@@ -53,7 +53,7 @@ class CoverFieldTest {
             val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
             captureRoboImage("build/screenshots/cover_field/gallery/${appearance.name.lowercase()}_%02d.png".format(i)) {
                 Fixtures.Still {
-                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, appearance = appearance))
+                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, appearance = appearance))
                 }
             }
         }

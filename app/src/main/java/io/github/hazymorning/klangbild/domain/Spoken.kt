@@ -42,18 +42,21 @@ data class Chapter(val name: String?, val startMs: Long, val endMs: Long) {
  */
 data class ChapterPlace(val index: Int, val count: Int, val label: String, val startMs: Long, val endMs: Long, val next: String?) {
     companion object {
-        /** The chapter at [positionMs] of [track], null without chapters or position. */
-        fun at(track: TrackInfo, positionMs: Long?): ChapterPlace? {
+        /**
+         * The chapter at [positionMs] of [track], null without chapters or position; [numbered]
+         * names a chapter by its number ("Chapter 7").
+         */
+        fun at(track: TrackInfo, positionMs: Long?, numbered: (Int) -> String): ChapterPlace? {
             val chapters = track.chapters
             val i = positionMs?.let { Chapters.at(chapters, it) } ?: return null
             val c = chapters[i]
             return ChapterPlace(
                 index = i,
                 count = chapters.size,
-                label = Chapters.label(c, i),
+                label = Chapters.label(c, i, numbered),
                 startMs = c.startMs,
                 endMs = c.endMs,
-                next = chapters.getOrNull(i + 1)?.let { Chapters.label(it, i + 1) },
+                next = chapters.getOrNull(i + 1)?.let { Chapters.label(it, i + 1, numbered) },
             )
         }
     }
@@ -113,13 +116,13 @@ object Chapters {
     private val generic = Regex("""^(?:(?:chapter|kapitel|track|part|teil|cd|disc|chap\.?|ch\.?|kap\.?)\s*)?0*(\d{1,4})\s*$""", RegexOption.IGNORE_CASE)
 
     /**
-     * How a chapter is named on the stage: its own name ("Die Verhaftung"), or "Kapitel 7" for
-     * names that are only a number ("007", "Chapter 7", "Track 07") or missing ([index] counts
-     * from 0).
+     * How a chapter is named on the stage: its own name ("The Arrest"), or by its number with
+     * [numbered] ("Chapter 7") for names that are only a number ("007", "Chapter 7", "Track 07")
+     * or missing ([index] counts from 0).
      */
-    fun label(chapter: Chapter, index: Int): String {
-        val name = chapter.name ?: return "Kapitel ${index + 1}"
+    fun label(chapter: Chapter, index: Int, numbered: (Int) -> String): String {
+        val name = chapter.name ?: return numbered(index + 1)
         val number = generic.find(name)?.groupValues?.get(1)?.toIntOrNull()
-        return if (number != null) "Kapitel $number" else TrackText.typeset(Emoji.trimEdges(name)).ifEmpty { "Kapitel ${index + 1}" }
+        return if (number != null) numbered(number) else TrackText.typeset(Emoji.trimEdges(name)).ifEmpty { numbered(index + 1) }
     }
 }

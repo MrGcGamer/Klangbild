@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.ui
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,6 +24,8 @@ import io.github.hazymorning.klangbild.domain.SetupReason
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
+import io.github.hazymorning.klangbild.text.LocalTexts
+import io.github.hazymorning.klangbild.text.TestTexts
 import io.github.hazymorning.klangbild.ui.stage.Stage
 import org.junit.Rule
 import org.junit.Test
@@ -55,14 +58,20 @@ class CentringTest {
             RestReason.OFFLINE to Fixtures.at(11, 55),
             RestReason.ENTITY_MISSING to Fixtures.at(7, 57),
         )
-        for ((reason, at) in cases) {
-            val ink = render { RestScreen(reason, "Wohnzimmer", "media_player.wohnzimer", Lighting.DAY, at, zone = Fixtures.zone) }
+        // In German with 24 hours, and in English with 12 (the clock shows the figures alone).
+        for (t in listOf(Fixtures.texts, TestTexts.english())) for ((reason, at) in cases) {
+            val ink = render {
+                CompositionLocalProvider(LocalTexts provides t) {
+                    RestScreen(reason, "Wohnzimmer", "media_player.wohnzimer", Lighting.DAY, at, zone = Fixtures.zone)
+                }
+            }
             val lines = ink.lines()
             val clock = lines.first()
-            assertWithMessage("$reason: the clock across").that(abs(clock.centreX - 960f)).isAtMost(1.5f)
-            assertWithMessage("$reason: the clock up and down (figures' top to baseline)").that(abs((clock.top + clock.baseline) / 2f - 540f)).isAtMost(2f)
+            val case = "$reason in ${t.locale}"
+            assertWithMessage("$case: the clock across").that(abs(clock.centreX - 960f)).isAtMost(1.5f)
+            assertWithMessage("$case: the clock up and down (figures' top to baseline)").that(abs((clock.top + clock.baseline) / 2f - 540f)).isAtMost(2f)
             for (line in lines.drop(1)) {
-                assertWithMessage("$reason: a line under the clock, at ${line.top}").that(abs(line.centreX - 960f)).isAtMost(3f)
+                assertWithMessage("$case: a line under the clock, at ${line.top}").that(abs(line.centreX - 960f)).isAtMost(3f)
             }
         }
     }
@@ -70,7 +79,7 @@ class CentringTest {
     @Test
     fun theStageHasAsMuchRoomOnEachSide() {
         // A light cover on black: its square is the brightest thing on the left.
-        val ink = render { Fixtures.Still { Stage(Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = Fixtures.pärt)) } }
+        val ink = render { Fixtures.Still { Stage(Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = Fixtures.spiegel)) } }
         val art = ink.box(0, 0, 960, 1080)
         // The progress bar's track is quiet: found with a lower threshold.
         val right = ink.box(960, 0, 1920, 1080, threshold = 24)
@@ -81,7 +90,7 @@ class CentringTest {
     @Test
     fun theMenuHasAsMuchRoomOnEachSide() {
         val settings = Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
-        val rows = SettingsMenu.rows(settings, MenuContext(LinkState.CONNECTED))
+        val rows = SettingsMenu.rows(settings, MenuContext(LinkState.CONNECTED), Fixtures.texts)
         val ink = render { Fixtures.Still { MenuScreen(MenuState(rows, 1), Lighting.DAY) } }
         val all = ink.box(0, 0, 1920, 1080)
         assertWithMessage("left of the heading, right of the values").that(abs(all.left - (1919 - all.right))).isAtMost(4)

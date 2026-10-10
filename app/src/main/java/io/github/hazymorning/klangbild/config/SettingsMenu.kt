@@ -1,54 +1,60 @@
 package io.github.hazymorning.klangbild.config
 
+import androidx.annotation.StringRes
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.SleepChoice
 import io.github.hazymorning.klangbild.domain.StageView
-import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.text.AppLanguage
+import io.github.hazymorning.klangbild.text.Texts
 
 /** Sections of the settings menu, in order. */
-enum class MenuSection(val title: String) {
-    PICTURE("Bild"),
-    INFO("Informationen"),
-    EFFECTS("Effekte"),
-    VISTA("Fensterblick"),
-    REMOTE("Fernbedienung"),
-    TIMER("Timer"),
-    CONNECTION("Verbindung"),
+enum class MenuSection(@StringRes val title: Int) {
+    PICTURE(R.string.section_picture),
+    INFO(R.string.section_info),
+    EFFECTS(R.string.section_effects),
+    VISTA(R.string.section_vista),
+    REMOTE(R.string.section_remote),
+    TIMER(R.string.section_timer),
+    CONNECTION(R.string.section_connection),
+    SYSTEM(R.string.section_system),
 }
 
-/** One line of the settings menu, in the menu's order. */
-enum class MenuEntry(val section: MenuSection, val label: String) {
-    VIEW(MenuSection.PICTURE, "Ansicht"),
-    APPEARANCE(MenuSection.PICTURE, "Erscheinungsbild"),
-    CLOCK(MenuSection.INFO, "Uhrzeit"),
-    TIME_LINE(MenuSection.INFO, "Fortschrittsbalken"),
-    NEXT(MenuSection.INFO, "Nächster Titel"),
-    ALBUM(MenuSection.INFO, "Album und Jahr"),
-    GROUP(MenuSection.INFO, "Lautsprechergruppe"),
-    VOLUME(MenuSection.INFO, "Lautstärke"),
-    BACKGROUND(MenuSection.EFFECTS, "Hintergrund"),
-    LIGHT(MenuSection.EFFECTS, "Intensität"),
-    MOTION(MenuSection.EFFECTS, "Bewegung"),
-    BARS(MenuSection.EFFECTS, "Lichtleisten"),
-    VISTA_PAUSE(MenuSection.VISTA, "Bei Pause"),
-    VISTA_PLAYING(MenuSection.VISTA, "Während der Musik"),
-    MINI_PLAYER(MenuSection.VISTA, "Mini-Player"),
-    REMOTE(MenuSection.REMOTE, "Musik steuern"),
-    UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
-    SPOKEN(MenuSection.REMOTE, "Hörbücher, Podcasts"),
-    SLEEP_TIMER(MenuSection.TIMER, "Sleep-Timer"),
-    SLEEP_AFTER(MenuSection.TIMER, "Ausschalten nach"),
-    SLEEP_ACTION(MenuSection.TIMER, "Beim Ausschalten"),
-    CONNECTION(MenuSection.CONNECTION, "Home Assistant"),
-    MUSIC_ASSISTANT(MenuSection.CONNECTION, "Music Assistant"),
+/** One line of the settings menu, in the menu's order; [label] is 0 for a line named after what it connects to. */
+enum class MenuEntry(val section: MenuSection, @StringRes val label: Int) {
+    VIEW(MenuSection.PICTURE, R.string.entry_view),
+    APPEARANCE(MenuSection.PICTURE, R.string.entry_appearance),
+    CLOCK(MenuSection.INFO, R.string.entry_clock),
+    TIME_LINE(MenuSection.INFO, R.string.entry_progress),
+    NEXT(MenuSection.INFO, R.string.entry_next),
+    ALBUM(MenuSection.INFO, R.string.entry_album),
+    GROUP(MenuSection.INFO, R.string.entry_group),
+    VOLUME(MenuSection.INFO, R.string.entry_volume),
+    BACKGROUND(MenuSection.EFFECTS, R.string.entry_background),
+    LIGHT(MenuSection.EFFECTS, R.string.entry_intensity),
+    MOTION(MenuSection.EFFECTS, R.string.entry_motion),
+    LIGHTS(MenuSection.EFFECTS, R.string.entry_lights),
+    VISTA_PAUSE(MenuSection.VISTA, R.string.entry_vista_pause),
+    VISTA_PLAYING(MenuSection.VISTA, R.string.entry_vista_playing),
+    MINI_PLAYER(MenuSection.VISTA, R.string.entry_mini_player),
+    REMOTE(MenuSection.REMOTE, R.string.entry_remote),
+    UP_DOWN(MenuSection.REMOTE, R.string.entry_up_down),
+    SPOKEN(MenuSection.REMOTE, R.string.entry_spoken),
+    SLEEP_TIMER(MenuSection.TIMER, R.string.entry_sleep_timer),
+    SLEEP_AFTER(MenuSection.TIMER, R.string.entry_sleep_after),
+    SLEEP_ACTION(MenuSection.TIMER, R.string.entry_sleep_action),
+    CONNECTION(MenuSection.CONNECTION, 0),
+    MUSIC_ASSISTANT(MenuSection.CONNECTION, 0),
+    LANGUAGE(MenuSection.SYSTEM, R.string.entry_language),
 }
 
 /**
  * What the menu needs to know besides the settings: the connections and the wall as they are
- * now, the sleep timer ([sleep], pausing at [sleepAt]) and what kind of thing plays.
+ * now, the sleep timer ([sleep], pausing at [sleepAt]), what kind of thing plays, and the
+ * language chosen.
  */
 data class MenuContext(
     val link: LinkState? = null,
@@ -57,16 +63,19 @@ data class MenuContext(
     val sleep: SleepChoice = SleepChoice.OFF,
     val sleepAt: Long? = null,
     val kind: MediaKind? = null,
+    val language: AppLanguage = AppLanguage.SYSTEM,
 )
 
-/** A line as the menu shows it: the value in words and what the option does; [level] (0..1) for a value shown on a slider. */
-data class MenuRow(val entry: MenuEntry, val value: String, val description: String, val level: Float? = null)
+/**
+ * A line as the menu shows it: its label, the value in words and what the option does; [level]
+ * (0 to 1) for a value shown on a slider.
+ */
+data class MenuRow(val entry: MenuEntry, val label: String, val value: String, val description: String, val level: Float? = null)
 
 /**
- * The settings menu, operated with the remote: up and down choose a line, left and right
- * (or OK) change its value at once – there is nothing to confirm. Every text is German UI
- * prose: no-break spaces keep articles and adjectives with their noun and a short word that
- * opens a sentence off the end of a line.
+ * The settings menu, operated with the remote: up and down choose a line, left and right (or
+ * OK) change its value at once; there is nothing to confirm. Every text comes from the
+ * resources, in the language shown.
  */
 object SettingsMenu {
     val entries: List<MenuEntry> = MenuEntry.entries
@@ -74,210 +83,204 @@ object SettingsMenu {
     /** Minutes offered for the sleep timeout. */
     val sleepChoices = listOf(5, 10, 15, 20, 30, 45, 60, 90, 120)
 
-    fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx), level(it, s)) }
+    fun rows(s: Settings, ctx: MenuContext, t: Texts): List<MenuRow> =
+        entries.map { MenuRow(it, label(it, t), value(it, s, ctx, t), description(it, s, ctx, t), level(it, s)) }
 
-    /** Where a slider stands: the light bars' brightness. */
+    /** A line's label; the two connection lines are named after what they connect to. */
+    fun label(e: MenuEntry, t: Texts): String = when (e) {
+        MenuEntry.CONNECTION -> HOME_ASSISTANT
+        MenuEntry.MUSIC_ASSISTANT -> MUSIC_ASSISTANT
+        else -> t[e.label]
+    }
+
+    /** Where a slider stands: the lights' brightness. */
     fun level(e: MenuEntry, s: Settings): Float? = when (e) {
-        MenuEntry.BARS -> s.barLevel.brightness.takeIf { s.bars.isSet }
+        MenuEntry.LIGHTS -> s.roomLightLevel.brightness.takeIf { s.roomLights.isSet }
         else -> null
     }
 
-    fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
-        MenuEntry.VIEW -> if (s.view == StageView.FLOW) "Cover Flow" else "Einzelnes Cover"
-        MenuEntry.CLOCK -> onOff(s.showClock)
-        MenuEntry.TIME_LINE -> onOff(s.showTimeLine)
-        MenuEntry.NEXT -> onOff(s.showNext)
-        MenuEntry.ALBUM -> onOff(s.showAlbum)
-        MenuEntry.GROUP -> onOff(s.showGroup)
-        MenuEntry.VOLUME -> when (s.volumeDisplay) {
-            VolumeDisplay.ON_CHANGE -> "Bei Änderung"
-            VolumeDisplay.ALWAYS -> "Immer"
-            VolumeDisplay.OFF -> "Aus"
+    fun value(e: MenuEntry, s: Settings, ctx: MenuContext, t: Texts): String = when (e) {
+        MenuEntry.VIEW -> t[if (s.view == StageView.FLOW) R.string.view_flow else R.string.view_single]
+        MenuEntry.CLOCK -> onOff(s.showClock, t)
+        MenuEntry.TIME_LINE -> onOff(s.showTimeLine, t)
+        MenuEntry.NEXT -> onOff(s.showNext, t)
+        MenuEntry.ALBUM -> onOff(s.showAlbum, t)
+        MenuEntry.GROUP -> onOff(s.showGroup, t)
+        MenuEntry.VOLUME -> t[
+            when (s.volumeDisplay) {
+                VolumeDisplay.ON_CHANGE -> R.string.volume_on_change
+                VolumeDisplay.ALWAYS -> R.string.volume_always
+                VolumeDisplay.OFF -> R.string.off
+            },
+        ]
+        MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.background_cover else R.string.background_plain]
+        MenuEntry.MOTION -> t[
+            when (s.motion) {
+                MotionLevel.OFF -> R.string.off
+                MotionLevel.GENTLE -> R.string.motion_slow
+                MotionLevel.MEDIUM -> R.string.motion_medium
+                MotionLevel.LIVELY -> R.string.motion_fast
+            },
+        ]
+        MenuEntry.LIGHTS -> when {
+            !s.roomLights.isSet -> t[R.string.set_up]
+            s.roomLightLevel == RoomLightLevel.OFF -> t[R.string.off]
+            else -> t.percent(s.roomLightLevel.percent)
         }
-        MenuEntry.BACKGROUND -> if (s.background == BackgroundMode.COVER) "Coverfarben" else "Einfarbig"
-        MenuEntry.MOTION -> when (s.motion) {
-            MotionLevel.OFF -> "Aus"
-            MotionLevel.GENTLE -> "Langsam"
-            MotionLevel.MEDIUM -> "Mittel"
-            MotionLevel.LIVELY -> "Schnell"
-        }
-        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else if (s.barLevel == BarLevel.OFF) "Aus" else "${s.barLevel.percent}\u00A0%"
-        MenuEntry.APPEARANCE -> when (s.appearance) {
-            AppearanceMode.AUTO -> "Automatisch"
-            AppearanceMode.LIGHT -> "Hell"
-            AppearanceMode.DARK -> "Dunkel"
-        }
-        MenuEntry.LIGHT -> when (s.light) {
-            LightLevel.STRONG -> "Stark"
-            LightLevel.NORMAL -> "Normal"
-            LightLevel.SUBTLE -> "Schwach"
-            LightLevel.OFF -> "Aus"
-        }
-        MenuEntry.VISTA_PAUSE -> delay(s.vistaPauseSeconds)
-        MenuEntry.VISTA_PLAYING -> delay(s.vistaPlayingSeconds)
-        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
-            MiniPlayer.LEFT -> "Unten links"
-            MiniPlayer.RIGHT -> "Unten rechts"
-            MiniPlayer.OFF -> "Aus"
-        }
-        MenuEntry.REMOTE -> onOff(s.remoteControl)
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Fensterblick, Menü"
-        MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
-        MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind)
-        MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
-        MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) "App schließen" else "Bildschirmschoner"
-        MenuEntry.CONNECTION -> when {
-            !s.isConfigured -> "Einrichten"
-            ctx.link == LinkState.CONNECTED -> "Verbunden"
-            ctx.link == LinkState.AUTH_FAILED -> "Token abgelehnt"
-            else -> "Verbindet …"
-        }
-        MenuEntry.MUSIC_ASSISTANT -> when {
-            !s.hasMusicAssistant -> "Nicht eingerichtet"
-            ctx.ma == MaLink.CONNECTED -> "Verbunden"
-            ctx.ma == MaLink.AUTH_FAILED -> "Token abgelehnt"
-            ctx.ma == MaLink.UNREACHABLE -> "Nicht erreichbar"
-            else -> "Verbindet …"
-        }
+        MenuEntry.APPEARANCE -> t[
+            when (s.appearance) {
+                AppearanceMode.AUTO -> R.string.appearance_auto
+                AppearanceMode.LIGHT -> R.string.appearance_light
+                AppearanceMode.DARK -> R.string.appearance_dark
+            },
+        ]
+        MenuEntry.LIGHT -> t[
+            when (s.light) {
+                LightLevel.STRONG -> R.string.intensity_strong
+                LightLevel.NORMAL -> R.string.intensity_normal
+                LightLevel.SUBTLE -> R.string.intensity_low
+                LightLevel.OFF -> R.string.off
+            },
+        ]
+        MenuEntry.VISTA_PAUSE -> delay(s.vistaPauseSeconds, t)
+        MenuEntry.VISTA_PLAYING -> delay(s.vistaPlayingSeconds, t)
+        MenuEntry.MINI_PLAYER -> t[
+            when (s.miniPlayer) {
+                MiniPlayer.LEFT -> R.string.mini_player_left
+                MiniPlayer.RIGHT -> R.string.mini_player_right
+                MiniPlayer.OFF -> R.string.off
+            },
+        ]
+        MenuEntry.REMOTE -> onOff(s.remoteControl, t)
+        MenuEntry.UP_DOWN -> t[if (s.volumeKeys) R.string.up_down_volume else R.string.up_down_vista]
+        MenuEntry.SPOKEN -> t[if (s.spokenSkip) R.string.spoken_jump else R.string.spoken_change]
+        MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind, t)
+        MenuEntry.SLEEP_AFTER -> duration(s.sleepAfterMinutes, t)
+        MenuEntry.SLEEP_ACTION -> t[if (s.sleepAction == SleepAction.CLOSE) R.string.sleep_action_close else R.string.sleep_action_release]
+        MenuEntry.CONNECTION -> t[
+            when {
+                !s.isConfigured -> R.string.set_up
+                ctx.link == LinkState.CONNECTED -> R.string.connected
+                ctx.link == LinkState.AUTH_FAILED -> R.string.link_rejected
+                else -> R.string.connecting
+            },
+        ]
+        MenuEntry.MUSIC_ASSISTANT -> t[
+            when {
+                !s.hasMusicAssistant -> R.string.ma_not_set_up
+                ctx.ma == MaLink.CONNECTED -> R.string.connected
+                ctx.ma == MaLink.AUTH_FAILED -> R.string.ma_rejected
+                ctx.ma == MaLink.UNREACHABLE -> R.string.ma_unreachable
+                else -> R.string.connecting
+            },
+        ]
+        MenuEntry.LANGUAGE -> languageValue(ctx.language, t)
     }
 
-    fun description(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
-        MenuEntry.VIEW -> if (s.view == StageView.FLOW) {
-            "Das Cover in der Mitte, links die Cover davor, rechts die nächsten. Sie blättern weiter, wenn ein neues Album beginnt."
-        } else {
-            "Ein Cover, groß, neben dem Titel."
-        }
-        MenuEntry.APPEARANCE -> when (s.appearance) {
-            AppearanceMode.AUTO ->
-                "Tagsüber hell, von Sonnenuntergang bis Sonnenaufgang dunkel – nach dem Stand der Sonne in Home\u00A0Assistant."
-            AppearanceMode.LIGHT -> "Immer hell: heller Hintergrund, dunkle Schrift."
-            AppearanceMode.DARK -> "Immer dunkel: dunkler Hintergrund, helle Schrift."
-        }
-        MenuEntry.CLOCK -> "Die Uhrzeit oben in der ersten Zeile."
-        MenuEntry.TIME_LINE ->
-            "Der Balken mit gespielter Zeit und Länge. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz."
-        MenuEntry.NEXT -> "Der nächste Titel aus der Warteschlange, in der letzten Zeile."
-        MenuEntry.ALBUM -> "Name und Jahr des Albums unter den Künstlern."
-        MenuEntry.GROUP ->
-            "Spielen weitere Lautsprecher mit, steht neben der Uhrzeit etwa „Wohnzimmer\u00A0+\u00A05“ oder „Überall“."
-        MenuEntry.VOLUME -> when (s.volumeDisplay) {
-            VolumeDisplay.ON_CHANGE -> "Ändert sich die Lautstärke, steht sie ein paar Sekunden lang neben der Uhrzeit."
-            VolumeDisplay.ALWAYS -> "Die Lautstärke steht immer neben der Uhrzeit."
-            VolumeDisplay.OFF -> "Die Lautstärke wird nie angezeigt."
-        }
-        MenuEntry.BACKGROUND -> if (s.background == BackgroundMode.COVER) {
-            "Die Farben des Covers füllen den ganzen Bildschirm, weich verlaufend. Der Fortschrittsbalken nimmt ihren Ton an."
-        } else {
-            "Ein ruhiger Hintergrund: dunkel mit dem Licht des Covers, hell mit seinem Schatten."
-        }
-        MenuEntry.LIGHT -> if (s.background == BackgroundMode.COVER) {
-            // With the cover's colours the setting is how strong they are.
-            "Wie\u00A0kräftig die\u00A0Farben des\u00A0Covers den\u00A0Hintergrund färben. " + when (s.light) {
-                LightLevel.STRONG -> "Stark:\u00A0satte\u00A0Farben."
-                LightLevel.NORMAL -> "Normal\u00A0ist so, wie Klangbild gedacht\u00A0ist."
-                LightLevel.SUBTLE -> "Schwach:\u00A0gedeckte\u00A0Farben."
-                LightLevel.OFF -> if (ctx.appearance == Appearance.LIGHT) "Aus:\u00A0fast ohne\u00A0Farbe." else "Aus:\u00A0nur das\u00A0Cover auf\u00A0Schwarz."
-            }
-        } else if (ctx.appearance == Appearance.LIGHT) {
-            "Wie stark der helle Hintergrund die Farbe des Covers annimmt. " + when (s.light) {
-                LightLevel.STRONG -> "Stark: ein deutlicher Hauch."
-                LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-                LightLevel.SUBTLE -> "Schwach: nur eine Ahnung."
-                LightLevel.OFF -> "Aus: ohne Farbe."
-            }
-        } else {
-            "Wie hell das Cover den Hintergrund um sich herum anstrahlt. " + when (s.light) {
-                LightLevel.STRONG -> "Stark passt zu hellen Räumen."
-                LightLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-                LightLevel.SUBTLE -> "Schwach passt zu dunklen Abenden."
-                LightLevel.OFF -> "Aus: nur das Cover, ohne Licht."
-            }
-        }
+    fun description(e: MenuEntry, s: Settings, ctx: MenuContext, t: Texts): String = when (e) {
+        MenuEntry.VIEW -> t[if (s.view == StageView.FLOW) R.string.about_view_flow else R.string.about_view_single]
+        MenuEntry.APPEARANCE -> t[
+            when (s.appearance) {
+                AppearanceMode.AUTO -> R.string.about_appearance_auto
+                AppearanceMode.LIGHT -> R.string.about_appearance_light
+                AppearanceMode.DARK -> R.string.about_appearance_dark
+            },
+        ]
+        MenuEntry.CLOCK -> t[R.string.about_clock]
+        MenuEntry.TIME_LINE -> t[R.string.about_progress]
+        MenuEntry.NEXT -> t[R.string.about_next]
+        MenuEntry.ALBUM -> t[R.string.about_album]
+        MenuEntry.GROUP -> t[R.string.about_group]
+        MenuEntry.VOLUME -> t[
+            when (s.volumeDisplay) {
+                VolumeDisplay.ON_CHANGE -> R.string.about_volume_on_change
+                VolumeDisplay.ALWAYS -> R.string.about_volume_always
+                VolumeDisplay.OFF -> R.string.about_volume_off
+            },
+        ]
+        MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.about_background_cover else R.string.about_background_plain]
+        MenuEntry.LIGHT -> intensity(s, ctx, t)
         MenuEntry.MOTION -> {
             val what = when {
-                s.background == BackgroundMode.COVER && s.bars.isSet -> "Wie schnell die Farben im Hintergrund und in den Lichtleisten fließen. "
-                s.bars.isSet -> "Wie schnell die Farben der Lichtleisten fließen – auf dem Bildschirm nur mit Coverfarben. "
-                else -> "Wie schnell die Farben im Hintergrund fließen – mit Coverfarben. "
+                s.background == BackgroundMode.COVER && s.roomLights.isSet -> R.string.about_motion_both
+                s.roomLights.isSet -> R.string.about_motion_lights
+                else -> R.string.about_motion_screen
             }
-            what + when (s.motion) {
-                MotionLevel.OFF -> "Aus: Sie stehen still."
-                MotionLevel.GENTLE -> "Langsam: kaum zu bemerken."
-                MotionLevel.MEDIUM -> "Mittel: deutlich, aber ruhig."
-                MotionLevel.LIVELY -> "Schnell: sichtbar in Bewegung."
-            } + " Nur während Musik läuft."
-        }
-        MenuEntry.BARS -> if (!s.bars.isSet) {
-            "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
-                "OK zeigt den QR-Code; am Handy wählst du sie aus Home\u00A0Assistant aus."
-        } else {
-            if (s.barLevel == BarLevel.OFF) {
-                "Die Lichtleisten hinter dem Fernseher behalten ihr eigenes Licht. Rechts schaltet sie zu."
-            } else {
-                "Jede Lichtleiste hinter dem Fernseher leuchtet in einer Farbe des Bildes. So hell bei Tag; abends und nachts " +
-                    "werden sie von selbst dunkler. Nach der Musik sind sie wieder wie vorher."
+            val how = when (s.motion) {
+                MotionLevel.OFF -> R.string.about_motion_off
+                MotionLevel.GENTLE -> R.string.about_motion_slow
+                MotionLevel.MEDIUM -> R.string.about_motion_medium
+                MotionLevel.LIVELY -> R.string.about_motion_fast
             }
+            sentences(t[what], t[how], t[R.string.about_motion_playing])
         }
-        MenuEntry.VISTA_PAUSE -> if (s.vistaPauseSeconds == 0) {
-            "Ist die Musik angehalten, bleibt das Cover stehen; nach drei\u00A0Minuten erscheint die Uhr."
-        } else {
-            "Ist die Musik so lange angehalten, erscheint eine Landschaft aus Papier, deren Licht der\u00A0echten Tageszeit folgt. " +
-                "Jede Taste holt das Cover zurück."
-        }
-        MenuEntry.VISTA_PLAYING -> if (s.vistaPlayingSeconds == 0) {
-            if (s.volumeKeys) "Während Musik läuft, bleibt das Cover."
-            else "Während Musik läuft, bleibt das Cover. Den\u00A0Fensterblick gibt es jederzeit: Pfeil hoch."
-        } else {
-            "Läuft die Musik so lange ohne Tastendruck, wird sie zum\u00A0Fensterblick\u00A0– mit dem\u00A0Mini-Player in der\u00A0Ecke."
-        }
-        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
-            MiniPlayer.LEFT -> "Cover, Titel und Fortschritt unten links in\u00A0der Landschaft."
-            MiniPlayer.RIGHT -> "Cover, Titel und Fortschritt unten rechts in\u00A0der Landschaft."
-            MiniPlayer.OFF -> "Der Fensterblick zeigt nur die\u00A0Landschaft."
-        }
-        MenuEntry.REMOTE ->
-            if (s.remoteControl) "OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel."
-            else "Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü."
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) {
-            "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers; die\u00A0Schnelleinstellungen gibt es dann nicht."
-        } else {
-            "Pfeil hoch zeigt den Fensterblick; noch einmal hoch oder Zurück holt das Cover zurück. " +
-                "Pfeil runter öffnet unten die\u00A0Schnelleinstellungen, noch einmal runter schließt\u00A0sie."
-        }
-        MenuEntry.SPOKEN -> if (s.spokenSkip) {
-            "Bei Hörbüchern und Podcasts spult links 15\u00A0Sekunden zurück, rechts 30\u00A0Sekunden vor. " +
-                "Gedrückt gehalten geht es zum vorigen oder nächsten Kapitel."
-        } else {
-            "Links und rechts wechseln auch bei Hörbüchern und Podcasts den Titel."
-        }
+        MenuEntry.LIGHTS -> t[
+            when {
+                !s.roomLights.isSet -> R.string.about_lights_set_up
+                s.roomLightLevel == RoomLightLevel.OFF -> R.string.about_lights_off
+                else -> R.string.about_lights_on
+            },
+        ]
+        MenuEntry.VISTA_PAUSE -> t[if (s.vistaPauseSeconds == 0) R.string.about_vista_pause_off else R.string.about_vista_pause]
+        MenuEntry.VISTA_PLAYING -> t[
+            when {
+                s.vistaPlayingSeconds != 0 -> R.string.about_vista_playing
+                s.volumeKeys -> R.string.about_vista_playing_off_volume
+                else -> R.string.about_vista_playing_off
+            },
+        ]
+        MenuEntry.MINI_PLAYER -> t[
+            when (s.miniPlayer) {
+                MiniPlayer.LEFT -> R.string.about_mini_player_left
+                MiniPlayer.RIGHT -> R.string.about_mini_player_right
+                MiniPlayer.OFF -> R.string.about_mini_player_off
+            },
+        ]
+        MenuEntry.REMOTE -> t[if (s.remoteControl) R.string.about_remote_on else R.string.about_remote_off]
+        MenuEntry.UP_DOWN -> t[if (s.volumeKeys) R.string.about_up_down_volume else R.string.about_up_down_vista]
+        MenuEntry.SPOKEN -> t[if (s.spokenSkip) R.string.about_spoken_jump else R.string.about_spoken_change]
         MenuEntry.SLEEP_TIMER -> when {
-            ctx.sleep == SleepChoice.OFF ->
-                "Hält die Musik nach einer Weile an, auf Wunsch am Ende eines Kapitels. Dafür muss Klangbild laufen."
-            ctx.sleepAt != null -> "Die Musik hält um ${TimeLine.clock(ctx.sleepAt)} an."
-            else -> "Die Musik hält an, sobald ${endPhrase(ctx.sleep, ctx.kind)} erreicht ist."
+            ctx.sleep == SleepChoice.OFF -> t[R.string.about_sleep_timer_off]
+            ctx.sleepAt != null -> t.format(R.string.about_sleep_timer_at, t.clock(ctx.sleepAt))
+            else -> t.format(R.string.about_sleep_timer_end, t[endPhrase(ctx.sleep, ctx.kind)])
         }
-        MenuEntry.SLEEP_AFTER -> "Läuft keine Musik mehr, schaltet Klangbild nach dieser Zeit aus."
-        MenuEntry.SLEEP_ACTION -> if (s.sleepAction == SleepAction.CLOSE) {
-            "Klangbild schließt sich, zurück zum Startbildschirm."
-        } else {
-            "Der Fernseher übernimmt: sein Bildschirmschoner oder Standby."
+        MenuEntry.SLEEP_AFTER -> t[R.string.about_sleep_after]
+        MenuEntry.SLEEP_ACTION -> t[if (s.sleepAction == SleepAction.CLOSE) R.string.about_sleep_action_close else R.string.about_sleep_action_release]
+        MenuEntry.CONNECTION -> t[if (!s.isConfigured) R.string.about_connection_set_up else R.string.about_connection]
+        MenuEntry.MUSIC_ASSISTANT -> t[if (!s.hasMusicAssistant) R.string.about_ma_set_up else R.string.about_ma]
+        MenuEntry.LANGUAGE -> t[R.string.about_language]
+    }
+
+    /** What "Intensity" does: with the cover's colors how strong they are, else how the cover lights the wall. */
+    private fun intensity(s: Settings, ctx: MenuContext, t: Texts): String {
+        val (what, how) = when {
+            s.background == BackgroundMode.COVER -> R.string.about_intensity_cover to when (s.light) {
+                LightLevel.STRONG -> R.string.about_intensity_cover_strong
+                LightLevel.NORMAL -> R.string.about_intensity_cover_normal
+                LightLevel.SUBTLE -> R.string.about_intensity_cover_low
+                LightLevel.OFF -> if (ctx.appearance == Appearance.LIGHT) R.string.about_intensity_cover_off_light else R.string.about_intensity_cover_off_dark
+            }
+            ctx.appearance == Appearance.LIGHT -> R.string.about_intensity_light to when (s.light) {
+                LightLevel.STRONG -> R.string.about_intensity_light_strong
+                LightLevel.NORMAL -> R.string.about_intensity_light_normal
+                LightLevel.SUBTLE -> R.string.about_intensity_light_low
+                LightLevel.OFF -> R.string.about_intensity_light_off
+            }
+            else -> R.string.about_intensity_dark to when (s.light) {
+                LightLevel.STRONG -> R.string.about_intensity_dark_strong
+                LightLevel.NORMAL -> R.string.about_intensity_dark_normal
+                LightLevel.SUBTLE -> R.string.about_intensity_dark_low
+                LightLevel.OFF -> R.string.about_intensity_dark_off
+            }
         }
-        MenuEntry.CONNECTION -> if (!s.isConfigured) {
-            "OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy verbindest du Home\u00A0Assistant und\u00A0wählst den\u00A0Lautsprecher."
-        } else {
-            "OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy änderst du Adresse, Zugangstoken und\u00A0Lautsprecher."
-        }
-        MenuEntry.MUSIC_ASSISTANT -> if (!s.hasMusicAssistant) {
-            "Freiwillig. Mit\u00A0Music\u00A0Assistant zeigt Cover\u00A0Flow die\u00A0ganze Warteschlange, und\u00A0bei Hörbüchern stehen die\u00A0Kapitel da. " +
-                "OK\u00A0zeigt den\u00A0QR-Code zum\u00A0Einrichten."
-        } else {
-            "Cover\u00A0Flow zeigt die\u00A0ganze Warteschlange. OK\u00A0zeigt den\u00A0QR-Code. Am\u00A0Handy änderst du Adresse und\u00A0Token."
-        }
+        return sentences(t[what], t[how])
     }
 
     /**
-     * The settings after one step of [e]: [direction] −1 (left) or +1 (right, OK). Left and
-     * right stop at the ends of a scale, OK ([wrap]) goes round. Switches simply flip. Null
-     * for the action lines (and the light bars while none are set up: OK sets them up).
+     * The settings after one step of [e]: [direction] -1 (left) or +1 (right, OK). Left and
+     * right stop at the ends of a scale, OK ([wrap]) goes round. Switches simply flip. Null for
+     * the lines that are no setting (the connections, the sleep timer, the language) and for the
+     * lights while none are set up (OK sets them up).
      */
     fun step(e: MenuEntry, s: Settings, direction: Int, wrap: Boolean = false): Settings? = when (e) {
         MenuEntry.VIEW -> s.copy(view = if (s.view == StageView.FLOW) StageView.SINGLE else StageView.FLOW)
@@ -289,7 +292,7 @@ object SettingsMenu {
         MenuEntry.VOLUME -> s.copy(volumeDisplay = move(VOLUME_ORDER, s.volumeDisplay, direction, wrap))
         MenuEntry.BACKGROUND -> s.copy(background = if (s.background == BackgroundMode.COVER) BackgroundMode.WALL else BackgroundMode.COVER)
         MenuEntry.MOTION -> s.copy(motion = move(MOTION_ORDER, s.motion, direction, wrap))
-        MenuEntry.BARS -> if (s.bars.isSet) s.copy(barLevel = move(BAR_ORDER, s.barLevel, direction, wrap)) else null
+        MenuEntry.LIGHTS -> if (s.roomLights.isSet) s.copy(roomLightLevel = move(LIGHTS_ORDER, s.roomLightLevel, direction, wrap)) else null
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
         MenuEntry.VISTA_PAUSE -> s.copy(vistaPauseSeconds = move(PAUSE_DELAYS, nearest(PAUSE_DELAYS, s.vistaPauseSeconds), direction, wrap))
@@ -302,53 +305,86 @@ object SettingsMenu {
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER -> null
+        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.LANGUAGE -> null
     }
 
-    /** The delays offered for the Fensterblick (s): when paused, and while music plays; 0 is "Aus". */
+    /** The language after one step from [language] ([direction] -1 or +1; [wrap] goes round). */
+    fun stepLanguage(language: AppLanguage, direction: Int, wrap: Boolean): AppLanguage = move(LANGUAGE_ORDER, language, direction, wrap)
+
+    /** The delays offered for the window view (s): when paused, and while music plays; 0 is off. */
     val PAUSE_DELAYS = listOf(0, 5, 15, 30, 60, 180, 300, 600)
     val PLAYING_DELAYS = listOf(0, 60, 120, 300, 600, 900, 1800)
 
-    /** "Aus", "15 Sekunden", "Drei Minuten" … */
-    fun delay(seconds: Int): String = when {
-        seconds <= 0 -> "Aus"
-        seconds <= 12 -> numberWords[seconds].replaceFirstChar { it.uppercase() } + " Sekunden"
-        seconds < 60 -> "$seconds Sekunden"
-        else -> minutes(seconds / 60)
+    /** "Off", "Five seconds", "15 seconds", "Three minutes" ... */
+    fun delay(seconds: Int, t: Texts): String = when {
+        seconds <= 0 -> t[R.string.off]
+        seconds < 60 -> t.plural(R.plurals.seconds, seconds, t.countWord(seconds))
+        else -> duration(seconds / 60, t)
     }
 
-    /** The offered value nearest to [v] (which may have been set by ADB). */
+    /** "Ten minutes", "One hour", "90 minutes", "Two hours": numbers up to twelve in words. */
+    fun duration(minutes: Int, t: Texts): String {
+        val hours = minutes / 60
+        return if (minutes % 60 == 0 && hours in 1..MAX_WORD_COUNT) {
+            t.plural(R.plurals.hours, hours, t.countWord(hours))
+        } else {
+            t.plural(R.plurals.minutes, minutes, t.countWord(minutes))
+        }
+    }
+
+    /** The largest number written in words. */
+    private const val MAX_WORD_COUNT = 12
+
+    /** The offered value nearest to [v] (which may have been set from outside). */
     private fun nearest(choices: List<Int>, v: Int): Int = choices.minByOrNull { kotlin.math.abs(it - v) } ?: choices.first()
 
-    /** "Aus", "30 Minuten", "Eine Stunde", "Ende des Kapitels", "Ende der Folge" … */
-    fun sleepValue(choice: SleepChoice, kind: MediaKind?): String = when (choice) {
-        SleepChoice.OFF -> "Aus"
-        SleepChoice.CHAPTER_END -> "Ende des Kapitels"
-        SleepChoice.ITEM_END -> when (kind) {
-            MediaKind.PODCAST -> "Ende der Folge"
-            MediaKind.AUDIOBOOK -> "Ende des Hörbuchs"
-            else -> "Ende des Titels"
-        }
-        else -> minutes(choice.minutes)
+    /** "Off", "30 minutes", "1 hour", "End of chapter", "End of episode" ... */
+    fun sleepValue(choice: SleepChoice, kind: MediaKind?, t: Texts): String = when (choice) {
+        SleepChoice.OFF -> t[R.string.off]
+        SleepChoice.CHAPTER_END -> t[R.string.sleep_chapter_end]
+        SleepChoice.ITEM_END -> t[
+            when (kind) {
+                MediaKind.PODCAST -> R.string.sleep_episode_end
+                MediaKind.AUDIOBOOK -> R.string.sleep_book_end
+                else -> R.string.sleep_track_end
+            },
+        ]
+        else -> duration(choice.minutes, t)
     }
 
-    /** "das Ende des Kapitels" – for the sentence that says when the music pauses. */
-    private fun endPhrase(choice: SleepChoice, kind: MediaKind?): String = "das\u00A0" + sleepValue(choice, kind).replace(" ", "\u00A0")
+    /** "end of the chapter", for the sentence that says when the music pauses. */
+    @StringRes
+    private fun endPhrase(choice: SleepChoice, kind: MediaKind?): Int = when {
+        choice == SleepChoice.CHAPTER_END -> R.string.sleep_end_chapter
+        kind == MediaKind.PODCAST -> R.string.sleep_end_episode
+        kind == MediaKind.AUDIOBOOK -> R.string.sleep_end_book
+        else -> R.string.sleep_end_track
+    }
+
+    /** A language as the menu names it: English and German in their own words, the system's in the language shown. */
+    fun languageValue(language: AppLanguage, t: Texts): String = t[
+        when (language) {
+            AppLanguage.SYSTEM -> R.string.language_system
+            AppLanguage.ENGLISH -> R.string.language_english
+            AppLanguage.GERMAN -> R.string.language_german
+        },
+    ]
 
     /** From quiet to present: left means less, right means more. */
     private val VOLUME_ORDER = listOf(VolumeDisplay.OFF, VolumeDisplay.ON_CHANGE, VolumeDisplay.ALWAYS)
     private val LIGHT_ORDER = listOf(LightLevel.OFF, LightLevel.SUBTLE, LightLevel.NORMAL, LightLevel.STRONG)
     private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
     private val MOTION_ORDER = listOf(MotionLevel.OFF, MotionLevel.GENTLE, MotionLevel.MEDIUM, MotionLevel.LIVELY)
-    private val BAR_ORDER = BarLevel.entries
+    private val LIGHTS_ORDER = RoomLightLevel.entries
     private val MINI_ORDER = listOf(MiniPlayer.OFF, MiniPlayer.LEFT, MiniPlayer.RIGHT)
+    private val LANGUAGE_ORDER = listOf(AppLanguage.SYSTEM, AppLanguage.ENGLISH, AppLanguage.GERMAN)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {
         val i = order.indexOf(current).coerceAtLeast(0) + direction
         return if (wrap) order[Math.floorMod(i, order.size)] else order[i.coerceIn(0, order.size - 1)]
     }
 
-    /** The next offered value from [minutes] (which may be any value set by ADB). */
+    /** The next offered value from [minutes] (which may be any value set from outside). */
     fun nextSleep(minutes: Int, direction: Int, wrap: Boolean = false): Int {
         val choices = sleepChoices
         return if (direction > 0) {
@@ -358,18 +394,11 @@ object SettingsMenu {
         }
     }
 
-    private fun onOff(on: Boolean) = if (on) "An" else "Aus"
+    private fun onOff(on: Boolean, t: Texts) = t[if (on) R.string.on else R.string.off]
 
-    private val numberWords = listOf(
-        "", "eine", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf",
-    )
+    /** Sentences one after the other. */
+    private fun sentences(vararg s: String) = s.joinToString(" ")
 
-    /** "Zehn Minuten", "Eine Stunde", "90 Minuten" – numbers up to twelve in words. */
-    fun minutes(m: Int): String = when {
-        m == 60 -> "Eine Stunde"
-        m % 60 == 0 && m / 60 <= 12 -> numberWords[m / 60].replaceFirstChar { it.uppercase() } + " Stunden"
-        m == 1 -> "Eine Minute"
-        m <= 12 -> numberWords[m].replaceFirstChar { it.uppercase() } + " Minuten"
-        else -> "$m Minuten"
-    }
+    const val HOME_ASSISTANT = "Home Assistant"
+    const val MUSIC_ASSISTANT = "Music Assistant"
 }

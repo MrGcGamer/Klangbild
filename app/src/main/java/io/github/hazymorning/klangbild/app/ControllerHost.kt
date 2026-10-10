@@ -3,6 +3,8 @@ package io.github.hazymorning.klangbild.app
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
+import io.github.hazymorning.klangbild.text.AppLanguage
+import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -23,6 +25,12 @@ internal interface ControllerHost {
 
     /** The connection to Home Assistant, while there is one. */
     val source: NowPlayingSource?
+
+    /** The words in the language shown. */
+    val texts: Texts
+
+    /** The language chosen. */
+    var language: AppLanguage
 
     /** Works out the screen again (takes [lock]). */
     fun recompute()

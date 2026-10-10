@@ -34,7 +34,7 @@ class LightWallTest {
         captureRoboImage("build/screenshots/light/$name.png") { Fixtures.Still(content) }
 
     private fun stage(name: String, cover: SyntheticCover) = shot(name) {
-        Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.pärt, group = "Wohnzimmer + 5", appearance = light))
+        Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.spiegel, group = "Wohnzimmer + 5", appearance = light))
     }
 
     @Test fun neon() = stage("stage_neon", SyntheticCover.NACHTFAHRT)
@@ -55,7 +55,7 @@ class LightWallTest {
 
     @Test fun menu() = shot("menu") {
         val s = Settings(haUrl = "http://ha.local:8123", haToken = "x", entityId = "media_player.wohnzimmer")
-        val rows = SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED, light))
+        val rows = SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED, light), Fixtures.texts)
         MenuScreen(MenuState(rows, SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE)), Lighting.DAY, light)
     }
 

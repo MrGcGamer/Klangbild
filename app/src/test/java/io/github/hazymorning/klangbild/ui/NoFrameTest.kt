@@ -56,7 +56,7 @@ class NoFrameTest {
     @Test
     fun `round the single print the paper is plain`() {
         for (cover in listOf(SyntheticCover.NACHTFAHRT, SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS)) {
-            val bmp = render { Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.pärt, group = "Wohnzimmer", appearance = Appearance.LIGHT)) }
+            val bmp = render { Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.spiegel, group = "Wohnzimmer", appearance = Appearance.LIGHT)) }
             // The artwork: 368 dp at 88 dp from the left, centred – 2 px a dp. A ring from 3 to 40 dp round it.
             val l = 176; val t = 172; val r = 912; val b = 908
             val boxes = listOf(

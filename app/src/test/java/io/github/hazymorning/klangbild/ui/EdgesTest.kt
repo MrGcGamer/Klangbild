@@ -51,10 +51,10 @@ class EdgesTest {
     private val light = Fixtures.stage(track, mdpi, appearance = Appearance.LIGHT)
     private val dark = Fixtures.stage(track, mdpi, appearance = Appearance.DARK)
 
-    private fun menu(s: Settings) = MenuState(SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED)), SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE))
+    private fun menu(s: Settings) = MenuState(SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED), Fixtures.texts), SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE))
 
     private fun quick(): QuickState {
-        val rows = QuickMenu.rows(Settings(), QuickContext(vista = false, pending = null, music = true, favorite = null, shuffle = false))
+        val rows = QuickMenu.rows(Settings(), QuickContext(vista = false, pending = null, music = true, favorite = null, shuffle = false), Fixtures.texts)
         return QuickState(rows, 0)
     }
 

@@ -36,9 +36,11 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
@@ -110,7 +112,8 @@ private class LabelBox(side: LabelSide) {
 private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray, coverLight: () -> Float) {
     val box = remember(side) { LabelBox(side) }
     val density = LocalDensity.current.density
-    val text = remember(m.track) { TrackText.from(m.track) }
+    val others = texts()[R.string.artists_others]
+    val text = remember(m.track, others) { TrackText.from(m.track, others) }
     val titleStyle = remember { titleType(TITLE_SP, 400) }
     val artistStyle = remember { textType(ARTIST_SP, 460) }
     val measurer = rememberTextMeasurer(cacheSize = 8)

@@ -42,7 +42,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        controller.applyLaunch(LaunchExtras.fromIntent(intent))
+        // A recreated activity (a configuration change, the process restored) has applied its
+        // launch's extras already: they would undo what was changed since.
+        if (savedInstanceState == null) controller.applyLaunch(LaunchExtras.fromIntent(intent))
         // Predictive back (targetSdk 36) no longer delivers onBackPressed/KEYCODE_BACK.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = onBack()

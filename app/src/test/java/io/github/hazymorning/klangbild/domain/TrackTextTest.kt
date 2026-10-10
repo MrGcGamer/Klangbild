@@ -4,8 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class TrackTextTest {
+    /** What the German texts put for the artists left out. */
+    private val others = "u.\u00A0a."
+
     private fun t(title: String, artists: List<String> = listOf("A"), album: String? = null) =
-        TrackText.from(TrackInfo(title, artists, album))
+        TrackText.from(TrackInfo(title, artists, album), others)
 
     @Test
     fun `splits classical work and movement`() {
@@ -51,15 +54,15 @@ class TrackTextTest {
 
     @Test
     fun `formats artists and shortens long lists`() {
-        assertThat(TrackText.formatArtists(emptyList())).isNull()
-        assertThat(TrackText.formatArtists(listOf("Nina Simone"))).isEqualTo("Nina Simone")
-        assertThat(TrackText.formatArtists(listOf("A", "B"))).isEqualTo("A & B")
-        assertThat(TrackText.formatArtists(listOf("A", "B", "C"))).isEqualTo("A, B & C")
+        assertThat(TrackText.formatArtists(emptyList(), others)).isNull()
+        assertThat(TrackText.formatArtists(listOf("Nina Simone"), others)).isEqualTo("Nina Simone")
+        assertThat(TrackText.formatArtists(listOf("A", "B"), others)).isEqualTo("A & B")
+        assertThat(TrackText.formatArtists(listOf("A", "B", "C"), others)).isEqualTo("A, B & C")
         val orchestra = listOf(
             "Berliner Philharmoniker", "Herbert von Karajan", "Wiener Singverein",
             "Gundula Janowitz", "Hilde Rössel-Majdan", "Waldemar Kmentt", "Walter Berry",
         )
-        val s = TrackText.formatArtists(orchestra)!!
+        val s = TrackText.formatArtists(orchestra, others)!!
         assertThat(s).endsWith(" u.\u00A0a.")
         assertThat(s.length).isAtMost(TrackText.MAX_ARTISTS_CHARS)
         assertThat(s).startsWith("Berliner Philharmoniker, Herbert von Karajan")
@@ -80,14 +83,14 @@ class TrackTextTest {
 
     @Test
     fun `offers artist lines from complete to short`() {
-        val x = TrackText.from(TrackInfo("T", listOf("Kammerphilharmonie an der Spree", "Johanna Reiter", "Paul Weber")))
+        val x = TrackText.from(TrackInfo("T", listOf("Kammerphilharmonie an der Spree", "Johanna Reiter", "Paul Weber")), others)
         assertThat(x.artistOptions()).containsExactly(
             "Kammerphilharmonie an der Spree, Johanna Reiter & Paul Weber",
             "Kammerphilharmonie an der Spree, Johanna Reiter u.\u00A0a.",
             "Kammerphilharmonie an der Spree u.\u00A0a.",
         ).inOrder()
         assertThat(x.shortArtists).isEqualTo("Kammerphilharmonie an der Spree u.\u00A0a.")
-        assertThat(TrackText.from(TrackInfo("T", listOf("A", "B"))).shortArtists).isEqualTo("A & B")
+        assertThat(TrackText.from(TrackInfo("T", listOf("A", "B")), others).shortArtists).isEqualTo("A & B")
     }
 
     @Test

@@ -1,6 +1,6 @@
 package io.github.hazymorning.klangbild.app
 
-import io.github.hazymorning.klangbild.config.BarLevel
+import io.github.hazymorning.klangbild.config.RoomLightLevel
 import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.Picture
 import io.github.hazymorning.klangbild.config.QuickContext
@@ -32,7 +32,7 @@ internal class QuickControl(private val host: ControllerHost) {
     private var pictureJob: Job? = null
 
     /** The lights' level before they were switched off from the quick settings. */
-    private var lightsBefore = BarLevel.DEFAULT
+    private var lightsBefore = RoomLightLevel.DEFAULT
 
     /** The current song's way into the favorites (by the song's key). */
     @Volatile private var favorite: Pair<String, FavoriteState>? = null
@@ -99,12 +99,12 @@ internal class QuickControl(private val host: ControllerHost) {
                 host.recompute()
             }
             QuickItem.FAVORITE -> addFavorite()
-            QuickItem.BARS -> {
+            QuickItem.LIGHTS -> {
                 // On and off: off remembers the level, on brings it back.
                 val s = host.settings
-                val level = if (s.barLevel == BarLevel.OFF) lightsBefore else BarLevel.OFF
-                if (s.barLevel != BarLevel.OFF) lightsBefore = s.barLevel
-                host.applySettings(s.copy(barLevel = level))
+                val level = if (s.roomLightLevel == RoomLightLevel.OFF) lightsBefore else RoomLightLevel.OFF
+                if (s.roomLightLevel != RoomLightLevel.OFF) lightsBefore = s.roomLightLevel
+                host.applySettings(s.copy(roomLightLevel = level))
             }
             QuickItem.SHUFFLE -> toggleShuffle()
         }
@@ -215,7 +215,7 @@ internal class QuickControl(private val host: ControllerHost) {
         )
     }
 
-    private fun rows(ctx: QuickContext = context()): List<QuickRow> = QuickMenu.rows(host.settings, ctx)
+    private fun rows(ctx: QuickContext = context()): List<QuickRow> = QuickMenu.rows(host.settings, ctx, host.texts)
 
     /** Where [item] stands among [items]; once it is gone (the favorite when the music stops), the entry that took its place. */
     private fun indexOf(items: List<QuickItem>, item: QuickItem): Int =

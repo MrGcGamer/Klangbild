@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.app
 
 import android.util.Log
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
@@ -21,6 +22,7 @@ import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
+import io.github.hazymorning.klangbild.data.ha.HaAuth
 import io.github.hazymorning.klangbild.data.ha.HaConfig
 import io.github.hazymorning.klangbild.data.ha.HaSource
 import io.github.hazymorning.klangbild.data.ma.MaClient
@@ -46,6 +48,9 @@ import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupHandler
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
+import io.github.hazymorning.klangbild.text.AppLanguage
+import io.github.hazymorning.klangbild.text.Localizer
+import io.github.hazymorning.klangbild.text.Texts
 import io.github.hazymorning.klangbild.vista.VistaClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +125,8 @@ data class UiState(
     val vista: VistaUi? = null,
     /** The window view is on and may come: its picture is baked ahead, for its label on this side. */
     val vistaAhead: MiniPlayer? = null,
+    /** The words in the language shown; null leaves them to the screen's own context. */
+    val texts: Texts? = null,
 )
 
 /** The window view while it shows: what plays (for the mini player) and where the label sits. */
@@ -138,8 +145,13 @@ data class VistaUi(
  */
 class NowPlayingController(
     private val scope: CoroutineScope,
+    /** For pictures from anywhere: requests carry no credentials but to Home Assistant's own host. */
     private val http: OkHttpClient,
+    /** For requests that carry a token: they never follow a redirect, so a token never reaches another host. */
+    private val tokenHttp: OkHttpClient,
     private val settingsStore: SettingsStore,
+    /** The words in the language chosen, and where the choice is kept. */
+    private val localizer: Localizer,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val _ui = MutableStateFlow(UiState())
@@ -178,6 +190,13 @@ class NowPlayingController(
         override val settings: Settings get() = this@NowPlayingController.settings.value
         override val ui: UiState get() = _ui.value
         override val source: NowPlayingSource? get() = this@NowPlayingController.source
+        override val texts: Texts get() = localizer.texts.value
+        override var language: AppLanguage
+            get() = localizer.language
+            set(value) {
+                // Applies at once everywhere: the menus are built anew from the new texts.
+                localizer.setLanguage(value)
+            }
         override fun recompute() = this@NowPlayingController.recompute()
         override fun applySettings(updated: Settings) = this@NowPlayingController.applySettings(updated)
         override fun send(command: RemoteCommand) = this@NowPlayingController.send(command)
@@ -193,15 +212,21 @@ class NowPlayingController(
     /** The color field's time now (seconds): it runs while music plays, at the motion setting's speed. */
     fun fieldTime(): Double = fieldClock.now()
 
-    private val artwork = ArtworkLoader(http, { settings.value.haUrl }, { settings.value.haToken })
+    /** How the current connection signs in to Home Assistant, while there is one. */
+    @Volatile private var auth: HaAuth? = null
+
+    private val artwork = ArtworkLoader(http, tokenHttp, { auth })
     private val scenes = Scenes(scope, artwork)
     private val strip = CoverStrip()
 
     private var viewers = 0
 
-    private val setupHandler = SetupHandler(
+    private val setupHandler: SetupHandler = SetupHandler(
         settings = { settings.value },
-        discover = { url, token -> withContext(Dispatchers.IO) { SetupServer.discover(http, url, token) } },
+        texts = { localizer.texts.value },
+        discover = { url, credentials ->
+            withContext(Dispatchers.IO) { SetupServer.discover(tokenHttp, url, credentials, localizer.texts.value) }
+        },
         save = { updated ->
             settingsStore.update({ updated }, settings.value)
             // Leaving setup: the new settings start a fresh connection.
@@ -209,13 +234,17 @@ class NowPlayingController(
             machine.requestSetup(false)
             take(updated, "setup page")
         },
-        checkMa = { url, token -> MaClient(http, url, token).check() },
+        // Home Assistant knows the TV by its setup page's address; its login page sends the phone back there.
+        clientId = { setupServer.origin?.let { "$it/" } },
+        exchange = { url, code, clientId -> HaAuth.exchangeCode(tokenHttp, url, code, clientId) },
+        revoke = { url, refreshToken -> HaAuth.revoke(tokenHttp, url, refreshToken) },
+        checkMa = { url, token -> MaClient(tokenHttp, url, token).check() },
         maGuess = {
             val track = _ui.value.source.player?.track
             MaClient.addressIn(track?.artworkUrl) ?: MaClient.addressIn(track?.artworkFallbackUrl)
         },
     )
-    private val setupServer = SetupServer(scope, setupHandler)
+    private val setupServer: SetupServer = SetupServer(scope, setupHandler)
     private var setupJob: Job? = null
 
     /** A screen (activity or dream) starts showing the controller. */
@@ -258,10 +287,14 @@ class NowPlayingController(
         setupJob = scope.launch {
             setupServer.info.collect { info -> synchronized(this@NowPlayingController) { _ui.value = _ui.value.copy(setup = info) } }
         }
+        textsJob = scope.launch { localizer.texts.collect { recompute() } }
     }
+
+    private var textsJob: Job? = null
 
     private fun stop() {
         settingsJob?.cancel()
+        textsJob?.cancel()
         ticker?.cancel()
         setupJob?.cancel()
         setupServer.stop()
@@ -509,7 +542,7 @@ class NowPlayingController(
     @Synchronized
     private fun reconcileSource() {
         val s = settings.value
-        val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haToken, s.entityId, s.sunEntity, s.maUrl, s.maToken, s.weatherEntities).joinToString("|") else "unconfigured"
+        val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haCredentials, s.entityId, s.sunEntity, s.maUrl, s.maToken, s.weatherEntities).joinToString("|") else "unconfigured"
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         Log.i(TAG, if (s.isConfigured) "Connecting to Home Assistant (${s.entityId})" else "No connection set: setup")
@@ -521,9 +554,11 @@ class NowPlayingController(
         stopSource(source)
         // Another speaker (or another server) has its own history.
         strip.clear()
-        val ma = if (s.hasMusicAssistant) MaClient(http, s.maUrl!!, s.maToken!!) else null
+        val ma = if (s.hasMusicAssistant) MaClient(tokenHttp, s.maUrl!!, s.maToken!!) else null
+        val newAuth = if (s.isConfigured) HaAuth(tokenHttp, s.haUrl!!, s.haCredentials!!, now) else null
+        auth = newAuth
         val newSource: NowPlayingSource? =
-            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now, ma, s.weatherEntities) else null
+            newAuth?.let { HaSource(tokenHttp, scope, HaConfig(it), s.entityId!!, s.sunEntity, now, ma, s.weatherEntities) }
         source = newSource
         if (newSource == null) {
             _ui.value = _ui.value.copy(source = SourceState(LinkState.UNCONFIGURED))
@@ -614,7 +649,8 @@ class NowPlayingController(
         val speed = src.player?.speed ?: 1f
         // Spoken word: the chapter that plays, and the moment the next one begins.
         val position = stage?.let { seeking.position(t) }
-        val chapter = stage?.let { ChapterPlace.at(it.track, position) }
+        val texts = localizer.texts.value
+        val chapter = stage?.let { ChapterPlace.at(it.track, position) { n -> texts.format(R.string.chapter_number, n) } }
         // (A chapter that ends before its item's end and is already over waits for nothing.)
         chapterEndsAt = if (chapter != null && position != null && playing && chapter.endMs > position) {
             t + ((chapter.endMs - position) / speed.coerceAtLeast(0.25f)).toLong()
@@ -647,6 +683,7 @@ class NowPlayingController(
             sleepAt = sleep.shownPauseAt(previous.sleepAt),
             vista = vista,
             vistaAhead = s.miniPlayer.takeIf { s.vistaPauseSeconds > 0 || s.vistaPlayingSeconds > 0 },
+            texts = texts,
         )
         // The colors move only while music plays, on the screen and in the lights alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)

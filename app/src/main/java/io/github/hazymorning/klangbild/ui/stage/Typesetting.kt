@@ -16,8 +16,10 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.em
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.ScenePalette
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.theme.Fonts
 import io.github.hazymorning.klangbild.ui.theme.textType
 import io.github.hazymorning.klangbild.ui.theme.titleType
@@ -73,7 +75,7 @@ class StageStyles(palette: ScenePalette) {
     val time = titleType(15f, 440, quiet, lineHeight = 20f, tracking = 0.015f)
     val next = textType(15f, 440, quiet, lineHeight = 20f, tracking = 0.015f).merge(TextStyle(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left))
 
-    /** "Als Nächstes" differs from what follows by weight alone. */
+    /** "Up next" differs from what follows by weight alone. */
     val nextLead = SpanStyle(fontWeight = FontWeight(560))
 
     private fun TextStyle.text() = merge(TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Left))
@@ -140,11 +142,12 @@ class TextPlan(
 fun rememberTextPlan(model: StageModel): TextPlan {
     val measurer = rememberTextMeasurer(cacheSize = 24)
     val localDensity = LocalDensity.current
+    val nextLead = texts()[R.string.stage_next]
     return remember(
         model.text, model.year, model.next, model.scene.layout, model.scene.palette, model.progress, model.line, model.durationMs == null,
-        model.chapter != null, localDensity,
+        model.chapter != null, localDensity, nextLead,
     ) {
-        planText(model, measurer, localDensity)
+        planText(model, measurer, localDensity, nextLead)
     }
 }
 
@@ -152,6 +155,7 @@ private fun planText(
     model: StageModel,
     measurer: androidx.compose.ui.text.TextMeasurer,
     density: androidx.compose.ui.unit.Density,
+    nextLead: String,
 ): TextPlan {
     val t = model.text
     val layout = model.scene.layout
@@ -209,7 +213,7 @@ private fun planText(
     val album = if (albumYear != null && t.album != null && model.year != null && !fits(albumYear, block.album)) t.album else albumYear
     // What comes next: title and artist, or the title alone rather than a cut-off artist.
     val next = model.next?.let { full ->
-        if (model.nextTitle == null || measurer.measure(nextText(full, normal), normal.next, maxLines = 1, softWrap = false).size.width <= colW) {
+        if (model.nextTitle == null || measurer.measure(nextText(full, normal, nextLead), normal.next, maxLines = 1, softWrap = false).size.width <= colW) {
             full
         } else {
             model.nextTitle
@@ -366,9 +370,9 @@ fun isRightToLeft(text: String): Boolean = text.any {
     d == Character.DIRECTIONALITY_RIGHT_TO_LEFT || d == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
 }
 
-/** "Als Nächstes" in a heavier weight, 12 dp, then what comes next (isolated if right-to-left). */
-internal fun nextText(text: String, styles: StageStyles): AnnotatedString = buildAnnotatedString {
-    withStyle(styles.nextLead) { append("Als Nächstes") }
+/** "Up next" ([lead]) in a heavier weight, 12 dp, then what comes next (isolated if right-to-left). */
+internal fun nextText(text: String, styles: StageStyles, lead: String): AnnotatedString = buildAnnotatedString {
+    withStyle(styles.nextLead) { append(lead) }
     // A no-break space widened to about 12 dp.
     withStyle(SpanStyle(letterSpacing = 0.55.em)) { append(" ") }
     append(if (isRightToLeft(text)) "⁧$text⁩" else text)

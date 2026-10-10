@@ -9,9 +9,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.hazymorning.klangbild.data.ha.HaCredentials
 import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.domain.StageView
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlin.math.roundToInt
 
@@ -69,7 +71,7 @@ enum class MotionLevel(val speed: Float) {
  * How brightly the light bars behind the TV glow by day, as a share of their full brightness –
  * in steps of a tenth; at night they dim on their own.
  */
-enum class BarLevel(val brightness: Float) {
+enum class RoomLightLevel(val brightness: Float) {
     OFF(0f), P10(0.1f), P20(0.2f), P30(0.3f), P40(0.4f), P50(0.5f), P60(0.6f), P70(0.7f), P80(0.8f), P90(0.9f), P100(1f);
 
     val percent: Int get() = (brightness * 100f).roundToInt()
@@ -78,7 +80,7 @@ enum class BarLevel(val brightness: Float) {
         val DEFAULT = P60
 
         /** A stored level by name – the four steps of earlier versions read as their nearest. */
-        fun named(name: String): BarLevel? = when (name) {
+        fun named(name: String): RoomLightLevel? = when (name) {
             "SUBTLE" -> P30
             "NORMAL" -> P50
             "STRONG" -> P80
@@ -86,7 +88,7 @@ enum class BarLevel(val brightness: Float) {
         }
 
         /** The step nearest to [percent] (1–100); 0 or less is off. */
-        fun ofPercent(percent: Int): BarLevel = if (percent <= 0) OFF else entries.drop(1).minBy { kotlin.math.abs(it.percent - percent) }
+        fun ofPercent(percent: Int): RoomLightLevel = if (percent <= 0) OFF else entries.drop(1).minBy { kotlin.math.abs(it.percent - percent) }
     }
 }
 
@@ -94,7 +96,7 @@ enum class BarLevel(val brightness: Float) {
 enum class MiniPlayer { LEFT, RIGHT, OFF }
 
 /** The colour lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
-data class LightBars(val left: String? = null, val center: String? = null, val right: String? = null) {
+data class RoomLights(val left: String? = null, val center: String? = null, val right: String? = null) {
     /** Each light once, from the left. */
     val ids: List<String> get() = listOfNotNull(left, center, right).distinct()
 
@@ -117,10 +119,17 @@ data class DisplayOptions(
     val motion: MotionLevel = MotionLevel.OFF,
 )
 
-/** Persistent settings. Secrets live only in app-private storage (no backup, see manifest). */
+/**
+ * Persistent settings. Secrets live only in app-private storage (no backup, see manifest),
+ * sealed with a key in the Android Keystore ([SecretBox]).
+ */
 data class Settings(
     val haUrl: String? = null,
+    /** A long-lived access token, when Klangbild was set up with one. */
     val haToken: String? = null,
+    /** The refresh token of a sign-in through Home Assistant's login page, and the client id it was made for. */
+    val haRefreshToken: String? = null,
+    val haClientId: String? = null,
     val entityId: String? = null,
     val sunEntity: String = "sun.sun",
     val sleepAfterMinutes: Int = 10,
@@ -143,8 +152,8 @@ data class Settings(
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
     /** The colour lights behind the TV and how brightly they join in (by day; at night they dim on their own). */
-    val bars: LightBars = LightBars(),
-    val barLevel: BarLevel = BarLevel.DEFAULT,
+    val roomLights: RoomLights = RoomLights(),
+    val roomLightLevel: RoomLightLevel = RoomLightLevel.DEFAULT,
     /** With an audiobook or a podcast, left and right jump back 15 and ahead 30 seconds. */
     val spokenSkip: Boolean = true,
     /** The Fensterblick takes the screen after the music has been paused this long (s); 0 never. */
@@ -172,15 +181,31 @@ data class Settings(
         val DEFAULT_WEATHER = listOf("weather.forecast_home", "weather.home")
     }
 
-    val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && !haToken.isNullOrBlank() && !entityId.isNullOrBlank()
+    /** How Klangbild signs in to Home Assistant: a sign-in wins over a long-lived token. */
+    val haCredentials: HaCredentials?
+        get() = when {
+            !haRefreshToken.isNullOrBlank() && !haClientId.isNullOrBlank() -> HaCredentials.SignedIn(haRefreshToken, haClientId)
+            !haToken.isNullOrBlank() -> HaCredentials.LongLived(haToken)
+            else -> null
+        }
+
+    val isConfigured: Boolean get() = !haUrl.isNullOrBlank() && haCredentials != null && !entityId.isNullOrBlank()
 
     val hasMusicAssistant: Boolean get() = !maUrl.isNullOrBlank() && !maToken.isNullOrBlank()
 
     /**
-     * [haUrl] set to [url]; a token only ever goes to the address it was made for, so a new
-     * address without [token] drops the old one.
+     * [haUrl] set to [url] with [credentials]. Credentials only ever go to the address they were
+     * made for, so a new address without new credentials drops the old ones.
      */
-    fun withHa(url: String, token: String?): Settings = copy(haUrl = url, haToken = token ?: haToken.takeIf { url == haUrl })
+    fun withHa(url: String, credentials: HaCredentials?): Settings {
+        val keep = credentials ?: haCredentials.takeIf { url == haUrl }
+        return copy(
+            haUrl = url,
+            haToken = (keep as? HaCredentials.LongLived)?.token,
+            haRefreshToken = (keep as? HaCredentials.SignedIn)?.refreshToken,
+            haClientId = (keep as? HaCredentials.SignedIn)?.clientId,
+        )
+    }
 
     /** The same for Music Assistant; no address clears both. */
     fun withMa(url: String?, token: String?): Settings =
@@ -204,19 +229,21 @@ data class Settings(
 data class SessionOptions(
     val showSetup: Boolean = false,
     val debugOverlay: Boolean = false,
-    /** The Fensterblick shown at once (`fensterblick=an`), or with the day passing in two minutes (`zeitraffer`). */
+    /** The window view shown at once (`window_view=on`), or with the day passing in two minutes (`timelapse`). */
     val vista: VistaRequest? = null,
 )
 
-/** A Fensterblick asked for from outside (a link, `am start`, Home Assistant). */
+/** A window view asked for from outside (a link, `am start`, Home Assistant). */
 enum class VistaRequest { SHOW, TIMELAPSE, HIDE }
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-class SettingsStore(private val context: Context) {
+class SettingsStore(private val context: Context, private val secrets: SecretBox = KeystoreSecretBox()) {
     private object Keys {
         val url = stringPreferencesKey("ha_url")
         val token = stringPreferencesKey("ha_token")
+        val refreshToken = stringPreferencesKey("ha_refresh_token")
+        val clientId = stringPreferencesKey("ha_client_id")
         val entity = stringPreferencesKey("entity_id")
         val sun = stringPreferencesKey("sun_entity")
         val sleepMinutes = intPreferencesKey("sleep_minutes")
@@ -239,7 +266,7 @@ class SettingsStore(private val context: Context) {
         val barsLeft = stringPreferencesKey("bars_left")
         val barsCenter = stringPreferencesKey("bars_center")
         val barsRight = stringPreferencesKey("bars_right")
-        val barLevel = stringPreferencesKey("bar_level")
+        val roomLightLevel = stringPreferencesKey("bar_level")
         val spokenSkip = booleanPreferencesKey("spoken_skip")
         val vistaPause = intPreferencesKey("vista_pause_s")
         val vistaPlaying = intPreferencesKey("vista_playing_s")
@@ -250,7 +277,9 @@ class SettingsStore(private val context: Context) {
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
         Settings(
             haUrl = p[Keys.url],
-            haToken = p[Keys.token],
+            haToken = p[Keys.token]?.let(secrets::open),
+            haRefreshToken = p[Keys.refreshToken]?.let(secrets::open),
+            haClientId = p[Keys.clientId],
             entityId = p[Keys.entity],
             sunEntity = p[Keys.sun] ?: "sun.sun",
             sleepAfterMinutes = p[Keys.sleepMinutes] ?: 10,
@@ -267,11 +296,11 @@ class SettingsStore(private val context: Context) {
             appearance = p[Keys.appearance]?.let { runCatching { AppearanceMode.valueOf(it) }.getOrNull() } ?: AppearanceMode.AUTO,
             view = p[Keys.view]?.let { runCatching { StageView.valueOf(it) }.getOrNull() } ?: StageView.SINGLE,
             maUrl = p[Keys.maUrl],
-            maToken = p[Keys.maToken],
+            maToken = p[Keys.maToken]?.let(secrets::open),
             background = p[Keys.background]?.let { runCatching { BackgroundMode.valueOf(it) }.getOrNull() } ?: BackgroundMode.WALL,
             motion = p[Keys.motion]?.let { runCatching { MotionLevel.valueOf(it) }.getOrNull() } ?: MotionLevel.OFF,
-            bars = LightBars(p[Keys.barsLeft], p[Keys.barsCenter], p[Keys.barsRight]),
-            barLevel = p[Keys.barLevel]?.let { BarLevel.named(it) } ?: BarLevel.DEFAULT,
+            roomLights = RoomLights(p[Keys.barsLeft], p[Keys.barsCenter], p[Keys.barsRight]),
+            roomLightLevel = p[Keys.roomLightLevel]?.let { RoomLightLevel.named(it) } ?: RoomLightLevel.DEFAULT,
             spokenSkip = p[Keys.spokenSkip] ?: true,
             vistaPauseSeconds = p[Keys.vistaPause] ?: 180,
             vistaPlayingSeconds = p[Keys.vistaPlaying] ?: 0,
@@ -286,8 +315,11 @@ class SettingsStore(private val context: Context) {
             fun putOrRemove(key: Preferences.Key<String>, value: String?) {
                 if (value.isNullOrBlank()) p.remove(key) else p[key] = value
             }
+            fun putSecret(key: Preferences.Key<String>, value: String?) = putOrRemove(key, value?.takeIf { it.isNotBlank() }?.let(secrets::seal))
             putOrRemove(Keys.url, s.haUrl)
-            putOrRemove(Keys.token, s.haToken)
+            putSecret(Keys.token, s.haToken)
+            putSecret(Keys.refreshToken, s.haRefreshToken)
+            putOrRemove(Keys.clientId, s.haClientId)
             putOrRemove(Keys.entity, s.entityId)
             p[Keys.sun] = s.sunEntity
             p[Keys.sleepMinutes] = s.sleepAfterMinutes
@@ -304,13 +336,13 @@ class SettingsStore(private val context: Context) {
             p[Keys.appearance] = s.appearance.name
             p[Keys.view] = s.view.name
             putOrRemove(Keys.maUrl, s.maUrl)
-            putOrRemove(Keys.maToken, s.maToken)
+            putSecret(Keys.maToken, s.maToken)
             p[Keys.background] = s.background.name
             p[Keys.motion] = s.motion.name
-            putOrRemove(Keys.barsLeft, s.bars.left)
-            putOrRemove(Keys.barsCenter, s.bars.center)
-            putOrRemove(Keys.barsRight, s.bars.right)
-            p[Keys.barLevel] = s.barLevel.name
+            putOrRemove(Keys.barsLeft, s.roomLights.left)
+            putOrRemove(Keys.barsCenter, s.roomLights.center)
+            putOrRemove(Keys.barsRight, s.roomLights.right)
+            p[Keys.roomLightLevel] = s.roomLightLevel.name
             p[Keys.spokenSkip] = s.spokenSkip
             p[Keys.vistaPause] = s.vistaPauseSeconds
             p[Keys.vistaPlaying] = s.vistaPlayingSeconds
@@ -318,17 +350,26 @@ class SettingsStore(private val context: Context) {
             putOrRemove(Keys.weather, s.weatherEntity)
         }
     }
+
+    /** Seals tokens stored before secrets were sealed (written by an earlier version). */
+    suspend fun sealStoredSecrets() {
+        val plain = context.dataStore.data.first().let { p ->
+            listOf(Keys.token, Keys.refreshToken, Keys.maToken).any { k -> p[k]?.let(secrets::isPlain) == true }
+        }
+        if (plain) settings.first().let { update({ it }, it) }
+    }
 }
 
 /**
  * `am start` extras. Configuration extras (`ha_url`, `token`, `ma_url`, `ma_token`, `entity`,
- * `sleep_minutes`, `sleep_action`, `clock` and the display options) are stored; `setup` and
- * `debug` only apply to this launch. A new address without its token drops the stored one:
- * no other app on the TV can redirect a token to an address of its choosing.
+ * `sleep_minutes`, `sleep_action`, `clock` and the display options) are stored; `setup`,
+ * `debug` and `window_view` only apply to this launch. A new address without its token drops
+ * the stored one: no other app on the TV can redirect a token to an address of its choosing.
+ * Names and values are English; the German ones of earlier versions keep working.
  *
  * ```
  * adb shell am start -n io.github.hazymorning.klangbild/.MainActivity \
- *     --es entity media_player.wohnzimmer --es light dezent
+ *     --es entity media_player.living_room --es light subtle
  * ```
  */
 object LaunchExtras {
@@ -352,31 +393,55 @@ object LaunchExtras {
     const val VIEW = "view"
     const val BACKGROUND = "background"
     const val MOTION = "motion"
-    const val BARS_LEFT = "bars_left"
-    const val BARS_CENTER = "bars_center"
-    const val BARS_RIGHT = "bars_right"
-    const val BAR_LEVEL = "bar_level"
+    const val LIGHTS_LEFT = "lights_left"
+    const val LIGHTS_CENTER = "lights_center"
+    const val LIGHTS_RIGHT = "lights_right"
+    const val LIGHTS_LEVEL = "lights_level"
     const val SPOKEN_SKIP = "spoken_skip"
-    const val VISTA_PAUSE = "fensterblick_pause"
-    const val VISTA_PLAYING = "fensterblick_musik"
+    const val WINDOW_VIEW_PAUSE = "window_view_pause"
+    const val WINDOW_VIEW_PLAYING = "window_view_playing"
     const val MINI_PLAYER = "mini_player"
     const val WEATHER = "weather"
     const val SETUP = "setup"
     const val DEBUG = "debug"
-    const val VISTA = "fensterblick"
+    const val WINDOW_VIEW = "window_view"
+
+    /** The names earlier versions used: they keep working, and the English name wins when both are given. */
+    private val formerNames = mapOf(
+        "bars_left" to LIGHTS_LEFT,
+        "bars_center" to LIGHTS_CENTER,
+        "bars_right" to LIGHTS_RIGHT,
+        "bar_level" to LIGHTS_LEVEL,
+        "fensterblick_pause" to WINDOW_VIEW_PAUSE,
+        "fensterblick_musik" to WINDOW_VIEW_PLAYING,
+        "fensterblick" to WINDOW_VIEW,
+    )
 
     private val stored = listOf(
         HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
-        VOLUME_KEYS, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, BARS_LEFT, BARS_CENTER, BARS_RIGHT, BAR_LEVEL,
-        SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, WEATHER,
+        VOLUME_KEYS, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, LIGHTS_LEFT, LIGHTS_CENTER, LIGHTS_RIGHT, LIGHTS_LEVEL,
+        SPOKEN_SKIP, WINDOW_VIEW_PAUSE, WINDOW_VIEW_PLAYING, MINI_PLAYER, WEATHER,
     )
 
+    /** [extras] under their current names. */
+    private fun canonical(extras: Map<String, Any?>): Map<String, Any?> {
+        if (formerNames.keys.none { it in extras }) return extras
+        val out = LinkedHashMap<String, Any?>()
+        for ((key, value) in extras) {
+            val name = formerNames[key] ?: key
+            if (name == key || name !in extras) out[name] = value
+        }
+        return out
+    }
+
     /** Applies stored-setting extras to [s]. Unknown or invalid values are ignored. */
-    fun applyTo(s: Settings, extras: Map<String, Any?>): Settings {
+    fun applyTo(s: Settings, given: Map<String, Any?>): Settings {
+        val extras = canonical(given)
         var out = s
         val token = (extras[TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         val haUrl = (extras[HA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
-        if (haUrl != null) out = out.withHa(haUrl, token) else if (token != null) out = out.copy(haToken = token)
+        val longLived = token?.let { HaCredentials.LongLived(it) }
+        if (haUrl != null) out = out.withHa(haUrl, longLived) else if (longLived != null && out.haUrl != null) out = out.withHa(out.haUrl!!, longLived)
         val maToken = (extras[MA_TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         val maUrl = (extras[MA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
         if (maUrl != null) out = out.withMa(maUrl, maToken) else if (maToken != null && out.maUrl != null) out = out.copy(maToken = maToken)
@@ -429,7 +494,7 @@ object LaunchExtras {
         }
         (extras[BACKGROUND] as? String)?.let { v ->
             when (v.trim().lowercase().replace(" ", "").replace("_", "")) {
-                "wall", "wand" -> BackgroundMode.WALL
+                "wall", "plain", "wand", "einfarbig" -> BackgroundMode.WALL
                 "cover", "coverfarben", "colours", "colors", "farben" -> BackgroundMode.COVER
                 else -> null
             }?.let { out = out.copy(background = it) }
@@ -437,22 +502,22 @@ object LaunchExtras {
         (extras[MOTION] as? String)?.let { v ->
             when (v.trim().lowercase()) {
                 "off", "aus" -> MotionLevel.OFF
-                "gentle", "sanft" -> MotionLevel.GENTLE
+                "slow", "gentle", "langsam", "sanft" -> MotionLevel.GENTLE
                 "medium", "mittel" -> MotionLevel.MEDIUM
-                "lively", "lebhaft" -> MotionLevel.LIVELY
+                "fast", "lively", "schnell", "lebhaft" -> MotionLevel.LIVELY
                 else -> null
             }?.let { out = out.copy(motion = it) }
         }
         // A word, or how bright in percent ("60", "60 %").
-        extras[BAR_LEVEL]?.let { raw ->
+        extras[LIGHTS_LEVEL]?.let { raw ->
             val v = raw.toString().trim().lowercase()
             when (v) {
-                "off", "aus" -> BarLevel.OFF
-                "subtle", "dezent", "schwach" -> BarLevel.P30
-                "normal" -> BarLevel.P50
-                "strong", "kraeftig", "kräftig", "stark" -> BarLevel.P80
-                else -> v.removeSuffix("%").trim().toIntOrNull()?.let { BarLevel.ofPercent(it) }
-            }?.let { out = out.copy(barLevel = it) }
+                "off", "aus" -> RoomLightLevel.OFF
+                "subtle", "dezent", "schwach" -> RoomLightLevel.P30
+                "normal" -> RoomLightLevel.P50
+                "strong", "kraeftig", "kräftig", "stark" -> RoomLightLevel.P80
+                else -> v.removeSuffix("%").trim().toIntOrNull()?.let { RoomLightLevel.ofPercent(it) }
+            }?.let { out = out.copy(roomLightLevel = it) }
         }
         // A light given as "" or "none" is removed; anything but a light entity is ignored.
         fun bar(key: String, current: String?): String? = when (val v = (extras[key] as? String)?.trim()) {
@@ -460,17 +525,17 @@ object LaunchExtras {
             "", "none", "keine" -> null
             else -> v.takeIf { isLightId(it) } ?: current
         }
-        if (extras.keys.any { it == BARS_LEFT || it == BARS_CENTER || it == BARS_RIGHT }) {
-            out = out.copy(bars = LightBars(bar(BARS_LEFT, out.bars.left), bar(BARS_CENTER, out.bars.center), bar(BARS_RIGHT, out.bars.right)))
+        if (extras.keys.any { it == LIGHTS_LEFT || it == LIGHTS_CENTER || it == LIGHTS_RIGHT }) {
+            out = out.copy(roomLights = RoomLights(bar(LIGHTS_LEFT, out.roomLights.left), bar(LIGHTS_CENTER, out.roomLights.center), bar(LIGHTS_RIGHT, out.roomLights.right)))
         }
         boolOf(extras[SPOKEN_SKIP])?.let { out = out.copy(spokenSkip = it) }
-        // The Fensterblick's delays in seconds ("aus" or 0 for never), within what the menu offers.
-        secondsOf(extras[VISTA_PAUSE])?.takeIf { it in 0..3_600 }?.let { out = out.copy(vistaPauseSeconds = it) }
-        secondsOf(extras[VISTA_PLAYING])?.takeIf { it in 0..7_200 }?.let { out = out.copy(vistaPlayingSeconds = it) }
+        // The window view's delays in seconds ("off" or 0 for never), within what the menu offers.
+        secondsOf(extras[WINDOW_VIEW_PAUSE])?.takeIf { it in 0..3_600 }?.let { out = out.copy(vistaPauseSeconds = it) }
+        secondsOf(extras[WINDOW_VIEW_PLAYING])?.takeIf { it in 0..7_200 }?.let { out = out.copy(vistaPlayingSeconds = it) }
         (extras[MINI_PLAYER] as? String)?.let { v ->
             when (v.trim().lowercase()) {
-                "left", "links", "unten_links" -> MiniPlayer.LEFT
-                "right", "rechts", "unten_rechts" -> MiniPlayer.RIGHT
+                "left", "bottom_left", "links", "unten_links" -> MiniPlayer.LEFT
+                "right", "bottom_right", "rechts", "unten_rechts" -> MiniPlayer.RIGHT
                 "off", "aus" -> MiniPlayer.OFF
                 else -> null
             }?.let { out = out.copy(miniPlayer = it) }
@@ -490,18 +555,22 @@ object LaunchExtras {
         else -> intOf(v)
     }
 
-    fun session(extras: Map<String, Any?>) = SessionOptions(
-        showSetup = boolOf(extras[SETUP]) ?: false,
-        debugOverlay = boolOf(extras[DEBUG]) ?: false,
-        vista = when ((extras[VISTA] as? String)?.trim()?.lowercase() ?: (extras[VISTA] as? Boolean)?.toString()) {
-            "an", "on", "true", "1", "ja", "zeigen" -> VistaRequest.SHOW
-            "zeitraffer", "timelapse" -> VistaRequest.TIMELAPSE
-            "aus", "off", "false", "0", "nein" -> VistaRequest.HIDE
-            else -> null
-        },
-    )
+    fun session(given: Map<String, Any?>): SessionOptions {
+        val extras = canonical(given)
+        val vista = extras[WINDOW_VIEW]
+        return SessionOptions(
+            showSetup = boolOf(extras[SETUP]) ?: false,
+            debugOverlay = boolOf(extras[DEBUG]) ?: false,
+            vista = when ((vista as? String)?.trim()?.lowercase() ?: (vista as? Boolean)?.toString()) {
+                "on", "true", "1", "yes", "show", "an", "ja", "zeigen" -> VistaRequest.SHOW
+                "timelapse", "zeitraffer" -> VistaRequest.TIMELAPSE
+                "off", "false", "0", "no", "aus", "nein" -> VistaRequest.HIDE
+                else -> null
+            },
+        )
+    }
 
-    fun hasStoredExtras(extras: Map<String, Any?>) = stored.any { extras.containsKey(it) }
+    fun hasStoredExtras(extras: Map<String, Any?>) = canonical(extras).keys.any { it in stored }
 
     fun fromIntent(intent: Intent?): Map<String, Any?> {
         val out = LinkedHashMap<String, Any?>()
@@ -517,7 +586,7 @@ object LaunchExtras {
         return out
     }
 
-    /** `klangbild://open?light=dezent&album=aus` */
+    /** `klangbild://open?light=subtle&album=off` */
     const val DEEP_LINK_SCHEME = "klangbild"
 
     /**
@@ -526,15 +595,17 @@ object LaunchExtras {
      */
     private val linkKeys = setOf(
         CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
-        APPEARANCE, VIEW, BACKGROUND, MOTION, BAR_LEVEL, SPOKEN_SKIP, VISTA_PAUSE, VISTA_PLAYING, MINI_PLAYER, VISTA,
+        APPEARANCE, VIEW, BACKGROUND, MOTION, LIGHTS_LEVEL, SPOKEN_SKIP, WINDOW_VIEW_PAUSE, WINDOW_VIEW_PLAYING, MINI_PLAYER,
+        WINDOW_VIEW,
     )
 
     /** The query parameters of a `klangbild://` link as extras, unsafe keys dropped. */
-    fun fromLink(params: Map<String, String?>): Map<String, Any?> = params.filterKeys { it in linkKeys }
+    fun fromLink(params: Map<String, String?>): Map<String, Any?> =
+        params.filterKeys { (formerNames[it] ?: it) in linkKeys }
 
     fun isEntityId(s: String) = Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(s)
 
-    /** A Home Assistant light (`light.wohnzimmer_tv_links`). */
+    /** A Home Assistant light (`light.living_room_left`). */
     fun isLightId(s: String) = s.startsWith("light.") && isEntityId(s)
 
     private fun intOf(v: Any?): Int? = when (v) {

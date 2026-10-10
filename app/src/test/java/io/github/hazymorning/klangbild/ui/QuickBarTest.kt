@@ -11,9 +11,9 @@ import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
-import io.github.hazymorning.klangbild.config.BarLevel
+import io.github.hazymorning.klangbild.config.RoomLightLevel
 import io.github.hazymorning.klangbild.config.FavoriteState
-import io.github.hazymorning.klangbild.config.LightBars
+import io.github.hazymorning.klangbild.config.RoomLights
 import io.github.hazymorning.klangbild.config.MiniPlayer
 import io.github.hazymorning.klangbild.config.QuickContext
 import io.github.hazymorning.klangbild.config.QuickItem
@@ -43,10 +43,10 @@ class QuickBarTest {
         TimeZone.setDefault(TimeZone.getTimeZone(Fixtures.zone))
     }
 
-    private val withBars = Settings(bars = LightBars(left = "light.links", center = "light.mitte", right = "light.rechts"), barLevel = BarLevel.P50)
+    private val withLights = Settings(roomLights = RoomLights(left = "light.links", center = "light.mitte", right = "light.rechts"), roomLightLevel = RoomLightLevel.P50)
 
-    private fun state(focus: QuickItem, ctx: QuickContext, s: Settings = withBars): QuickState {
-        val rows = QuickMenu.rows(s, ctx)
+    private fun state(focus: QuickItem, ctx: QuickContext, s: Settings = withLights): QuickState {
+        val rows = QuickMenu.rows(s, ctx, Fixtures.texts)
         return QuickState(rows, rows.indexOfFirst { it.item == focus })
     }
 
@@ -58,7 +58,7 @@ class QuickBarTest {
         captureRoboImage("build/screenshots/quick/stage_dark.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
-                    Stage(Fixtures.model(track, next = Fixtures.pärt))
+                    Stage(Fixtures.model(track, next = Fixtures.spiegel))
                     QuickBar(state(QuickItem.PICTURE, playing), Lighting.DAY, Appearance.DARK)
                 }
             }
@@ -66,7 +66,7 @@ class QuickBarTest {
         captureRoboImage("build/screenshots/quick/stage_dark_favorite.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
-                    Stage(Fixtures.model(track, next = Fixtures.pärt))
+                    Stage(Fixtures.model(track, next = Fixtures.spiegel))
                     QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Lighting.DAY, Appearance.DARK)
                 }
             }
@@ -75,7 +75,7 @@ class QuickBarTest {
         captureRoboImage("build/screenshots/quick/stage_light.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
-                    Stage(Fixtures.model(light, next = Fixtures.pärt, appearance = Appearance.LIGHT))
+                    Stage(Fixtures.model(light, next = Fixtures.spiegel, appearance = Appearance.LIGHT))
                     QuickBar(state(QuickItem.SHUFFLE, playing), Lighting.DAY, Appearance.LIGHT)
                 }
             }
@@ -84,7 +84,7 @@ class QuickBarTest {
         captureRoboImage("build/screenshots/quick/stage_few.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
-                    Stage(Fixtures.model(track, next = Fixtures.pärt))
+                    Stage(Fixtures.model(track, next = Fixtures.spiegel))
                     QuickBar(state(QuickItem.PICTURE, QuickContext(music = true), Settings()), Lighting.EVENING, Appearance.DARK)
                 }
             }

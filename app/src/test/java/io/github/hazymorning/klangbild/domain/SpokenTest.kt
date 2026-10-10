@@ -1,10 +1,20 @@
 package io.github.hazymorning.klangbild.domain
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.text.TestTexts
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 /** Podcasts and audiobooks: what kind plays, its chapters and where in them the listener is. */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class SpokenTest {
+    private val de = TestTexts.german
+    private val en = TestTexts.english()
+    private val numbered: (Int) -> String = { n -> de.format(R.string.chapter_number, n) }
     private fun raw(position: Int, name: String?, start: Double, end: Double? = null) = Chapters.Raw(position, name, start, end)
 
     private val book = TrackInfo(
@@ -59,7 +69,7 @@ class SpokenTest {
 
     @Test
     fun `chapters are named as a book would name them`() {
-        fun label(name: String?) = Chapters.label(Chapter(name, 0, 1), 6)
+        fun label(name: String?) = Chapters.label(Chapter(name, 0, 1), 6, numbered)
         assertThat(label("Die Verhaftung")).isEqualTo("Die Verhaftung")
         assertThat(label("007")).isEqualTo("Kapitel 7")
         assertThat(label("Chapter 07")).isEqualTo("Kapitel 7")
@@ -72,13 +82,13 @@ class SpokenTest {
 
     @Test
     fun `the place in the book, and where a jump lands`() {
-        val place = ChapterPlace.at(book, 1_500_000L)!!
+        val place = ChapterPlace.at(book, 1_500_000L, numbered)!!
         assertThat(place.label).isEqualTo("Gespräch mit Frau Grubach")
         assertThat(place.startMs to place.endMs).isEqualTo(1_000_000L to 2_000_000L)
         assertThat(place.next).isEqualTo("Kapitel 3")
-        assertThat(ChapterPlace.at(book, 2_500_000L)!!.next).isNull()
-        assertThat(ChapterPlace.at(book.copy(chapters = emptyList()), 5L)).isNull()
-        assertThat(ChapterPlace.at(book, null)).isNull()
+        assertThat(ChapterPlace.at(book, 2_500_000L, numbered)!!.next).isNull()
+        assertThat(ChapterPlace.at(book.copy(chapters = emptyList()), 5L, numbered)).isNull()
+        assertThat(ChapterPlace.at(book, null, numbered)).isNull()
 
         val ch = book.chapters
         // Back: to the chapter's start – right after a start, to the one before.
@@ -92,13 +102,17 @@ class SpokenTest {
 
     @Test
     fun `speed and times in words`() {
-        assertThat(TimeLine.speed(1f)).isNull()
-        assertThat(TimeLine.speed(1.004f)).isNull()
-        assertThat(TimeLine.speed(1.5f)).isEqualTo("Tempo\u00A01,5×")
-        assertThat(TimeLine.speed(1.25f)).isEqualTo("Tempo\u00A01,25×")
-        assertThat(TimeLine.speed(2f)).isEqualTo("Tempo\u00A02×")
-        assertThat(TimeLine.speed(0.75f)).isEqualTo("Tempo\u00A00,75×")
-        assertThat(TimeLine.clock(1_791_483_667_000L, java.time.ZoneId.of("Europe/Berlin"))).isEqualTo("20:21")
+        assertThat(TimeLine.speed(1f, de)).isNull()
+        assertThat(TimeLine.speed(1.004f, de)).isNull()
+        assertThat(TimeLine.speed(1.5f, de)).isEqualTo("Tempo\u00A01,5×")
+        assertThat(TimeLine.speed(1.25f, de)).isEqualTo("Tempo\u00A01,25×")
+        assertThat(TimeLine.speed(2f, de)).isEqualTo("Tempo\u00A02×")
+        assertThat(TimeLine.speed(0.75f, de)).isEqualTo("Tempo\u00A00,75×")
+        assertThat(de.clock(1_791_483_667_000L, java.time.ZoneId.of("Europe/Berlin"))).isEqualTo("20:21")
+        // In English: a decimal point, and the time in 12 hours as the system is set.
+        assertThat(TimeLine.speed(1.5f, en)).isEqualTo("Speed\u00A01.5×")
+        assertThat(en.clock(1_791_483_667_000L, java.time.ZoneId.of("Europe/Berlin"))).isEqualTo("8:21\u00A0PM")
+        assertThat(TestTexts.english(clock24 = true).clock(1_791_483_667_000L, java.time.ZoneId.of("Europe/Berlin"))).isEqualTo("20:21")
     }
 
     @Test

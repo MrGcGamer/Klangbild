@@ -160,8 +160,11 @@ fun rememberInkShift(text: String, style: TextStyle): Float {
             textSize = with(density) { style.fontSize.toPx() }
             if (style.letterSpacing.isEm) letterSpacing = style.letterSpacing.value
         }
-        val ink = android.graphics.Rect()
-        paint.getTextBounds(text, 0, text.length, ink)
+        // The outlines' exact bounds: whole pixels would leave the clock up to a pixel off.
+        val outline = android.graphics.Path()
+        paint.getTextPath(text, 0, text.length, 0f, 0f, outline)
+        val ink = android.graphics.RectF()
+        outline.computeBounds(ink, true)
         paint.measureText(text) / 2f - (ink.left + ink.right) / 2f
     }
 }
