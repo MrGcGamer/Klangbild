@@ -2,8 +2,8 @@
 # Starts a stand-in Home Assistant on the host (ci/fake_ha.py), installs the release APK on
 # the running Android TV emulator, points it at that server with ADB extras and walks through
 # the main states: playing, exact time on a key press, the settings menu, a track change,
-# new extras while running and the Fensterblick. Checks that the app is still alive and
-# never crashed. Leaves screenshots, logcat and gfxinfo in smoke/.
+# new extras while running, the quick settings and the Fensterblick. Checks that the app is
+# still alive and never crashed. Leaves screenshots, logcat and gfxinfo in smoke/.
 set -u
 APK="$1"
 PKG=io.github.hazymorning.klangbild
@@ -45,13 +45,21 @@ adb shell am start -n "$PKG/.MainActivity" --es light dezent
 sleep 4
 adb exec-out screencap -p > smoke/5-light-subtle.png
 
-# the Fensterblick on request (its picture is baked first), then a key brings the stage back
+# the quick settings rise from the bottom edge on down, up closes them
+adb shell input keyevent KEYCODE_DPAD_DOWN
+sleep 2
+adb exec-out screencap -p > smoke/6-quick-settings.png
+adb shell input keyevent KEYCODE_DPAD_UP
+sleep 1
+
+# the Fensterblick on request (its picture is baked first); asked for, it stays until it is
+# left – Back brings the stage back
 adb shell am start -n "$PKG/.MainActivity" --es fensterblick an
 sleep 20
-adb exec-out screencap -p > smoke/6-fensterblick.png
-adb shell input keyevent KEYCODE_DPAD_CENTER
+adb exec-out screencap -p > smoke/7-fensterblick.png
+adb shell input keyevent KEYCODE_BACK
 sleep 5
-adb exec-out screencap -p > smoke/7-back-to-stage.png
+adb exec-out screencap -p > smoke/8-back-to-stage.png
 
 PID="$(adb shell pidof "$PKG" | tr -d '\r')"
 adb logcat -d > smoke/logcat.txt
