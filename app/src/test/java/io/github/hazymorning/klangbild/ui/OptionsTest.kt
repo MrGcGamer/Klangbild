@@ -105,6 +105,10 @@ class OptionsTest {
 
     @Test fun menuEveningSleep() = shot("menu_sleep_evening") { MenuScreen(menu(MenuEntry.SLEEP_AFTER), Lighting.EVENING) }
 
+    @Test fun menuVista() = shot("menu_vista") {
+        MenuScreen(menu(MenuEntry.VISTA_PLAYING, configured.copy(vistaPlayingSeconds = 1800)), Lighting.DAY)
+    }
+
     /** The list glides through the light when the cursor moves down by one line, then by three. */
     @Test fun menuGlide() {
         var state by androidx.compose.runtime.mutableStateOf(menu(MenuEntry.ALBUM))

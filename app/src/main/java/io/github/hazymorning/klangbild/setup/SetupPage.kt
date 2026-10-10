@@ -119,6 +119,13 @@ object SetupPage {
   </section>
 
   <section>
+    <h2>6 · Fensterblick</h2>
+    <p class="hint">Die Landschaft aus Papier, die bei Pause erscheint: Sonne, Mond und Sterne stehen, wo sie bei dir gerade stehen. Die Wolken folgen dem Wetter – nur wie bewölkt es ist, Regen oder Schnee fallen nie.</p>
+    <label for="weather">Wetter</label>
+    <select id="weather"><option value="">Automatisch</option><option value="none">Keines – immer ein heiterer Himmel</option></select>
+  </section>
+
+  <section>
     <button class="primary" id="save">Speichern</button>
     <p id="status"></p>
   </section>
@@ -128,6 +135,8 @@ object SetupPage {
   let hasToken = false;
   let bars = { barsLeft: '', barsCenter: '', barsRight: '' };
   let lightsShown = false;
+  let weather = '';
+  let weatherShown = false;
   function code() { return ${'$'}('code').value.trim(); }
   function status(text, kind) { const s = ${'$'}('status'); s.textContent = text || ''; s.className = kind || ''; }
   async function api(path, body) {
@@ -168,6 +177,17 @@ object SetupPage {
     });
     lightsShown = true;
   }
+  function renderWeather(list) {
+    const sel = ${'$'}('weather'); sel.innerHTML = '';
+    const auto = document.createElement('option'); auto.value = ''; auto.textContent = 'Automatisch'; sel.append(auto);
+    list.forEach((w) => {
+      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name + ' · ' + w.state; sel.append(o);
+    });
+    const none = document.createElement('option'); none.value = 'none'; none.textContent = 'Keines – immer ein heiterer Himmel'; sel.append(none);
+    sel.value = weather;
+    if (sel.value !== weather) sel.value = '';
+    weatherShown = true;
+  }
   async function load() {
     if (code().length !== 6) return;
     const s = await api('/api/state');
@@ -181,6 +201,7 @@ object SetupPage {
     ${'$'}('clock').checked = !!s.clock; ${'$'}('dayNight').checked = !!s.dayNight; ${'$'}('remote').checked = !!s.remote;
     ${'$'}('maUrl').value = s.maUrl || '';
     bars = { barsLeft: s.barsLeft || '', barsCenter: s.barsCenter || '', barsRight: s.barsRight || '' };
+    weather = s.weather || ''; ${'$'}('weather').value = weather;
     if (s.hasMaToken) ${'$'}('maToken').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
     if (s.url && hasToken) find();
   }
@@ -193,6 +214,7 @@ object SetupPage {
       ${'$'}('url').value = r.url;
       renderSpeakers(r.speakers, ${'$'}('entity').value);
       renderLights(r.lights || []);
+      renderWeather(r.weather || []);
       status('Verbunden. Bitte den Lautsprecher wählen.', 'good');
     } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
     finally { ${'$'}('find').disabled = false; }
@@ -206,6 +228,9 @@ object SetupPage {
         sleepMinutes: parseInt(${'$'}('sleep').value, 10), sleepAction: action,
         clock: ${'$'}('clock').checked, dayNight: ${'$'}('dayNight').checked, remote: ${'$'}('remote').checked,
         maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value };
+      // The weather once the page has listed it, or when it was chosen – a stored entity the page could not list stays.
+      const w = ${'$'}('weather').value;
+      if (weatherShown || w !== '' || weather === '') body.weather = w;
       // The bars only once the page has shown them – otherwise they stay as they are.
       if (lightsShown) ['barsLeft', 'barsCenter', 'barsRight'].forEach((k) => body[k] = ${'$'}(k).value);
       const r = await api('/api/save', body);

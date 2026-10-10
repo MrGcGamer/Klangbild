@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
+import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.config.MotionLevel
 import io.github.hazymorning.klangbild.config.VolumeDisplay
@@ -44,6 +45,8 @@ import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
+import io.github.hazymorning.klangbild.ui.vista.VistaScreen
+import io.github.hazymorning.klangbild.vista.VistaClock
 import kotlinx.coroutines.delay
 
 /** A wall clock that ticks every [periodMs] (the UI needs minutes, the drift whole pixels). */
@@ -64,6 +67,8 @@ class RootHooks(
     val now: () -> Long = System::currentTimeMillis,
     /** The colour field's time (seconds): it runs while music plays, at the motion setting's speed. */
     val fieldTime: () -> Double = { 0.0 },
+    /** The moment the Fensterblick's sky shows (the preview can turn it). */
+    val vistaClock: VistaClock = VistaClock(now),
 )
 
 /**
@@ -131,6 +136,7 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                     lightFactor = ui.display.light.factor,
                     appearance = c.appearance,
                 )
+                is Content.VistaContent -> VistaScreen(ui, c.vista, hooks.vistaClock, hooks.positionNow, hooks.now)
                 is Content.SetupContent -> {
                     val scene = rememberOffMain(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
                     if (scene != null) SetupScreen(c.reason, ui.setup, scene) else Box(Modifier.fillMaxSize())
@@ -165,6 +171,11 @@ private sealed interface Content {
         override val key = "setup:$reason:$appearance"
     }
 
+    data class VistaContent(val vista: VistaUi) : Content {
+        // The Fensterblick changes its label, its light and its preview inside; it comes and goes through the dark.
+        override val key = "vista"
+    }
+
     data object Dark : Content {
         override val key = "dark"
     }
@@ -181,7 +192,7 @@ private const val DRIFT_DP = 6f
 /** A switch of screens is over after this long (900 ms out, then 1.3 s in after 900 ms), with room to spare. */
 private const val SCREEN_SWITCH_MS = 3_000L
 
-private fun contentKey(ui: UiState, quietStart: Boolean): Content = when (val s = ui.screen) {
+private fun contentKey(ui: UiState, quietStart: Boolean): Content = if (ui.vista != null) Content.VistaContent(ui.vista) else when (val s = ui.screen) {
     is Screen.Stage ->
         if (ui.view == StageView.FLOW) ui.flow?.let { Content.FlowContent(it) } ?: Content.Dark
         else ui.stage?.let { Content.StageContent(it) } ?: Content.Dark

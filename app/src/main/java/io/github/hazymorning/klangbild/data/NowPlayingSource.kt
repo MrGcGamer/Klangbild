@@ -42,6 +42,11 @@ data class SourceState(
     val played: List<TrackInfo> = emptyList(),
     /** The optional link to Music Assistant; null when it is not set up. */
     val ma: MaLink? = null,
+    /** Where Home Assistant stands (degrees), from its configuration; null until known. */
+    val place: Pair<Double, Double>? = null,
+    /** The weather entity's state (`sunny`, `cloudy` …) and its cloud cover in %, as far as known. */
+    val weather: String? = null,
+    val cloudCoverage: Double? = null,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }

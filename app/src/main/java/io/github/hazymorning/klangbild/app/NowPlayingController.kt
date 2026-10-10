@@ -6,6 +6,7 @@ import io.github.hazymorning.klangbild.config.AppearanceMode
 import io.github.hazymorning.klangbild.config.BackgroundMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
+import io.github.hazymorning.klangbild.config.MiniPlayer
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.MenuRow
@@ -14,6 +15,7 @@ import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SettingsMenu
 import io.github.hazymorning.klangbild.config.SettingsStore
 import io.github.hazymorning.klangbild.config.SleepAction
+import io.github.hazymorning.klangbild.config.VistaRequest
 import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.data.ArtworkLoader
 import io.github.hazymorning.klangbild.data.LinkState
@@ -38,6 +40,7 @@ import io.github.hazymorning.klangbild.domain.SmoothedPosition
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.domain.VistaPolicy
 import io.github.hazymorning.klangbild.lights.LightBridge
 import io.github.hazymorning.klangbild.lights.LightSync
 import io.github.hazymorning.klangbild.render.ArtworkScene
@@ -45,6 +48,7 @@ import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupHandler
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
+import io.github.hazymorning.klangbild.vista.VistaClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,6 +113,19 @@ data class UiState(
     val chapter: ChapterPlace? = null,
     /** When the sleep timer pauses the music (wall clock), while it is set. */
     val sleepAt: Long? = null,
+    /** The Fensterblick, while it has the screen. */
+    val vista: VistaUi? = null,
+)
+
+/**
+ * The Fensterblick while it shows: what plays (for the mini-player), where the label sits, and
+ * – while the preview is open – what the preview has set.
+ */
+data class VistaUi(
+    val track: TrackInfo?,
+    val status: PlayerStatus?,
+    val miniPlayer: MiniPlayer,
+    val preview: VistaClock.Preview? = null,
 )
 
 /**
@@ -136,6 +153,13 @@ class NowPlayingController(
     private var machine = ScreenStateMachine()
     private val smooth = SmoothedPosition()
     private var lastReportKey: Any? = null
+
+    /** When the Fensterblick takes the screen ([VistaPolicy]), and the time its sky shows. */
+    private val vistaPolicy = VistaPolicy()
+    val vistaClock = VistaClock(now)
+
+    /** The Fensterblick's preview is open: it shows, and the keys set its hour, month and sky. */
+    @Volatile private var previewOpen = false
 
     /** "Einschlafen": set from the menu, it pauses the music once ([SleepTimer]). */
     private val sleepTimer = SleepTimer()
@@ -278,6 +302,15 @@ class NowPlayingController(
     fun applyLaunch(extras: Map<String, Any?>) {
         session.value = LaunchExtras.session(extras)
         machine.requestSetup(session.value.showSetup)
+        when (session.value.vista) {
+            VistaRequest.SHOW -> showVista(timelapse = false)
+            VistaRequest.TIMELAPSE -> showVista(timelapse = true)
+            VistaRequest.HIDE -> synchronized(this) {
+                vistaPolicy.request(false)
+                if (!previewOpen) vistaClock.real()
+            }
+            null -> Unit
+        }
         if (LaunchExtras.hasStoredExtras(extras)) {
             scope.launch {
                 val current = settingsStore.settings.first()
@@ -290,6 +323,109 @@ class NowPlayingController(
 
     fun requestSetup(show: Boolean) {
         machine.requestSetup(show)
+        recompute()
+    }
+
+    // --- the Fensterblick ---------------------------------------------------------------------
+
+    /** Whether the Fensterblick has the screen now (the keys end it). */
+    val vistaShowing: Boolean get() = _ui.value.vista != null
+
+    val previewShowing: Boolean get() = previewOpen
+
+    /**
+     * A key was pressed: the Fensterblick (if it shows) goes, and its delays start again.
+     * Returns whether it was showing – then the key has done its work.
+     */
+    @Synchronized
+    fun interaction(): Boolean {
+        val was = _ui.value.vista != null && !previewOpen
+        vistaPolicy.interaction(now())
+        if (vistaClock.preview.timelapse && !previewOpen) vistaClock.real()
+        if (was) recompute()
+        return was
+    }
+
+    /** The Fensterblick now, whatever plays (the held key, a link); [timelapse] lets a day pass in two minutes. */
+    @Synchronized
+    fun showVista(timelapse: Boolean = false) {
+        vistaPolicy.request(true)
+        if (timelapse) vistaClock.set(VistaClock.Preview(timelapse = true)) else if (!previewOpen) vistaClock.real()
+        recompute()
+    }
+
+    /** Opens the preview: the Fensterblick at the real moment, ready to be turned. */
+    @Synchronized
+    fun openPreview() {
+        menuCursor = null
+        previewOpen = true
+        val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(now()), java.time.ZoneId.systemDefault())
+        vistaClock.set(VistaClock.Preview(minuteOfDay = at.hour * 60 + at.minute, dayOfYear = at.dayOfYear - 1))
+        recompute()
+    }
+
+    /** Closes the preview: the picture glides back to the real moment – and, from the remote, the menu comes back where it was. */
+    @Synchronized
+    fun closePreview(toMenu: Boolean = false) {
+        if (!previewOpen) return
+        previewOpen = false
+        vistaClock.real()
+        vistaPolicy.interaction(now())
+        if (toMenu) {
+            menuCursor = SettingsMenu.entries.indexOf(MenuEntry.VISTA_PREVIEW).coerceAtLeast(0)
+            menuTouchedAt = now()
+        }
+        recompute()
+    }
+
+    /** Preview: an hour earlier (−1) or later (+1) – the first step lands on a full hour. */
+    @Synchronized
+    fun previewHour(direction: Int) {
+        val p = vistaClock.preview
+        val m = p.minuteOfDay ?: 12 * 60
+        val next = when {
+            m % 60 == 0 -> m + 60 * direction
+            direction > 0 -> (m / 60 + 1) * 60
+            else -> m / 60 * 60
+        }
+        vistaClock.set(p.copy(minuteOfDay = Math.floorMod(next, 24 * 60), timelapse = false))
+        recompute()
+    }
+
+    /** Preview: the same day a month earlier (−1) or later (+1). */
+    @Synchronized
+    fun previewMonth(direction: Int) {
+        val p = vistaClock.preview
+        val year = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).year
+        val d = java.time.LocalDate.ofYearDay(year, ((p.dayOfYear ?: 171) + 1).coerceIn(1, 365)).plusMonths(direction.toLong())
+        vistaClock.set(p.copy(dayOfYear = d.withYear(year).dayOfYear - 1))
+        recompute()
+    }
+
+    /** Preview: the next sky – the weather's, clear, a few clouds, overcast. */
+    @Synchronized
+    fun previewSky() {
+        val p = vistaClock.preview
+        val next = when (p.cover) {
+            null -> 0f
+            0f -> 0.45f
+            0.45f -> 1f
+            else -> null
+        }
+        vistaClock.set(p.copy(cover = next))
+        recompute()
+    }
+
+    /** Preview: a day in two minutes, or back to the hour it shows. */
+    @Synchronized
+    fun previewTimelapse() {
+        val p = vistaClock.preview
+        if (p.timelapse) {
+            val at = java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(vistaClock.sky()), java.time.ZoneId.systemDefault())
+            vistaClock.set(p.copy(timelapse = false, minuteOfDay = at.hour * 60 + at.minute))
+        } else {
+            vistaClock.set(p.copy(timelapse = true))
+        }
         recompute()
     }
 
@@ -464,6 +600,7 @@ class NowPlayingController(
             }
             // The sleep timer is no setting: it lives until it has paused the music once.
             entry == MenuEntry.SLEEP_TIMER -> stepSleep(direction, wrap)
+            entry == MenuEntry.VISTA_PREVIEW -> openPreview()
             else -> {
                 val updated = SettingsMenu.step(entry, settings.value, direction, wrap) ?: return
                 localEdits.incrementAndGet()
@@ -521,7 +658,7 @@ class NowPlayingController(
     @Synchronized
     private fun reconcileSource() {
         val s = settings.value
-        val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haToken, s.entityId, s.sunEntity, s.maUrl, s.maToken).joinToString("|") else "unconfigured"
+        val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haToken, s.entityId, s.sunEntity, s.maUrl, s.maToken, s.weatherEntities).joinToString("|") else "unconfigured"
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
         sourceJob?.cancel()
@@ -534,7 +671,7 @@ class NowPlayingController(
         strip.clear()
         val ma = if (s.hasMusicAssistant) MaClient(http, s.maUrl!!, s.maToken!!) else null
         val newSource: NowPlayingSource? =
-            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now, ma) else null
+            if (s.isConfigured) HaSource(http, scope, HaConfig(s.haUrl!!, s.haToken!!), s.entityId!!, s.sunEntity, now, ma, s.weatherEntities) else null
         source = newSource
         if (newSource == null) {
             _ui.value = _ui.value.copy(source = SourceState(LinkState.UNCONFIGURED))
@@ -606,7 +743,11 @@ class NowPlayingController(
         }
     }
 
-    private fun timingFor(s: Settings) = Timing(sleepAfterMs = s.sleepAfterMinutes * 60_000L)
+    /** With the Fensterblick on when paused, a paused cover waits for it instead of turning into the clock. */
+    private fun timingFor(s: Settings) = Timing(
+        sleepAfterMs = s.sleepAfterMinutes * 60_000L,
+        pauseToRestMs = if (s.vistaPauseSeconds > 0) Long.MAX_VALUE / 4 else Timing().pauseToRestMs,
+    )
 
     @Synchronized
     private fun recompute() {
@@ -636,6 +777,18 @@ class NowPlayingController(
         scheduleSleep(sleepTimer.wakeAt)
         val previous = _ui.value
         val menu = menuState(s, appearance, stage?.track)
+        // The Fensterblick waits while the menu is open (the preview is the menu's own).
+        val quietLongEnough = vistaPolicy.shows(decision.screen, t, s.vistaPauseSeconds * 1000L, s.vistaPlayingSeconds * 1000L)
+        val vista = if (previewOpen || (quietLongEnough && menu == null)) {
+            VistaUi(
+                track = stage?.track,
+                status = stage?.status,
+                miniPlayer = s.miniPlayer,
+                preview = vistaClock.preview.takeIf { previewOpen },
+            )
+        } else {
+            null
+        }
         _ui.value = previous.copy(
             screen = decision.screen,
             keepScreenOn = decision.keepScreenOn || menu != null,
@@ -650,6 +803,7 @@ class NowPlayingController(
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
             chapter = chapter,
             sleepAt = steadySleepAt(sleepTimer.pausesAt),
+            vista = vista,
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)

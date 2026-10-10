@@ -45,6 +45,8 @@ class HaSource(
     private val sunEntity: String = "sun.sun",
     private val now: () -> Long = System::currentTimeMillis,
     private val ma: MaClient? = null,
+    /** The weather entities to read the sky's cover from, the first that exists counts (none: no weather). */
+    private val weatherEntities: List<String> = emptyList(),
     /** How often the queue is read again while music plays (shorter in tests). */
     private val queueRefreshMs: Long = QUEUE_REFRESH_MS,
 ) : NowPlayingSource, LightBridge {
@@ -95,11 +97,11 @@ class HaSource(
     }
 
     override fun start() {
-        connection.start(config, listOf(playerEntity, sunEntity))
+        connection.start(config, listOf(playerEntity, sunEntity) + weatherEntities)
         // How many Music Assistant speakers there are: a group of all of them is "everywhere".
         connection.watchTemplate(SPEAKER_COUNT_TEMPLATE)
         collector = scope.launch {
-            combine(connection.status, connection.entities, connection.templateResult) { st, ents, _ -> st to ents }
+            combine(connection.status, connection.entities, connection.templateResult, connection.config) { st, ents, _, _ -> st to ents }
                 .collect { (st, ents) -> publish(st, ents) }
         }
         queuePoller = scope.launch {
@@ -176,6 +178,7 @@ class HaSource(
 
         val enriched = player?.let { enrich(it) }
         val sun = entities[sunEntity]?.number("elevation")
+        val weather = weatherEntities.firstNotNullOfOrNull { entities[it] }
         // The other speakers of a group are followed too, for their names – and the light bars.
         val others = player?.groupMembers.orEmpty()
         val follow = others.toSet() + lightIds
@@ -203,7 +206,17 @@ class HaSource(
             coming = currentWindow?.coming.orEmpty(),
             played = currentWindow?.played.orEmpty(),
             ma = if (ma == null) null else maLink,
+            place = placeOf(connection.config.value) ?: _state.value.place,
+            weather = weather?.state?.takeIf { it != "unavailable" && it != "unknown" } ?: _state.value.weather.takeIf { weather == null },
+            cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
         )
+    }
+
+    /** Home Assistant's latitude and longitude from its configuration. */
+    private fun placeOf(cfg: JsonObject?): Pair<Double, Double>? {
+        val lat = (cfg?.get("latitude") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
+        val lon = (cfg["longitude"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
+        return if (lat == 0.0 && lon == 0.0) null else lat to lon
     }
 
     /**

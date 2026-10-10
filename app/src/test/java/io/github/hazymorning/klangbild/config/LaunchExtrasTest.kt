@@ -90,6 +90,30 @@ class LaunchExtrasTest {
     }
 
     @Test
+    fun `the Fensterblick from extras and links`() {
+        val s = LaunchExtras.applyTo(
+            Settings(),
+            mapOf("fensterblick_pause" to "30", "fensterblick_musik" to 600, "mini_player" to "rechts", "weather" to "weather.home"),
+        )
+        assertThat(s.vistaPauseSeconds).isEqualTo(30)
+        assertThat(s.vistaPlayingSeconds).isEqualTo(600)
+        assertThat(s.miniPlayer).isEqualTo(MiniPlayer.RIGHT)
+        assertThat(s.weatherEntities).containsExactly("weather.home")
+        val off = LaunchExtras.applyTo(s, mapOf("fensterblick_pause" to "aus", "mini_player" to "aus", "weather" to "keine"))
+        assertThat(off.vistaPauseSeconds).isEqualTo(0)
+        assertThat(off.miniPlayer).isEqualTo(MiniPlayer.OFF)
+        assertThat(off.weatherEntities).isEmpty()
+        // Out of range or the wrong kind of entity: ignored.
+        assertThat(LaunchExtras.applyTo(s, mapOf("fensterblick_pause" to "99999", "weather" to "sensor.x"))).isEqualTo(s)
+        assertThat(LaunchExtras.session(mapOf("fensterblick" to "an")).vista).isEqualTo(VistaRequest.SHOW)
+        assertThat(LaunchExtras.session(mapOf("fensterblick" to "zeitraffer")).vista).isEqualTo(VistaRequest.TIMELAPSE)
+        assertThat(LaunchExtras.session(mapOf("fensterblick" to "aus")).vista).isEqualTo(VistaRequest.HIDE)
+        // A link may show it and set its options – the weather entity stays with the setup page.
+        val link = LaunchExtras.fromLink(mapOf("fensterblick" to "an", "mini_player" to "links", "weather" to "weather.x"))
+        assertThat(link.keys).containsExactly("fensterblick", "mini_player")
+    }
+
+    @Test
     fun `session options`() {
         assertThat(LaunchExtras.session(mapOf("setup" to true))).isEqualTo(SessionOptions(showSetup = true))
         assertThat(LaunchExtras.session(mapOf("debug" to 1, "setup" to "ja")))

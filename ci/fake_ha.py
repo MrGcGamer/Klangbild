@@ -4,7 +4,8 @@
 Speaks just enough of the WebSocket API for Klangbild: auth, subscribe_entities (the
 speaker, sun.sun and – in a second subscription – the other speakers of its group),
 render_template (the number of speakers), call_service (music_assistant.get_queue and the
-media keys), unsubscribe_events and ping.
+media keys), get_config (where it stands: Berlin, for the Fensterblick's sun and moon), a
+weather entity (partly cloudy), unsubscribe_events and ping.
 Serves the cover as a PNG. 40 seconds after the app subscribed, the next track starts, so
 the smoke test also runs through a track change. The emulator reaches the host at 10.0.2.2.
 
@@ -149,6 +150,8 @@ async def session(reader, writer):
                     first_subscription = first_subscription or time.time()
                     main_sub = mid
                     states = {SPEAKER: speaker_state(), "sun.sun": {"s": "above_horizon", "a": {"elevation": 32.0}, "lc": started}}
+                    if "weather.forecast_home" in ids:
+                        states["weather.forecast_home"] = {"s": "partlycloudy", "a": {"cloud_coverage": 40.0, "friendly_name": "Forecast Home"}, "lc": started}
                 else:
                     states = {e: {"s": "playing", "a": {"friendly_name": NAMES.get(e, e)}, "lc": started} for e in ids}
                 await send(writer, json.dumps({"id": mid, "type": "event", "event": {"a": states}}))
@@ -161,6 +164,9 @@ async def session(reader, writer):
                 # the number of Music Assistant speakers: all six play together
                 await send(writer, json.dumps({"id": mid, "type": "result", "success": True, "result": None}))
                 await send(writer, json.dumps({"id": mid, "type": "event", "event": {"result": 1 + len(OTHERS), "listeners": {}}}))
+            elif kind == "get_config":
+                await send(writer, json.dumps({"id": mid, "type": "result", "success": True,
+                                               "result": {"latitude": 52.52, "longitude": 13.40, "time_zone": "Europe/Berlin"}}))
             elif kind == "ping":
                 await send(writer, json.dumps({"id": mid, "type": "pong"}))
             elif mid is not None:

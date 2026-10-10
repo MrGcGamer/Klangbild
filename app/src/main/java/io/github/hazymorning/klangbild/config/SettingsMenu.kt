@@ -13,6 +13,7 @@ enum class MenuSection(val title: String) {
     PICTURE("Bild"),
     INFO("Informationen"),
     EFFECTS("Effekte"),
+    VISTA("Fensterblick"),
     REMOTE("Fernbedienung"),
     TIMER("Timer"),
     CONNECTION("Verbindung"),
@@ -33,6 +34,10 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     LIGHT(MenuSection.EFFECTS, "Intensität"),
     MOTION(MenuSection.EFFECTS, "Bewegung"),
     BARS(MenuSection.EFFECTS, "Lichtleisten"),
+    VISTA_PAUSE(MenuSection.VISTA, "Bei Pause"),
+    VISTA_PLAYING(MenuSection.VISTA, "Während der Musik"),
+    MINI_PLAYER(MenuSection.VISTA, "Mini-Player"),
+    VISTA_PREVIEW(MenuSection.VISTA, "Vorschau"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
     UP_DOWN(MenuSection.REMOTE, "Pfeil hoch und runter"),
     SPOKEN(MenuSection.REMOTE, "Hörbücher, Podcasts"),
@@ -110,6 +115,14 @@ object SettingsMenu {
             LightLevel.OFF -> "Aus"
         }
         MenuEntry.DAY_NIGHT -> onOff(s.dayNight)
+        MenuEntry.VISTA_PAUSE -> delay(s.vistaPauseSeconds)
+        MenuEntry.VISTA_PLAYING -> delay(s.vistaPlayingSeconds)
+        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
+            MiniPlayer.LEFT -> "Unten links"
+            MiniPlayer.RIGHT -> "Unten rechts"
+            MiniPlayer.OFF -> "Aus"
+        }
+        MenuEntry.VISTA_PREVIEW -> "Öffnen"
         MenuEntry.REMOTE -> onOff(s.remoteControl)
         MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Infos zeigen"
         MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
@@ -210,6 +223,25 @@ object SettingsMenu {
                 BarLevel.STRONG -> "Stark: für helle Räume."
             }
         }
+        MenuEntry.VISTA_PAUSE -> if (s.vistaPauseSeconds == 0) {
+            "Ist die Musik angehalten, bleibt das Cover stehen; nach drei\u00A0Minuten erscheint die Uhr."
+        } else {
+            "Ist die Musik so lange angehalten, erscheint eine Landschaft aus Papier, deren Licht der\u00A0echten Tageszeit folgt. " +
+                "Jede Taste holt das Cover zurück."
+        }
+        MenuEntry.VISTA_PLAYING -> if (s.vistaPlayingSeconds == 0) {
+            if (s.volumeKeys) "Während Musik läuft, bleibt das Cover." else "Während Musik läuft, bleibt das Cover. Pfeil runter lange drücken zeigt den\u00A0Fensterblick jederzeit."
+        } else {
+            "Läuft die Musik so lange ohne Tastendruck, wird sie zum\u00A0Fensterblick\u00A0– mit dem\u00A0Mini-Player in der\u00A0Ecke."
+        }
+        MenuEntry.MINI_PLAYER -> when (s.miniPlayer) {
+            MiniPlayer.LEFT -> "Cover, Titel und Fortschritt unten links in\u00A0der Landschaft."
+            MiniPlayer.RIGHT -> "Cover, Titel und Fortschritt unten rechts in\u00A0der Landschaft."
+            MiniPlayer.OFF -> "Der Fensterblick zeigt nur die\u00A0Landschaft."
+        }
+        MenuEntry.VISTA_PREVIEW ->
+            "OK zeigt den\u00A0Fensterblick zu jeder Stunde und Jahreszeit: links und rechts die\u00A0Uhrzeit, hoch und runter den\u00A0Monat, " +
+                "OK das\u00A0Wetter. OK lange lässt einen Tag in zwei\u00A0Minuten vergehen."
         MenuEntry.REMOTE ->
             if (s.remoteControl) "OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel."
             else "Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü."
@@ -268,6 +300,9 @@ object SettingsMenu {
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
         MenuEntry.DAY_NIGHT -> s.copy(dayNight = !s.dayNight)
+        MenuEntry.VISTA_PAUSE -> s.copy(vistaPauseSeconds = move(PAUSE_DELAYS, nearest(PAUSE_DELAYS, s.vistaPauseSeconds), direction, wrap))
+        MenuEntry.VISTA_PLAYING -> s.copy(vistaPlayingSeconds = move(PLAYING_DELAYS, nearest(PLAYING_DELAYS, s.vistaPlayingSeconds), direction, wrap))
+        MenuEntry.MINI_PLAYER -> s.copy(miniPlayer = move(MINI_ORDER, s.miniPlayer, direction, wrap))
         MenuEntry.REMOTE -> s.copy(remoteControl = !s.remoteControl)
         MenuEntry.UP_DOWN -> s.copy(volumeKeys = !s.volumeKeys)
         MenuEntry.SPOKEN -> s.copy(spokenSkip = !s.spokenSkip)
@@ -275,8 +310,23 @@ object SettingsMenu {
         MenuEntry.SLEEP_ACTION -> s.copy(
             sleepAction = if (s.sleepAction == SleepAction.CLOSE) SleepAction.RELEASE else SleepAction.CLOSE,
         )
-        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER -> null
+        MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.VISTA_PREVIEW -> null
     }
+
+    /** The delays offered for the Fensterblick (s): when paused, and while music plays; 0 is "Aus". */
+    val PAUSE_DELAYS = listOf(0, 5, 15, 30, 60, 180, 300, 600)
+    val PLAYING_DELAYS = listOf(0, 60, 120, 300, 600, 900, 1800)
+
+    /** "Aus", "15 Sekunden", "Drei Minuten" … */
+    fun delay(seconds: Int): String = when {
+        seconds <= 0 -> "Aus"
+        seconds <= 12 -> numberWords[seconds].replaceFirstChar { it.uppercase() } + " Sekunden"
+        seconds < 60 -> "$seconds Sekunden"
+        else -> minutes(seconds / 60)
+    }
+
+    /** The offered value nearest to [v] (which may have been set by ADB). */
+    private fun nearest(choices: List<Int>, v: Int): Int = choices.minByOrNull { kotlin.math.abs(it - v) } ?: choices.first()
 
     /** "Aus", "30 Minuten", "Eine Stunde", "Ende des Kapitels", "Ende der Folge" … */
     fun sleepValue(choice: SleepChoice, kind: MediaKind?): String = when (choice) {
@@ -299,6 +349,7 @@ object SettingsMenu {
     private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
     private val MOTION_ORDER = listOf(MotionLevel.OFF, MotionLevel.GENTLE, MotionLevel.MEDIUM, MotionLevel.LIVELY)
     private val BAR_ORDER = listOf(BarLevel.OFF, BarLevel.SUBTLE, BarLevel.NORMAL, BarLevel.STRONG)
+    private val MINI_ORDER = listOf(MiniPlayer.OFF, MiniPlayer.LEFT, MiniPlayer.RIGHT)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {
         val i = order.indexOf(current).coerceAtLeast(0) + direction
