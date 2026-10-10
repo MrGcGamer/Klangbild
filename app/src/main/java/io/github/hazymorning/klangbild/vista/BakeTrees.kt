@@ -10,7 +10,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 
-/** The far wood: a gentle line of small firs, one silhouette, standing close. */
+/** The far wood: a gentle line of small firs standing close, cut as one silhouette. */
 internal fun Baker.woodFar(): Build {
     val rnd = Rnd(41)
     val ground = cut(PaperMotif.woodFar, 41, amp = 0.5f, closedTo = WOOD_FAR_BOTTOM)
@@ -34,9 +34,9 @@ internal fun Baker.woodFar(): Build {
 }
 
 /**
- * The near wood, dipping into the valley: firs close as one silhouette, taller towards
- * the sides, and here and there a broad-leaved tree – its trunk on the wood, its crown
- * on a sheet of its own ([leaves]), whose inks the season paints.
+ * The near wood, dipping into the valley: firs standing close as one silhouette, taller toward
+ * the sides, and here and there a broad-leaved tree. Such a tree's trunk goes on the wood and
+ * its crown on a sheet of its own ([leaves]), whose inks the season paints.
  */
 internal fun Baker.woodNear(leaves: Boolean): Build? {
     val rnd = Rnd(43)
@@ -64,7 +64,7 @@ internal fun Baker.woodNear(leaves: Boolean): Build? {
         val b = build(SheetId.LEAVES, all.minOf { it.minX() } - 3f, all.minOf { it.minY() } - 3f, all.maxOf { it.maxX() } + 3f, all.maxOf { it.maxY() } + 3f)
         for (k in cuts) {
             val tree = k.round ?: continue
-            // Three colours by the tree's own tone; the crown's lower part in shade.
+            // Three colors by the tree's own tone; the crown's lower part in shade.
             lay(b, mask(tree.discs), c(if (k.tree.tone == 1) 1f else 0f), c(if (k.tree.tone == 2) 1f else 0f), crownShade(tree, k.tone))
         }
         return b
@@ -152,8 +152,8 @@ internal fun Baker.fir(cx: Float, footY: Float, h: Float, rnd: Rnd, width: Float
 }
 
 /**
- * A broad-leaved tree: a crown of clustered leaf masses – a large one in the middle, smaller
- * ones round its top and sides, its underside flatter – on a short trunk that forks into it.
+ * A broad-leaved tree: a crown of clustered leaf masses (a large one in the middle, smaller
+ * ones around its top and sides, its underside flatter) on a short trunk that forks into it.
  */
 internal fun Baker.roundTree(cx: Float, footY: Float, h: Float, rnd: Rnd): RoundTree {
     val r = h * 0.36f
@@ -175,7 +175,7 @@ internal fun Baker.roundTree(cx: Float, footY: Float, h: Float, rnd: Rnd): Round
 
 /**
  * A birch: a slender white trunk, a little bent, with its dark marks; thin twigs rising
- * from its upper half; a crown of small leaf clusters along them (the season's colour,
+ * from its upper half; a crown of small leaf clusters along them (the season's color,
  * gone in winter, when the twigs carry snow instead).
  */
 internal fun Baker.birch(cx: Float, footY: Float, h: Float, rnd: Rnd): BirchCut {
@@ -212,7 +212,7 @@ internal fun Baker.birch(cx: Float, footY: Float, h: Float, rnd: Rnd): BirchCut 
         marks += Shapes.ellipse(ax + off, y, w, 0.35f + 0.3f * rnd.next(), segments = 12)
         y -= 3.5f + 5f * rnd.next()
     }
-    // The crown: an upright oval of overlapping leaf clusters round the upper trunk, and a few at the twigs' tips.
+    // The crown: an upright oval of overlapping leaf clusters around the upper trunk, and a few at the twigs' tips.
     val crown = ArrayList<Outline>()
     val cy = top + h * 0.37f
     val ry = h * 0.31f
@@ -241,7 +241,7 @@ internal fun Baker.birch(cx: Float, footY: Float, h: Float, rnd: Rnd): BirchCut 
 }
 
 /**
- * A fir as a stand-up cut-out: a fine margin of the card's light core round it, the
+ * A fir as a stand-up cut-out: a fine margin of the card's light core around it, the
  * trunk (its bark in shade), the tiers folded down the middle, snow on them.
  */
 internal fun Baker.standee(b: Build, f: FirCut, margin: Float, aoSigma: Float) {
@@ -286,5 +286,5 @@ internal class BirchCut(
     val top: Float,
 )
 
-/** How many of the near wood's trees are broad-leaved. */
+/** The share of the near wood's trees that are broad-leaved. */
 private const val BROAD_SHARE = 0.1f

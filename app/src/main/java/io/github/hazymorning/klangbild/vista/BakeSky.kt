@@ -6,7 +6,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** The sky: a wash from the zenith's colour (base) through the middle one to the horizon's. */
+/** The sky: a wash from the zenith's color (base) through the middle one to the horizon's. */
 internal fun Baker.sky(): Build {
     val b = build(SheetId.SKY, -o, -o, PaperMotif.WIDTH + o, SKY_BOTTOM)
     for (y in 0 until b.height) {
@@ -19,8 +19,8 @@ internal fun Baker.sky(): Build {
 }
 
 /**
- * A cloud of torn tissue: one or two long strips laid over each other, their edges
- * torn, their lower part a little in shade. Relative to its left end and baseline.
+ * A cloud of torn tissue: long strips laid over each other, with torn edges and the lower part
+ * a little in shade. Placed relative to its left end and baseline.
  */
 internal fun Baker.cloud(i: Int): Sheet {
     val pieces = CLOUDS[i]
@@ -55,7 +55,7 @@ private fun Baker.tissue(x: Float, y: Float, length: Float, thickness: Float, se
     return wobbled(Outline.of(top + bottom.reversed()), seed + 2, 0.9f, closed = true, scales = floatArrayOf(2.5f, 6f, 15f), amps = floatArrayOf(0.6f, 0.8f, 0.5f))
 }
 
-/** A disc of white paper, [radius] dp, cut a little unevenly; relative to its middle. */
+/** A disc of white paper, [radius] dp, cut a little unevenly; placed relative to its middle. */
 internal fun Baker.disc(radius: Float, seed: Int): Sheet {
     val ox = 100f
     val oy = 100f
@@ -79,10 +79,10 @@ internal fun Baker.glow(): Sheet {
     return Sheet(0, 0, side, side, px)
 }
 
-/** The sky's wash reaches the horizon's colour this far down (dp). */
+/** The sky's wash reaches the horizon's color this far down (dp). */
 private const val SKY_SPAN = 345f
 
-/** The tissue clouds: their strips (left end, baseline, length, thickness – dp). */
+/** The tissue clouds: their strips (left end, baseline, length, thickness; all in dp). */
 private val CLOUDS = listOf(
     listOf(floatArrayOf(0f, 0f, 230f, 15f), floatArrayOf(50f, -12f, 120f, 11f)),
     listOf(floatArrayOf(0f, 0f, 180f, 12f)),

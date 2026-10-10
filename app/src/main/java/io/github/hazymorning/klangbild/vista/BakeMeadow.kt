@@ -10,7 +10,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** The clearing's meadow; in winter white patches spread over it until it is all snow. */
+/** The clearing's meadow. In winter, white patches spread over it until it is all snow. */
 internal fun Baker.meadow(): Build {
     val ground = cut(PaperMotif.meadow, 51, amp = 0.9f, closedTo = MEADOW_BOTTOM)
     val b = build(SheetId.MEADOW, -o, 412f, PaperMotif.WIDTH + o, MEADOW_BOTTOM)
@@ -56,9 +56,9 @@ internal fun Baker.grass(line: Polyline, from: Float, to: Float, rnd: Rnd, low: 
 }
 
 /**
- * Flowers in the meadow's grass in spring and early summer – five petals round a heart,
- * in patches – and fallen leaves in autumn; smaller on the far meadow, kept clear of the
- * fire, the tent and the stones.
+ * Flowers in the meadow's grass in spring and early summer (five petals around a center, in
+ * patches) and fallen leaves in autumn. They are smaller on the far meadow and kept clear of
+ * the fire, the tent and the stones.
  */
 internal fun Baker.blooms(near: Boolean): Build? {
     val flowers = shapes.flowers
@@ -120,10 +120,9 @@ internal fun Baker.blooms(near: Boolean): Build? {
 }
 
 /**
- * The meadow's cut-outs, each a sprite of its own about its foot, so it can sway: firs
- * with a fine margin of the card's light core, folded down the middle; and birches –
- * their white trunks and twigs, their crowns of little leaf clusters in the season's
- * colours (gone in winter).
+ * The meadow's cut-outs, each a sprite of its own about its foot so it can sway. The firs have a
+ * fine margin of the card's light core and are folded down the middle. The birches have white
+ * trunks and twigs and crowns of little leaf clusters in the season's colors (gone in winter).
  */
 internal fun Baker.standees(): List<Standee> {
     val rnd = Rnd(61)
@@ -169,7 +168,7 @@ internal fun Baker.standees(): List<Standee> {
 }
 
 /**
- * A near bank with its fringe of grass and its tall firs. Snow lies only along its top:
+ * A near bank with its fringe of grass and its tall firs. Snow lies only along its top, so
  * the bank under the label stays dark in every season.
  */
 internal fun Baker.front(left: Boolean): Build? {
@@ -180,7 +179,7 @@ internal fun Baker.front(left: Boolean): Build? {
         val cornerX = if (left) -o - 4f else PaperMotif.WIDTH + o + 4f
         Outline(e.xs + floatArrayOf(cornerX), e.ys + floatArrayOf(PaperMotif.BOTTOM))
     }
-    // The tall firs are sprites of their own ([frontFirs]); cut here too, so the grass keeps its shapes.
+    // The tall firs are sprites of their own ([frontFirs]). Cutting them here too draws the same random numbers, so the grass keeps its shapes.
     frontFirCuts(left, rnd)
     val parts = listOf(bank)
     val b = build(if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT, parts.minOf { it.minX() } - 4f, parts.minOf { it.minY() } - 4f, parts.maxOf { it.maxX() } + 4f, PaperMotif.BOTTOM)
@@ -197,9 +196,9 @@ private fun Baker.frontFirCuts(left: Boolean, rnd: Rnd): List<Pair<Fir, FirCut>>
     fg.frontFirs.filter { (it.x < PaperMotif.WIDTH / 2f) == left }.map { it to fir(it.x, it.footY, it.height, rnd, width = 0.42f, jag = 0.7f, snow = snowOnTrees()) }
 
 /**
- * The tall firs that frame the view, standing on the near bank of one side – sprites
- * about their feet, so they sway in the wind; cut whole, even where they reach beyond
- * the screen. Baked before their bank: it takes the shade of their feet.
+ * The tall firs that frame the view, standing on the near bank of one side. They are sprites
+ * about their feet, so they sway in the wind, and are cut whole even where they reach beyond
+ * the screen. They are baked before their bank, which takes the shade of their feet.
  */
 internal fun Baker.frontFirs(left: Boolean): List<Standee> {
     val id = if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT

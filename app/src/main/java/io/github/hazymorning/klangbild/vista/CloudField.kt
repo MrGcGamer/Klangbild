@@ -5,21 +5,22 @@ import kotlin.math.floor
 
 /**
  * A cloud in the sky right now: which design, its left end and its baseline (dp), its scale and
- * how much of it is there; [deck]: part of an overcast sky's ceiling – it hangs upside down, its
- * humps towards the ground; [stretch]: drawn this much wider (mist).
+ * how much of it shows. [deck]: part of an overcast sky's ceiling, which hangs upside down with
+ * its humps toward the ground. [stretch]: drawn this much wider (mist).
  */
 class CloudPlace(val design: Int, val x: Float, val y: Float, val scale: Float, val alpha: Float, val deck: Boolean = false, val stretch: Float = 1f)
 
 /**
  * The clouds: lanes at different heights, each an endless procession of torn tissue drifting
- * from west to east – right to left, as the weather comes in from the Atlantic – the high lanes
- * faster, the low ones (farther away) slower and smaller. A fair sky has long strips; as it
+ * from west to east, which is right to left in a view looking south. The high lanes move faster;
+ * the low ones (farther away) move slower and are smaller. A fair sky has long strips. As it
  * clouds over, heaps of tissue join them, and an overcast sky closes into a ceiling of large
- * heaps hung upside down along its top, its lower edge ragged with their humps. Every cloud's design, place and the cover it needs come from its number, never
- * from a random draw, and no two lanes share a rhythm: the sky never repeats. When the cover
- * changes, clouds dissolve or form where they are, as fast as the cover itself changes (slowly)
- * – nothing appears from nowhere. [places] takes the clouds' own clock: it runs faster in the
- * wind ([speed]), so a gust never makes them jump.
+ * heaps hung upside down along its top, its lower edge ragged with their humps. Every cloud's
+ * design, place and the cover it needs come from its number, never from a random draw, and no
+ * two lanes share a rhythm, so the sky never repeats. When the cover changes, clouds dissolve
+ * or form where they are, as slowly as the cover itself changes; nothing appears from nowhere.
+ * [places] takes the clouds' own clock, which runs faster in the wind ([speed]), so a gust
+ * never makes them jump.
  */
 object CloudField {
     private class Lane(val y: Float, val speed: Float, val spacing: Float, val scale: Float, val seed: Int, val deck: Boolean = false)
@@ -38,7 +39,7 @@ object CloudField {
     /** How full the sky is for a [cover] (see [Weather]): a clear day keeps a strip now and then, an overcast one is full. */
     fun density(cover: Float): Float = cover.coerceIn(0f, 1f).let { 0.07f + 0.86f * it * it }
 
-    /** How fast the clouds' clock runs in [wind] (0..1): about as written at a breeze, three times that in a gale. */
+    /** How fast the clouds' clock runs in [wind] (0..1): about the lanes' own speed in a breeze, three times that in a gale. */
     fun speed(wind: Float): Float = 0.7f + 2.5f * wind.coerceIn(0f, 1f)
 
     /** The clouds in the picture at the clouds' own time [seconds] for a sky [density] 0..1. */
@@ -57,7 +58,7 @@ object CloudField {
             for (k in first..last) {
                 val h = hash(k, lane.seed)
                 val need = (h and 0xFFFF) / 65535f
-                // A third of the clouds are heaps: they only come as the sky fills.
+                // One cloud in four is a heap; heaps only come as the sky fills.
                 val heap = lane.deck || ((h ushr 30) and 3) == 0
                 val wanted = when {
                     lane.deck -> deck
@@ -71,7 +72,7 @@ object CloudField {
                 val jitterX = (((h ushr 24) and 0x3F) / 63f - 0.5f) * lane.spacing * 0.5f
                 val hy = hash(k, lane.seed + 7)
                 val jitterY = ((hy and 0xFF) / 255f - 0.5f) * (if (lane.deck) 26f else 18f)
-                // The ceiling's heaps differ in size: its edge is never a line.
+                // The ceiling's heaps differ in size, so its edge is never a straight line.
                 val size = if (lane.deck) 0.82f + 0.36f * (((hy ushr 8) and 0xFF) / 255f) else if (heap) 0.9f else 1f
                 val x = (k * lane.spacing + jitterX - shift).toFloat()
                 if (x > right || x < left) continue

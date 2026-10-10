@@ -3,12 +3,13 @@ package io.github.hazymorning.klangbild.vista
 import kotlin.math.roundToInt
 
 /**
- * A sheet while it is being cut: per pixel the weights of its first and second ink (see
- * [Inks]) in red and green, the paper's light in blue and the coverage in alpha, packed like
- * the bitmap the screen draws (unpremultiplied ARGB, four bytes a pixel – a 4K sheet stays
- * affordable). Pieces are laid on it like paper cut-outs: what comes later covers what is
+ * A sheet while it is being cut: per pixel, the weights of its first and second ink (see
+ * [Inks]) in red and green, the paper's light in blue and the coverage in alpha. They are packed
+ * like the bitmap the screen draws (unpremultiplied ARGB, four bytes a pixel, so a 4K sheet
+ * stays affordable). Pieces are laid on it like paper cut-outs: what comes later covers what is
  * below, anti-aliased by its coverage. Values given with [dither] get a triangular dither of
- * about one level, so slow ramps do not band (fixed seed: the same picture every time).
+ * about one level, so slow ramps do not band (with a fixed seed, so the picture is the same
+ * every time).
  */
 class InkRaster(val width: Int, val height: Int, seed: Int = 1) {
     val pixels = IntArray(width * height)
@@ -29,7 +30,7 @@ class InkRaster(val width: Int, val height: Int, seed: Int = 1) {
         val p = pixels[i]
         val a0 = (p ushr 24) / 255f
         val out = c + a0 * (1f - c)
-        // Weights are colour-like: they mix by coverage, like paint over paint.
+        // Weights are color-like: they mix by coverage, like paint over paint.
         val k0 = a0 * (1f - c) / out
         val k1 = c / out
         val d = if (dither) 255f else 0f

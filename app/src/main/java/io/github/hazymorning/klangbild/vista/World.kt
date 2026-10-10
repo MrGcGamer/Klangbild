@@ -24,8 +24,8 @@ data class Heavens(
 
 /**
  * The real world behind the picture, kept to what it shows in every moment: the sun's and the
- * moon's places and the moon's phase (computed with commons-suncalc, Apache 2.0, about a
- * minute exact – far more than a picture needs), the stars' turn, and the season from the
+ * moon's places and the moon's phase (computed with commons-suncalc, Apache 2.0, exact to
+ * about a minute, far more than a picture needs), the stars' turn, and the season from the
  * calendar. Everything is a smooth function of time: nothing in the picture ever jumps.
  */
 object World {
@@ -47,8 +47,8 @@ object World {
     }
 
     /**
-     * What the sky does at [epochMs] over [place] in [weather] – everything the picture's light
-     * depends on – and where the heavens stand.
+     * What the sky does at [epochMs] over [place] in [weather] (everything the picture's light
+     * depends on), and where the heavens stand.
      */
     fun sky(epochMs: Long, place: Place, zone: ZoneId, weather: Weather): Pair<SkyState, Heavens> {
         val h = heavens(epochMs, place)
@@ -68,9 +68,9 @@ object World {
     }
 
     /**
-     * Without Home Assistant's location: a place guessed from the time zone – the zone's big
+     * Without Home Assistant's location, a place guessed from the time zone: the zone's big
      * city where it is known, else a latitude of 50° and the longitude its offset implies.
-     * Good enough for the sun's colours; the stars and the moon only shift a little.
+     * Good enough for the sun's colors; the stars and the moon only shift a little.
      */
     fun guessPlace(zone: ZoneId): Place {
         KNOWN[zone.id]?.let { return it }
@@ -89,8 +89,8 @@ object World {
 
     /**
      * The season at [epochMs] for a place at [latitude] (the south has its seasons half a year
-     * apart): how much spring, summer, autumn and winter colour the land, and what has changed
-     * shape – snow, leaves, blossom. Every value passes into the next over weeks.
+     * apart): how much spring, summer, autumn and winter color the land, and what has changed
+     * shape (snow, leaves, blossom). Every value passes into the next over weeks.
      */
     fun season(epochMs: Long, zone: ZoneId, latitude: Double): Pair<SeasonMix, SeasonShapes> {
         val date = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMs), zone)
@@ -99,7 +99,7 @@ object World {
         return seasonOnDay(day.toFloat())
     }
 
-    /** The season on day [d] of a northern year (0 = 1 January). */
+    /** The season on day [d] of a northern year (0 is January 1). */
     fun seasonOnDay(d: Float): Pair<SeasonMix, SeasonShapes> {
         // Each season's weight: a plateau with long ramps at both ends (day numbers, not dates).
         val spring = window(d, 68f, 100f, 130f, 161f)
@@ -119,7 +119,7 @@ object World {
         return mix to shapes
     }
 
-    /** 0 before [a], rising to 1 at [b], 1 until [c], falling to 0 at [e] – smoothly. */
+    /** Smoothly 0 before [a], rising to 1 at [b], 1 until [c], falling to 0 at [e]. */
     private fun window(x: Float, a: Float, b: Float, c: Float, e: Float): Float =
         Shapes.smoothstep(a, b, x) * (1f - Shapes.smoothstep(c, e, x))
 
@@ -127,10 +127,10 @@ object World {
 }
 
 /**
- * The weather as the picture shows it: how cloudy the sky is ([cover], 0 clear … 1 overcast),
- * what falls ([rain], [snow], 0 none … 1 as hard as it gets), fog in the valley ([fog]), a
- * storm's dark sky ([storm]) and the wind ([wind], 0 still … 1 a gale) – the clouds go faster
- * with it, and the trees, the flames and what falls lean with it.
+ * The weather as the picture shows it: how cloudy the sky is ([cover], 0 clear to 1 overcast),
+ * what falls ([rain], [snow], 0 none to 1 as hard as it gets), fog in the valley ([fog]), a
+ * storm's dark sky ([storm]) and the wind ([wind], 0 still to 1 a gale). The clouds go faster
+ * with the wind, and the trees, the flames and what falls lean with it.
  */
 data class Weather(
     val cover: Float,
@@ -164,9 +164,9 @@ data class Weather(
 }
 
 /**
- * Home Assistant's weather entity as [Weather]: its state (`sunny`, `rainy`, `snowy` …), its
- * `cloud_coverage` (%) and its `wind_speed` (km/h). No lightning flashes: a storm only darkens
- * the sky and drives the rain.
+ * Home Assistant's weather entity as [Weather]: its state (`sunny`, `rainy`, `snowy` and so
+ * on), its `cloud_coverage` (%) and its `wind_speed` (km/h). No lightning flashes: a storm only
+ * darkens the sky and drives the rain.
  */
 object WeatherMood {
     /** The weather for an entity's [state], cloud cover (%) and wind (km/h), or null when nothing is known. */
@@ -191,7 +191,7 @@ object WeatherMood {
         val byCoverage = cloudCoverage?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
         val w = byState ?: byCoverage?.let { Weather(cover = it) } ?: return null
         val cover = if (byState != null && byCoverage != null) (byState.cover + byCoverage) / 2f else w.cover
-        // The measured wind counts – but a state that says "windy" is never calmer than that.
+        // The measured wind counts, but a state that says "windy" is never calmer than 0.6.
         val wind = windKmh?.let { windOf(it) }?.let { if (state == "windy" || state == "windy-variant") maxOf(it, 0.6f) else it } ?: w.wind
         return w.copy(cover = cover, wind = wind)
     }

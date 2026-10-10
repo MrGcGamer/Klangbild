@@ -9,7 +9,7 @@ import kotlin.math.sin
  * Where the camera stands at one moment: how far it has moved in ([zoom], for the nearest
  * layer) and to the side ([panX], [panY], dp, for the nearest layer), about the screen's middle.
  * Each layer of the diorama takes its share by its depth ([Depth.parallax]): the near banks move
- * most, the sky hardly at all – so the window has depth even when nothing in it moves.
+ * most and the sky hardly at all, so the window has depth even when nothing in it moves.
  */
 class CameraPose(val zoom: Float, val panX: Float, val panY: Float) {
     fun scale(d: Depth): Float = 1f + (zoom - 1f) * d.parallax
@@ -18,18 +18,18 @@ class CameraPose(val zoom: Float, val panX: Float, val panY: Float) {
 }
 
 /**
- * The camera's slow journey over the diorama, like a hand-held look through a window: it moves
- * in and out (up to [ZOOM_MAX]) and its view wanders across the picture – as far as the paper
+ * The camera's slow journey over the diorama, like a hand-held look through a window. It moves
+ * in and out (up to [ZOOM_MAX]) and its view wanders across the picture, as far as the paper
  * reaches beyond the screen at that zoom ([PaperMotif.OVERSCAN], with the screen's own drift on
- * top). The music's label stands still on the screen – it is no part of the scenery – and the
- * view never wanders so far that the near bank it lies on would leave it: the bank covers the
- * label, with [BANK_MARGIN] to spare, in every pose. A swing in and out takes about two
- * minutes, one across about a minute and a half; the waves are sums of sines with
- * incommensurate periods, so the journey never repeats. The nearer a layer, the more it moves:
- * the parallax is plain to see.
+ * top). The music's label stands still on the screen because it is no part of the scenery, and
+ * the view never wanders so far that the near bank under the label would leave it: the bank
+ * covers the label, with [BANK_MARGIN] to spare, in every pose. A swing in and out takes about
+ * two minutes, one across about a minute and a half; the waves are sums of sines with
+ * incommensurate periods, so the journey never repeats. The nearer a layer, the more it moves,
+ * so the parallax is plain to see.
  */
 object VistaCamera {
-    /** The nearest layer's enlargement, from … to … */
+    /** The nearest layer's enlargement: the least and the most. */
     const val ZOOM_MIN = 1.01f
     const val ZOOM_MAX = 1.11f
 
@@ -64,7 +64,7 @@ object VistaCamera {
     fun pose(zoom: Float, cx: Float, cy: Float) = CameraPose(zoom, (PIVOT_X - cx) * zoom, (PIVOT_Y - cy) * zoom)
 
     /**
-     * Where the view's middle may stand across at [zoom] (dp): as far as the paper reaches – and,
+     * Where the view's middle may stand across at [zoom] (dp): as far as the paper reaches and,
      * with a label, only where its bank can still be brought under it by looking a little lower.
      */
     fun rangeX(zoom: Float, label: LabelSide): Pair<Float, Float> {
@@ -73,7 +73,7 @@ object VistaCamera {
         var hi = PaperMotif.WIDTH + PaperMotif.OVERSCAN - DRIFT - half
         if (label != LabelSide.NONE) {
             val top = paperY(zoom).second
-            // The bank's covering needs the view lower the further it looks towards the label's inner end.
+            // The farther the view looks toward the label's inner end, the lower it must be for the bank to cover the label.
             fun fits(cx: Float) = lowestFor(cx, zoom, label) <= top
             if (label == LabelSide.LEFT && !fits(hi)) hi = search(lo, hi) { fits(it) }
             if (label == LabelSide.RIGHT && !fits(lo)) lo = search(hi, lo) { fits(it) }

@@ -1,22 +1,23 @@
 package io.github.hazymorning.klangbild.vista
 
 /**
- * How far back a sheet stands, for the camera's slow drift: the sky, the far mountains, the
- * clearing and the near banks each move as one layer – the nearer, the more ([parallax]).
+ * How far back a sheet stands, for the camera's slow drift. The sky, the far mountains, the
+ * clearing and the near banks each move as one layer; the nearer the layer, the more it moves
+ * ([parallax]).
  */
 enum class Depth(val parallax: Float) { SKY(0.15f), FAR(0.35f), MID(0.65f), FRONT(1f) }
 
 /**
  * The sheets of the diorama, back to front. Each stands at its own distance in front of what
- * lies behind it ([depth], dp – how far and how softly its shadow falls; 0: none), is a little
- * out of focus the farther it is from the clearing ([blur], dp), and catches the light on its cut
- * top edge ([rim]); [occludes]: it darkens what stands close behind it. [layer]: which of the
- * camera's layers it moves with.
+ * lies behind it ([depth], dp: how far and how softly its shadow falls; 0 casts none). Each is a
+ * little out of focus the farther it is from the clearing ([blur], dp), and its cut top edge
+ * catches the light ([rim]). [occludes]: it darkens what stands close behind it. [layer]: the
+ * camera layer it moves with.
  */
 enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val rim: Float, val layer: Depth, val occludes: Boolean = true) {
     SKY(PaperKind.WASH, 0f, 0f, 0f, Depth.SKY),
     RANGE_FAR(PaperKind.CARD, 0f, 1.0f, 0.1f, Depth.FAR),
-    // The caps lie flat on their mountains: their shade is baked into the range (see occludes), no shadow spills on the sky.
+    // The caps lie flat on their mountains: their shade is baked into the range (see occludes), so no shadow spills onto the sky.
     SNOW(PaperKind.WHITE, 0f, 1.0f, 0f, Depth.FAR),
     RANGE_NEAR(PaperKind.CARD, 1f, 0.7f, 0.1f, Depth.FAR),
     WOOD_FAR(PaperKind.CARD, 1f, 0.5f, 0.1f, Depth.MID),
@@ -25,7 +26,7 @@ enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val r
     MEADOW(PaperKind.CARD, 1.6f, 0f, 0.1f, Depth.MID),
     // Flowers and fallen leaves lie flat on their meadow.
     BLOOMS(PaperKind.CARD, 0f, 0f, 0f, Depth.MID, occludes = false),
-    // The meadow's cut-outs are sprites of their own ([Standee]): they sway; birches wear their crowns in the leaves' colours.
+    // The meadow's cut-outs are sprites of their own ([Standee]) because they sway. The birches' crowns take the leaves' colors.
     STANDEES(PaperKind.CARD, 1.2f, 0f, 0.08f, Depth.MID),
     CROWNS(PaperKind.CARD, 1.2f, 0f, 0.06f, Depth.MID),
     TENT(PaperKind.CARD, 1.2f, 0f, 0.1f, Depth.MID),
@@ -38,11 +39,12 @@ enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val r
 }
 
 /**
- * A baked piece of the picture in its own box (pixels): for the sheets of the canvas (which
- * starts [PaperMotif.OVERSCAN] dp left of and above the screen), for sprites relative to their
- * anchor. Its pixels hold ink weights, the paper's light and coverage (see [Inks]); a sheet
- * baked smaller (soft shadows) is drawn [scale] times its size. Once the screen has made an
- * image of it, its pixels are let go ([release]): only its place is needed to draw it.
+ * A baked piece of the picture in its own box (pixels). A sheet's box is placed on the canvas,
+ * which starts [PaperMotif.OVERSCAN] dp left of and above the screen; a sprite's box is placed
+ * relative to its anchor. Its pixels hold ink weights, the paper's light and coverage (see
+ * [Inks]). A sheet baked smaller (soft shadows) is drawn at [scale] times its size. Once the
+ * screen has made an image of it, its pixels are released ([release]): only its place is needed
+ * to draw it.
  */
 class Sheet(val left: Int, val top: Int, val width: Int, val height: Int, pixels: IntArray, val scale: Int = 1) {
     var pixels: IntArray = pixels
@@ -53,7 +55,7 @@ class Sheet(val left: Int, val top: Int, val width: Int, val height: Int, pixels
     }
 }
 
-/** Snow, leaves and blossom as the season stands – what changes the shapes, not only the colours. */
+/** The season's snow, leaves and blossom: what changes the shapes, not only the colors. */
 data class SeasonShapes(
     /** Snow on the ground, 0 (none) to 1 (deep winter). */
     val snow: Float = 0f,
@@ -61,7 +63,7 @@ data class SeasonShapes(
     val peaks: Float = 0f,
     /** Leaves on the broad-leaved trees, 0 (bare) to 1 (full crowns). */
     val leaves: Float = 1f,
-    /** Blossom, 0 to 1 – it only colours the crowns ([SkyState.blossom]); the bake ignores it. */
+    /** Blossom, 0 to 1. It only colors the crowns ([SkyState.blossom]); the bake ignores it. */
     val blossom: Float = 0f,
     /** Flowers in the meadows (spring and early summer), 0 to 1. */
     val flowers: Float = 0f,
@@ -69,13 +71,13 @@ data class SeasonShapes(
     val fallen: Float = 0f,
 )
 
-/** One tongue of the campfire's flames: crumpled tissue, flickering about its foot (canvas pixels). */
+/** One tongue of the campfire's flames: crumpled tissue that flickers about its foot (canvas pixels). */
 class Flame(val sheet: Sheet, val footX: Float, val footY: Float, val seed: Int)
 
 /**
- * A cut-out standing on the meadow, swaying a little about its foot ([footX], [footY], canvas
- * pixels): its pieces (relative to the foot) with the sheet whose inks they take, each piece's
- * soft shadow, and its own [seed] for the breeze.
+ * A cut-out standing on the meadow that sways a little about its foot ([footX], [footY], canvas
+ * pixels): its pieces (relative to the foot), each with the sheet whose inks it takes, the soft
+ * shadow of each piece, and its own [seed] for the breeze.
  */
 class Standee(val footX: Float, val footY: Float, val parts: List<Pair<SheetId, Sheet>>, val shadows: List<Sheet>, val seed: Int)
 
@@ -94,11 +96,11 @@ class PaperBaked(
     val flames: List<Flame>,
     val fireX: Float,
     val fireY: Float,
-    /** The meadow's cut-outs, each to be drawn on its own (they sway). */
+    /** The meadow's cut-outs, each drawn on its own because they sway. */
     val standees: List<Standee>,
-    /** The tall firs on the near banks, sprites of their own as well (they sway too). */
+    /** The tall firs on the near banks, also sprites of their own because they sway. */
     val frontStandees: List<Standee>,
-    /** The middle of the tent's door (canvas pixels): its lantern's light at night. */
+    /** The middle of the tent's door (canvas pixels), where its lantern glows at night. */
     val doorX: Float,
     val doorY: Float,
     /** Paper discs for the sun and the moon (relative to their middle), and their shadow. */
@@ -118,8 +120,8 @@ class PaperBaked(
     fun px(dp: Float): Float = (dp + PaperMotif.OVERSCAN) * density
 
     /**
-     * The rows of the canvas (pixels, from … until) that a layer's sheets and their shadows
-     * cover: a layer kept as an image needs no more (it is drawn and kept only there).
+     * The rows of the canvas (pixels, from and until) that a layer's sheets and their shadows
+     * cover. A layer kept as an image needs no more rows, since it is drawn and kept only there.
      */
     fun band(depth: Depth): Pair<Int, Int> {
         var top = canvasHeight

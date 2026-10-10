@@ -13,10 +13,10 @@ private const val SPRITE_REACH_DP = 120f
 /** The paper's light is stored in the raster up to this factor while it is cut. */
 internal const val TONE_MAX = 1.25f
 
-/** The grid (dp) on which what stands in front is noted, for the shade it casts. */
+/** The grid (dp) on which the bake notes what stands in front, for the shade it casts. */
 private const val AO_CELL = 2f
 
-/** A weight (or the paper's light) at a point of the screen (dp). */
+/** A value at each point of the screen (dp): an ink's weight or the paper's light. */
 internal fun interface Weight {
     fun at(x: Float, y: Float): Float
 }
@@ -29,6 +29,13 @@ internal class Build(val id: SheetId, val left: Int, val top: Int, val width: In
 /** A coverage mask in a box of canvas pixels. */
 internal class Mask(val left: Int, val top: Int, val width: Int, val height: Int, val v: FloatArray)
 
+/**
+ * Cuts the paper for one bake: a canvas of [cw] × [ch] pixels at [d] pixels per dp, the
+ * season's [shapes] and the foreground [fg] for the label's side. It cuts pieces ([mask]), lays
+ * them on sheets ([lay]) and finishes each sheet ([finish]). It keeps a coarse grid of what the
+ * sheets baked so far cover, so each sheet takes the shade of what stands in front of it. The
+ * pieces of each kind of paper are cut by extensions in the Bake files (BakeSky.kt and so on).
+ */
 internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonShapes, val fg: PaperMotif.Foreground) {
     val o = PaperMotif.OVERSCAN
     private val grain = PaperGrain(d)
@@ -38,6 +45,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
     private val front = FloatArray(gw * gh)
     val meadowLine = Shapes.line(PaperMotif.meadow)
 
+    /** The same value [v] everywhere; [ZERO] is 0 everywhere. */
     fun c(v: Float) = Weight { _, _ -> v }
     val ZERO = c(0f)
 
@@ -45,13 +53,13 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
     fun dpX(px: Int) = (px + 0.5f) / d - o
     fun dpY(px: Int) = (px + 0.5f) / d - o
 
-    /** Where pieces may be cut (canvas pixels): the canvas – or, for sprites that sway, a little beyond it ([beyondCanvas]). */
+    /** Where pieces may be cut (canvas pixels): the canvas or, for sprites that sway, a little beyond it ([beyondCanvas]). */
     private var minX = 0
     private var minY = 0
     private var maxX = cw
     private var maxY = ch
 
-    /** Cuts in [block] reach [SPRITE_REACH_DP] beyond the canvas: a tree that sways never shows where the canvas ends. */
+    /** Cuts in [block] reach [SPRITE_REACH_DP] beyond the canvas, so a tree that sways never shows where the canvas ends. */
     fun <T> beyondCanvas(block: () -> T): T {
         val m = ceil(SPRITE_REACH_DP * d).toInt()
         minX = -m
@@ -88,7 +96,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         val h = bottom - top
         val out = FloatArray(w * h)
         for (e in outlines) {
-            // Each piece is cut in a box of its own: a meadow of small flowers costs what they cover, not the meadow each.
+            // Each piece is cut in a box of its own: a meadow of small flowers costs what they cover, not a whole meadow per flower.
             val l = max(left, floor(px(e.minX())).toInt() - 1)
             val t = max(top, floor(px(e.minY())).toInt() - 1)
             val r = min(right, ceil(px(e.maxX())).toInt() + 1)
@@ -110,9 +118,9 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
     }
 
     /**
-     * Lays a piece of paper ([m]) on [b]: its weights and its light take over where it covers,
-     * and it darkens what lies under its edge by [aoCast] (spread over [aoSigma] dp) – a
-     * piece glued over another.
+     * Lays a piece of paper ([piece]) on [b], as one piece is glued over another: its weights and
+     * its light take over where it covers, and it darkens what lies under its edge by [aoCast]
+     * (spread over [aoSigma] dp).
      */
     fun lay(b: Build, piece: Mask?, w1: Weight, w2: Weight, tone: Weight = c(1f), aoCast: Float = 0f, aoSigma: Float = 3f) {
         piece ?: return
@@ -161,7 +169,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         return Build(id, left, top, max(1, right - left), max(1, bottom - top))
     }
 
-    /** A white margin round [m]: its coverage spread by [marginDp] and cut again with a soft edge. */
+    /** A white margin around [m]: its coverage spread by [marginDp] and cut again with a soft edge. */
     fun margin(m: Mask, marginDp: Float): Mask {
         val v = m.v.copyOf()
         blur(v, m.width, m.height, max(1, (marginDp * d * 0.55f).roundToInt()))
@@ -196,7 +204,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         return Mask(a.left, a.top, a.width, a.height, out)
     }
 
-    /** A contour cut by hand: the drawn line, a little uneven; closed down to [closedTo] (dp), or as drawn. */
+    /** A contour cut by hand: the drawn line, a little uneven, closed down to [closedTo] (dp) or left open as drawn. */
     fun cut(knots: List<Knot>, seed: Int, amp: Float, closedTo: Float? = null): Outline {
         val line = Shapes.line(knots, step = 1f)
         val wobbly = wobbled(Outline(line.xs, line.ys), seed, amp, closed = false)
@@ -208,9 +216,9 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
     // --- finishing ----------------------------------------------------------------------
 
     /**
-     * A cut sheet made ready to draw: its paper's grain, the shade of what stands close in
-     * front of it, the light on its cut top edge – all in the paper's light – and its focus.
-     * Then what it covers joins what stands in front of the sheets behind it.
+     * Makes a cut sheet ready to draw: its paper's grain, the shade of what stands close in front
+     * of it and the light on its cut top edge (all in the paper's light), then its focus. What the
+     * sheet covers then joins what stands in front of the sheets behind it.
      */
     fun finish(b: Build): Sheet {
         val id = b.id
@@ -269,7 +277,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         }
     }
 
-    /** The shade of what stands in front of [id]: close by and over a hand's width; the sky only faintly. */
+    /** The shade of what stands in front of [id], close by and over a hand's width; the sky takes only a faint shade. */
     private fun aoFor(id: SheetId): AoField {
         if (front.all { it == 0f }) return AoField(null, null, 0f, 0f)
         return if (id == SheetId.SKY) {
@@ -360,8 +368,8 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
     // --- helpers ------------------------------------------------------------------------
 
     /**
-     * [e] cut by an uneven hand: every point pushed along the line's normal by a smooth
-     * wander of its length along the line ([scales] dp), at most [amp] dp.
+     * [e] cut by an uneven hand: every point is pushed along the line's normal by a smooth
+     * wander over the distance along the line ([scales] dp), at most [amp] dp.
      */
     fun wobbled(e: Outline, seed: Int, amp: Float, closed: Boolean, scales: FloatArray = floatArrayOf(7f, 19f, 53f), amps: FloatArray = floatArrayOf(0.35f, 0.6f, 1f)): Outline {
         val n = e.size
@@ -391,7 +399,7 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         return Outline(xs, ys)
     }
 
-    /** Smooth 1-D noise over [n] samples, features [scales] samples long. */
+    /** Smooth 1D noise over [n] samples, with features [scales] samples long. */
     fun noise1(n: Int, seed: Int, scales: FloatArray, amps: FloatArray): FloatArray {
         val out = FloatArray(n)
         var peak = 1e-6f

@@ -26,7 +26,7 @@ internal fun Baker.range(id: SheetId, mountains: List<Mountain>, foot: Float, se
     return b
 }
 
-/** The far range's caps: torn white paper glued on, down to the season's snow line, tongues down the creases. */
+/** The far range's caps: torn white paper glued on down to the season's snow line, with tongues down the creases. */
 internal fun Baker.snow(): Build? {
     val line = 188f + 212f * shapes.peaks.pow(1.5f)
     val mountains = PaperMotif.farRange
@@ -36,7 +36,7 @@ internal fun Baker.snow(): Build? {
         if (line - mt.summitY < 3f) continue
         val outline = cut(mt.knots, 2 * 31 + i, amp = 0.6f)
         val cap = capOutline(outline, mt, line, PaperMotif.FAR_FOOT, 400 + i, tongues = 7f)
-        // Cut a hair wider than its mountain, as a glued-on piece would be: the card's edge never shows under it.
+        // Cut a hair wider than its mountain, as a glued-on piece would be, so the card's edge never shows under it.
         val wide = mask(listOf(outline), pad = (CAP_OVERHANG * 3f * d).toInt() + 4)?.let { margin(it, CAP_OVERHANG) }
         lay(b, intersect(wide, mask(listOf(cap))), faceRight(mt, PaperMotif.FAR_FOOT), faceFront(mt, PaperMotif.FAR_FOOT))
     }
@@ -59,7 +59,7 @@ internal fun Baker.capOutline(outline: Outline, mt: Mountain, line: Float, foot:
         var tongue = 0f
         for (cb in mt.creases) {
             val cx = mt.summitX + (cb - mt.summitX) * ((line - mt.summitY) / (foot - mt.summitY)).coerceIn(0f, 1f)
-            // A wide, shallow V where the fold holds the snow – never a drip.
+            // A wide, shallow V where the fold holds the snow, never a drip.
             val u = (x - cx) / 11f
             tongue += tongues * exp(-u * u)
         }
@@ -78,7 +78,7 @@ internal fun Baker.faceRight(mt: Mountain, foot: Float) = Weight { x, y ->
     ((x - crease) * d + 0.5f).coerceIn(0f, 1f)
 }
 
-/** The face between two creases, turned towards the viewer (none with one crease). */
+/** The face between two creases, turned toward the viewer (none with one crease). */
 internal fun Baker.faceFront(mt: Mountain, foot: Float): Weight {
     if (mt.creases.size < 2) return ZERO
     return Weight { x, y ->

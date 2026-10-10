@@ -15,10 +15,10 @@ import kotlin.math.sin
 internal val Baker.tentFoot: Float get() = fg.fireY - 5f
 
 /**
- * A small tent of paper by the fire: its front a triangle of canvas, sagging a little
- * between its poles, the side wall running back to the right, the door a dark triangle
- * with its flap folded back, the ridge pole's tip above. At night a lantern lights the
- * door from inside (drawn as light, see [PaperBaked.doorX]).
+ * A small paper tent by the fire. Its front is a triangle of canvas that sags a little between
+ * its poles, the side wall runs back to the right, the door is a dark triangle with its flap
+ * folded back, and the tip of the ridge pole shows above. At night a lantern lights the door
+ * from inside (drawn as light, see [PaperBaked.doorX]).
  */
 internal fun Baker.tent(): Build {
     val cx = fg.tentX
@@ -42,7 +42,7 @@ internal fun Baker.tent(): Build {
     val flap = Outline.of(listOf((ax - 0.5f) to doorTop, (cx - hw * 0.24f) to foot, (cx - hw * 0.5f) to (foot - 0.7f)))
     val pole = Shapes.stroke(ax, ay + 1f, ax + 0.3f, ay - 2.2f, ax + 0.6f, ay - 5f, 1.5f, 1.1f)
     val b = build(SheetId.TENT, cx - hw - 4f, ay - 7f, cx + hw * 1.45f + 4f, foot + 4f)
-    // The side wall turns to the right; the front faces the viewer: halfway between the lights.
+    // The side wall turns to the right; the front faces the viewer, so it stands halfway between the lights.
     lay(b, mask(listOf(side)), c(1f), ZERO, c(0.9f), aoCast = 0.2f, aoSigma = 2f)
     lay(b, mask(listOf(face)), c(0.5f), ZERO, Weight { _, y -> 1.02f - 0.08f * Shapes.smoothstep(ay, foot, y) }, aoCast = 0.25f, aoSigma = 2f)
     lay(b, mask(listOf(door)), ZERO, c(1f))
@@ -51,7 +51,7 @@ internal fun Baker.tent(): Build {
     return b
 }
 
-/** Snow along the tent's ridge and on its side wall's top. */
+/** Snow along the tent's ridge and on top of its side wall. */
 private fun Baker.tentSnow(snow: Float): List<Outline> {
     val cx = fg.tentX
     val foot = tentFoot
@@ -66,8 +66,8 @@ private fun Baker.tentSnow(snow: Float): List<Outline> {
 }
 
 /**
- * Boulders of folded grey card on the meadow, the faces towards the light lit; and snow
- * on them and on the tent's ridge, where the season has it.
+ * Boulders of folded gray card on the meadow, their faces toward the light lit, and snow on
+ * them and on the tent's ridge where the season has it.
  */
 internal fun Baker.props(): Build? {
     val rocks = fg.rocks.mapIndexed { i, r -> rock(r, 840 + i) }
@@ -103,7 +103,7 @@ private fun Baker.rock(r: Rock, seed: Int): Pair<Outline, (Float) -> Float> {
     return outline to { y -> topX + (footX - topX) * ((y - (r.y - r.h)) / r.h).coerceIn(0f, 1f) }
 }
 
-/** The campfire's wood: a ring of stones, two logs crossed over the embers, their cut ends showing. */
+/** The campfire's wood: a ring of stones and two logs crossed over the embers, their cut ends showing. */
 internal fun Baker.firewood(): Build {
     val rnd = Rnd(71)
     val fx = fg.fireX
@@ -138,8 +138,8 @@ internal fun Baker.firewood(): Build {
 }
 
 /**
- * The campfire's flames: tongues of crumpled tissue, yellow at the heart, orange, red at
- * the tips, a little translucent at their torn edges – each flickering on its own.
+ * The campfire's flames: tongues of crumpled tissue, yellow at the heart, then orange, red at
+ * the tips, and a little translucent at their torn edges. Each flickers on its own.
  */
 internal fun Baker.flames(): List<Flame> {
     val fx = fg.fireX

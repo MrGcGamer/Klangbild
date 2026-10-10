@@ -3,10 +3,12 @@ package io.github.hazymorning.klangbild.vista
 import kotlin.math.ceil
 
 /**
- * Bakes the diorama for a screen: every piece of paper cut once – with exact anti-aliasing and
- * the slight unevenness of a hand with scissors – laid on its sheet, given its paper's grain,
- * darkened where nearer sheets stand close in front of it, softened where it lies far from the
- * clearing. Colours are not baked – the light paints them every frame.
+ * Bakes the diorama for a screen. Every piece of paper is cut once, with exact anti-aliasing and
+ * the slight unevenness of a hand with scissors, and laid on its sheet. Each sheet gets its
+ * paper's grain, is darkened where nearer sheets stand close in front of it, and is softened
+ * where it lies far from the clearing. Colors are not baked: the light paints them every frame.
+ * [Baker] does the cutting; each kind of paper is cut in a file of its own (BakeSky.kt,
+ * BakeMountains.kt, BakeTrees.kt, BakeMeadow.kt, BakeCamp.kt).
  */
 object PaperBake {
     fun bake(widthPx: Int, heightPx: Int, density: Float, shapes: SeasonShapes = SeasonShapes(), label: LabelSide = LabelSide.LEFT): PaperBaked {
@@ -18,7 +20,7 @@ object PaperBake {
         val sheets = LinkedHashMap<SheetId, Sheet>()
         var standees: List<Standee> = emptyList()
         val frontStandees = ArrayList<Standee>()
-        // From the front to the back: every sheet knows what stands in front of it.
+        // Front to back, so that each sheet knows what stands in front of it.
         for (id in SheetId.entries.reversed()) {
             when (id) {
                 SheetId.CROWNS -> continue
@@ -67,13 +69,13 @@ object PaperBake {
         SheetId.FRONT_RIGHT -> front(left = false)
     }
 
-    /** The leaves' strength for [leaves] (0 bare … 1 full): gone before the last ones fall, back with the first green. */
+    /** The leaves' strength for [leaves] (0 bare to 1 full): gone before the last ones fall, back with the first green. */
     fun leafAlpha(leaves: Float): Float = Shapes.smoothstep(0.08f, 0.6f, leaves)
 
     /** How soft a sheet's shadow is (dp) for its [depth]. */
     fun shadowBlurDp(depth: Float): Float = 1.4f + 2.8f * depth
 
-    /** How many cloud designs there are – long strips, then heaps; the sky draws them in an order that never repeats. */
+    /** How many cloud designs there are: long strips first, then heaps. The sky draws them in an order that never repeats. */
     const val CLOUD_STRIPS = 5
     const val CLOUD_HEAPS = 3
     const val CLOUD_DESIGNS = CLOUD_STRIPS + CLOUD_HEAPS
@@ -81,14 +83,14 @@ object PaperBake {
     /** The clouds hang this far (dp) in front of the sky. */
     const val CLOUD_DEPTH = 0.8f
 
-    /** The sun's and the moon's discs (dp radius), and their shadow's softness. */
+    /** The radius of the sun's and the moon's discs (dp), and how soft their shadow is. */
     const val SUN_RADIUS = 15f
     const val MOON_RADIUS = 14f
     private const val DISC_SHADOW_DP = 1.2f
 
     /**
-     * How far down (dp) each sheet is baked: below, nearer sheets hide it everywhere – even when
-     * the camera's layers have drifted apart by a few dp.
+     * How far down (dp) each sheet is baked. Below that line, nearer sheets hide it everywhere,
+     * even when the camera's layers have drifted apart by a few dp.
      */
     internal const val SKY_BOTTOM = 318f
     internal const val RANGE_BOTTOM = 350f

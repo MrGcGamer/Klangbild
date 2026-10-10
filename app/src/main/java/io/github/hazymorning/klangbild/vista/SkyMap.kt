@@ -25,13 +25,13 @@ class SkyPlaces(
 
 /**
  * The sky as the picture shows it: looking south, east on the left and west on the right,
- * [DP_PER_DEGREE_X] dp for every degree of azimuth – a very wide view, so the sun's whole day
- * crosses the picture and even a summer evening's sun sets inside it.
+ * [DP_PER_DEGREE_X] dp for every degree of azimuth. That is a very wide view, so the sun's whole
+ * day crosses the picture and even a summer evening's sun sets inside it.
  *
  * Elevation is measured from the mountains' skyline, not from the valley floor: the sun rises
- * over the ridge the moment the light turns to morning and sets behind it as the evening colours come –
- * and even December's low noon sun clears the summits. Higher up the sky is drawn a little
- * tighter, so the whole dome fits above them.
+ * over the ridge the moment the light turns to morning and sets behind it as the evening colors
+ * come, and even the low noon sun of midwinter clears the summits. Higher up the sky is drawn a
+ * little tighter, so the whole dome fits above them.
  */
 object SkyMap {
     const val DP_PER_DEGREE_X = 3.0f
@@ -39,7 +39,7 @@ object SkyMap {
     /** Below the skyline, the dp per degree of elevation (only seen where the land is low). */
     private const val DP_PER_DEGREE_BELOW = 5.0f
 
-    /** The zenith's place (dp from the top) and how the dome is drawn tighter towards it. */
+    /** The zenith's place (dp from the top) and how the dome is drawn tighter toward it. */
     private const val ZENITH_Y = 24f
     private const val DOME = 0.8
 
@@ -123,7 +123,7 @@ object SkyMap {
 
     /**
      * Stars spread evenly over the sphere (a golden-angle spiral, so no clumps and no gaps),
-     * mostly faint, a few bright – like the real distribution, without its constellations.
+     * mostly faint and a few bright, like the real distribution but without its constellations.
      */
     private val field: List<Star> = run {
         val n = 420
