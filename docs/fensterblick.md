@@ -265,8 +265,9 @@ Assistant selbst.
   darüber in jedem Bild. Pro Bild sind das etwa 2,3 Bildschirmflächen statt 5,3.
 - **Nur was zu sehen ist:** Jeder Bogen hat seine eigene Box und reicht nur so weit nach
   unten, wie ihn nichts verdeckt.
-- **Backen** (JVM, Desktop): 1,25 s bei 1080p, 5,4 s bei 4K. **Speicher:** 30 MB bei 1080p,
-  120 MB bei 4K, dazu die zwei stehenden Ebenen (je eine Bildschirmfläche).
+- **Backen** (JVM, Desktop): 1,25 s bei 1080p, 5,4 s bei 4K. **Speicher:** 30 MB Bitmaps bei
+  1080p, 120 MB bei 4K, dazu die zwei stehenden Ebenen (je eine Bildschirmfläche); die
+  gebackenen Pixel selbst werden freigegeben, sobald die Bitmaps stehen.
 - **Pro Bild auf der CPU:** Wolkenplätze und Flammen (wenige Mikrosekunden); alle zehn
   Sekunden Sonne/Mond, Farben, Sterne.
 - Code: `vista/` (Motiv, Papier, Backen, Licht, Himmel, Welt, Uhr, Wolken), `ui/vista/`
