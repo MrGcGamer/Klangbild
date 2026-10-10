@@ -125,7 +125,7 @@ object SettingsMenu {
         }
         MenuEntry.VISTA_PREVIEW -> "Öffnen"
         MenuEntry.REMOTE -> onOff(s.remoteControl)
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Schnelleinstellungen"
+        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Fensterblick, Menü"
         MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
         MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind)
         MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
@@ -232,7 +232,7 @@ object SettingsMenu {
         }
         MenuEntry.VISTA_PLAYING -> if (s.vistaPlayingSeconds == 0) {
             if (s.volumeKeys) "Während Musik läuft, bleibt das Cover."
-            else "Während Musik läuft, bleibt das Cover. Den\u00A0Fensterblick gibt es jederzeit: Pfeil runter, dann „Ansicht“."
+            else "Während Musik läuft, bleibt das Cover. Den\u00A0Fensterblick gibt es jederzeit: Pfeil hoch."
         } else {
             "Läuft die Musik so lange ohne Tastendruck, wird sie zum\u00A0Fensterblick\u00A0– mit dem\u00A0Mini-Player in der\u00A0Ecke."
         }
@@ -250,8 +250,8 @@ object SettingsMenu {
         MenuEntry.UP_DOWN -> if (s.volumeKeys) {
             "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers; die\u00A0Schnelleinstellungen gibt es dann nicht."
         } else {
-            "Pfeil runter öffnet unten die\u00A0Schnelleinstellungen: Ansicht und Fensterblick, Favorit, Lichtleisten, Sleep-Timer. " +
-                "Pfeil hoch zeigt ausgeblendete Infos kurz\u00A0an."
+            "Pfeil hoch zeigt den Fensterblick; noch einmal hoch oder Zurück holt das Cover zurück. " +
+                "Pfeil runter öffnet unten die\u00A0Schnelleinstellungen, noch einmal runter schließt\u00A0sie."
         }
         MenuEntry.SPOKEN -> if (s.spokenSkip) {
             "Bei Hörbüchern und Podcasts spult links 15\u00A0Sekunden zurück, rechts 30\u00A0Sekunden vor. " +

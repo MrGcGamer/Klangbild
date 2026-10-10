@@ -373,6 +373,12 @@ class NowPlayingController(
         recompute()
     }
 
+    /** Up on the remote: the Fensterblick comes as if chosen (it stays whatever plays) – or, showing, goes. */
+    @Synchronized
+    fun toggleVista() {
+        if (_ui.value.vista != null || vistaPolicy.requested) hideVista() else showVista()
+    }
+
     /**
      * Leaves the Fensterblick (up, back, the quick menu, a link): the stage comes back, its sky
      * returns to the real moment, and the delays start again. Returns whether it was showing.
