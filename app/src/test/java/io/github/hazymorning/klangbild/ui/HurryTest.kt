@@ -44,7 +44,7 @@ class HurryTest {
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 
-    private val covers = listOf(SyntheticCover.TERRAKOTTA, SyntheticCover.MOOS, SyntheticCover.NACHTFAHRT, SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS)
+    private val covers = listOf(SyntheticCover.TERRACOTTA, SyntheticCover.MOSS, SyntheticCover.NIGHT_DRIVE, SyntheticCover.WHITE_SPACE, SyntheticCover.BAUHAUS)
 
     private val strip by lazy {
         covers.mapIndexed { i, c -> i.toLong() to Fixtures.scene(Fixtures.track(c), mdpi, appearance = Appearance.DARK, view = StageView.FLOW) }.toMap()
@@ -109,9 +109,9 @@ class HurryTest {
 
     @Test
     fun aBetterCoverWaitsForTheTrackChange() {
-        val song = Fixtures.track(SyntheticCover.NEBELLAND)
+        val song = Fixtures.track(SyntheticCover.MIST)
         val pair = sideBySide(
-            Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), mdpi),
             Fixtures.stage(song, mdpi),
             Fixtures.stage(song, mdpi, lighting = Lighting.EVENING),
         ) { Fixtures.Theatre(it, PlayerStatus.PLAYING) }
@@ -121,9 +121,9 @@ class HurryTest {
     @Test
     fun anotherSongHurriesTheTrackChange() {
         val pair = sideBySide(
-            Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), mdpi),
-            Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), mdpi),
-            Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.MIST), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), mdpi),
         ) { Fixtures.Theatre(it, PlayerStatus.PLAYING) }
         assertApart(pair)
     }

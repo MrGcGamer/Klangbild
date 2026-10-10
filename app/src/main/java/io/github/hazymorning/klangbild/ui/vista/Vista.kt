@@ -68,7 +68,7 @@ class VistaFeed(
  * top (the music's label), reading the colours of the moment.
  */
 @Composable
-fun Fensterblick(
+fun Vista(
     feed: VistaFeed,
     modifier: Modifier = Modifier,
     label: LabelSide = LabelSide.LEFT,
@@ -148,7 +148,7 @@ fun Fensterblick(
  * priority, a while after the app has settled – and again when the season has moved on.
  */
 @Composable
-fun FensterblickAhead(feed: VistaFeed, label: LabelSide) {
+fun VistaAhead(feed: VistaFeed, label: LabelSide) {
     if (LocalStill.current) return
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth

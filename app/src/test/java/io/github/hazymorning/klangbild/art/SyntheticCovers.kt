@@ -22,17 +22,17 @@ import kotlin.random.Random
  * visually busy). Deterministic for a given style and size.
  */
 enum class SyntheticCover(val nativeSize: Int = 640) {
-    NACHTFAHRT,          // neon synthwave sunset – vivid / neon edge case
+    NIGHT_DRIVE,          // neon synthwave sunset – vivid / neon edge case
     BAUHAUS,             // geometric shapes on paper – light cover
     NOCTURNE,            // crescent moon on black – almost black edge case
-    NEBELLAND,           // misty mountains in greyscale – monochrome edge case
-    SALZWASSER,          // ocean blues
-    TERRAKOTTA,          // warm desert sun
-    MOOS,                // green hills in fog
-    KONFETTI,            // busy, high-frequency confetti
-    PASTELL(300),        // soft pastel, deliberately low resolution
-    LEERRAUM,            // almost white with a single line
-    KAMMERMUSIK(1200),   // colour field painting, high resolution
+    MIST,           // misty mountains in greyscale – monochrome edge case
+    SALT_WATER,          // ocean blues
+    TERRACOTTA,          // warm desert sun
+    MOSS,                // green hills in fog
+    CONFETTI,            // busy, high-frequency confetti
+    PASTEL(300),        // soft pastel, deliberately low resolution
+    WHITE_SPACE,            // almost white with a single line
+    CHAMBER_MUSIC(1200),   // colour field painting, high resolution
 }
 
 object SyntheticCovers {
@@ -43,22 +43,22 @@ object SyntheticCovers {
         val s = size.toFloat()
         val noise = Noise(cover.ordinal * 7919 + 13)
         when (cover) {
-            SyntheticCover.NACHTFAHRT -> nachtfahrt(c, s)
+            SyntheticCover.NIGHT_DRIVE -> nightDrive(c, s)
             SyntheticCover.BAUHAUS -> bauhaus(c, s)
             SyntheticCover.NOCTURNE -> nocturne(c, s)
-            SyntheticCover.NEBELLAND -> nebelland(bmp, noise)
-            SyntheticCover.SALZWASSER -> salzwasser(c, s, noise)
-            SyntheticCover.TERRAKOTTA -> terrakotta(c, s, noise)
-            SyntheticCover.MOOS -> moos(bmp, noise)
-            SyntheticCover.KONFETTI -> konfetti(c, s)
-            SyntheticCover.PASTELL -> pastell(c, s)
-            SyntheticCover.LEERRAUM -> leerraum(c, s)
-            SyntheticCover.KAMMERMUSIK -> kammermusik(bmp, noise)
+            SyntheticCover.MIST -> mist(bmp, noise)
+            SyntheticCover.SALT_WATER -> saltWater(c, s, noise)
+            SyntheticCover.TERRACOTTA -> terracotta(c, s, noise)
+            SyntheticCover.MOSS -> moss(bmp, noise)
+            SyntheticCover.CONFETTI -> confetti(c, s)
+            SyntheticCover.PASTEL -> pastel(c, s)
+            SyntheticCover.WHITE_SPACE -> whiteSpace(c, s)
+            SyntheticCover.CHAMBER_MUSIC -> chamberMusic(bmp, noise)
         }
         val grain = when (cover) {
-            SyntheticCover.NEBELLAND -> 10f
-            SyntheticCover.BAUHAUS, SyntheticCover.LEERRAUM -> 5f
-            SyntheticCover.KAMMERMUSIK, SyntheticCover.TERRAKOTTA -> 7f
+            SyntheticCover.MIST -> 10f
+            SyntheticCover.BAUHAUS, SyntheticCover.WHITE_SPACE -> 5f
+            SyntheticCover.CHAMBER_MUSIC, SyntheticCover.TERRACOTTA -> 7f
             SyntheticCover.NOCTURNE -> 3f
             else -> 4f
         }
@@ -68,7 +68,7 @@ object SyntheticCovers {
 
     private fun paint(color: Long) = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color.toInt() }
 
-    private fun nachtfahrt(c: Canvas, s: Float) {
+    private fun nightDrive(c: Canvas, s: Float) {
         val horizon = 0.64f * s
         c.drawRect(0f, 0f, s, horizon, Paint().apply {
             shader = LinearGradient(
@@ -163,7 +163,7 @@ object SyntheticCovers {
         c.drawRect(0.1f * s, 0.86f * s, 0.32f * s, 0.862f * s, paint(0x66DCD6C8))
     }
 
-    private fun nebelland(bmp: Bitmap, noise: Noise) {
+    private fun mist(bmp: Bitmap, noise: Noise) {
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)
@@ -191,7 +191,7 @@ object SyntheticCovers {
         bmp.setPixels(px, 0, w, 0, 0, w, h)
     }
 
-    private fun salzwasser(c: Canvas, s: Float, noise: Noise) {
+    private fun saltWater(c: Canvas, s: Float, noise: Noise) {
         c.drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(0f, 0f, 0f, s,
                 intArrayOf(0xFF0B2A4A.toInt(), 0xFF0F4C6E.toInt(), 0xFF0A6E7A.toInt(), 0xFF07303F.toInt()),
@@ -226,7 +226,7 @@ object SyntheticCovers {
         }
     }
 
-    private fun terrakotta(c: Canvas, s: Float, noise: Noise) {
+    private fun terracotta(c: Canvas, s: Float, noise: Noise) {
         c.drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(0f, 0f, 0f, s,
                 intArrayOf(0xFFF0B98D.toInt(), 0xFFE08A5E.toInt(), 0xFFB9502F.toInt()),
@@ -254,7 +254,7 @@ object SyntheticCovers {
         }
     }
 
-    private fun moos(bmp: Bitmap, noise: Noise) {
+    private fun moss(bmp: Bitmap, noise: Noise) {
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)
@@ -287,7 +287,7 @@ object SyntheticCovers {
         bmp.setPixels(px, 0, w, 0, 0, w, h)
     }
 
-    private fun konfetti(c: Canvas, s: Float) {
+    private fun confetti(c: Canvas, s: Float) {
         c.drawColor(0xFF2B2F6B.toInt())
         val rnd = Random(42)
         val palette = longArrayOf(0xFFFF5D73, 0xFFFFC145, 0xFF3DDC97, 0xFF4CC9F0, 0xFFF15BB5, 0xFFFFFFFF, 0xFFFF8C42)
@@ -308,7 +308,7 @@ object SyntheticCovers {
         }
     }
 
-    private fun pastell(c: Canvas, s: Float) {
+    private fun pastel(c: Canvas, s: Float) {
         c.drawRect(0f, 0f, s, s, Paint().apply {
             shader = LinearGradient(0f, 0f, s, s,
                 intArrayOf(0xFFF6C6C8.toInt(), 0xFFF8DCC4.toInt(), 0xFFD9CCF0.toInt()),
@@ -319,7 +319,7 @@ object SyntheticCovers {
         })
     }
 
-    private fun leerraum(c: Canvas, s: Float) {
+    private fun whiteSpace(c: Canvas, s: Float) {
         c.drawColor(0xFFF6F5F1.toInt())
         val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF202020.toInt()
@@ -339,7 +339,7 @@ object SyntheticCovers {
         c.drawRect(0.44f * s, 0.86f * s, 0.56f * s, 0.864f * s, paint(0xFF9A9A96))
     }
 
-    private fun kammermusik(bmp: Bitmap, noise: Noise) {
+    private fun chamberMusic(bmp: Bitmap, noise: Noise) {
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)

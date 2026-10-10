@@ -122,7 +122,7 @@ class VistaCameraTest {
     @Test
     fun theLabelStandsStillOnItsBank() {
         // The label at the corners of the camera's range, on either side: always on its dark bank.
-        val track = Fixtures.track(io.github.hazymorning.klangbild.art.SyntheticCover.NACHTFAHRT)
+        val track = Fixtures.track(io.github.hazymorning.klangbild.art.SyntheticCover.NIGHT_DRIVE)
         val scene = Fixtures.stage(track).scene
         var i = 0
         for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) for (zoom in listOf(VistaCamera.ZOOM_MIN, VistaCamera.ZOOM_MAX)) {

@@ -18,10 +18,10 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class FlowTest {
     private val strip: List<TrackInfo> = listOf(
-        Fixtures.track(SyntheticCover.TERRAKOTTA),
+        Fixtures.track(SyntheticCover.TERRACOTTA),
         Fixtures.radio,
-        Fixtures.track(SyntheticCover.NACHTFAHRT),
-        Fixtures.track(SyntheticCover.LEERRAUM),
+        Fixtures.track(SyntheticCover.NIGHT_DRIVE),
+        Fixtures.track(SyntheticCover.WHITE_SPACE),
         Fixtures.track(SyntheticCover.BAUHAUS),
     )
 

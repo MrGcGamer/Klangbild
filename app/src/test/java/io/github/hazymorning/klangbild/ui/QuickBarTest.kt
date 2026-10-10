@@ -54,7 +54,7 @@ class QuickBarTest {
 
     @Test
     fun overTheStage() {
-        val track = Fixtures.track(SyntheticCover.NACHTFAHRT)
+        val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
         captureRoboImage("build/screenshots/quick/stage_dark.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
@@ -92,7 +92,7 @@ class QuickBarTest {
     }
 
     @Test
-    fun overTheFensterblick() {
+    fun overTheWindowView() {
         val t = java.time.ZonedDateTime.of(2026, 10, 10, 13, 0, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         val track = Fixtures.track(SyntheticCover.BAUHAUS)
         val ui = UiState(

@@ -224,7 +224,7 @@ class LanguageTest {
     @Test
     fun theScreensSayNothingInGerman() {
         compose.setContent { Fixtures.Still(en) { screen() } }
-        val track = Fixtures.track(SyntheticCover.NACHTFAHRT)
+        val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
         val scene = Fixtures.scene(track)
         val shown = mutableListOf<Pair<String, String>>()
         for (r in SetupReason.entries) for (i in listOf(SetupInfo("http://192.168.1.23:8765", "123456", null), SetupInfo(null, "123456", null))) {

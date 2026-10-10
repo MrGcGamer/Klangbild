@@ -17,14 +17,14 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
-class FensterblickTest {
+class VistaTest {
     private val berlin = Place(52.52, 13.40)
 
     private fun at(name: String, month: Int, day: Int, hour: Int, minute: Int, cover: Float? = 0.3f) {
         val t = java.time.ZonedDateTime.of(2026, month, day, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         val feed = VistaFeed(place = { berlin }, weather = { cover?.let { Weather(cover = it) } }, clock = VistaClock(now = { t }), zone = { Fixtures.zone }, wall = { t })
         captureRoboImage("build/screenshots/vista/real/$name.png") {
-            Fixtures.Still { Fensterblick(feed, Modifier.fillMaxSize()) }
+            Fixtures.Still { Vista(feed, Modifier.fillMaxSize()) }
         }
     }
 

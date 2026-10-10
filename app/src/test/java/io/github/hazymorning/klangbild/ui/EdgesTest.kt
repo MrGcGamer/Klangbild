@@ -47,7 +47,7 @@ class EdgesTest {
     val compose = createComposeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
-    private val track = Fixtures.track(SyntheticCover.NACHTFAHRT)
+    private val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
     private val light = Fixtures.stage(track, mdpi, appearance = Appearance.LIGHT)
     private val dark = Fixtures.stage(track, mdpi, appearance = Appearance.DARK)
 

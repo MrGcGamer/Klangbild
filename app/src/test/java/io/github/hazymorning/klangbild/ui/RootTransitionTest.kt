@@ -34,8 +34,8 @@ class RootTransitionTest {
 
     @Test
     fun trackChangeAndRest() {
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.MOOS), mdpi)
-        val b = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI), mdpi)
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.MOSS), mdpi)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.CONFETTI), mdpi)
         fun stageUi(s: io.github.hazymorning.klangbild.app.StageData) =
             UiState(screen = Screen.Stage(s.track, PlayerStatus.PLAYING, null), stage = s)
         var ui by mutableStateOf(stageUi(a))

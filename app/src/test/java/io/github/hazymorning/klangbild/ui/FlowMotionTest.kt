@@ -35,8 +35,8 @@ class FlowMotionTest {
     private val mdpi = ScreenSpec(960, 540, 1f)
 
     private val covers = listOf(
-        SyntheticCover.TERRAKOTTA, SyntheticCover.MOOS, SyntheticCover.NACHTFAHRT,
-        SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS, SyntheticCover.SALZWASSER, SyntheticCover.NOCTURNE,
+        SyntheticCover.TERRACOTTA, SyntheticCover.MOSS, SyntheticCover.NIGHT_DRIVE,
+        SyntheticCover.WHITE_SPACE, SyntheticCover.BAUHAUS, SyntheticCover.SALT_WATER, SyntheticCover.NOCTURNE,
     )
 
     private fun scenes(appearance: Appearance = Appearance.DARK) = covers.mapIndexed { i, c ->

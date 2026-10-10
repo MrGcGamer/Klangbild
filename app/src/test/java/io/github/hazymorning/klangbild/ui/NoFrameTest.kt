@@ -55,7 +55,7 @@ class NoFrameTest {
 
     @Test
     fun `round the single print the paper is plain`() {
-        for (cover in listOf(SyntheticCover.NACHTFAHRT, SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS)) {
+        for (cover in listOf(SyntheticCover.NIGHT_DRIVE, SyntheticCover.WHITE_SPACE, SyntheticCover.BAUHAUS)) {
             val bmp = render { Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.spiegel, group = "Wohnzimmer", appearance = Appearance.LIGHT)) }
             // The artwork: 368 dp at 88 dp from the left, centred – 2 px a dp. A ring from 3 to 40 dp round it.
             val l = 176; val t = 172; val r = 912; val b = 908
@@ -72,10 +72,10 @@ class NoFrameTest {
     @Test
     fun `above and below the Cover Flow's cards the paper is plain`() {
         val strip: List<TrackInfo> = listOf(
-            Fixtures.track(SyntheticCover.TERRAKOTTA),
+            Fixtures.track(SyntheticCover.TERRACOTTA),
             Fixtures.radio,
-            Fixtures.track(SyntheticCover.NACHTFAHRT),
-            Fixtures.track(SyntheticCover.LEERRAUM),
+            Fixtures.track(SyntheticCover.NIGHT_DRIVE),
+            Fixtures.track(SyntheticCover.WHITE_SPACE),
             Fixtures.track(SyntheticCover.BAUHAUS),
         )
         val bmp = render {

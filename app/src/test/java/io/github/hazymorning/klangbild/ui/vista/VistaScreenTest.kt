@@ -38,7 +38,7 @@ class VistaScreenTest {
         hour: Int,
         minute: Int,
         side: MiniPlayer = MiniPlayer.LEFT,
-        cover: SyntheticCover = SyntheticCover.NACHTFAHRT,
+        cover: SyntheticCover = SyntheticCover.NIGHT_DRIVE,
         status: PlayerStatus = PlayerStatus.PAUSED,
         weather: String? = "partlycloudy",
     ) {
@@ -62,9 +62,9 @@ class VistaScreenTest {
     fun label() {
         shot("label_left_morning", 10, 10, 8, 10)
         shot("label_left_noon", 10, 10, 13, 0, cover = SyntheticCover.BAUHAUS, status = PlayerStatus.PLAYING)
-        shot("label_left_dusk", 10, 10, 18, 50, cover = SyntheticCover.NEBELLAND)
+        shot("label_left_dusk", 10, 10, 18, 50, cover = SyntheticCover.MIST)
         shot("label_left_night", 10, 10, 23, 0)
-        shot("label_right_noon", 10, 10, 13, 0, side = MiniPlayer.RIGHT, cover = SyntheticCover.KAMMERMUSIK)
+        shot("label_right_noon", 10, 10, 13, 0, side = MiniPlayer.RIGHT, cover = SyntheticCover.CHAMBER_MUSIC)
         shot("label_right_sunset", 10, 10, 18, 25, side = MiniPlayer.RIGHT)
         shot("label_off", 10, 10, 15, 0, side = MiniPlayer.OFF)
     }

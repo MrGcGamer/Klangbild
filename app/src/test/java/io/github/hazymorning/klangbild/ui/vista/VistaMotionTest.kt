@@ -48,7 +48,7 @@ class VistaMotionTest {
         if (timelapse) clock.timelapse(true)
         val feed = VistaFeed(place = { berlin }, weather = { weather }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
-        compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }
+        compose.setContent { Vista(feed, Modifier.fillMaxSize()) }
         // The picture is baked off the main thread: give it the time it takes, then let it fade in.
         repeat(8) {
             Thread.sleep(400)

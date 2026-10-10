@@ -35,15 +35,15 @@ class CoverFieldTest {
         }
     }
 
-    @Test fun synthwave() = stage("field_nachtfahrt", SyntheticCover.NACHTFAHRT)
-    @Test fun sea() = stage("field_salzwasser", SyntheticCover.SALZWASSER)
-    @Test fun terracotta() = stage("field_terrakotta", SyntheticCover.TERRAKOTTA)
-    @Test fun moss() = stage("field_moos", SyntheticCover.MOOS)
+    @Test fun synthwave() = stage("field_nachtfahrt", SyntheticCover.NIGHT_DRIVE)
+    @Test fun sea() = stage("field_salzwasser", SyntheticCover.SALT_WATER)
+    @Test fun terracotta() = stage("field_terrakotta", SyntheticCover.TERRACOTTA)
+    @Test fun moss() = stage("field_moos", SyntheticCover.MOSS)
     @Test fun bauhaus() = stage("field_bauhaus", SyntheticCover.BAUHAUS)
-    @Test fun pale() = stage("field_leerraum", SyntheticCover.LEERRAUM)
-    @Test fun night() = stage("field_night", SyntheticCover.NACHTFAHRT, lighting = Lighting.NIGHT)
-    @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALZWASSER, Appearance.LIGHT)
-    @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRAKOTTA, Appearance.LIGHT)
+    @Test fun pale() = stage("field_leerraum", SyntheticCover.WHITE_SPACE)
+    @Test fun night() = stage("field_night", SyntheticCover.NIGHT_DRIVE, lighting = Lighting.NIGHT)
+    @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALT_WATER, Appearance.LIGHT)
+    @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRACOTTA, Appearance.LIGHT)
 
     /** Every test cover once, on both walls: the field's range at a glance. */
     @Test
@@ -61,16 +61,16 @@ class CoverFieldTest {
 
     @Test
     fun moving() {
-        for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NACHTFAHRT, at = i * 12.0)
+        for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NIGHT_DRIVE, at = i * 12.0)
     }
 
     @Test
     fun flow() {
         val strip: List<TrackInfo> = listOf(
-            Fixtures.track(SyntheticCover.TERRAKOTTA),
+            Fixtures.track(SyntheticCover.TERRACOTTA),
             Fixtures.radio,
-            Fixtures.track(SyntheticCover.NACHTFAHRT),
-            Fixtures.track(SyntheticCover.LEERRAUM),
+            Fixtures.track(SyntheticCover.NIGHT_DRIVE),
+            Fixtures.track(SyntheticCover.WHITE_SPACE),
             Fixtures.track(SyntheticCover.BAUHAUS),
         )
         for (appearance in Appearance.entries) {

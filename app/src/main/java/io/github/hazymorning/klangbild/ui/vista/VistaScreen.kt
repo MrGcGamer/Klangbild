@@ -26,7 +26,7 @@ import java.time.ZoneId
 fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () -> Long?, now: () -> Long, modifier: Modifier = Modifier) {
     val feed = rememberVistaFeed(ui, clock, now)
     val side = labelSide(vista.miniPlayer)
-    Fensterblick(feed, modifier, label = side) { look ->
+    Vista(feed, modifier, label = side) { look ->
         val text = vista.track?.takeIf { side != LabelSide.NONE }?.let { track ->
             LabelText.Music(track, artworkFor(ui, track.pictureKey), vista.status == PlayerStatus.PLAYING, positionNow)
         }

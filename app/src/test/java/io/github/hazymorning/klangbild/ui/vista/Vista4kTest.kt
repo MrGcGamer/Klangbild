@@ -34,7 +34,7 @@ class Vista4kTest {
     @Test
     fun autumnAfternoon() {
         val t = java.time.ZonedDateTime.of(2026, 10, 10, 16, 20, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
-        val track = Fixtures.track(SyntheticCover.KAMMERMUSIK)
+        val track = Fixtures.track(SyntheticCover.CHAMBER_MUSIC)
         val ui = UiState(
             screen = Screen.Stage(track, PlayerStatus.PLAYING, null),
             stage = Fixtures.stage(track, Fixtures.TV_4K),

@@ -19,18 +19,18 @@ class HaloStageTest {
     private fun shot(name: String, model: StageModel) =
         captureRoboImage("build/screenshots/stage/$name.png") { Fixtures.Still { Stage(model) } }
 
-    @Test fun neon() = shot("neon", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = spiegel, group = "Wohnzimmer + 5"))
-    @Test fun classical() = shot("classical", Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = spiegel))
+    @Test fun neon() = shot("neon", Fixtures.model(Fixtures.track(SyntheticCover.NIGHT_DRIVE), next = spiegel, group = "Wohnzimmer + 5"))
+    @Test fun classical() = shot("classical", Fixtures.model(Fixtures.track(SyntheticCover.MIST), next = spiegel))
     @Test fun light() = shot("light_bauhaus", Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS)))
     @Test fun dark() = shot("dark_japanese", Fixtures.model(Fixtures.track(SyntheticCover.NOCTURNE), next = spiegel))
     @Test fun radio() = shot("radio_generated", Fixtures.model(Fixtures.radio, group = "Küche"))
-    @Test fun arabic() = shot("arabic", Fixtures.model(Fixtures.track(SyntheticCover.TERRAKOTTA), next = spiegel))
-    @Test fun longClassical() = shot("long_classical", Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = spiegel))
-    @Test fun lowRes() = shot("lowres_emoji", Fixtures.model(Fixtures.track(SyntheticCover.PASTELL)))
-    @Test fun noAlbum() = shot("no_album", Fixtures.model(Fixtures.track(SyntheticCover.MOOS), next = spiegel))
-    @Test fun busy() = shot("busy", Fixtures.model(Fixtures.track(SyntheticCover.KONFETTI), next = spiegel))
-    @Test fun white() = shot("white", Fixtures.model(Fixtures.track(SyntheticCover.LEERRAUM)))
-    @Test fun featVersion() = shot("feat_version", Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = spiegel))
+    @Test fun arabic() = shot("arabic", Fixtures.model(Fixtures.track(SyntheticCover.TERRACOTTA), next = spiegel))
+    @Test fun longClassical() = shot("long_classical", Fixtures.model(Fixtures.track(SyntheticCover.CHAMBER_MUSIC), next = spiegel))
+    @Test fun lowRes() = shot("lowres_emoji", Fixtures.model(Fixtures.track(SyntheticCover.PASTEL)))
+    @Test fun noAlbum() = shot("no_album", Fixtures.model(Fixtures.track(SyntheticCover.MOSS), next = spiegel))
+    @Test fun busy() = shot("busy", Fixtures.model(Fixtures.track(SyntheticCover.CONFETTI), next = spiegel))
+    @Test fun white() = shot("white", Fixtures.model(Fixtures.track(SyntheticCover.WHITE_SPACE)))
+    @Test fun featVersion() = shot("feat_version", Fixtures.model(Fixtures.track(SyntheticCover.SALT_WATER), next = spiegel))
 
     /** A short word never ends a title line; a long "next" line drops its artist rather than cutting it. */
     @Test fun shortWords() = shot(

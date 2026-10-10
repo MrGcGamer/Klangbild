@@ -47,7 +47,7 @@ class SpokenStageTest {
     @Test fun podcast() = shot("podcast", spokenModel(episode, 1_163_000L, lead(StageTexts.sleep(Fixtures.at(23, 10), Fixtures.texts, Fixtures.zone)), next = Catalogue.nextEpisode))
 
     @Test fun podcastFlow() = captureRoboImage("build/screenshots/spoken/podcast_flow.png") {
-        val scenes = Fixtures.flowScenes(listOf(Fixtures.track(SyntheticCover.MOOS), episode, Fixtures.track(SyntheticCover.TERRAKOTTA)))
+        val scenes = Fixtures.flowScenes(listOf(Fixtures.track(SyntheticCover.MOSS), episode, Fixtures.track(SyntheticCover.TERRACOTTA)))
         Fixtures.Still { FlowStage(spokenModel(episode, 1_163_000L, lead(null), view = StageView.FLOW), Fixtures.restingCards(scenes, 1)) }
     }
 }

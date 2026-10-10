@@ -44,14 +44,14 @@ class OptionsTest {
 
     private fun stage(name: String, model: StageModel) = shot(name) { Stage(model) }
 
-    @Test fun groupOfSix() = stage("stage_group", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = spiegel, group = everywhere))
+    @Test fun groupOfSix() = stage("stage_group", Fixtures.model(Fixtures.track(SyntheticCover.NIGHT_DRIVE), next = spiegel, group = everywhere))
 
-    @Test fun groupOfTwo() = stage("stage_group_two", Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = spiegel, group = two))
+    @Test fun groupOfTwo() = stage("stage_group_two", Fixtures.model(Fixtures.track(SyntheticCover.SALT_WATER), next = spiegel, group = two))
 
     @Test fun groupAndVolumeAlways() = stage(
         "stage_group_volume",
         Fixtures.model(
-            Fixtures.track(SyntheticCover.MOOS),
+            Fixtures.track(SyntheticCover.MOSS),
             next = spiegel,
             lead = StageTexts.lead(PlayerStatus.PLAYING, false, false, SpeakerLabel.volume(0.35f, false, Fixtures.texts), everywhere, volumeAlways = true, t = Fixtures.texts),
         ),
@@ -66,25 +66,25 @@ class OptionsTest {
         ),
     )
 
-    @Test fun groupWithoutClock() = stage("stage_group_no_clock", Fixtures.model(Fixtures.track(SyntheticCover.TERRAKOTTA), next = spiegel, clock = null, group = everywhere))
+    @Test fun groupWithoutClock() = stage("stage_group_no_clock", Fixtures.model(Fixtures.track(SyntheticCover.TERRACOTTA), next = spiegel, clock = null, group = everywhere))
 
     @Test fun onlyTitleAndArtist() = stage(
         "stage_minimal",
-        Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), clock = null, album = false, progress = false),
+        Fixtures.model(Fixtures.track(SyntheticCover.MIST), clock = null, album = false, progress = false),
     )
 
     @Test fun lightStrong() {
-        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI))
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.CONFETTI))
         shot("light_strong") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, lightFactor = LightLevel.STRONG.factor) }
     }
 
     @Test fun lightSubtle() {
-        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI))
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.CONFETTI))
         shot("light_subtle") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, lightFactor = LightLevel.SUBTLE.factor) }
     }
 
     @Test fun lightOff() {
-        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI))
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.CONFETTI))
         shot("light_off") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, lightFactor = LightLevel.OFF.factor) }
     }
 
