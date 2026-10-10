@@ -68,14 +68,18 @@ render/         HaloLayout (the grid, per view), CoverField ("Coverfarben": grou
                 flow card; relight), FlowGeometry (the shared perspective), FlowCards (baked card
                 textures), FlowLight (the pool of light above the cards), ImageOps
 art/            ChladniArt (missing-cover art), StableHash
-vista/          The Fensterblick, a paper-cut landscape: PaperMotif (every contour by hand; the near
-                banks per label side), PaperBake (sheets as ink weights + coverage in boxes of their
-                own; snow, leaves, blossom; shadows; broad-leaved trees among the firs), Inks/InkRaster
-                /Coverage/Shapes (colour matrices, exact AA, outlines), PaperLight (plates per hour,
-                moonlight, overcast, seasons, label inks), SkyMap (south view, elevations from the
-                skyline, stars by sidereal time), World (suncalc: sun, moon, phase; season by date;
-                WeatherMood: the weather as cloud cover only), CloudField (lanes, hashed, never
-                repeats), VistaClock (real time, preview glide, a day in two minutes), Noise
+vista/          The Fensterblick, a paper diorama: PaperMotif (folded mountains, forest lines, the
+                clearing, the near banks, standees and the fire per label side – mirrored on the
+                right), PaperBake (sheets as two ink weights + the paper's light + coverage in boxes
+                of their own, cut front to back with the shade of what stands in front; snow caps,
+                folds, silhouette forests, standees with white margins, tissue clouds and flames,
+                focus blur, shadows), PaperGrain (pulp clouds, fibres, tooth per sheet), Inks/
+                InkRaster/Coverage/Shapes (colour matrices, exact AA, outlines), PaperLight (plates
+                per hour: sky, key and fill light, folds, haze, fire; season papers, moonlight,
+                overcast, label inks), SkyMap (south view, elevations from the skyline, stars by
+                sidereal time), World (suncalc: sun, moon, phase; season by date; WeatherMood: the
+                weather as cloud cover only), CloudField (lanes, hashed, never repeats), VistaClock
+                (real time, preview glide, a day in two minutes), Noise
 lights/         LightSync (the colour lights behind the TV via Home Assistant: the field's colour
                 at the screen edge next to each bar, snapshot/restore, rate limits, takeover by others), HueColor (xy in
                 gamut C, greys as warm white, brightness floor)
@@ -93,9 +97,10 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
                 RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
                 at a time, hurrying, held lines), DebugOverlay,
-                vista/ (Fensterblick: bake off the main thread, 20 fps tick, season cross-fade;
-                PaperView: draws the sheets; VistaScreen + VistaLabel: the mini-player or the
-                preview's caption on the near bank)
+                vista/ (Fensterblick: bake off the main thread and ahead of time, 20 fps tick,
+                season cross-fade; PaperView: sky and land as layers redrawn only when the light
+                moves on, stars, clouds and the fire every frame; VistaScreen + VistaLabel: the
+                mini-player or the preview's caption on the near bank)
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
@@ -279,19 +284,29 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   changing figures and the screen ending after "Ausschalten nach"); one plain sentence when
   something is wrong
   ("Home Assistant ist nicht erreichbar."); at night the lamp is turned down, nothing left out.
-- **Fensterblick** (`vista/`, docs/fensterblick.md): a paper cut, not a photograph – flat
-  sheets in designed colours, light only as gradients between them; no rain, snow, fog,
-  particles, weather simulation or events. Plates per hour (morning and evening apart) blended
-  by the sun; moonlight; cloud cover only mutes (sun and moon fade behind a thick sky);
-  seasons by date (south half a year on), shapes re-cut in 1/16 steps and cross-faded.
-  Elevations count from the far range's skyline: the sun rises and sets at the ridge. Few,
-  slow movements (clouds, wind in grass and crown, stars, glints), never a loop, 20 fps; light
-  recomputed every 10 s, each step below one level. Comes after the pause delay (default
-  3 min; the rest clock first), during music only if set, never over trouble, setup or the
-  menu; any key ends it (media keys still act), held down arrow shows it. The label (cover
-  56 dp, Jost 24 / DM Sans 17, bar) lies on the near bank, cut wide for its side; its inks
-  come from the bank and keep 4.5:1 (`PaperLightTest`). Every sheet in its own box, baked
-  only down to where nearer paper hides it (≈ 4 screens of fill per frame, 24 MB at 1080p).
+- **Fensterblick** (`vista/`, docs/fensterblick.md): a diorama of real paper, not a flat
+  illustration (the smooth paper cut read as a comic) and not a photograph – every sheet with
+  its grain (pulp clouds, fibres, tooth; breaking off at every cut), edges cut by an uneven
+  hand, mountains folded from card (the faces towards the sun or moon lit, some light from the
+  upper right always), snow caps of torn white paper a hair wider than their mountain, forest
+  strips as silhouettes, standees with a white margin, soft shadows and the shade of what
+  stands close in front, the far sheets a little out of focus. Mountains and forest, a
+  campfire of crumpled tissue in the clearing (always burning; at night the light of the
+  clearing); no lake, no rain, snow, fog, smoke, particles, weather simulation or events.
+  Plates per hour (morning and evening apart) blended by the sun; papers per season; white
+  paper sinks into the night more than colour; moonlight; cloud cover only mutes (sun and moon
+  fade behind a thick sky); seasons by date (south half a year on), shapes re-cut in 1/16
+  steps and cross-faded (blossom only colours). Elevations count from the far range's
+  skyline: the sun rises and sets at the ridge. Few, slow movements (clouds, the flames, the
+  fire's glow, stars), never a loop, 20 fps; light recomputed every 10 s, each step below one
+  level. Comes after the pause delay (default 3 min; the rest clock first), during music only
+  if set, never over trouble, setup or the menu; any key ends it (media keys still act), held
+  down arrow shows it; baked ahead while it is on its way. The label (cover 56 dp, Jost 24 /
+  DM Sans 17, bar) lies on the dark near bank (snow only along its edge), the fire on the
+  other side; its inks come from the bank and keep 4.5:1 on its lightest grain
+  (`PaperLightTest`). Every sheet in its own box, baked only down to where nearer paper hides
+  it; sky and land stand as layers between light changes (≈ 2.3 screens of fill per frame,
+  30 MB at 1080p).
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,
