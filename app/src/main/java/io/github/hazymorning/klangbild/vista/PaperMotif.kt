@@ -104,7 +104,7 @@ object PaperMotif {
 
     /** The near bank on the left, wide: a long, low swell, level under the label, falling away late. */
     private val frontLeftWide = listOf(
-        k(L, 432f), k(70f, 428f), k(170f, 427f), k(270f, 429f), k(350f, 433f), k(404f, 438f), k(438f, 452f), k(462f, 476f), k(476f, 506f), k(484f, 540f), k(486f, BOTTOM),
+        k(L, 428f), k(70f, 424f), k(170f, 422f), k(270f, 423f), k(350f, 425f), k(410f, 429f), k(442f, 444f), k(464f, 470f), k(478f, 504f), k(486f, 540f), k(488f, BOTTOM),
     )
 
     /** The near bank on the left, low: rising only into the corner. */
@@ -125,13 +125,14 @@ object PaperMotif {
     )
 
     /**
-     * Where the label lies (dp): its left edge on either side, its bottom, and the widest it
-     * may be – the wide bank's top keeps clear of it by at least [LABEL_CLEARANCE].
+     * Where the label lies (dp): its left edge on either side, its bottom, its height (the cover
+     * and the bar under it) and the widest it may be – the wide bank's top keeps clear of it by
+     * at least [LABEL_CLEARANCE].
      */
     const val LABEL_LEFT_X = 64f
     const val LABEL_RIGHT_X = 560f
-    const val LABEL_BOTTOM = 508f
-    const val LABEL_HEIGHT = 56f
+    const val LABEL_BOTTOM = 512f
+    const val LABEL_HEIGHT = 71f
     const val LABEL_MAX_WIDTH = 336f
     const val LABEL_CLEARANCE = 12f
 

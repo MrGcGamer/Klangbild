@@ -65,11 +65,12 @@ sealed interface LabelText {
 
 /**
  * The music's label in the Fensterblick, lying on the near bank like a small print with its
- * caption: the cover (56 dp, its corners rounded a little), the title beside it in Jost with
- * its cap height on the cover's top edge, the artist under it in DM Sans, and a slim bar on
- * the cover's bottom edge for how far the track has played (dimmed while paused). The inks are
- * the bank's ([io.github.hazymorning.klangbild.vista.PaperLight.labelInks]): 4.5:1 in every
- * light. A new track's label cross-fades in place; the preview's caption takes the same place.
+ * caption: the cover (56 dp, its corners rounded a little), beside it the title in Jost and the
+ * artist in DM Sans – the two lines exactly centred on the cover, measured on what is seen (the
+ * title's cap height to the artist's baseline) – and under the cover and its lines a slim bar for
+ * how far the track has played (dimmed while paused). The inks are the bank's
+ * ([io.github.hazymorning.klangbild.vista.PaperLight.labelInks]): 4.5:1 in every light. A new
+ * track's label cross-fades in place; the preview's caption takes the same place.
  */
 @Composable
 fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, coverLight: () -> Float = { 1f }, modifier: Modifier = Modifier) {
@@ -101,13 +102,18 @@ private fun keyOf(t: LabelText): Any = when (t) {
     is LabelText.Preview -> "preview"
 }
 
-/** The label's box on the screen (dp): left edge, top, the cover's side, the text column's left edge and width. */
+/**
+ * The label's box on the screen (dp): its left edge and top, the cover's side, the text column's
+ * left edge and width, and the bar under them all (from the cover's left edge).
+ */
 private class LabelBox(side: LabelSide) {
     val left = if (side == LabelSide.RIGHT) PaperMotif.LABEL_RIGHT_X else PaperMotif.LABEL_LEFT_X
     val top = PaperMotif.LABEL_BOTTOM - PaperMotif.LABEL_HEIGHT
-    val cover = PaperMotif.LABEL_HEIGHT
+    val cover = PaperMotif.LABEL_HEIGHT - BAR_GAP - BAR_DP
     val textLeft = left + cover + GAP
     val textWidth = PaperMotif.LABEL_MAX_WIDTH - cover - GAP
+    val barTop = top + cover + BAR_GAP
+    val barWidth = cover + GAP + BAR_TEXT_DP
 }
 
 @Composable
@@ -168,19 +174,22 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
         val textC = Constraints(maxWidth = widthPx)
         val titleP = measurables[1].measure(textC)
         val artistP = measurables[2].measure(textC)
-        val barP = measurables[3].measure(Constraints.fixed(px(BAR_WIDTH_DP), px(BAR_DP)))
+        val barP = measurables[3].measure(Constraints.fixed(px(box.barWidth), px(BAR_DP)))
         fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: height
         val left = px(box.left)
         val top = px(box.top)
         val textLeft = px(box.textLeft)
-        // The title's cap height on the cover's top edge; the artist a line below; the bar on the cover's bottom edge.
-        val titleBaseline = top + (titleStyle.fontSize.toPx() * Fonts.CAP_HEIGHT).roundToInt()
+        // The lines as one block from the title's cap height to the last baseline, its middle on
+        // the cover's middle (a title alone: from its cap height to its baseline).
+        val cap = titleStyle.fontSize.toPx() * Fonts.CAP_HEIGHT
+        val block = cap + if (artistP.height > 0) px(ARTIST_STEP_DP) else 0
+        val titleBaseline = (top + sizePx / 2f - block / 2f + cap).roundToInt()
         val artistBaseline = titleBaseline + px(ARTIST_STEP_DP)
         layout(constraints.maxWidth, constraints.maxHeight) {
             coverP.place(left, top)
             titleP.place(textLeft, titleBaseline - titleP.first())
             if (artistP.height > 0) artistP.place(textLeft, artistBaseline - artistP.first())
-            barP.place(textLeft, top + sizePx - barP.height)
+            barP.place(left, px(box.barTop))
         }
     }
 }
@@ -239,7 +248,10 @@ private const val HINT_SP = 15f
 private const val ARTIST_STEP_DP = 23f
 private const val HINT_STEP_DP = 21f
 private const val BAR_DP = 3f
-private const val BAR_WIDTH_DP = 190f
+
+/** The bar under the label: this far below the cover, and this far past the text column's left edge. */
+private const val BAR_GAP = 12f
+private const val BAR_TEXT_DP = 190f
 private const val CORNER_DP = 4f
 private const val BAR_REFRESH_MS = VISTA_TICK_MS
 private const val BAR_PAUSED_MS = 500L
