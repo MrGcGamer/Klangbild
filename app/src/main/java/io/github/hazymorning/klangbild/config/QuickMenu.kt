@@ -1,7 +1,5 @@
 package io.github.hazymorning.klangbild.config
 
-import io.github.hazymorning.klangbild.domain.MediaKind
-import io.github.hazymorning.klangbild.domain.SleepChoice
 import io.github.hazymorning.klangbild.domain.StageView
 
 /** What the screen shows: one of the two views of the music, or the Fensterblick. */
@@ -27,7 +25,7 @@ enum class QuickItem(val label: String) {
     PICTURE("Ansicht"),
     FAVORITE("Favorit"),
     BARS("Lichtleisten"),
-    SLEEP("Sleep-Timer"),
+    SHUFFLE("Zufallswiedergabe"),
 }
 
 /** An entry as the quick settings show it: its value in words. */
@@ -43,8 +41,8 @@ data class QuickContext(
     val music: Boolean = false,
     /** Favourites can be asked for (a Music Assistant player, with a way to reach it), and how far the current song's way has come. */
     val favorite: FavoriteState? = null,
-    val sleep: SleepChoice = SleepChoice.OFF,
-    val kind: MediaKind? = null,
+    /** Shuffle on or off as far as known – null when the player cannot shuffle. */
+    val shuffle: Boolean? = null,
 )
 
 /**
@@ -52,14 +50,15 @@ data class QuickContext(
  * pressed – for what is wanted now and then while watching, and should not hide in the
  * settings (those stay on OK held). Left and right choose an entry, OK changes it (or does what
  * it says), up leaves the row. Entries that cannot do anything now are left out (no favourite
- * without music, no light bars before they are set up).
+ * without music, no light bars before they are set up, no shuffle on a player that cannot).
+ * The sleep timer lives in the settings.
  */
 object QuickMenu {
     fun rows(s: Settings, ctx: QuickContext): List<QuickRow> = buildList {
         add(QuickRow(QuickItem.PICTURE, pictureValue(ctx.pending ?: picture(s, ctx))))
         if (ctx.music && ctx.favorite != null) add(QuickRow(QuickItem.FAVORITE, favoriteValue(ctx.favorite)))
         if (s.bars.isSet) add(QuickRow(QuickItem.BARS, if (s.barLevel == BarLevel.OFF) "Aus" else "An"))
-        add(QuickRow(QuickItem.SLEEP, SettingsMenu.sleepValue(ctx.sleep, ctx.kind)))
+        if (ctx.music && ctx.shuffle != null) add(QuickRow(QuickItem.SHUFFLE, if (ctx.shuffle) "An" else "Aus"))
     }
 
     /** What the screen shows now. */

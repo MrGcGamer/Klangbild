@@ -84,8 +84,19 @@ object PlayerParser {
             volume = entity.number("volume_level")?.toFloat()?.coerceIn(0f, 1f),
             muted = (entity.attr("is_volume_muted") as? JsonPrimitive)?.booleanOrNull == true,
             isGroupPlayer = entity.string("mass_player_type") == "group",
+            shuffle = shuffleOf(entity),
         )
     }
+
+    /** Shuffle as the player reports it – or null when it cannot shuffle (`supported_features` lacks SHUFFLE_SET). */
+    fun shuffleOf(entity: EntityState): Boolean? {
+        val on = (entity.attr("shuffle") as? JsonPrimitive)?.booleanOrNull
+        val features = entity.number("supported_features")?.toLong() ?: return on
+        return if (features and SHUFFLE_SET != 0L) on ?: false else null
+    }
+
+    /** Home Assistant's `MediaPlayerEntityFeature.SHUFFLE_SET`. */
+    const val SHUFFLE_SET = 32_768L
 
     /**
      * `group_members` lists every speaker of a sync group, the leader first – on the leader

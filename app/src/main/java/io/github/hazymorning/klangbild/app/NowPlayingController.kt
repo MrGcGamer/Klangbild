@@ -666,7 +666,7 @@ class NowPlayingController(
                 if (s.barLevel != BarLevel.OFF) barsBefore = s.barLevel
                 applySettings(s.copy(barLevel = level))
             }
-            QuickItem.SLEEP -> stepSleep(+1, wrap = true)
+            QuickItem.SHUFFLE -> toggleShuffle()
         }
     }
 
@@ -708,6 +708,38 @@ class NowPlayingController(
         }
     }
 
+    /**
+     * Shuffle the other way round: shown at once, sent to the player – which reports it back in a
+     * moment; until then (a few seconds at most) the quick settings show what was asked for.
+     */
+    private fun toggleShuffle() {
+        val src = source ?: return
+        val on = synchronized(this) {
+            val now = shuffleShown() ?: return
+            shuffleWanted = !now to now() + SHUFFLE_TRUST_MS
+            !now
+        }
+        recompute()
+        scope.launch {
+            if (!src.shuffle(on)) synchronized(this@NowPlayingController) { shuffleWanted = null }
+            recompute()
+        }
+    }
+
+    /** Shuffle as the quick settings show it: what was just asked for, else what the player says. */
+    private fun shuffleShown(): Boolean? {
+        val reported = _ui.value.source.player?.shuffle ?: return null
+        val wanted = shuffleWanted
+        if (wanted == null || now() > wanted.second || wanted.first == reported) {
+            shuffleWanted = null
+            return reported
+        }
+        return wanted.first
+    }
+
+    /** Shuffle just asked for, and until when it is shown before the player has said so. */
+    @Volatile private var shuffleWanted: Pair<Boolean, Long>? = null
+
     /** How far [track]'s way into the favourites has come: asked here, or known from Music Assistant. */
     private fun favoriteState(track: TrackInfo): FavoriteState =
         favorite?.takeIf { it.first == track.key }?.second ?: if (track.favorite) FavoriteState.DONE else FavoriteState.NONE
@@ -721,8 +753,7 @@ class NowPlayingController(
             pending = pendingPicture,
             music = track != null,
             favorite = track?.takeIf { _ui.value.source.favorites }?.let { favoriteState(it) },
-            sleep = sleepTimer.choice,
-            kind = track?.kind,
+            shuffle = shuffleShown(),
         )
     }
 
@@ -1119,6 +1150,9 @@ class NowPlayingController(
 
         /** A stop shorter than this is a hand-over between the app and the screensaver. */
         const val HANDOVER_MS = 10_000L
+
+        /** Shuffle just asked for is shown this long before the player has reported it. */
+        const val SHUFFLE_TRUST_MS = 6_000L
 
         /** The tag of the few lines the app writes to the log: connection and settings, never a token. */
         const val TAG = "Klangbild"

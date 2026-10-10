@@ -177,6 +177,11 @@ class HaSource(
     private fun favoriteButton(): String? =
         connection.templateResult.value?.substringAfter('|', "")?.trim()?.takeIf { it.startsWith("button.") }
 
+    override suspend fun shuffle(on: Boolean): Boolean {
+        val data = buildJsonObject { put("shuffle", on) }
+        return runCatching { connection.callService("media_player", "shuffle_set", playerEntity, data = data) }.isSuccess
+    }
+
     /** Home Assistant passes whole seconds on to Music Assistant, whatever the speed: the item's own time. */
     override suspend fun seek(positionMs: Long) {
         val data = buildJsonObject { put("seek_position", positionMs.coerceAtLeast(0) / 1000) }

@@ -70,6 +70,24 @@ class PlayerParserTest {
     }
 
     @Test
+    fun `shuffle as the player reports it, none where it cannot shuffle`() {
+        // Music Assistant's players: SHUFFLE_SET (32768) among their features.
+        val on = PlayerParser.player(entity("playing", """{"media_title":"X","shuffle":true,"supported_features":4127295}"""), base)
+        assertThat(on.shuffle).isTrue()
+        val off = PlayerParser.player(entity("playing", """{"media_title":"X","shuffle":false,"supported_features":32768}"""), base)
+        assertThat(off.shuffle).isFalse()
+        // Can shuffle, has not said yet: off.
+        val unsaid = PlayerParser.player(entity("playing", """{"media_title":"X","supported_features":32768}"""), base)
+        assertThat(unsaid.shuffle).isFalse()
+        // Cannot shuffle (a radio app's player): no shuffle at all, whatever an attribute says.
+        val cannot = PlayerParser.player(entity("playing", """{"media_title":"X","shuffle":false,"supported_features":21437}"""), base)
+        assertThat(cannot.shuffle).isNull()
+        // No features reported: the attribute alone.
+        assertThat(PlayerParser.player(entity("playing", """{"media_title":"X","shuffle":true}"""), base).shuffle).isTrue()
+        assertThat(PlayerParser.player(entity("playing", """{"media_title":"X"}"""), base).shuffle).isNull()
+    }
+
+    @Test
     fun `state strings and missing data`() {
         assertThat(PlayerParser.status("buffering")).isEqualTo(PlayerStatus.BUFFERING)
         assertThat(PlayerParser.status("standby")).isEqualTo(PlayerStatus.IDLE)

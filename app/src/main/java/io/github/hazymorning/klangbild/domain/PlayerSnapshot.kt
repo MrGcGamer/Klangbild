@@ -28,6 +28,8 @@ data class PlayerSnapshot(
      * runs at this pace.
      */
     val speed: Float = 1f,
+    /** Shuffle on or off – null when the player cannot shuffle. */
+    val shuffle: Boolean? = null,
 )
 
 /** The speakers playing together with the configured one. */

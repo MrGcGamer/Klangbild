@@ -65,4 +65,7 @@ interface NowPlayingSource {
 
     /** Adds what plays to Music Assistant's favourites (a station's song as the song); whether it worked. */
     suspend fun favorite(): Boolean = false
+
+    /** Turns shuffle on or off; whether the call went out. */
+    suspend fun shuffle(on: Boolean): Boolean = false
 }

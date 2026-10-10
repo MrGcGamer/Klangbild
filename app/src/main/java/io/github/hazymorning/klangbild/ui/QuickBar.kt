@@ -42,9 +42,6 @@ import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.QuickMenu
-import io.github.hazymorning.klangbild.config.SettingsMenu
-import io.github.hazymorning.klangbild.domain.MediaKind
-import io.github.hazymorning.klangbild.domain.SleepChoice
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
@@ -161,7 +158,7 @@ private fun valuesOf(item: QuickItem): List<String> = when (item) {
     QuickItem.PICTURE -> QuickMenu.PICTURES.map(QuickMenu::pictureValue)
     QuickItem.FAVORITE -> FavoriteState.entries.map(QuickMenu::favoriteValue)
     QuickItem.BARS -> listOf("An", "Aus")
-    QuickItem.SLEEP -> SleepChoice.entries.flatMap { c -> listOf(MediaKind.MUSIC, MediaKind.PODCAST, MediaKind.AUDIOBOOK).map { SettingsMenu.sleepValue(c, it) } }.distinct()
+    QuickItem.SHUFFLE -> listOf("An", "Aus")
 }
 
 @Composable

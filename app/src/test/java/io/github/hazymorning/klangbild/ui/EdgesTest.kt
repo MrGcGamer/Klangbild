@@ -54,7 +54,7 @@ class EdgesTest {
     private fun menu(s: Settings) = MenuState(SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED)), SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE))
 
     private fun quick(): QuickState {
-        val rows = QuickMenu.rows(Settings(), QuickContext(vista = false, pending = null, music = true, favorite = null, sleep = io.github.hazymorning.klangbild.domain.SleepChoice.OFF, kind = null))
+        val rows = QuickMenu.rows(Settings(), QuickContext(vista = false, pending = null, music = true, favorite = null, shuffle = false))
         return QuickState(rows, 0)
     }
 

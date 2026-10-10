@@ -23,7 +23,6 @@ import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
-import io.github.hazymorning.klangbild.domain.SleepChoice
 import io.github.hazymorning.klangbild.ui.stage.Stage
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
 import io.github.hazymorning.klangbild.vista.VistaClock
@@ -51,7 +50,7 @@ class QuickBarTest {
         return QuickState(rows, rows.indexOfFirst { it.item == focus })
     }
 
-    private val playing = QuickContext(music = true, favorite = FavoriteState.NONE)
+    private val playing = QuickContext(music = true, favorite = FavoriteState.NONE, shuffle = false)
 
     @Test
     fun overTheStage() {
@@ -68,7 +67,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.pärt))
-                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, sleep = SleepChoice.ITEM_END)), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Lighting.DAY, Appearance.DARK)
                 }
             }
         }
@@ -77,7 +76,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(light, next = Fixtures.pärt, appearance = Appearance.LIGHT))
-                    QuickBar(state(QuickItem.SLEEP, playing), Lighting.DAY, Appearance.LIGHT)
+                    QuickBar(state(QuickItem.SHUFFLE, playing), Lighting.DAY, Appearance.LIGHT)
                 }
             }
         }
