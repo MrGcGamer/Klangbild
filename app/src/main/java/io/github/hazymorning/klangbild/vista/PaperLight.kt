@@ -98,6 +98,10 @@ class PaperLook(
     val snowInk: Int,
     val mist: Int,
     val mistAlpha: Float,
+    /** The campfire's smoke and how much of it shows; fireflies over the meadow on summer nights (0..1). */
+    val smoke: Int,
+    val smokeAlpha: Float,
+    val fireflies: Float,
     /** How strongly the campfire lights the clearing (0..1), the colour of its light and how far it reaches (dp). */
     val fire: Float,
     val fireGlow: Int,
@@ -380,6 +384,11 @@ object PaperLight {
         // Mist lies in the valley in fog, a little in rain and snow – and a breath of it on calm mornings round sunrise.
         val dawn = (1f - smooth(150f, 175f, s.sunAzimuth)) * smooth(-7f, -1.5f, s.sunElevation) * (1f - smooth(5f, 13f, s.sunElevation))
         val mistAlpha = (0.85f * fog + 0.3f * rain + 0.15f * snow + 0.3f * dawn * (1f - 0.6f * cover) * (1f - storm)).coerceIn(0f, 1f)
+        // The smoke: a pale grey by day, at night a faint grey warmed by the fire below it.
+        val smoke = mixOk(mixOk(horizon, c(0xFF8E8C88), 0.45f), FIRE_GLOW, 0.18f * night)
+        val smokeAlpha = (0.2f - 0.1f * night) * (1f - 0.7f * rain) * (1f - 0.5f * fog)
+        // Fireflies: warm summer nights, no rain or snow.
+        val fireflies = smooth(0.35f, 0.85f, s.season.summer + 0.4f * s.season.spring) * smooth(0.55f, 0.95f, night) * (1f - rain) * (1f - snow) * (1f - 0.7f * storm)
         return PaperLook(
             sheets = sheets,
             cloud = Inks(muted(cloudLit), muted(cloudShade), muted(cloudRim)),
@@ -392,6 +401,7 @@ object PaperLight {
             stars = p.stars * (1f - cover) * (1f - fog),
             shadow = p.shadow, shadowAlpha = shadowAlpha * (1f - 0.7f * fog), shadowSide = -side, shadowLength = 0.7f + 0.5f * low,
             rainInk = rainInk, snowInk = snowInk, mist = mist, mistAlpha = mistAlpha,
+            smoke = smoke, smokeAlpha = smokeAlpha, fireflies = fireflies,
             fire = p.fire, fireGlow = FIRE_GLOW, fireReach = 46f + 70f * night,
             lantern = smooth(0.15f, 0.8f, night),
             label = label,

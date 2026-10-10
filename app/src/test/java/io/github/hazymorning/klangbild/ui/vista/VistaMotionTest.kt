@@ -80,4 +80,13 @@ class VistaMotionTest {
 
     @Test
     fun fog() = run("fog", 9, 30, frames = 6, stepMs = 5_000, weather = Weather(cover = 0.75f, fog = 1f, wind = 0.05f))
+
+    @Test
+    fun summerNight() = run("summer_night", 23, 30, frames = 8, stepMs = 300, weather = Weather(cover = 0.1f), month = 7, day = 16)
+
+    @Test
+    fun campfire() = run("campfire", 21, 0, frames = 8, stepMs = 200, weather = Weather(cover = 0.3f, wind = 0.5f))
+
+    @Test
+    fun gale() = run("gale", 13, 0, frames = 8, stepMs = 400, weather = Weather(cover = 0.55f, wind = 0.9f))
 }

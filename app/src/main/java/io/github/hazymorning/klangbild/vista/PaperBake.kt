@@ -109,6 +109,8 @@ class PaperBaked(
     val fireY: Float,
     /** The meadow's cut-outs, each to be drawn on its own (they sway). */
     val standees: List<Standee>,
+    /** The tall firs on the near banks, sprites of their own as well (they sway too). */
+    val frontStandees: List<Standee>,
     /** The middle of the tent's door (canvas pixels): its lantern's light at night. */
     val doorX: Float,
     val doorY: Float,
@@ -166,11 +168,16 @@ object PaperBake {
         val b = Baker(cw, ch, density, shapes, m.foreground(label))
         val sheets = LinkedHashMap<SheetId, Sheet>()
         var standees: List<Standee> = emptyList()
+        val frontStandees = ArrayList<Standee>()
         // From the front to the back: every sheet knows what stands in front of it.
         for (id in SheetId.entries.reversed()) {
             when (id) {
                 SheetId.CROWNS -> continue
                 SheetId.STANDEES -> standees = b.standees()
+                SheetId.FRONT_LEFT, SheetId.FRONT_RIGHT -> {
+                    frontStandees += b.frontFirs(left = id == SheetId.FRONT_LEFT)
+                    b.build(id)?.let { sheets[id] = b.finish(it) }
+                }
                 else -> {
                     val build = b.build(id) ?: continue
                     sheets[id] = b.finish(build)
@@ -183,7 +190,7 @@ object PaperBake {
         val clouds = (0 until CLOUD_DESIGNS).map { b.cloud(it) }
         return PaperBaked(
             cw, ch, density, ordered, shadows, clouds, clouds.map { b.shadow(it, shadowBlurDp(CLOUD_DEPTH)) },
-            b.flames(), b.px(b.fg.fireX), b.px(b.fg.fireY), standees, b.px(b.fg.tentX), b.px(b.tentFoot - TENT_HEIGHT * 0.24f),
+            b.flames(), b.px(b.fg.fireX), b.px(b.fg.fireY), standees, frontStandees, b.px(b.fg.tentX), b.px(b.tentFoot - TENT_HEIGHT * 0.24f),
             b.disc(SUN_RADIUS, 77), b.disc(MOON_RADIUS, 78),
             b.shadow(b.disc(SUN_RADIUS, 79), DISC_SHADOW_DP), b.glow(), shapes, leafAlpha(shapes.leaves), label,
             (System.nanoTime() - started) / 1_000_000,
@@ -208,6 +215,9 @@ object PaperBake {
     const val SUN_RADIUS = 15f
     const val MOON_RADIUS = 14f
     private const val DISC_SHADOW_DP = 1.2f
+
+    /** How far beyond the canvas a swaying sprite is cut (dp). */
+    private const val SPRITE_REACH_DP = 120f
 
     /** The paper's light is stored in the raster up to this factor while it is cut. */
     private const val TONE_MAX = 1.25f
@@ -255,6 +265,29 @@ object PaperBake {
         fun dpX(px: Int) = (px + 0.5f) / d - o
         fun dpY(px: Int) = (px + 0.5f) / d - o
 
+        /** Where pieces may be cut (canvas pixels): the canvas – or, for sprites that sway, a little beyond it ([beyondCanvas]). */
+        private var minX = 0
+        private var minY = 0
+        private var maxX = cw
+        private var maxY = ch
+
+        /** Cuts in [block] reach [SPRITE_REACH_DP] beyond the canvas: a tree that sways never shows where the canvas ends. */
+        fun <T> beyondCanvas(block: () -> T): T {
+            val m = ceil(SPRITE_REACH_DP * d).toInt()
+            minX = -m
+            minY = -m
+            maxX = cw + m
+            maxY = ch + m
+            try {
+                return block()
+            } finally {
+                minX = 0
+                minY = 0
+                maxX = cw
+                maxY = ch
+            }
+        }
+
         // --- cutting ------------------------------------------------------------------------
 
         /** The union coverage of [outlines] (dp), in their box padded by [pad] pixels, clipped to the canvas. */
@@ -266,10 +299,10 @@ object PaperBake {
             for (e in outlines) {
                 x0 = min(x0, e.minX()); y0 = min(y0, e.minY()); x1 = max(x1, e.maxX()); y1 = max(y1, e.maxY())
             }
-            val left = max(0, floor(px(x0)).toInt() - pad)
-            val top = max(0, floor(px(y0)).toInt() - pad)
-            val right = min(cw, ceil(px(x1)).toInt() + pad)
-            val bottom = min(ch, ceil(px(y1)).toInt() + pad)
+            val left = max(minX, floor(px(x0)).toInt() - pad)
+            val top = max(minY, floor(px(y0)).toInt() - pad)
+            val right = min(maxX, ceil(px(x1)).toInt() + pad)
+            val bottom = min(maxY, ceil(px(y1)).toInt() + pad)
             if (right <= left || bottom <= top) return null
             val w = right - left
             val h = bottom - top
@@ -341,10 +374,10 @@ object PaperBake {
 
         /** A box over the canvas from [x0] to [x1] and [y0] to [y1] (dp). */
         fun build(id: SheetId, x0: Float, y0: Float, x1: Float, y1: Float): Build {
-            val left = max(0, floor(px(x0)).toInt() - 2)
-            val top = max(0, floor(px(y0)).toInt() - 2)
-            val right = min(cw, ceil(px(x1)).toInt() + 2)
-            val bottom = min(ch, ceil(px(y1)).toInt() + 2)
+            val left = max(minX, floor(px(x0)).toInt() - 2)
+            val top = max(minY, floor(px(y0)).toInt() - 2)
+            val right = min(maxX, ceil(px(x1)).toInt() + 2)
+            val bottom = min(maxY, ceil(px(y1)).toInt() + 2)
             return Build(id, left, top, max(1, right - left), max(1, bottom - top))
         }
 
@@ -768,16 +801,40 @@ object PaperBake {
                 val cornerX = if (left) -o - 4f else PaperMotif.WIDTH + o + 4f
                 Outline(e.xs + floatArrayOf(cornerX), e.ys + floatArrayOf(PaperMotif.BOTTOM))
             }
-            val firs = fg.frontFirs.filter { (it.x < PaperMotif.WIDTH / 2f) == left }.map { fir(it.x, it.footY, it.height, rnd, width = 0.42f, jag = 0.7f, snow = snowOnTrees()) }
-            val parts = listOf(bank) + firs.flatMap { it.tiers + it.trunk }
+            // The tall firs are sprites of their own ([frontFirs]); cut here too, so the grass keeps its shapes.
+            frontFirCuts(left, rnd)
+            val parts = listOf(bank)
             val b = build(if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT, parts.minOf { it.minX() } - 4f, parts.minOf { it.minY() } - 4f, parts.maxOf { it.maxX() } + 4f, PaperMotif.BOTTOM)
             val band = if (shapes.snow > 0.05f) 3f + 7f * shapes.snow else 0f
             lay(b, mask(listOf(bank)), c(0.5f), W { x, y -> if (band <= 0f) 0f else 0.9f * (1f - Shapes.smoothstep(band - 0.6f, band + 0.6f, y - line.yAt(x))) })
             val from = if (left) -20f else knots.last().x - 6f
             val to = if (left) knots.last().x + 6f else PaperMotif.WIDTH + 30f
             lay(b, mask(grass(line, from, to, rnd, 3f, 10f)), c(0.55f), c(0.5f * shapes.snow), c(1.06f))
-            for (f in firs) standee(b, f, margin = 1.0f, aoSigma = 3f)
             return b
+        }
+
+        /** The tall firs on the near bank on one side, as the seeded hand cuts them. */
+        private fun frontFirCuts(left: Boolean, rnd: Rnd): List<Pair<Fir, FirCut>> =
+            fg.frontFirs.filter { (it.x < PaperMotif.WIDTH / 2f) == left }.map { it to fir(it.x, it.footY, it.height, rnd, width = 0.42f, jag = 0.7f, snow = snowOnTrees()) }
+
+        /**
+         * The tall firs that frame the view, standing on the near bank of one side – sprites
+         * about their feet, so they sway in the wind; cut whole, even where they reach beyond
+         * the screen. Baked before their bank: it takes the shade of their feet.
+         */
+        fun frontFirs(left: Boolean): List<Standee> {
+            val id = if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT
+            return beyondCanvas {
+                frontFirCuts(left, Rnd(if (left) 91 else 97)).mapIndexed { k, (tree, f) ->
+                    val all = f.tiers + f.trunk
+                    val b = build(id, all.minOf { it.minX() } - 5f, all.minOf { it.minY() } - 5f, all.maxOf { it.maxX() } + 5f, all.maxOf { it.maxY() } + 5f)
+                    standee(b, f, margin = 1.0f, aoSigma = 3f)
+                    val sheet = finish(b)
+                    val fx = px(f.axisX)
+                    val fy = px(tree.footY)
+                    Standee(fx, fy, listOf(id to relative(sheet, fx, fy)), listOf(relative(shadow(sheet, shadowBlurDp(id.depth)), fx, fy)), 40 + k + if (left) 0 else 10)
+                }
+            }
         }
 
         // --- pieces -------------------------------------------------------------------------
@@ -849,10 +906,10 @@ object PaperBake {
 
         /** [m] in a box grown by [pad] pixels on every side (within the canvas). */
         fun expand(m: Mask, pad: Int): Mask {
-            val left = max(0, m.left - pad)
-            val top = max(0, m.top - pad)
-            val right = min(cw, m.left + m.width + pad)
-            val bottom = min(ch, m.top + m.height + pad)
+            val left = max(minX, m.left - pad)
+            val top = max(minY, m.top - pad)
+            val right = min(maxX, m.left + m.width + pad)
+            val bottom = min(maxY, m.top + m.height + pad)
             val w = right - left
             val h = bottom - top
             val v = FloatArray(w * h)

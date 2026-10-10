@@ -43,15 +43,20 @@ import io.github.hazymorning.klangbild.vista.PaperBaked
 import io.github.hazymorning.klangbild.vista.PaperLook
 import io.github.hazymorning.klangbild.vista.PaperMotif
 import io.github.hazymorning.klangbild.vista.Sheet
+import io.github.hazymorning.klangbild.vista.Shapes
 import io.github.hazymorning.klangbild.vista.SheetId
 import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.VistaCamera
 import io.github.hazymorning.klangbild.vista.Weather
 import io.github.hazymorning.klangbild.vista.Weatherfall
+import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** The baked sheets as images the screen can draw (made off the main thread); the baked pixels are let go once copied. */
 class PaperImages(val baked: PaperBaked) {
@@ -61,6 +66,8 @@ class PaperImages(val baked: PaperBaked) {
     val shadows: Map<SheetId, ImageBitmap> = baked.shadows.mapValues { img(it.value) }
     val standees: List<List<ImageBitmap>> = baked.standees.map { st -> st.parts.map { img(it.second) } }
     val standeeShadows: List<List<ImageBitmap>> = baked.standees.map { st -> st.shadows.map { img(it) } }
+    val frontStandees: List<List<ImageBitmap>> = baked.frontStandees.map { st -> st.parts.map { img(it.second) } }
+    val frontShadows: List<List<ImageBitmap>> = baked.frontStandees.map { st -> st.shadows.map { img(it) } }
     val clouds = baked.clouds.map { img(it) }
     val cloudShadows = baked.cloudShadows.map { img(it) }
     val flames = baked.flames.map { img(it.sheet) }
@@ -113,6 +120,7 @@ fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlace
         Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawStandeesAndFlames(images, look(), motion(), filters) }
         Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawWeather(images, look(), motion(), filters, fall, Depth.MID) }
         Canvas(Modifier.canvas(b, front).camera(Depth.FRONT, motion, b, front, cached = true)) { rows(front) { drawLand(images, look(), filters, Depth.FRONT) } }
+        Canvas(Modifier.canvas(b, all).camera(Depth.FRONT, motion, b, all, cached = false)) { drawFrontFirs(images, look(), motion(), filters) }
         Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawLights(images, look(), motion(), filters) }
         Canvas(Modifier.canvas(b, all).camera(Depth.FRONT, motion, b, all, cached = false)) { drawWeather(images, look(), motion(), filters, fall, Depth.FRONT) }
     }
@@ -356,18 +364,20 @@ private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache
 }
 
 /**
- * The cut-outs on the meadow, each swaying a little about its foot in a breeze of its own –
- * a few tenths of a degree, never in a loop – with its shadow; then the campfire's tongues of
- * tissue, each stretching and leaning on its own.
+ * The cut-outs on the meadow, each swaying about its foot – leaning into the wind, rocking on
+ * its own, all of them stirred by the same gusts, never in a loop – with its shadow; then the
+ * campfire's tongues of tissue, each stretching and leaning on its own and all bending with
+ * the wind; then the smoke rising from them.
  */
 private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     val b = images.baked
     val d = b.density
     val t = m.time
+    val wind = m.weather.wind
     val shadowFilter = f.tint(l.shadow)
     val depth = SheetId.STANDEES.depth
     for ((i, st) in b.standees.withIndex()) {
-        val sway = SWAY_DEG * Noise.wander(t, 5.5 + 0.8 * st.seed, 700 + st.seed).toFloat()
+        val sway = swayOf(t, st.seed, wind)
         withTransform({
             translate(st.footX, st.footY)
             rotate(sway, pivot = Offset.Zero)
@@ -388,8 +398,9 @@ private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m
     val filter = f.of(l.flame)
     for ((i, flame) in b.flames.withIndex()) {
         val k = flame.seed
-        val stretch = 1f + 0.07f * Noise.wander(t, 0.9 + 0.2 * k, 500 + k).toFloat() + 0.03f * Noise.wander(t, 0.37, 520 + k).toFloat()
-        val lean = 2.5f * Noise.wander(t, 1.3 + 0.3 * k, 540 + k).toFloat()
+        val stretch = 1f + 0.11f * Noise.wander(t, 0.8 + 0.2 * k, 500 + k).toFloat() + 0.05f * Noise.wander(t, 0.31, 520 + k).toFloat()
+        // The wind blows to the left: the tongues bend with it.
+        val lean = 4f * Noise.wander(t, 1.1 + 0.3 * k, 540 + k).toFloat() - FLAME_WIND_DEG * wind
         withTransform({
             translate(flame.footX, flame.footY)
             rotate(lean, pivot = Offset.Zero)
@@ -398,6 +409,82 @@ private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m
             sheet(images.flames[i], flame.sheet, filter)
         }
     }
+    drawSmoke(images, l, m, f)
+}
+
+/**
+ * The tall firs that frame the view, standing on the near banks: they sway like the meadow's
+ * cut-outs, slower and less – they are tall – with their soft shadows.
+ */
+private fun DrawScope.drawFrontFirs(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
+    val b = images.baked
+    val d = b.density
+    val t = m.time
+    val wind = m.weather.wind
+    val shadowFilter = f.tint(l.shadow)
+    for ((i, st) in b.frontStandees.withIndex()) {
+        val sway = FRONT_SWAY * swayOf(t * 0.7, st.seed, wind)
+        withTransform({
+            translate(st.footX, st.footY)
+            rotate(sway, pivot = Offset.Zero)
+        }) {
+            for ((k, part) in st.parts.withIndex()) {
+                val (id, sheet) = part
+                if (l.shadowAlpha > 0.003f) {
+                    sheet(images.frontShadows[i][k], st.shadows[k], shadowFilter, l.shadowAlpha, l.shadowSide * (1f + 3.8f * id.depth) * l.shadowLength * d, (1.4f + 1.6f * id.depth) * d)
+                }
+                sheet(images.frontStandees[i][k], sheet, f.of(l.inks(id)))
+            }
+        }
+    }
+}
+
+/** How far a cut-out leans at [t] (degrees): into the wind, rocking on its own, stirred by gusts the meadow shares. */
+private fun swayOf(t: Double, seed: Int, wind: Float): Float {
+    val amp = SWAY_DEG + SWAY_WIND_DEG * wind
+    val own = (1.6 * Noise.wander(t, 4.6 + 0.7 * seed, 700 + seed)).toFloat().coerceIn(-1f, 1f)
+    val gust = (0.5 + 0.8 * Noise.wander(t, 9.0, 777)).toFloat().coerceIn(0f, 1f)
+    val flutter = sin(2 * PI * t / (1.7 + 0.21 * seed) + seed).toFloat()
+    return -LEAN_DEG * wind + amp * (0.7f * own + 0.3f * flutter * gust)
+}
+
+/**
+ * The campfire's smoke: soft puffs rising from the flames, widening and thinning as they go,
+ * drifting off with the wind – light grey by day, a faint warm grey at night.
+ */
+private fun DrawScope.drawSmoke(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
+    if (l.smokeAlpha <= 0.005f) return
+    val b = images.baked
+    val d = b.density
+    val t = m.time
+    val wind = m.weather.wind
+    val tint = f.tint(l.smoke)
+    for (j in 0 until SMOKE_PUFFS) {
+        val period = 6.0 + 2.2 * unit(j, 91)
+        val phase = period * unit(j, 92)
+        val age = ((t + phase) % period).toFloat()
+        val life = age / period.toFloat()
+        val rise = 24f * age.toDouble().pow(0.85).toFloat()
+        val x = b.fireX / d + 4f * sin(age * 0.9f + j) - wind * (8f + 16f * age) * age * 0.5f
+        val y = b.fireY / d - 30f - rise
+        val r = 6f + 7.5f * age
+        val a = l.smokeAlpha * Shapes.smoothstep(0f, 0.12f, life) * (1f - life).pow(1.4f)
+        if (a <= 0.004f) continue
+        val w = 2f * r * d / 0.395f
+        drawImage(
+            images.glow, dstOffset = IntOffset((x * d - w / 2).roundToInt(), (y * d - w / 2).roundToInt()),
+            dstSize = IntSize(w.roundToInt(), w.roundToInt()), colorFilter = tint, alpha = a.coerceIn(0f, 1f), filterQuality = FilterQuality.Low,
+        )
+    }
+}
+
+/** A well-mixed hash of an item's number, 0..1. */
+private fun unit(i: Int, seed: Int): Float {
+    var x = i.toLong() * -0x61c8864680b583ebL + seed * 0x9E3779B97F4A7C15uL.toLong()
+    x = (x xor (x ushr 33)) * -0xae502812aa7333L
+    x = (x xor (x ushr 33)) * -0x3b314601e57a13adL
+    x = x xor (x ushr 33)
+    return ((x ushr 40) and 0xFFFFFF).toFloat() / 0xFFFFFF.toFloat()
 }
 
 /**
@@ -413,7 +500,7 @@ private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMoti
         // The glow's Gaussian falls to e^-½ at [reach]; the sprite's own at 0.395 of its radius.
         val w = 2f * reach / 0.395f
         val h = w * 0.68f
-        val breath = 0.9f + 0.1f * Noise.wander(t, 0.7, 600).toFloat()
+        val breath = 0.88f + 0.2f * Noise.wander(t, 0.6, 600).toFloat()
         drawImage(
             images.glow, dstOffset = IntOffset((b.fireX - w / 2).roundToInt(), (b.fireY - 10f * d - h / 2).roundToInt()),
             dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(l.fireGlow), alpha = (l.fire * breath).coerceIn(0f, 1f),
@@ -425,9 +512,66 @@ private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMoti
         val h = w * 0.85f
         drawImage(
             images.glow, dstOffset = IntOffset((b.doorX - w / 2).roundToInt(), (b.doorY - h / 2).roundToInt()),
-            dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(LANTERN), alpha = (0.85f * l.lantern).coerceIn(0f, 1f),
+            dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(LANTERN),
+            alpha = (0.85f * l.lantern * (0.9f + 0.16f * Noise.wander(t, 0.45, 610).toFloat())).coerceIn(0f, 1f),
             blendMode = BlendMode.Plus, filterQuality = FilterQuality.Low,
         )
+    }
+    drawSparks(m, b)
+    if (l.fireflies > 0.01f) drawFireflies(images, l, m, f)
+}
+
+/**
+ * Sparks rising from the fire: a dozen glowing grains at most, each flying up a little way –
+ * slowing, wavering, carried off by the wind – and going out; a new one follows at its own
+ * pace, never in step with the others.
+ */
+private fun DrawScope.drawSparks(m: PaperMotion, b: PaperBaked) {
+    val d = b.density
+    val t = m.time
+    val wind = m.weather.wind
+    for (j in 0 until SPARKS) {
+        val period = 1.9 + 1.8 * unit(j, 81)
+        val shifted = t + period * unit(j, 82)
+        val cycle = floor(shifted / period).toInt()
+        val age = (shifted - cycle * period).toFloat()
+        val life = 0.9f + 1.0f * unit(j * 977 + cycle, 83)
+        if (age > life) continue
+        val v0 = 30f + 26f * unit(j * 977 + cycle, 84)
+        val rise = v0 * age - 7f * age * age
+        val x = b.fireX / d + (unit(j * 977 + cycle, 85) - 0.5f) * 12f + 3.5f * sin(age * (5f + 3f * unit(j, 86)) + j) - wind * 34f * age
+        val y = b.fireY / d - 16f - rise
+        val fade = Shapes.smoothstep(0f, 0.08f, age) * (1f - age / life).pow(1.6f)
+        if (fade <= 0.01f) continue
+        val color = if (age / life < 0.4f) SPARK_HOT else SPARK_COOL
+        drawCircle(color, radius = (0.75f + 0.55f * unit(j, 87)) * d, center = Offset(x * d, y * d), alpha = fade, blendMode = BlendMode.Plus)
+    }
+}
+
+/**
+ * Fireflies on a summer night: a dozen points of greenish light wandering slowly over the
+ * meadow and along the forest's edge, each lighting up now and then with a soft halo.
+ */
+private fun DrawScope.drawFireflies(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
+    val b = images.baked
+    val d = b.density
+    val t = m.time
+    val tint = f.tint(FIREFLY)
+    for (j in 0 until FIREFLIES) {
+        val bx = 130f + 720f * unit(j, 71)
+        val by = 392f + 58f * unit(j, 72)
+        val x = bx + 26f * Noise.wander(t, 8.0 + 3.0 * unit(j, 73), 900 + j).toFloat()
+        val y = by + 12f * Noise.wander(t, 6.5 + 2.0 * unit(j, 74), 950 + j).toFloat()
+        val pulse = Shapes.smoothstep(0.45f, 0.95f, sin(2 * PI * t / (3.2 + 2.4 * unit(j, 75)) + 6.2832 * unit(j, 76)).toFloat())
+        val a = l.fireflies * pulse
+        if (a <= 0.01f) continue
+        val w = FIREFLY_HALO_DP * d
+        drawImage(
+            images.glow, dstOffset = IntOffset((b.px(x) - w / 2).roundToInt(), (b.px(y) - w / 2).roundToInt()),
+            dstSize = IntSize(w.roundToInt(), w.roundToInt()), colorFilter = tint, alpha = (0.55f * a).coerceIn(0f, 1f),
+            blendMode = BlendMode.Plus, filterQuality = FilterQuality.Low,
+        )
+        drawCircle(Color(FIREFLY), radius = 0.9f * d, center = Offset(b.px(x), b.px(y)), alpha = a.coerceIn(0f, 1f), blendMode = BlendMode.Plus)
     }
 }
 
@@ -561,8 +705,28 @@ private const val RAIN_ALPHA = 0.42f
 /** How far below a flake its shadow falls (dp). */
 private const val FLAKE_SHADOW_DP = 0.9f
 
-/** How far the cut-outs lean in the breeze, at most (degrees). */
-private const val SWAY_DEG = 0.8f
+/** How far the cut-outs rock (degrees): in a calm, and how much more in a gale; how far they lean into a gale. */
+private const val SWAY_DEG = 1.1f
+private const val SWAY_WIND_DEG = 3f
+private const val LEAN_DEG = 2.5f
+
+/** The tall firs sway this share of the meadow's cut-outs: a tall tree moves less at its foot. */
+private const val FRONT_SWAY = 0.42f
+
+/** How far the flames bend in a gale (degrees). */
+private const val FLAME_WIND_DEG = 12f
+
+/** The smoke's puffs, the sparks and the fireflies at once, at most. */
+private const val SMOKE_PUFFS = 7
+private const val SPARKS = 12
+private const val FIREFLIES = 12
+
+private val SPARK_HOT = Color(0xFFFFD27A)
+private val SPARK_COOL = Color(0xFFFF8A3C)
+
+/** The fireflies' light and the width of its halo (dp). */
+private const val FIREFLY = 0xFFD9F27E.toInt()
+private const val FIREFLY_HALO_DP = 14f
 
 /** The lantern's light in the tent's door: its colour and how wide it falls (dp). */
 private const val LANTERN_DP = 40f
