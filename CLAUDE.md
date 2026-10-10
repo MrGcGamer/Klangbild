@@ -69,17 +69,20 @@ render/         HaloLayout (the grid, per view), CoverField ("Coverfarben": grou
                 textures), FlowLight (the pool of light above the cards), ImageOps
 art/            ChladniArt (missing-cover art), StableHash
 vista/          The Fensterblick, a paper diorama: PaperMotif (folded mountains, forest lines, the
-                clearing, the near banks, standees and the fire per label side – mirrored on the
-                right), PaperBake (sheets as two ink weights + the paper's light + coverage in boxes
-                of their own, cut front to back with the shade of what stands in front; snow caps,
-                folds, silhouette forests, standees with white margins, tissue clouds and flames,
-                focus blur, shadows), PaperGrain (pulp clouds, fibres, tooth per sheet), Inks/
-                InkRaster/Coverage/Shapes (colour matrices, exact AA, outlines), PaperLight (plates
-                per hour: sky, key and fill light, folds, haze, fire; season papers, moonlight,
-                overcast, label inks), SkyMap (south view, elevations from the skyline, stars by
-                sidereal time), World (suncalc: sun, moon, phase; season by date; WeatherMood: the
-                weather as cloud cover only), CloudField (lanes, hashed, never repeats), VistaClock
-                (real time, preview glide, a day in two minutes), Noise
+                clearing, the near banks, standees, birches, tent, boulders and the fire per label
+                side – mirrored on the right), PaperBake (sheets as two ink weights + the paper's
+                light + coverage in boxes of their own, cut front to back with the shade of what
+                stands in front, each on a Depth layer; snow caps, folds, silhouette forests,
+                clustered crowns, flowers and fallen leaves, the tent; the meadow's cut-outs as
+                Standee sprites about their feet; tissue clouds and flames, focus blur, shadows),
+                PaperGrain (pulp clouds, fibres, tooth per sheet), Inks/InkRaster/Coverage/Shapes
+                (colour matrices, exact AA, outlines), PaperLight (plates per hour: sky, key and
+                fill light, folds, haze, fire, lantern; season papers, moonlight, overcast, label
+                inks), VistaCamera (the slow drift: CameraPose per Depth), SkyMap (south view,
+                elevations from the skyline, stars by sidereal time), World (suncalc: sun, moon,
+                phase; season by date; WeatherMood: the weather as cloud cover only), CloudField
+                (lanes, hashed, never repeats), VistaClock (real time, preview glide, a day in two
+                minutes), Noise
 lights/         LightSync (the colour lights behind the TV via Home Assistant: a colour per bar,
                 snapshot/restore, rate limits, takeover by others), BarColours (CoverBars: the
                 cover's colours kept apart, placed as in the cover, moving on with "Bewegung";
@@ -101,9 +104,11 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
                 at a time, hurrying, held lines), DebugOverlay,
                 vista/ (Fensterblick: bake off the main thread and ahead of time, 20 fps tick,
-                season cross-fade; PaperView: sky and land as layers redrawn only when the light
-                moves on, stars, clouds and the fire every frame; VistaScreen + VistaLabel: the
-                mini-player or the preview's caption on the near bank)
+                season cross-fade; PaperView: sky, far range, clearing and near banks as layers
+                redrawn only when the light moves on, each only as tall as its paper, moved by the
+                camera as a whole; stars, clouds, swaying cut-outs, the fire and its light every
+                frame; VistaScreen + VistaLabel: the mini-player or the preview's caption on the
+                near bank, moving with it)
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
@@ -314,28 +319,37 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   its grain (pulp clouds, fibres, tooth; breaking off at every cut), edges cut by an uneven
   hand, mountains folded from card (the faces towards the sun or moon lit, some light from the
   upper right always), snow caps of torn white paper a hair wider than their mountain, forest
-  strips as silhouettes, standees with a white margin, soft shadows and the shade of what
-  stands close in front, the far sheets a little out of focus. Mountains and forest, a
-  campfire of crumpled tissue in the clearing (always burning; at night the light of the
-  clearing); no lake, no rain, snow, fog, smoke, particles, weather simulation or events.
+  strips as silhouettes, standees (firs, birches) with a narrow margin of the card's light core
+  (a breath of the tree in it, never plain white) and slim trunks (a tall fir's no bell), broad
+  trees with clustered crowns, soft shadows and the shade of what stands close in front, the
+  far sheets a little out of focus. Mountains and forest, a campfire of crumpled tissue in the
+  clearing (always burning; at night the light of the clearing), a tent beside it (a lantern
+  in its door at night), boulders, flowers in spring and summer, fallen leaves in autumn; no
+  lake, no rain, snow, fog, smoke, particles, weather simulation, figures or events.
   Plates per hour (morning and evening apart) blended by the sun; papers per season; white
   paper sinks into the night more than colour; moonlight; cloud cover only mutes (sun and moon
   fade behind a thick sky); seasons by date (south half a year on), shapes re-cut in 1/16
   steps and cross-faded (blossom only colours). Elevations count from the far range's
   skyline: the sun rises and sets at the ridge. Few, slow movements (clouds, the flames, the
-  fire's glow, stars), never a loop, 20 fps; light recomputed every 10 s, each step below one
-  level. Comes after the pause delay (default 3 min; the rest clock first), during music only
-  if set, never over trouble, setup or the menu; chosen in the quick settings ("Ansicht") it
-  shows whatever plays until it is left (back, or another view there). Every key starts the
-  delays again – one that came by itself goes with any key, which still does its work. Baked
-  ahead while it is on its way. The label (cover 56 dp, Jost 24 / DM Sans 17, bar) lies on the
-  dark near bank (snow only along its edge), the fire on the other side; beside the cover one
-  block exactly centred on it – the title's cap height to the bar's lower edge (filling the
-  cover's height), or without a bar (a station) to the last baseline (`VistaLabelTest`). Its
-  inks come from the bank and keep 4.5:1 on its lightest grain
-  (`PaperLightTest`). Every sheet in its own box, baked only down to where nearer paper hides
-  it; sky and land stand as layers between light changes (≈ 2.3 screens of fill per frame,
-  30 MB at 1080p).
+  fire's glow, stars, the standees swaying ≤ 0.8° about their feet, the camera), never a loop,
+  20 fps; light recomputed every 10 s, each step below one level. The camera (`VistaCamera`)
+  moves in (1.025–1.065) and to the sides (±14 / ±4 dp) a quarter of an hour a swing; each
+  layer follows by its `Depth` (sky 0.15, far range 0.35, clearing 0.65, near banks 1), the
+  label with the near bank; no edge ever shows, with the ±6 dp drift on top
+  (`VistaCameraTest`); stills show it at rest. Comes after the pause delay (default 3 min;
+  the rest clock first), during music only if set, never over trouble, setup or the menu;
+  chosen in the quick settings ("Ansicht") it shows whatever plays until it is left (back, or
+  another view there). Every key starts the delays again – one that came by itself goes with
+  any key, which still does its work. Baked ahead while it is on its way. The label (cover
+  56 dp, Jost 24 / DM Sans 17, bar) lies on the dark near bank (snow only along its edge), the
+  fire on the other side; beside the cover one block exactly centred on it – the title's cap
+  height to the bar's lower edge (filling the cover's height), or without a bar (a station) to
+  the last baseline (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1 on its
+  lightest grain (`PaperLightTest`). Every sheet in its own box, baked only down to where
+  nearer paper hides it, each piece cut in a box of its own; sky, far range, clearing and near
+  banks stand as layers between light changes, each only as tall as its paper, moved by the
+  camera as a whole (≈ 2.9 screens of fill per frame, 3.3 at night; 33 MB of sheets and 22 MB
+  of layers at 1080p).
 - **German UI texts**, 24 h clock. The phone's setup page follows the same rules: one
   (system) sans face, sentence case, no italics, light or dark as the phone is set.
 - Never claim device behaviour that was not verified on the device (frame rate, CEC wake,

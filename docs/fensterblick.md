@@ -2,9 +2,10 @@
 
 Ist die Musik angehalten (oder auf Wunsch auch während sie läuft), wird der Fernseher zu
 einem Fenster auf ein Diorama aus Papier: gefaltete Berge mit Schneekappen aus gerissenem
-Papier, gestaffelte Wälder, eine Lichtung mit einem Lagerfeuer aus Seidenpapier. Das Licht
-folgt der echten Tageszeit, Sonne, Mond und Sterne stehen, wo sie gerade stehen, die Wolken
-folgen dem Wetter, und über Wochen wechseln die Jahreszeiten. Unten links (oder rechts) liegt
+Papier, gestaffelte Wälder, eine Lichtung mit einem Lagerfeuer aus Seidenpapier und einem
+Zelt. Das Licht folgt der echten Tageszeit, Sonne, Mond und Sterne stehen, wo sie gerade
+stehen, die Wolken folgen dem Wetter, und über Wochen wechseln die Jahreszeiten. Eine sehr
+langsame Kamerafahrt lässt die Ebenen gegeneinander gleiten. Unten links (oder rechts) liegt
 klein, was gerade läuft.
 
 ![Ein Jahr: Frühling, Sommer, Herbst, Winter – jeweils Sonnenaufgang, Mittag, goldene Stunde, Dämmerung, blaue Stunde, Nacht](fensterblick/jahr.jpg)
@@ -92,12 +93,15 @@ Von hinten nach vorn (Raster 960 × 540 dp, 18 dp Überstand für die Drift):
 6. **Ferner Wald** – ein Streifen kleiner Tannen, als eine Silhouette geschnitten.
 7. **Naher Wald** – größere Tannen, zur Talmitte hin kleiner, dazwischen Laubbäume. Ihre
    Kronen liegen auf einem eigenen Bogen, den die Jahreszeit färbt.
-8. **Wiese** der Lichtung.
-9. **Aufsteller** – acht Tannen als Ausschnitte mit weißem Rand, in der Mitte gefaltet.
-10. **Feuerholz** – ein Steinkreis, zwei Scheite mit hellen Schnittflächen.
-11. **Flammen** – fünf Zungen aus zerknülltem Seidenpapier.
-12. **Nahe Wiese** mit einer Franse aus kurzem Gras.
-13. **Ufer vorn** – dunkel, mit Gras und den großen Tannen, die den Blick rahmen.
+8. **Wiese** der Lichtung, im Frühling und Sommer mit Blumen, im Herbst mit Laub.
+9. **Aufsteller** – fünf Tannen (schmaler heller Rand, in der Mitte gefaltet) und zwei
+   Birken mit weißem Stamm und einer Krone aus kleinen Blattbüscheln.
+10. **Zelt** aus gefaltetem Karton neben dem Feuer, nachts mit einer Laterne in der Tür;
+    zwei Findlinge aus grauem Karton.
+11. **Feuerholz** – ein Steinkreis, zwei Scheite mit hellen Schnittflächen.
+12. **Flammen** – fünf Zungen aus zerknülltem Seidenpapier.
+13. **Nahe Wiese** mit einer Franse aus kurzem Gras.
+14. **Ufer vorn** – dunkel, mit Gras und den großen Tannen, die den Blick rahmen.
 
 Der Mini-Player liegt auf dem dunklen Ufer, links oder rechts; das Feuer brennt immer auf der
 anderen Seite der Lichtung. Steht der Mini-Player rechts, ist der ganze Vordergrund gespiegelt;
@@ -121,8 +125,10 @@ ist er aus, fällt das linke Ufer niedrig ab.
 - **Tiefe:** Jeder Bogen wirft einen weichen Schatten auf den Bogen dahinter, weicher und
   weiter, je weiter er absteht; was dicht davor steht, verdunkelt ihn am Rand. Die fernen
   Bögen sind ein wenig unscharf, wie bei einem fotografierten Modell.
-- **Aufsteller:** Die Tannen auf der Lichtung und am Ufer sind mit einem weißen Rand
-  ausgeschnitten – das Zeichen eines Papiertheaters.
+- **Aufsteller:** Die Tannen auf der Lichtung und am Ufer sind mit einem schmalen Rand
+  ausgeschnitten – das Zeichen eines Papiertheaters. Der Rand ist der helle Kern des Kartons
+  mit einem Hauch der Baumfarbe, kein reines Weiß; die Stämme sind schlank, auch bei den
+  großen Tannen.
 - **Schneekappen** sind eine Spur größer geschnitten als ihr Berg, wie ein aufgeklebtes
   Stück: Die Kante des Kartons scheint nirgends durch.
 
@@ -180,6 +186,7 @@ Wochen:
 | --- | --- | --- | --- | --- |
 | Farben | frisches Grün | Grundtafel | Wiese strohgelb | kühler, ruhiger |
 | Laubkronen | hellgrün, einige Wochen in Blüte | grün, kaum heller als die Tannen | Gold, Orange, Rost | verschwunden |
+| Auf der Wiese | Blumen (weiß, rosa, gelb) | Blumen (weiß, gelb, lila) | Laub | – |
 | Schnee auf den Bergen | weit herab | nur auf den höchsten Gipfeln | erste Kappen | alle Berge, auch die nahe Kette |
 | Schnee am Boden | – | – | – | erst Flecken, dann alles weiß; Kappen auf allen Tannen |
 
@@ -197,6 +204,12 @@ Wenige, dauerhafte, langsame Bewegungen – keine Schleife, kein Sprung:
 - **Feuer:** Die fünf Zungen strecken und neigen sich, jede nach ihrem eigenen Rauschen; der
   Schein atmet mit.
 - **Sterne** flackern.
+- **Aufsteller** wiegen sich, jeder für sich, um wenige Zehntelgrad um ihren Fuß.
+- **Kamera:** eine sehr langsame Fahrt hinein und zur Seite (um 2,5–6,5 % vergrößert, bis
+  14 dp seitlich; eine Viertelstunde pro Schwung, nie eine Schleife). Jede Ebene folgt nach
+  ihrer Tiefe – das Ufer ganz, die Lichtung zu zwei Dritteln, die ferne Kette zu einem
+  Drittel, der Himmel kaum. Der Mini-Player liegt auf dem Ufer und fährt mit. Standbilder
+  (Tests, Doku) zeigen die Ruhelage.
 - **Drift:** Der ganze Bildschirm wandert wie überall in Klangbild um ±6 dp gegen Einbrennen.
 
 20 Bilder pro Sekunde genügen dafür (die Vorschau zeichnet mit 30, weil dort das Licht
@@ -214,6 +227,9 @@ gleitet).
   nach drei Minuten zur Uhr.
 - **Während der Musik:** nur wenn unter *Während der Musik* eine Zeit gewählt ist
   (1–30 Minuten ohne Tastendruck).
+- **Von Hand:** Pfeil runter öffnet die Schnelleinstellungen, dort *Ansicht → Fensterblick*.
+  So gewählt bleibt er, was auch läuft, bis man ihn verlässt (Zurück oder eine andere
+  Ansicht).
 - **Nie über Bildschirmen, die etwas zu sagen haben:** Verbindung weg, Home Assistant nicht
   erreichbar, Lautsprecher unbekannt, Einrichtung. Und nicht, solange das Menü offen ist.
 - **Ausschalten:** „Ausschalten nach“ gilt weiter – ohne Musik gibt Klangbild den
@@ -223,11 +239,11 @@ gleitet).
 
 **Fernbedienung:**
 
-- Jede Taste beendet den Fensterblick weich (Blende durch das Dunkle) und startet die
-  Wartezeit neu; die Taste selbst bewirkt sonst nichts. Medientasten tun zusätzlich, was sie
-  sagen. Zurück beendet ihn, statt die App zu schließen.
-- **Pfeil runter lange drücken** zeigt ihn sofort (nicht, wenn hoch/runter die Lautstärke
-  regeln – dort bleibt das gehaltene Runter die Lautstärke).
+- Jede Taste startet die Wartezeiten neu und tut, was sie tut. Ein von selbst gekommener
+  Fensterblick geht dabei weich (Blende durch das Dunkle); ein gewählter bleibt. Zurück
+  beendet ihn, statt die App zu schließen.
+- **Pfeil runter** öffnet die Schnelleinstellungen über dem Fensterblick; sie lassen ihn, wie
+  er ist (nicht, wenn hoch/runter die Lautstärke regeln).
 - Aus Home Assistant per `am start`: `--es fensterblick an|aus|zeitraffer`, außerdem
   `fensterblick_pause`, `fensterblick_musik` (Sekunden oder „aus“), `mini_player`
   (`links|rechts|aus`) und `weather` (Entität, `auto` oder `keine`). Ein
@@ -260,16 +276,21 @@ Assistant selbst.
   sondern die Gewichte zweier Tinten (Rot, Grün), das Licht des Papiers selbst – Maserung,
   Verdeckung, Lichtkante – (Blau) und die Deckung (Alpha). Pro Bild färbt eine Farbmatrix
   jeden Bogen ein: Das Licht ändert sich, ohne dass etwas neu geschnitten wird.
-- **Zwei Ebenen bleiben stehen:** Himmel (mit Sonne und Mond) und Land werden nur neu
-  gezeichnet, wenn das Licht weitergerückt ist (alle zehn Sekunden); Sterne, Wolken und Feuer
-  darüber in jedem Bild. Pro Bild sind das etwa 2,3 Bildschirmflächen statt 5,3.
+- **Vier Ebenen bleiben stehen:** Himmel (mit Sonne und Mond), ferne Kette, Lichtung und
+  Ufer werden nur neu gezeichnet, wenn das Licht weitergerückt ist (alle zehn Sekunden); die
+  Kamera bewegt die fertigen Ebenen nur. Jede ist nur so hoch wie ihr Papier. Sterne, Wolken,
+  die wiegenden Aufsteller, Feuer und Schein kommen in jedem Bild dazu. Pro Bild sind das
+  etwa 2,9 Bildschirmflächen, nachts mit dem großen Feuerschein 3,3 (5.0: 2,3 mit zwei
+  Ebenen; die Kamera braucht eine Ebene je Tiefe).
 - **Nur was zu sehen ist:** Jeder Bogen hat seine eigene Box und reicht nur so weit nach
   unten, wie ihn nichts verdeckt.
-- **Backen** (JVM, Desktop): 1,25 s bei 1080p, 5,4 s bei 4K. **Speicher:** 30 MB Bitmaps bei
-  1080p, 120 MB bei 4K, dazu die zwei stehenden Ebenen (je eine Bildschirmfläche); die
-  gebackenen Pixel selbst werden freigegeben, sobald die Bitmaps stehen.
-- **Pro Bild auf der CPU:** Wolkenplätze und Flammen (wenige Mikrosekunden); alle zehn
-  Sekunden Sonne/Mond, Farben, Sterne.
+- **Backen** (JVM, Desktop): 0,8–1,1 s bei 1080p, 3,5 s bei 4K. Jedes Stück wird in seiner
+  eigenen Box geschnitten – eine Wiese voller Blumen kostet nur, was sie bedeckt (vorher
+  2,8 s). **Speicher:** 33 MB Bitmaps bei 1080p, bei 4K das Vierfache, dazu die vier
+  stehenden Ebenen (22 MB bei 1080p); die gebackenen Pixel selbst werden freigegeben, sobald
+  die Bitmaps stehen.
+- **Pro Bild auf der CPU:** Wolkenplätze, Flammen, Kamera und das Wiegen der Aufsteller
+  (wenige Mikrosekunden); alle zehn Sekunden Sonne/Mond, Farben, Sterne.
 - Code: `vista/` (Motiv, Papier, Backen, Licht, Himmel, Welt, Uhr, Wolken), `ui/vista/`
   (Zeichnen, Bildschirm, Mini-Player), `domain/VistaPolicy`.
 
@@ -329,6 +350,10 @@ Ausschnitten in 4K:
 | 19 | Vordergrund zu unscharf | Tiefenunschärfe vorn halbiert |
 | 20 | Nahe Kette im Abendlicht khakifarben | bläulicheres Papier |
 | 21 | Einige Sekunden Dunkel, bevor das Bild erscheint (Backen) | Bild wird vorausgebacken |
+| 22 | Stämme wie Pfosten, bei den großen Tannen wie eine Glocke | schlanke Stämme, nur der Fuß unter den Ästen, kaum ausgestellt |
+| 23 | Weiße Ränder der Aufsteller zu kräftig | schmaler, im hellen Kern des Kartons statt Weiß |
+| 24 | Laubbäume wie Lollis | Kronen aus Büscheln, unten flacher, Stamm gabelt sich hinein |
+| 25 | Wenig zu entdecken | Zelt mit Laterne, Birken, Findlinge, Blumen und Laub je Jahreszeit |
 
 ## Bewusst weggelassen
 
@@ -337,11 +362,14 @@ Ausschnitten in 4K:
 - Wind, Temperatur, Luftfeuchte.
 - Ein Ereigniskatalog – und auch der eine erlaubte seltene Moment: Jede Figur, die durchs
   Bild zieht, holt den Blick von der Musik weg und wäre irgendwann die bekannte Figur.
-- Der See, Zelt, Tiere, Häuser, Menschen. Das Feuer erzählt genug.
-- Wiegendes Gras und Kronen: Das Land ist eine stehende Ebene (billig zu zeichnen); bewegt
-  sind Himmel und Feuer.
-- Ebenen-Parallaxe: Die Drift verschiebt alles gemeinsam; einzeln verschobene Ebenen würden
-  die Linien der Komposition gegeneinander laufen lassen.
+- Der See, Tiere, Häuser, Menschen. Feuer und Zelt erzählen genug.
+- Wiegendes Gras: Nur die Aufsteller wiegen sich (als Ganzes, billig); das Land bleibt eine
+  stehende Ebene.
+
+Zunächst weggelassen, mit 5.1 auf Wunsch doch gebaut: **Zelt** und **Ebenen-Parallaxe**. Die
+Sorge, gegeneinander laufende Ebenen würden die Komposition verschieben, wiegt bei dieser
+Langsamkeit wenig: Die Ebenen gleiten um Bruchteile eines dp pro Sekunde, man sieht eher, dass
+das Bild nach Minuten anders steht, als dass es sich bewegt – und es gewinnt Tiefe.
 
 ## Entscheidungen
 
@@ -356,8 +384,11 @@ Ausschnitten in 4K:
 - **Pause → Fensterblick nach drei Minuten** – dieselbe Zeit, nach der bisher die Uhr kam.
   Die Uhr bleibt für die ersten Minuten ohne Musik und für den ausgeschalteten Fensterblick.
 - **Während der Musik standardmäßig aus:** Das Cover ist dann das Bild.
-- **Pfeil runter lange** als Taste: Die Fernbedienung des Streamers hat keine freie Taste,
-  Pfeil runter zeigt sonst nur Informationen. Mit Lautstärke auf hoch/runter entfällt sie.
+- **Pfeil runter öffnet die Schnelleinstellungen** (5.1, statt Pfeil runter lange): Dort
+  wechselt *Ansicht* zwischen Einzelnes Cover, Cover Flow und Fensterblick – die Leiste liegt
+  unten, wo die Taste hinzeigt.
+- **Kamerafahrt** (5.1): sehr langsam, jede Ebene nach ihrer Tiefe; die Ebenen bleiben
+  fertige Bilder, die Fahrt kostet nur ihre Transformation.
 - **OK lange startet in der Vorschau den Zeitraffer**, weil der Streamer keine Play-Taste
   hat; die Play-Taste anderer Fernbedienungen tut dasselbe.
 - **Wetter automatisch:** die Entitäten, die Home Assistants Standard-Wetter anlegt; sonst
