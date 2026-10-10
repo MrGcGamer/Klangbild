@@ -6,7 +6,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 
-/** A colour cluster of the cover in Oklab with its share of the image (0..1). */
+/** A color cluster of the cover in Oklab with its share of the image (0..1). */
 data class ColorCluster(val lab: Lab, val weight: Float)
 
 /** Rough character of a cover; drives the edge-case handling of the palette. */
@@ -16,16 +16,16 @@ data class CoverAnalysis(
     val clusters: List<ColorCluster>,
     val meanL: Float,
     val meanChroma: Float,
-    /** 90th percentile of chroma – "how colourful are the colourful parts". */
+    /** 90th percentile of chroma: "how colorful are the colorful parts". */
     val highChroma: Float,
     val kind: CoverKind,
 )
 
 /**
- * The colours of one scene, derived from the cover but tamed: the wall and three levels of
- * ink – near-neutral with a breath of the cover's hue, never pure white or black, always
- * readable. Values are ARGB ints so this stays pure Kotlin (the UI wraps them in Compose
- * colours).
+ * The colors of one scene, derived from the cover but tamed: the wall and three levels of
+ * ink. The ink is near-neutral with a breath of the cover's hue, never pure white or black,
+ * always readable. Values are ARGB ints so this stays pure Kotlin (the UI wraps them in
+ * Compose colors).
  */
 data class ScenePalette(
     val appearance: Appearance,
@@ -38,11 +38,11 @@ data class ScenePalette(
     /** Everything else. */
     val inkQuiet: Int,
     val kind: CoverKind,
-    /** The cover's leading colour, or null for a neutral cover. */
+    /** The cover's leading color, or null for a neutral cover. */
     val lead: Lab?,
     /**
-     * The progress bar's fill: the artist's level on the plain wall; on the cover's colours
-     * ([CoverPalette.derive] with `cover`) the cover's leading hue, light enough to stand out.
+     * The progress bar's fill: the artist's level on the plain wall. On the cover's colors
+     * ([CoverPalette.derive] with `cover`) it takes the cover's leading hue, light enough to stand out.
      */
     val accent: Int = inkMuted,
 )
@@ -55,7 +55,7 @@ object CoverPalette {
     /** Default hue for neutral covers: a warm, amber "lamp light" hue. */
     const val WARM_HUE = 72f
 
-    /** Hue [a] moved towards [b] by [t] along the shorter arc (degrees). */
+    /** Hue [a] moved toward [b] by [t] along the shorter arc (degrees). */
     private fun mixHue(a: Float, b: Float, t: Float): Float {
         var d = (b - a) % 360f
         if (d > 180f) d -= 360f
@@ -64,7 +64,7 @@ object CoverPalette {
     }
 
     /**
-     * Analyses ARGB pixels (typically a 48–64 px thumbnail). Deterministic for equal input.
+     * Analyzes ARGB pixels (typically a 48 to 64 px thumbnail). Deterministic for equal input.
      */
     fun analyze(pixels: IntArray): CoverAnalysis {
         val labs = ArrayList<Lab>(pixels.size)
@@ -93,7 +93,7 @@ object CoverPalette {
     private fun kMeans(points: List<Lab>): List<ColorCluster> {
         val rnd = Random(0x4B42) // deterministic
         val k = min(K, points.size)
-        // k-means++ initialisation
+        // k-means++ initialization
         val centers = ArrayList<Lab>(k)
         centers += points[rnd.nextInt(points.size)]
         val dist = FloatArray(points.size) { Float.MAX_VALUE }
@@ -135,8 +135,12 @@ object CoverPalette {
                 var a = 0.0
                 var b = 0.0
                 var n = 0
-                for (i in points.indices) if (assign[i] == c) {
-                    l += points[i].l; a += points[i].a; b += points[i].b; n++
+                for (i in points.indices) {
+                    if (assign[i] != c) continue
+                    l += points[i].l
+                    a += points[i].a
+                    b += points[i].b
+                    n++
                 }
                 if (n > 0) centers[c] = Lab((l / n).toFloat(), (a / n).toFloat(), (b / n).toFloat())
             }
@@ -147,7 +151,7 @@ object CoverPalette {
             .filter { counts[it] > 0 }
             .map { ColorCluster(centers[it], counts[it].toFloat() / points.size) }
             .sortedByDescending { it.weight }
-        // Merge clusters that are perceptually the same colour.
+        // Merge clusters that are perceptually the same color.
         val merged = ArrayList<ColorCluster>()
         for (c in raw) {
             val twin = merged.indexOfFirst { it.lab.distanceSq(c.lab) < 0.035f * 0.035f }
@@ -163,17 +167,17 @@ object CoverPalette {
     }
 
     /**
-     * Significance of a cluster as a *colour* of the cover: area matters, but a small
-     * vivid area (a red dot on cream) characterises a cover more than a large grey one.
+     * Significance of a cluster as a *color* of the cover. Area matters, but a small
+     * vivid area (a red dot on cream) characterizes a cover more than a large gray one.
      */
     private fun colourScore(c: ColorCluster): Float =
         c.weight.toDouble().pow(0.55).toFloat() * (c.lab.chroma - 0.02f).coerceAtLeast(0f) *
-            // very dark or very light clusters carry little colour information
+            // very dark or very light clusters carry little color information
             (1f - (2f * c.lab.l - 1.1f).pow(2)).coerceAtLeast(0.15f)
 
     /**
      * The palette for [analysis] under [lighting] on a [appearance] wall. [wallTint] scales
-     * how much of the cover's colour the light wall takes (the "Wandlicht" setting; 0 = plain
+     * how much of the cover's color the light wall takes (the Intensity setting; 0 = plain
      * paper).
      */
     fun derive(
@@ -189,22 +193,22 @@ object CoverPalette {
         val lead = chromatic.firstOrNull()?.lab
         val hue = lead?.hue ?: WARM_HUE
         // Text is near-neutral: only a breath of the cover's hue so it belongs to the
-        // picture – never ivory. A neutral cover gets neutral text.
+        // picture, but never ivory. A neutral cover gets neutral text.
         val neutralChroma = if (lead == null) 0.003f else min(0.009f, lead.chroma * 0.08f + 0.002f)
         // In the evening the text takes the warm light's hue rather than the cover's: a rosy tint
-        // under amber light reads as pink. And it is warm itself – a little.
+        // under amber light reads as pink. The text is also a little warm itself.
         val evening = ((lighting.warmth - Lighting.DAY.warmth) / (Lighting.EVENING.warmth - Lighting.DAY.warmth)).coerceIn(0f, 1f)
         val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
-        // On the cover's own colours the text takes a little more of their hue – still near-neutral.
+        // On the cover's own colors the text takes a little more of their hue, but stays near-neutral.
         val inkChroma = neutralChroma * (if (cover) 1.6f else 1f) + 0.008f * evening
 
         // Three levels (lightness in Oklab): the title; artist, clock and the progress bar's
-        // fill; everything else – on black like white at 100 / 80 / 62 %, on paper the same
-        // steps down from near-black. Greys closer than that read as a mistake side by side.
+        // fill; everything else. On black they look like white at 100 / 80 / 62 %, on paper they
+        // take the same steps down from near-black. Grays closer than that look like a mistake side by side.
         val levels = if (appearance == Appearance.DARK) {
-            // At night the text must not outshine the dimmed cover: a little lower still than
-            // the light alone would make it – but never below [NIGHT_INK_FLOOR]. On the cover's
-            // own colours the lower two levels stand a little lighter: they are read against colour, not black.
+            // At night the text must not outshine the dimmed cover, so it goes a little lower than
+            // the light alone would make it, but never below [NIGHT_INK_FLOOR]. On the cover's
+            // own colors the lower two levels stand a little lighter: they are read against color, not black.
             val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
             val t = 1f - 0.10f * nightness
             if (cover) floatArrayOf(0.94f * t, 0.82f * t, 0.71f * t) else floatArrayOf(0.93f * t, 0.80f * t, 0.665f * t)
@@ -214,9 +218,9 @@ object CoverPalette {
         val wall = if (appearance == Appearance.DARK) {
             0xFF000000.toInt()
         } else {
-            // Paper, a little warm, taking a breath of the cover's colour – pulled towards the
-            // warm side, so a red cover gives peach, never pink; paper stays paper: its hue keeps
-            // within the warm range, and a cool cover only gives it less colour, never mint.
+            // Paper, a little warm, taking a breath of the cover's color pulled toward the warm
+            // side, so a red cover gives peach, never pink. Paper stays paper: its hue stays within
+            // the warm range, and a cool cover only gives it less color, never mint.
             val tint = (if (lead == null) 0.002f else min(0.007f, lead.chroma * 0.06f + 0.002f)) * wallTint.coerceIn(0f, 1.5f)
             val pulled = mixHue(hue, WARM_HUE, 0.5f)
             val paperHue = when {
@@ -228,9 +232,9 @@ object CoverPalette {
             val paperTint = tint * (1f - away / 90f).coerceIn(0f, 1f)
             lighting.apply(Lch(PAPER, 0.005f + paperTint, paperHue).toLab()).toArgb()
         }
-        // The light of the hour warms the text – a little: never more than twice the day's colour.
+        // The light of the hour warms the text a little: never more than twice the day's color.
         // However late it is, every level stays readable: on black none falls below
-        // [NIGHT_INK_FLOOR], on paper dimmed by the night the quietest still keeps 4.5:1.
+        // [NIGHT_INK_FLOOR], and on paper dimmed by the night the quietest still keeps 4.5:1.
         // On the pale cover field the text stands on its darkest part, not on the paper.
         val paperLimit = when {
             appearance == Appearance.DARK -> 1f
@@ -247,8 +251,8 @@ object CoverPalette {
             return Lch(l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
         }
         val muted = ink(1)
-        // The bar's fill on the cover's colours: their leading hue, light (or dark on paper) enough
-        // to read against them; a neutral cover keeps the artist's level.
+        // The bar's fill on the cover's colors: their leading hue, light (or dark on paper) enough
+        // to read against them. A neutral cover keeps the artist's level.
         val accent = if (!cover || lead == null) {
             muted
         } else if (appearance == Appearance.DARK) {
@@ -270,13 +274,13 @@ object CoverPalette {
         )
     }
 
-    /** Lightness (Oklab) of the light wall: paper, not white – a full screen of white glares. */
+    /** Lightness (Oklab) of the light wall: paper, not white. A full screen of white glares. */
     const val PAPER = 0.915f
 
     /** The hues paper may take (degrees): from peach to straw. */
     val PAPER_HUES = 50f..90f
 
-    /** The most colour text takes, even in the warmest light of the evening. */
+    /** The most color text takes, even in the warmest light of the evening. */
     const val MAX_INK_CHROMA = 0.018f
 
     /**
@@ -285,7 +289,7 @@ object CoverPalette {
      */
     val NIGHT_INK_FLOOR = floatArrayOf(0.79f, 0.68f, 0.57f)
 
-    /** The same on the cover's own colours, which stay lighter than black at night. */
+    /** The same on the cover's own colors, which stay lighter than black at night. */
     val FIELD_INK_FLOOR = floatArrayOf(0.81f, 0.71f, 0.62f)
 
     /** The darkest the pale cover field gets (Oklab L, before the hour's light): text is set against it. */

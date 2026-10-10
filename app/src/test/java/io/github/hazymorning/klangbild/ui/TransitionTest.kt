@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -27,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class TransitionTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     /** Frames are rendered at 960 × 540 (mdpi) to keep the image sequences light. */
     private val MDPI = ScreenSpec(960, 540, 1f)
@@ -119,7 +118,7 @@ class TransitionTest {
 
     @Test
     fun buffering() {
-        // The light breathes while buffering (an infinite animation: only a controlled clock can capture it).
+        // The light pulses while buffering (an infinite animation: only a controlled clock can capture it).
         val a = Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), MDPI)
         compose.mainClock.autoAdvance = false
         compose.setContent { Fixtures.Theatre(a, PlayerStatus.BUFFERING) }

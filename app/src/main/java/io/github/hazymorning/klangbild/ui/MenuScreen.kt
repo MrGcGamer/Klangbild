@@ -84,10 +84,10 @@ object MenuGrid {
     /** A section title with the space above it. */
     const val HEADER = 46f
 
-    /** Lines fade with their distance from the cursor's line … */
+    /** Lines start to fade at this distance from the cursor's line. */
     const val FADE_FROM = 56f
 
-    /** … and are gone well before the black band along the screen's edges. */
+    /** Lines are gone at this distance, well before the black band along the screen's edges. */
     const val FADE_TO = 226f
 
     /**
@@ -132,10 +132,15 @@ fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, mo
     val state = menu ?: last[0] ?: return
     // Faded draw by draw, not through a layer of the screen's size: the menu's ground reaches
     // beyond the screen's edges, and a layer would cut it off there while it fades.
-    MenuScreen(state, lighting, appearance, modifier.graphicsLayer {
-        alpha = shown.value
-        compositingStrategy = CompositingStrategy.ModulateAlpha
-    })
+    MenuScreen(
+        state,
+        lighting,
+        modifier.graphicsLayer {
+            alpha = shown.value
+            compositingStrategy = CompositingStrategy.ModulateAlpha
+        },
+        appearance,
+    )
 }
 
 private sealed interface MenuLine {
@@ -161,7 +166,7 @@ private fun menuLines(rows: List<MenuRow>): List<MenuLine> {
     return out
 }
 
-/** The menu's voices: near-neutral white on black or near-black on paper, a little dimmer in the evening. */
+/** The menu's colors: near-neutral white on black or near-black on paper, a little dimmer in the evening. */
 private class MenuColors(
     val wall: Color,
     /** The light behind the chosen line, added to the wall. */
@@ -214,10 +219,10 @@ private class MenuColors(
  * The menu itself, on the stage's grid: the heading and the chosen line's explanation hang
  * where the print would be; the lines stand in the text column. The line under the cursor
  * stays in the middle of the screen, lit by a lamp; the list glides through that light and
- * fades with distance – no frame, no scroll bar, no check box. Values are words.
+ * fades with distance (no frame, no scroll bar, no check box). Values are words.
  */
 @Composable
-fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = Appearance.DARK, modifier: Modifier = Modifier) {
+fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifier, appearance: Appearance = Appearance.DARK) {
     // A menu asks for action: it takes only a little of the evening's dimming.
     val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
     val colors = remember(light, appearance) { MenuColors.of(light, appearance) }
@@ -249,7 +254,7 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
             Bitmap.createBitmap(px, GLOW_MAP_W, GLOW_MAP_H, Bitmap.Config.ARGB_8888).asImageBitmap()
         }
         if (field != null) Canvas(Modifier.fillMaxSize()) {
-            // The band's light adds to the wall – on black and on paper alike.
+            // The band's light adds to the wall, on black and on paper alike.
             drawImage(
                 field,
                 dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
@@ -358,12 +363,15 @@ private fun BaselineAt(x: Float, baseline: Float, width: Float, content: @Compos
     }
 }
 
-/** The slider of a value on a scale: its size (dp), its gap to the number, how strongly its track shows, how far above the baseline its lower edge sits (its middle on the figures' middle). */
+/**
+ * The slider of a value on a scale: its size (dp), its gap to the number, how strongly its track shows, and how far
+ * above the baseline its lower edge sits (its middle on the figures' middle).
+ */
 private const val SLIDER_HEIGHT = 4f
 private const val SLIDER_TRACK = 0.28f
 private const val SLIDER_LIFT = 4f
 
-/** From a line's centre to its label's baseline (21 sp in a 40 dp line). */
+/** From a line's center to its label's baseline (21 sp in a 40 dp line). */
 private const val LABEL_BASELINE_FROM_CENTRE = 7f
 
 private const val GLOW_MAP_W = 480
@@ -371,8 +379,8 @@ private const val GLOW_MAP_H = 270
 
 /**
  * The light behind the chosen line: a soft, low band around ([cx], [cy]) dp that lights
- * this line and not its neighbours – greyscale, dithered, tinted when drawn. It never moves;
- * the list moves through it. Like every light it is gone before the band along the screen's
+ * this line and not its neighbors (grayscale, dithered, tinted when drawn). It never moves;
+ * the list moves through it. Like every light, it is gone before the band along the screen's
  * edges.
  */
 fun glowField(cx: Float, cy: Float, widthDp: Float, heightDp: Float, ditherLsb: Float): IntArray {

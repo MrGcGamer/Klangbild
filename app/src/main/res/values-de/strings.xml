@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="on">An</string>
     <string name="off">Aus</string>
     <string name="set_up">Einrichten</string>
@@ -215,7 +215,7 @@
     <string name="setup_in_browser">oder im Browser:</string>
     <string name="setup_no_network">Keine Netzwerkverbindung</string>
 
-    <string name="debug_frames">%1$d Bilder/s · langsamstes %2$s ms · %3$d zu spät</string>
+    <string name="debug_frames" tools:ignore="PluralsCandidate">%1$d Bilder/s · langsamstes %2$s ms · %3$d zu spät</string>
     <string name="page_title">Klangbild einrichten</string>
     <string name="page_subtitle">Einrichtung für den Fernseher</string>
     <string name="page_code_heading">Code</string>

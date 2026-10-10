@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -22,8 +21,8 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * Nothing frames a cover on paper – no shadow, no line, no lighter or darker box: round the
- * single print and above and below the Cover Flow's cards the paper is the paper, measured on
+ * Nothing frames a cover on paper: no shadow, no line, no lighter or darker box. Around the
+ * single print and above and below the cover flow's cards the paper is plain, measured on
  * rendered pixels.
  */
 @RunWith(AndroidJUnit4::class)
@@ -31,7 +30,7 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class NoFrameTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private var shown by androidx.compose.runtime.mutableStateOf<(@androidx.compose.runtime.Composable () -> Unit)?>(null)
 
@@ -54,10 +53,10 @@ class NoFrameTest {
     }
 
     @Test
-    fun `round the single print the paper is plain`() {
+    fun `around the single print the paper is plain`() {
         for (cover in listOf(SyntheticCover.NIGHT_DRIVE, SyntheticCover.WHITE_SPACE, SyntheticCover.BAUHAUS)) {
             val bmp = render { Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.spiegel, group = "Wohnzimmer", appearance = Appearance.LIGHT)) }
-            // The artwork: 368 dp at 88 dp from the left, centred – 2 px a dp. A ring from 3 to 40 dp round it.
+            // The artwork: 368 dp at 88 dp from the left, centered, at 2 px a dp. A ring from 3 to 40 dp around it.
             val l = 176; val t = 172; val r = 912; val b = 908
             val boxes = listOf(
                 intArrayOf(l - 80, t - 80, r + 80, t - 6),
@@ -70,7 +69,7 @@ class NoFrameTest {
     }
 
     @Test
-    fun `above and below the Cover Flow's cards the paper is plain`() {
+    fun `above and below the cover flow's cards the paper is plain`() {
         val strip: List<TrackInfo> = listOf(
             Fixtures.track(SyntheticCover.TERRACOTTA),
             Fixtures.radio,

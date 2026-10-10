@@ -13,13 +13,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.ui.Fixtures
+import io.github.hazymorning.klangbild.ui.composeRule
 import io.github.hazymorning.klangbild.vista.CameraPose
 import io.github.hazymorning.klangbild.vista.LabelSide
 import io.github.hazymorning.klangbild.vista.PaperBake
@@ -36,7 +36,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The camera's journey: in every corner of its range, and with the screen's own drift against
- * burn-in on top, the picture fills the screen – no edge of any layer shows, at the screen's
+ * burn-in on top, the picture fills the screen. No edge of any layer shows, at the screen's
  * edges or between the layers. And the layers part as they should: the near ones move most (a
  * contact sheet of the journey).
  */
@@ -45,7 +45,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class VistaCameraTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val baked = HashMap<LabelSide, PaperImages>()
     private fun imagesFor(side: LabelSide) = baked.getOrPut(side) { PaperImages(PaperBake.bake(1920, 1080, 2f, SeasonShapes(flowers = 1f), side)) }
@@ -102,7 +102,7 @@ class VistaCameraTest {
         }
         val a = at(1_000.0)
         val b = at(1_004.0)
-        // The right group of cut-outs (dp 730–850 across, 320–450 down; 2 px a dp).
+        // The right group of cut-outs (dp 730 to 850 across, 320 to 450 down; 2 px a dp).
         var changed = 0
         for (y in 640 until 900) for (x in 1460 until 1700) if (a.getPixel(x, y) != b.getPixel(x, y)) changed++
         assertWithMessage("pixels that moved with the breeze").that(changed).isGreaterThan(40)

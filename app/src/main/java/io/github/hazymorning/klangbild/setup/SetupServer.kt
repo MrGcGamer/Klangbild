@@ -25,6 +25,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.Inet4Address
@@ -160,7 +162,10 @@ class SetupServer(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    MiniHttp.Response.json(500, """{"ok":false}""")
+                    MiniHttp.Response.json(500, buildJsonObject {
+                        put("ok", false)
+                        put("message", texts[R.string.setup_error_internal])
+                    }.toString())
                 }
                 runCatching { MiniHttp.write(s.getOutputStream(), response) }
             }
@@ -195,10 +200,10 @@ class SetupServer(
         /** Connections waiting to be accepted. */
         private const val BACKLOG = 8
 
-        /** One read may wait this long ... */
+        /** One read may wait this long. */
         const val READ_TIMEOUT_MS = 5_000
 
-        /** ... and the whole request this long. */
+        /** The whole request may take this long. */
         const val REQUEST_DEADLINE_MS = 15_000L
 
         fun qrMatrix(text: String): Array<BooleanArray> {

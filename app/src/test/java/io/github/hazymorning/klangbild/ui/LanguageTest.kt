@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -74,7 +73,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class LanguageTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val en = TestTexts.english()
     private val de = TestTexts.german
@@ -119,7 +118,10 @@ class LanguageTest {
 
     private val configured = Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.living_room")
 
-    /** Every value of every line: each setting stepped round, in every state of the connections, the sleep timer and the language. */
+    /**
+     * Every value of every line: each setting stepped through its values, in every state of the
+     * connections, the sleep timer and the language.
+     */
     private fun allRows(t: Texts): List<MenuRow> {
         val bases = listOf(
             Settings(),
@@ -331,7 +333,7 @@ class LanguageTest {
     }
 
     private companion object {
-        /** Enough steps to go round every setting's values. */
+        /** Enough steps to go through every setting's values. */
         const val STEPS = 14
     }
 }

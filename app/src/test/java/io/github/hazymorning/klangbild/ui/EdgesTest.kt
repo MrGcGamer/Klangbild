@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
@@ -34,8 +33,8 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * The screen drifts a few pixels against burn-in; whatever shows – paper, the menu, the quick
- * settings, a wall turning from light to dark – its ground reaches beyond the edges, so no
+ * The screen drifts a few pixels against burn-in. Whatever shows (paper, the menu, the quick
+ * settings, a wall turning from light to dark), its ground reaches beyond the edges, so no
  * strip of anything else ever shows at a side (measured on rendered pixels, the drift at its
  * widest).
  */
@@ -44,7 +43,7 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class EdgesTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
     private val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
@@ -72,7 +71,7 @@ class EdgesTest {
     }
 
     @Test
-    fun `no strip at the sides - paper, the menu, a wall turning dark, the quick settings`() {
+    fun `no strip at the sides with paper, the menu, a wall turning dark or the quick settings`() {
         var ui by mutableStateOf(UiState(screen = Screen.Stage(track, PlayerStatus.PAUSED, null), stage = light, appearance = Appearance.LIGHT))
         compose.mainClock.autoAdvance = false
         // Nine minutes into the hour the drift stands at its right end; the stage paused, so it rests.

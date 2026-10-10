@@ -27,6 +27,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.em
+import androidx.core.graphics.createBitmap
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
@@ -57,7 +58,7 @@ object SetupArt {
      * light as an album.
      */
     fun card(qr: Array<BooleanArray>?, sizePx: Int, appearance: Appearance = Appearance.DARK): Bitmap {
-        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val bmp = createBitmap(sizePx, sizePx)
         val c = Canvas(bmp)
         c.drawColor(if (appearance == Appearance.DARK) 0xFFEAE2D4.toInt() else 0xFFF7F4EE.toInt())
         if (qr != null) {

@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -30,7 +29,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class FlowMotionTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 

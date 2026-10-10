@@ -32,6 +32,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.core.graphics.withTranslation
 import io.github.hazymorning.klangbild.vista.CameraPose
 import io.github.hazymorning.klangbild.vista.CloudPlace
 import io.github.hazymorning.klangbild.vista.Depth
@@ -79,7 +80,7 @@ class PaperImages(val baked: PaperBaked) {
 
 /**
  * What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the wind,
- * the camera, what falls – [time] the wall clock's seconds, [cloudTime] the clouds' own clock
+ * the camera, what falls. [time] is the wall clock's seconds, [cloudTime] the clouds' own clock
  * (faster in the wind), [drift] how far the wind has blown so far (its integral over time).
  */
 class PaperMotion(
@@ -93,11 +94,11 @@ class PaperMotion(
 
 /**
  * Draws the diorama in layers, each moved by the camera as far as its depth asks
- * ([VistaCamera]): the sky (with the sun and the moon), the far mountains, the clearing and the
- * near banks change only with the light – every ten seconds or so – so each is drawn into a
- * layer of its own and kept between frames, the camera only moving the finished layer; the
+ * ([VistaCamera]). The sky (with the sun and the moon), the far mountains, the clearing and the
+ * near banks change only with the light (every ten seconds or so), so each is drawn into a
+ * layer of its own and kept between frames, and the camera only moves the finished layer. The
  * stars and the clouds, the cut-outs swaying in the breeze, the fire and its light are drawn
- * every frame. Everything that changes is a colour matrix, a position or a small transform:
+ * every frame. Everything that changes is a color matrix, a position or a small transform, so
  * nothing is cut anew. [look] and [places] should only be read anew when the light has moved on.
  */
 @Composable
@@ -127,7 +128,7 @@ fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlace
 }
 
 /**
- * A layer's canvas: the baked canvas's rows [rows] (pixels), placed where they stand – the
+ * A layer's canvas: the baked canvas's rows [rows] (pixels), placed where they stand. The
  * canvas reaches [PaperMotif.OVERSCAN] beyond the screen on every side, so neither the camera
  * nor the screen's drift ever shows an edge, and a layer kept as an image is only as tall as
  * the paper it holds.
@@ -144,7 +145,7 @@ private inline fun DrawScope.rows(rows: Pair<Int, Int>, block: DrawScope.() -> U
 }
 
 /**
- * Moves a layer with the camera, as far as its [depth] asks – read every frame, but only the
+ * Moves a layer with the camera, as far as its [depth] asks. It is read every frame, but only the
  * layer's transform changes: a [cached] layer keeps what it drew (until the light moves on).
  * The layer holds the baked canvas's [rows]; it turns about the camera's point on the screen.
  */
@@ -160,8 +161,8 @@ private fun Modifier.camera(depth: Depth, motion: () -> PaperMotion, b: PaperBak
 }
 
 /**
- * The stars as a dozen batches of points – by size and by which of four slow flickers they
- * follow – made anew only when they have turned (every few seconds), drawn with a call each.
+ * The stars as a dozen batches of points (by size and by which of four slow flickers they
+ * follow), made anew only when they have turned (every few seconds), drawn with a call each.
  * Behind the moon's disc there are none.
  */
 private class StarBatches {
@@ -190,7 +191,7 @@ private class StarBatches {
 
 private const val FLICKERS = 4
 
-/** Colour filters for inks, made once per new set of colours. */
+/** Color filters for inks, made once per new set of colors. */
 private class FilterCache {
     private val cache = HashMap<Inks, ColorFilter>()
     private val tints = HashMap<Int, ColorFilter>()
@@ -263,8 +264,8 @@ private fun DrawScope.disc(images: PaperImages, img: ImageBitmap, s: Sheet, cx: 
 }
 
 /**
- * The moon: at night the whole disc a breath lighter than the sky, the lit part with its phase,
- * its bright side towards the sun; by day only its lit part, faint, as the day moon is.
+ * The moon. At night the whole disc is a little lighter than the sky, and the lit part shows its
+ * phase, its bright side toward the sun. By day only its lit part shows, faint, as the day moon is.
  */
 private fun DrawScope.drawMoon(images: PaperImages, l: PaperLook, p: SkyPlaces, f: FilterCache) {
     val b = images.baked
@@ -312,7 +313,7 @@ private fun DrawScope.drawMoving(images: PaperImages, l: PaperLook, p: SkyPlaces
     val shadowFilter = f.tint(l.shadow)
     val depth = PaperBake.CLOUD_DEPTH
     for (c in m.clouds) {
-        // The ceiling's heaps hang upside down: their humps towards the ground, their shadow still below them.
+        // The ceiling's heaps hang upside down: their humps toward the ground, their shadow still below them.
         val flip = if (c.deck) -1f else 1f
         withTransform({
             translate(b.px(c.x), b.px(c.y))
@@ -350,10 +351,10 @@ private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache
 }
 
 /**
- * The cut-outs on the meadow, each swaying about its foot – leaning into the wind, rocking on
- * its own, all of them stirred by the same gusts, never in a loop – with its shadow; then the
- * campfire's tongues of tissue, each stretching and leaning on its own and all bending with
- * the wind; then the smoke rising from them.
+ * The cut-outs on the meadow, each swaying about its foot with its shadow. Each leans into the
+ * wind and rocks on its own, all of them stirred by the same gusts, never in a loop. Then come
+ * the campfire's tongues of tissue, each stretching and leaning on its own and all bending with
+ * the wind, and then the smoke rising from them.
  */
 private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     val b = images.baked
@@ -399,8 +400,8 @@ private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m
 }
 
 /**
- * The tall firs that frame the view, standing on the near banks: they sway like the meadow's
- * cut-outs, slower and less – they are tall – with their soft shadows.
+ * The tall firs that frame the view, standing on the near banks. They sway like the meadow's
+ * cut-outs, but slower and less because they are tall, with their soft shadows.
  */
 private fun DrawScope.drawFrontFirs(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     val b = images.baked
@@ -436,7 +437,7 @@ private fun swayOf(t: Double, seed: Int, wind: Float): Float {
 
 /**
  * The campfire's smoke: soft puffs rising from the flames, widening and thinning as they go,
- * drifting off with the wind – light grey by day, a faint warm grey at night.
+ * drifting off with the wind: light gray by day, a faint warm gray at night.
  */
 private fun DrawScope.drawSmoke(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     if (l.smokeAlpha <= 0.005f) return
@@ -474,8 +475,8 @@ private fun unit(i: Int, seed: Int): Float {
 }
 
 /**
- * The light of the camp, added over everything near it: the fire's on the clearing, breathing
- * with its flames, and at night the lantern's in the tent's door.
+ * The light of the camp, added over everything near it: the fire's light on the clearing, rising
+ * and falling with its flames, and at night the lantern's light in the tent's door.
  */
 private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     val b = images.baked
@@ -508,8 +509,8 @@ private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMoti
 }
 
 /**
- * Sparks rising from the fire: a dozen glowing grains at most, each flying up a little way –
- * slowing, wavering, carried off by the wind – and going out; a new one follows at its own
+ * Sparks rising from the fire: a dozen glowing grains at most. Each flies up a little way
+ * (slowing, wavering, carried off by the wind) and goes out; a new one follows at its own
  * pace, never in step with the others.
  */
 private fun DrawScope.drawSparks(m: PaperMotion, b: PaperBaked) {
@@ -595,7 +596,7 @@ private fun DrawScope.drawWeather(images: PaperImages, l: PaperLook, m: PaperMot
 
 /**
  * Draws what falls in a few calls: the flakes as round points and the drops as lines, sorted
- * into a handful of sizes and strengths – each batch one call. Buffers are kept between frames.
+ * into a handful of sizes and strengths, one call per batch. Buffers are kept between frames.
  */
 private class FallBatches {
     val items = FloatArray(Weatherfall.STRIDE * 200)
@@ -610,7 +611,7 @@ private class FallBatches {
         strokeCap = android.graphics.Paint.Cap.ROUND
     }
 
-    /** The flakes: discs of white paper, each with a breath of shadow below it (seen against a pale sky), by size and strength. */
+    /** The flakes: discs of white paper, each with a faint shadow below it (seen against a pale sky), by size and strength. */
     fun flakes(canvas: android.graphics.Canvas, n: Int, b: PaperBaked, ink: Int, shadow: Int, shadowAlpha: Float) {
         if (n == 0) return
         counts.fill(0)
@@ -644,10 +645,7 @@ private class FallBatches {
             paint.strokeWidth = 2f * r * b.density
             paint.color = shadow
             paint.alpha = (255 * a * (0.18f + 0.4f * shadowAlpha)).toInt().coerceIn(0, 255)
-            canvas.save()
-            canvas.translate(drop * 0.4f, drop)
-            canvas.drawPoints(buffers[k], 0, counts[k] * 2, paint)
-            canvas.restore()
+            canvas.withTranslation(drop * 0.4f, drop) { drawPoints(buffers[k], 0, counts[k] * 2, paint) }
             paint.color = ink
             paint.alpha = (255 * a).toInt().coerceIn(0, 255)
             canvas.drawPoints(buffers[k], 0, counts[k] * 2, paint)
@@ -685,7 +683,7 @@ private class FallBatches {
     }
 }
 
-/** How strong the rain's threads are at most: a veil, not a curtain. */
+/** How strong the rain's threads are at most. They read as a light veil, not a solid curtain. */
 private const val RAIN_ALPHA = 0.42f
 
 /** How far below a flake its shadow falls (dp). */
@@ -714,7 +712,7 @@ private val SPARK_COOL = Color(0xFFFF8A3C)
 private const val FIREFLY = 0xFFD9F27E.toInt()
 private const val FIREFLY_HALO_DP = 14f
 
-/** The lantern's light in the tent's door: its colour and how wide it falls (dp). */
+/** The lantern's light in the tent's door: its color and how wide it falls (dp). */
 private const val LANTERN_DP = 40f
 private const val LANTERN = 0xFFFFB45A.toInt()
 

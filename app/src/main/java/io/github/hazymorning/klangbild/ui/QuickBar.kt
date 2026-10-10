@@ -58,22 +58,22 @@ object QuickGrid {
     const val LEFT = 88f
     const val RIGHT = 872f
 
-    /** The values' baseline – well inside the screen's safe area – and the labels' above it. */
+    /** The values' baseline (well inside the screen's safe area) and the labels' above it. */
     const val VALUE_BASELINE = 495f
     const val LABEL_BASELINE = 468f
 
-    /** The veil that lets the row read over whatever shows: from clear here … */
+    /** The veil that lets the row read over whatever shows. It starts clear here. */
     const val VEIL_TOP = 372f
 
-    /** … to its full strength here, down to the edge – nothing behind the row shows through. */
+    /** The veil reaches its full strength here and keeps it down to the edge, so nothing behind the row shows through. */
     const val VEIL_FULL = 448f
 
     /** Room between two entries. */
     const val GAP = 64f
 
     /**
-     * The light under the chosen entry, a Gaussian: across, σ is this share of half the entry's
-     * width plus a little (dp) – it lights the entry, not its neighbours; up and down, σ in dp.
+     * The light under the chosen entry, a Gaussian. Across, σ is this share of half the entry's
+     * width plus a little (dp), so it lights the entry, not its neighbors. Up and down, σ is in dp.
      */
     const val GLOW_SHARE = 0.6f
     const val GLOW_PAD = 8f
@@ -93,7 +93,7 @@ object QuickGrid {
  * The quick settings along the bottom edge: they rise a little and fade in when down is
  * pressed, and sink back when they close. Each entry is its name in the quiet ink with its value
  * under it; the chosen one is lit from below by the same soft band of light as the menu's
- * chosen line, its words at full strength – no frame, no chip, no icon. The entries keep their
+ * chosen line, its words at full strength (no frame, no chip, no icon). The entries keep their
  * places whatever their values say, so nothing jumps while a value changes.
  */
 @Composable
@@ -108,7 +108,7 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     }
     if (quick == null && shown.value <= 0f) return
     val state = quick ?: last[0] ?: return
-    // It rises as it fades in – faded draw by draw, not through a layer of the screen's size,
+    // It rises as it fades in. It is faded draw by draw, not through a layer of the screen's size,
     // which would cut its ground off at the screen's edges while it moves.
     QuickBar(state, lighting, appearance, modifier.graphicsLayer {
         val v = shown.value
@@ -118,7 +118,7 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     })
 }
 
-/** The quick settings' voices: like the menu's, near-neutral, on black or on paper. */
+/** The quick settings' colors: like the menu's, near-neutral, on black or on paper. */
 private class QuickColors(
     val veil: Color,
     val band: Color,
@@ -182,7 +182,7 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
         Canvas(Modifier.fillMaxSize()) {
             val d = density
             // The veil reaches beyond the screen's sides and bottom (and below, where the row rises
-            // from): seamless to the edges, whatever the drift against burn-in.
+            // from), so it leaves no gap at the edges, whatever the drift against burn-in.
             val m = BEYOND_EDGES_DP * d
             drawRect(
                 Brush.verticalGradient(
@@ -196,7 +196,7 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
                 size = Size(size.width + 2 * m, size.height - QuickGrid.VEIL_TOP * d + m + QuickGrid.RISE * d),
             )
             val g = glow ?: return@Canvas
-            // The band of light, centred on the value's middle line; it adds to the veil. The
+            // The band of light, centered on the value's middle line; it adds to the veil. The
             // blob holds ±3 σ.
             val cy = (QuickGrid.VALUE_BASELINE - QuickGrid.VALUE_SP * 0.35f) * d
             val hw = glowSigma * 3f * d
@@ -263,7 +263,7 @@ private const val GLOW_PEAK = 0.011f
 private const val BLOB_W = 96
 private const val BLOB_H = 48
 
-/** A soft oval of light (a Gaussian, ±3 σ across the bitmap) – greyscale, dithered, tinted when drawn. */
+/** A soft oval of light (a Gaussian, ±3 σ across the bitmap): grayscale, dithered, tinted when drawn. */
 private fun glowBlob(ditherLsb: Float): androidx.compose.ui.graphics.ImageBitmap {
     val img = LinearImage(BLOB_W, BLOB_H)
     for (y in 0 until BLOB_H) for (x in 0 until BLOB_W) {

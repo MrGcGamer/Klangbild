@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
@@ -35,8 +34,8 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * What is meant to stand in the middle does – measured on the rendered pixels (1080p, 2 px = 1 dp),
- * on what is seen: the clock's figures from their top to their baseline, every line's ink,
+ * What is meant to stand in the middle does, measured on the rendered pixels (1080p, 2 px = 1 dp)
+ * and on what is seen: the clock's figures from their top to their baseline, every line's ink,
  * the artwork's edges, the progress bar's end, the longest line of text.
  */
 @RunWith(AndroidJUnit4::class)
@@ -44,7 +43,7 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class CentringTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val tv = ScreenSpec.TV_1080
 
@@ -126,7 +125,7 @@ class CentringTest {
         val centreX get() = (left + right + 1) / 2f
     }
 
-    /** The bright pixels of a dark screen (text, artwork, the code) – the lamp and the glow stay below. */
+    /** The bright pixels of a dark screen (text, artwork, the code). The lamp and the glow stay below. */
     private class Ink(bmp: Bitmap) {
         private val w = bmp.width
         private val h = bmp.height

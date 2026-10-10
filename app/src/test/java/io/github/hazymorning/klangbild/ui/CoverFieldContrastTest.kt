@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
@@ -26,7 +25,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * On the cover's colours the quietest text keeps 4.5:1 – against the lightest pixel the
+ * On the cover colors the quietest text keeps 4.5:1 against the lightest pixel the
  * rendered field shows anywhere in the text column, wherever its layers stand, at every hour.
  */
 @RunWith(AndroidJUnit4::class)
@@ -34,7 +33,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class CoverFieldContrastTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 

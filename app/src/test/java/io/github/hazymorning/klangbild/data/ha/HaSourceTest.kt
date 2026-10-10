@@ -233,10 +233,11 @@ class HaSourceTest {
             s.start()
             val state = withTimeout(5_000) { s.state.first { it.player?.track?.chapters?.isNotEmpty() == true } }
             val p = state.player!!
-            assertThat(p.track!!.kind).isEqualTo(MediaKind.AUDIOBOOK)
-            assertThat(p.track!!.album).isNull()
-            assertThat(p.track!!.artists).containsExactly("Franz Kafka")
-            assertThat(p.track!!.chapters.map { it.name }).containsExactly("Verhaftung", "Gespräch mit Frau Grubach").inOrder()
+            val track = p.track!!
+            assertThat(track.kind).isEqualTo(MediaKind.AUDIOBOOK)
+            assertThat(track.album).isNull()
+            assertThat(track.artists).containsExactly("Franz Kafka")
+            assertThat(track.chapters.map { it.name }).containsExactly("Verhaftung", "Gespräch mit Frau Grubach").inOrder()
             assertThat(p.speed).isWithin(1e-6f).of(1.25f)
             assertThat(maCommands).contains("player_queues/items")
             s.stop()

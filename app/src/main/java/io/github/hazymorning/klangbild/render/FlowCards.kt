@@ -10,17 +10,19 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
 import io.github.hazymorning.klangbild.color.Appearance
 import kotlin.math.roundToInt
 
 /**
  * One card of the cover flow as the GPU draws it: the print with its softly rounded corners
- * and, below it, its mirror image fading into the floor – one bitmap, so a card is a single
+ * and, below it, its mirror image fading into the floor. It is one bitmap, so a card is a single
  * textured quad. A transparent border of [PAD] pixels lets the texture filter smooth the
  * card's edges however it is turned.
  *
  * Android draws bitmaps without mipmaps, so a card turned far to the side would shimmer while
- * it moves; [half] is the same card at half the resolution, drawn instead once a card is
+ * it moves. [half] is the same card at half the resolution, drawn instead once a card is
  * squeezed to less than about two thirds of its width.
  */
 class FlowCard(
@@ -41,15 +43,15 @@ class FlowCard(
 }
 
 object FlowCards {
-    /** Opacity of the mirror image where it meets the card – on the dark gloss only: paper is matte. */
+    /** Opacity of the mirror image where it meets the card. Only on the dark gloss: paper is matte. */
     const val REFLECTION = 0.3f
 
     /**
-     * The card for [cover] (the print at its exact size, [cover] square), [round] for a
-     * generated plate (already transparent outside its disc), with
-     * corners of [cornerPx] and [geometry]'s gap and reflection height; [lightness] is the
-     * print's mean lightness. On paper there is no mirror image – and nowhere a frame, a line
-     * or a shadow round the card: the print alone.
+     * The card for [cover] (the print at its exact size, [cover] square), with corners of
+     * [cornerPx] and [geometry]'s gap and reflection height. [round] is set for a generated
+     * plate (already transparent outside its disc); [lightness] is the print's mean lightness.
+     * On paper there is no mirror image. There is never a frame, a line or a shadow around the
+     * card: only the print.
      */
     fun build(
         cover: Bitmap,
@@ -64,7 +66,7 @@ object FlowCards {
         val gap = (geometry.gap * density).roundToInt()
         val reflection = (geometry.reflection * density).roundToInt()
         val pad = FlowCard.PAD
-        val out = Bitmap.createBitmap(side + 2 * pad, side + gap + reflection + 2 * pad, Bitmap.Config.ARGB_8888)
+        val out = createBitmap(side + 2 * pad, side + gap + reflection + 2 * pad)
         val c = Canvas(out)
         val shader = BitmapShader(cover, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         val print = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.shader = shader }
@@ -97,7 +99,7 @@ object FlowCards {
             c.restoreToCount(layer)
         }
         out.prepareToDraw()
-        val half = Bitmap.createScaledBitmap(out, out.width / 2, out.height / 2, true)
+        val half = out.scale(out.width / 2, out.height / 2)
         half.prepareToDraw()
         return FlowCard(out, half, lightness)
     }

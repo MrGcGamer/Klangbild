@@ -21,7 +21,7 @@ import kotlin.math.roundToInt
 enum class SleepAction {
     /** Clear "keep screen on": the TV's own screensaver and sleep timer take over. */
     RELEASE,
-    /** Close the app (back to the Google TV home screen). */
+    /** Close the app (back to the TV's home screen). */
     CLOSE,
 }
 
@@ -55,11 +55,11 @@ enum class BackgroundMode {
     /** The wall: black with the artwork's light on it, or paper with its shadow. */
     WALL,
 
-    /** The cover's own colours, softly blurred, fill the screen. */
+    /** The cover's own colors, softly blurred, fill the screen. */
     COVER,
 }
 
-/** How the colours behind the picture move – on the screen and in the light bars; [speed] scales the drift. */
+/** How the colors behind the picture move, on the screen and in the lights; [speed] scales the drift. */
 enum class MotionLevel(val speed: Float) {
     OFF(0f),
     GENTLE(0.3f),
@@ -68,8 +68,8 @@ enum class MotionLevel(val speed: Float) {
 }
 
 /**
- * How brightly the light bars behind the TV glow by day, as a share of their full brightness –
- * in steps of a tenth; at night they dim on their own.
+ * How brightly the lights behind the TV glow by day, as a share of their full brightness,
+ * in steps of a tenth. At night they dim on their own.
  */
 enum class RoomLightLevel(val brightness: Float) {
     OFF(0f), P10(0.1f), P20(0.2f), P30(0.3f), P40(0.4f), P50(0.5f), P60(0.6f), P70(0.7f), P80(0.8f), P90(0.9f), P100(1f);
@@ -79,7 +79,7 @@ enum class RoomLightLevel(val brightness: Float) {
     companion object {
         val DEFAULT = P60
 
-        /** A stored level by name – the four steps of earlier versions read as their nearest. */
+        /** A stored level by name. The four steps of earlier versions read as their nearest. */
         fun named(name: String): RoomLightLevel? = when (name) {
             "SUBTLE" -> P30
             "NORMAL" -> P50
@@ -87,15 +87,15 @@ enum class RoomLightLevel(val brightness: Float) {
             else -> entries.firstOrNull { it.name == name }
         }
 
-        /** The step nearest to [percent] (1–100); 0 or less is off. */
+        /** The step nearest to [percent] (1 to 100); 0 or less is off. */
         fun ofPercent(percent: Int): RoomLightLevel = if (percent <= 0) OFF else entries.drop(1).minBy { kotlin.math.abs(it.percent - percent) }
     }
 }
 
-/** Where the music's label sits in the Fensterblick. */
+/** Where the music's label sits in the window view. */
 enum class MiniPlayer { LEFT, RIGHT, OFF }
 
-/** The colour lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
+/** The color lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
 data class RoomLights(val left: String? = null, val center: String? = null, val right: String? = null) {
     /** Each light once, from the left. */
     val ids: List<String> get() = listOfNotNull(left, center, right).distinct()
@@ -103,7 +103,7 @@ data class RoomLights(val left: String? = null, val center: String? = null, val 
     val isSet: Boolean get() = ids.isNotEmpty()
 }
 
-/** What the stage shows – the part of the settings the UI needs. */
+/** What the stage shows: the part of the settings the UI needs. */
 data class DisplayOptions(
     val clock: Boolean = true,
     /** The progress bar (named after the time line it replaced; stored under that name). */
@@ -111,7 +111,7 @@ data class DisplayOptions(
     /** What comes next, on the artwork's bottom edge. */
     val next: Boolean = true,
     val album: Boolean = true,
-    /** "Wohnzimmer + 5" while other speakers play along. */
+    /** "Living room + 5" while other speakers play along. */
     val group: Boolean = true,
     val volume: VolumeDisplay = VolumeDisplay.ON_CHANGE,
     val light: LightLevel = LightLevel.NORMAL,
@@ -142,7 +142,7 @@ data class Settings(
     val showGroup: Boolean = true,
     val volumeDisplay: VolumeDisplay = VolumeDisplay.ON_CHANGE,
     val light: LightLevel = LightLevel.NORMAL,
-    /** Up and down on the remote change the speaker's volume (instead of showing the exact time). */
+    /** Up and down on the remote change the speaker's volume (instead of the window view and the quick settings). */
     val volumeKeys: Boolean = false,
     val appearance: AppearanceMode = AppearanceMode.AUTO,
     val view: StageView = StageView.SINGLE,
@@ -151,18 +151,18 @@ data class Settings(
     val maToken: String? = null,
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
-    /** The colour lights behind the TV and how brightly they join in (by day; at night they dim on their own). */
+    /** The color lights behind the TV and how brightly they join in (by day; at night they dim on their own). */
     val roomLights: RoomLights = RoomLights(),
     val roomLightLevel: RoomLightLevel = RoomLightLevel.DEFAULT,
     /** With an audiobook or a podcast, left and right jump back 15 and ahead 30 seconds. */
     val spokenSkip: Boolean = true,
-    /** The Fensterblick takes the screen after the music has been paused this long (s); 0 never. */
+    /** The window view takes the screen after the music has been paused this long (s); 0 never. */
     val vistaPauseSeconds: Int = 180,
-    /** … and while music plays, after this long without a key pressed (s); 0 never. */
+    /** The window view also comes while music plays, after this long without a key pressed (s); 0 never. */
     val vistaPlayingSeconds: Int = 0,
-    /** Where the music's label sits in the Fensterblick. */
+    /** Where the music's label sits in the window view. */
     val miniPlayer: MiniPlayer = MiniPlayer.LEFT,
-    /** The weather entity whose clouds set the Fensterblick's sky; null finds Home Assistant's own, [NO_WEATHER] none. */
+    /** The weather entity whose clouds set the window view's sky; null finds Home Assistant's own, [NO_WEATHER] none. */
     val weatherEntity: String? = null,
 ) {
     /** The weather entities to follow: the one chosen, else Home Assistant's usual forecast entities. */
@@ -174,7 +174,7 @@ data class Settings(
         }
 
     companion object {
-        /** No weather entity: the Fensterblick's sky stays fair. */
+        /** No weather entity: the window view's sky stays fair. */
         const val NO_WEATHER = "none"
 
         /** The entities Home Assistant's own weather integration (Met.no) creates. */
@@ -441,7 +441,8 @@ object LaunchExtras {
         val token = (extras[TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         val haUrl = (extras[HA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
         val longLived = token?.let { HaCredentials.LongLived(it) }
-        if (haUrl != null) out = out.withHa(haUrl, longLived) else if (longLived != null && out.haUrl != null) out = out.withHa(out.haUrl!!, longLived)
+        val knownUrl = out.haUrl
+        if (haUrl != null) out = out.withHa(haUrl, longLived) else if (longLived != null && knownUrl != null) out = out.withHa(knownUrl, longLived)
         val maToken = (extras[MA_TOKEN] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         val maUrl = (extras[MA_URL] as? String)?.let { HaUrls.normalizeBase(it) }
         if (maUrl != null) out = out.withMa(maUrl, maToken) else if (maToken != null && out.maUrl != null) out = out.copy(maToken = maToken)
@@ -590,7 +591,7 @@ object LaunchExtras {
     const val DEEP_LINK_SCHEME = "klangbild"
 
     /**
-     * What a link may set: display options and the sleep time – never the address, token,
+     * What a link may set: display options and the sleep time, but never the address, token,
      * speaker or the lights to control. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(

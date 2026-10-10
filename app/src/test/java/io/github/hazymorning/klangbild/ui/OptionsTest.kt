@@ -32,7 +32,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class OptionsTest {
     @get:org.junit.Rule
-    val compose = androidx.compose.ui.test.junit4.createComposeRule()
+    val compose = composeRule()
 
     private val spiegel = Fixtures.spiegel
     private val everywhere = SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Büro", "Flur", "Terrasse")), Fixtures.texts)

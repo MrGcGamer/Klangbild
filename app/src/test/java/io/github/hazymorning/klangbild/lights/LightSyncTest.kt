@@ -242,7 +242,7 @@ class LightSyncTest {
         ha.failing = true
         s.update(target("a"))
         testScheduler.advanceTimeBy(120_000)
-        // The first call and one more, not a call every few seconds for ever.
+        // The first call and one more, not a call every few seconds forever.
         assertThat(ha.to(left)).hasSize(2)
         assertThat(ha.to(right)).hasSize(2)
     }
@@ -283,7 +283,7 @@ class LightSyncTest {
         assertThat(pre.data!!["xy_color"]).isEqualTo(up.data!!["xy_color"])
         assertThat(up.at - pre.at).isEqualTo(LightSync.PRE_ON_MS)
         // Different colors left and right: the cover is red there and blue here.
-        assertThat(l.data!!["xy_color"]).isNotEqualTo(up.data!!["xy_color"])
+        assertThat(l.data["xy_color"]).isNotEqualTo(up.data["xy_color"])
     }
 
     @Test

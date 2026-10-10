@@ -91,6 +91,14 @@ android {
         }
     }
 
+    lint {
+        // Every warning fails the build; app/lint.xml turns off the few checks that do not apply.
+        warningsAsErrors = true
+        abortOnError = true
+        checkDependencies = false
+        lintConfig = file("lint.xml")
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -101,6 +109,13 @@ android {
                 "/META-INF/versions/9/previous-compilation-data.bin",
             )
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // A compiler warning fails the build like a lint warning does.
+        allWarningsAsErrors.set(true)
     }
 }
 
