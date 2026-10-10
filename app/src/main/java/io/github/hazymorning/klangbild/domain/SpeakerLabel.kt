@@ -52,7 +52,10 @@ object SpeakerLabel {
         else -> t.percent((level * 100f).roundToInt().coerceIn(0, 100))
     }
 
-    /** Words that name the device rather than the room ("Living room speaker" is "Living room"), in the languages speakers are named in. */
+    /**
+     * Words that name the device rather than the room ("Living room speaker" is "Living room"),
+     * in the languages speakers are named in.
+     */
     private val generic = setOf(
         "lautsprecher", "speaker", "speakers", "box", "boxen", "player", "mediaplayer", "musik", "music",
         "ma", "sonos", "homepod", "echo", "nest", "chromecast", "google", "alexa", "airplay", "snapcast",
@@ -80,7 +83,7 @@ object SpeakerLabel {
             .ifEmpty { null }
     }.joinToString(" ").ifEmpty { null }
 
-    /** A device word grown onto the room ("Wohnzimmerlautsprecher") is cut off. */
+    /** A device word grown onto the room (as in German compound names, or "Kitchenspeaker") is cut off. */
     private fun stripSuffix(word: String): String {
         val lower = word.lowercase()
         for (suffix in listOf("lautsprecher", "speaker")) {

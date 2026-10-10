@@ -110,13 +110,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        // The quick settings take their keys first; they leave the Fensterblick as it is.
+        // The quick settings take their keys first; they leave the window view as it is.
         if (controller.quickOpen && quickKey(keyCode)) return true
         val setup = controller.ui.value.screen is Screen.Setup
         val quickKeys = !setup && !controller.volumeKeys && !controller.menuOpen
-        // Down opens the quick settings over whatever shows (the Fensterblick too); up brings the
-        // Fensterblick or leaves it. Every other key starts the Fensterblick's delays again: one
-        // that came by itself goes, a chosen one stays – and the key does its work either way.
+        // Down opens the quick settings over whatever shows (the window view too); up brings the
+        // window view or leaves it. Every other key starts the window view's delays again: one
+        // that came by itself goes, a chosen one stays, and the key does its work either way.
         val upDown = keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_UP
         if (event.repeatCount == 0 && keyCode in REMOTE_KEYS && !(quickKeys && upDown)) controller.interaction()
         if (controller.menuOpen && menuKey(keyCode)) return true
@@ -174,7 +174,7 @@ class MainActivity : ComponentActivity() {
                     controller.send(if (keyCode == KeyEvent.KEYCODE_DPAD_UP) RemoteCommand.VOLUME_UP else RemoteCommand.VOLUME_DOWN)
                 } else if (event.repeatCount == 0 && quickKeys) {
                     // Down: the quick settings rise from the bottom edge. Up: the view out of the
-                    // window – the Fensterblick comes, and up again (or back) leaves it.
+                    // window. The window view comes, and up again (or back) leaves it.
                     if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) controller.openQuick() else controller.toggleVista()
                     peek()
                 }
@@ -190,7 +190,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Keys while the quick settings are open – a row along the bottom edge: left and right choose
+     * Keys while the quick settings are open (a row along the bottom edge): left and right choose
      * one, OK (on release) changes it or does what it says; down again closes the row, as does
      * up, which moves away from it; Menu opens the settings. False lets the key through (media
      * keys, back).
@@ -282,15 +282,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Back closes the app – or just what lies on top of the music: the settings, the quick menu,
-     * the Fensterblick, the setup code.
+     * Back closes the app, or just what lies on top of the music: the settings, the quick menu,
+     * the window view, the setup code.
      */
     private fun onBack() {
         val s = controller.ui.value.screen
         when {
             controller.menuOpen -> controller.closeMenu()
             controller.quickOpen -> controller.closeQuick()
-            // The Fensterblick goes; the app stays.
+            // The window view goes; the app stays.
             controller.hideVista() -> Unit
             s is Screen.Setup && s.reason == SetupReason.REQUESTED -> controller.requestSetup(false)
             else -> finish()
@@ -302,7 +302,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val PEEK_MS = 6_000L
 
-        /** The remote's keys: each starts the Fensterblick's delays again. */
+        /** The remote's keys: each starts the window view's delays again. */
         private val REMOTE_KEYS = setOf(
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_MENU,

@@ -18,9 +18,9 @@ import io.github.hazymorning.klangbild.vista.World
 import java.time.ZoneId
 
 /**
- * The Fensterblick as a screen of the app: the picture for Home Assistant's place and weather
- * (or a place guessed from the time zone, and a fair sky), with the music's label on the near
- * bank.
+ * The window view as a screen of the app. It shows the picture for Home Assistant's place and
+ * weather (or a place guessed from the time zone, and a fair sky), with the music's label on the
+ * near bank.
  */
 @Composable
 fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () -> Long?, now: () -> Long, modifier: Modifier = Modifier) {
@@ -34,7 +34,7 @@ fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () 
     }
 }
 
-/** The Fensterblick's view of the world: Home Assistant's place (or one guessed from the time zone) and weather. */
+/** What the window view knows of the world: Home Assistant's place (or one guessed from the time zone) and weather. */
 @Composable
 fun rememberVistaFeed(ui: UiState, clock: VistaClock, now: () -> Long): VistaFeed {
     val latest by rememberUpdatedState(ui)

@@ -105,7 +105,7 @@ class StatesTest {
     }
 }
 
-/** The same at 3840 × 2160 (xxxhdpi), to check crispness and the honest cover scale. */
+/** The same at 3840 × 2160 (xxxhdpi), to check crispness and the true cover scale. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xxxhdpi")

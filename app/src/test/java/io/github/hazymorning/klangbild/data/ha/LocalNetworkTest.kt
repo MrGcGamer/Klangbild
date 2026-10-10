@@ -7,7 +7,7 @@ import java.net.InetAddress
 
 class LocalNetworkTest {
     @Test
-    fun `recognises local hosts syntactically`() {
+    fun `recognizes local hosts syntactically`() {
         listOf("192.168.0.10", "10.1.2.3", "172.16.0.1", "172.31.255.255", "127.0.0.1", "169.254.1.1",
             "100.100.1.1", "homeassistant", "homeassistant.local", "ha.lan", "box.home.arpa", "fritz.box",
             "localhost", "fe80::1", "fd12:3456::1", "[fd12::1]").forEach {

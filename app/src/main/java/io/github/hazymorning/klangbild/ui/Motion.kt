@@ -22,8 +22,8 @@ import kotlin.math.sin
 val LocalStill = staticCompositionLocalOf { false }
 
 /**
- * One clock for what moves by itself on the stage – the progress bar and the colour field – so
- * both are redrawn in the same frame: two loops out of step would double the frames drawn.
+ * One clock for what moves by itself on the stage (the progress bar and the color field), so
+ * both are redrawn in the same frame. Two loops out of step would double the frames drawn.
  * [frame] changes about 30 times a second while something moves, twice a second otherwise.
  */
 @Stable
@@ -32,7 +32,7 @@ class StageTick(val frame: State<Long>)
 /** The stage's tick; null where nobody provides one (a lone bar then keeps its own loop). */
 val LocalStageTick = staticCompositionLocalOf<StageTick?> { null }
 
-/** A tick for the stage: [fast] while music plays or the colours move. */
+/** A tick for the stage: [fast] while music plays or the colors move. */
 @Composable
 fun rememberStageTick(fast: Boolean): StageTick {
     val frame = remember { mutableLongStateOf(0L) }
@@ -53,8 +53,8 @@ private const val SLOW_TICK_MS = 500L
 
 /**
  * Motion vocabulary. Everything is driven by the display's frames and eased; nothing
- * bounces, nothing slides, nothing jumps. A track change takes about a second – long enough
- * to be seen, short enough to never be waited for.
+ * bounces, nothing slides, nothing jumps. A track change takes about a second: long enough
+ * to be seen, short enough that nobody waits for it.
  */
 object Motion {
     /** Soft in-out, like a dimmer turned by hand. */
@@ -70,16 +70,16 @@ object Motion {
     val Accelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
     /**
-     * The cover flow turning over: a gentle start, an unhurried middle – at most about twice
-     * the average speed – and a long soft landing.
+     * The cover flow turning over: a gentle start, an unhurried middle (at most about twice
+     * the average speed) and a long soft landing.
      */
     val Turn = CubicBezierEasing(0.35f, 0f, 0.35f, 1f)
 
     /**
-     * A full track change cross-fades – the screen never goes dark: the new artwork comes up
-     * over the old one (0–600 ms), the old goes once it is covered (600–750 ms); the light on
-     * the wall turns to the new colours (0–800 ms). The old text leaves (220 ms); the new lines
-     * rise into place one after another from 260 ms, 380 ms each.
+     * A full track change cross-fades, so the screen never goes dark. The new artwork comes up
+     * over the old one (0 to 600 ms), and the old goes once it is covered (600 to 750 ms). The
+     * light on the wall turns to the new colors (0 to 800 ms). The old text leaves (220 ms); the
+     * new lines rise into place one after another from 260 ms, 380 ms each.
      */
     const val TRACK_CHANGE_MS = 1_000
     const val ART_IN_END_MS = 600
@@ -95,9 +95,9 @@ object Motion {
     const val TEXT_IN_SAME_PICTURE_MS = 250
 
     /**
-     * Cover Flow: another picture comes to the middle – the strip turns over in 1.3 s
-     * ([Turn]); the light above the cards takes the new colour (0–1100 ms); the old text has
-     * left before the cards gather speed, the new lines rise from 780 ms, as the new cover
+     * Cover Flow: when another picture comes to the middle, the strip turns over in 1.3 s
+     * ([Turn]). The light above the cards takes the new color (0 to 1100 ms). The old text has
+     * left before the cards gather speed, and the new lines rise from 780 ms, as the new cover
      * turns to face the room. Cards that make way for others rolling in go first (300 ms).
      */
     const val FLOW_TURN_MS = 1_300
@@ -141,8 +141,8 @@ object Motion {
 
     /**
      * OLED care: the whole composition drifts on a slow Lissajous path (±[amplitudePx]),
-     * moving at most about one pixel every few seconds – nobody notices, the panel does.
-     * Whole pixels only, so hairlines never shimmer.
+     * moving at most about one pixel every few seconds. Viewers do not notice it, but the
+     * panel is spared. Whole pixels only, so hairlines never shimmer.
      */
     fun drift(wallClockMs: Long, amplitudePx: Float): Pair<Int, Int> {
         val t = wallClockMs / 1000.0

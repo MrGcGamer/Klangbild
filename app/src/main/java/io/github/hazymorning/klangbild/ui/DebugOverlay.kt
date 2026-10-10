@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Frame timing for checking smoothness on the real device (`--ez debug true`). Uses the
  * platform's FrameMetrics: per second, how many frames were drawn, how long the slowest
  * took and how many missed a 60 Hz deadline. Nothing is drawn when nothing changes, so a
- * quiet screen shows 0 frames, which is the point.
+ * quiet screen shows 0 frames, as intended.
  */
 object FrameStats {
     data class Second(val frames: Int, val worstMs: Float, val janky: Int)
@@ -60,7 +60,7 @@ object FrameStats {
         }
     }
 
-    /** Counts [window]'s frames until [detach] – only while the overlay is asked for. */
+    /** Counts [window]'s frames until [detach], only while the overlay is asked for. */
     fun attach(window: Window) {
         window.addOnFrameMetricsAvailableListener(listener, handler)
     }

@@ -179,7 +179,8 @@ internal fun Baker.front(left: Boolean): Build? {
         val cornerX = if (left) -o - 4f else PaperMotif.WIDTH + o + 4f
         Outline(e.xs + floatArrayOf(cornerX), e.ys + floatArrayOf(PaperMotif.BOTTOM))
     }
-    // The tall firs are sprites of their own ([frontFirs]). Cutting them here too draws the same random numbers, so the grass keeps its shapes.
+    // The tall firs are sprites of their own ([frontFirs]). Cutting them here too draws the same
+    // random numbers, so the grass keeps its shapes.
     frontFirCuts(left, rnd)
     val parts = listOf(bank)
     val b = build(if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT, parts.minOf { it.minX() } - 4f, parts.minOf { it.minY() } - 4f, parts.maxOf { it.maxX() } + 4f, PaperMotif.BOTTOM)

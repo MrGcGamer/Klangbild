@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.math.roundToInt
 
-/** Every cover fills its square, on either wall – a small one too: never a frame around a smaller print. */
+/** Every cover fills its square on either wall, a small one too: never a frame around a smaller print. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])

@@ -17,22 +17,22 @@ import kotlin.random.Random
 
 /**
  * Procedurally painted album covers. No real artwork may live in the repository, yet the
- * screenshot tests need covers that look like the real thing – including
- * the nasty edge cases (almost black, almost white, monochrome, neon, low resolution,
+ * screenshot tests need covers that look like the real thing, including
+ * the hard edge cases (almost black, almost white, monochrome, neon, low resolution,
  * visually busy). Deterministic for a given style and size.
  */
 enum class SyntheticCover(val nativeSize: Int = 640) {
-    NIGHT_DRIVE,          // neon synthwave sunset – vivid / neon edge case
-    BAUHAUS,             // geometric shapes on paper – light cover
-    NOCTURNE,            // crescent moon on black – almost black edge case
-    MIST,           // misty mountains in greyscale – monochrome edge case
+    NIGHT_DRIVE,          // neon synthwave sunset: vivid, neon edge case
+    BAUHAUS,             // geometric shapes on paper: light cover
+    NOCTURNE,            // crescent moon on black: almost black edge case
+    MIST,           // misty mountains in grayscale: monochrome edge case
     SALT_WATER,          // ocean blues
     TERRACOTTA,          // warm desert sun
     MOSS,                // green hills in fog
     CONFETTI,            // busy, high-frequency confetti
     PASTEL(300),        // soft pastel, deliberately low resolution
     WHITE_SPACE,            // almost white with a single line
-    CHAMBER_MUSIC(1200),   // colour field painting, high resolution
+    CHAMBER_MUSIC(1200),   // color field painting, high resolution
 }
 
 object SyntheticCovers {

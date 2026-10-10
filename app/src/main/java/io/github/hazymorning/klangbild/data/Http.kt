@@ -10,8 +10,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Runs [request] and reads its answer with [read] (off the caller's thread). Cancellable:
- * cancelling the coroutine cancels the request – a blocking `execute()` would carry on to its
+ * Runs [request] and reads its answer with [read] (off the caller's thread). Cancelable:
+ * canceling the coroutine cancels the request. A blocking `execute()` would carry on to its
  * own timeouts, and a cover nobody waits for any more would still be downloaded. The whole
  * call, reading included, ends after [timeoutMs] at the latest.
  */

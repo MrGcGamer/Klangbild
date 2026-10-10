@@ -20,7 +20,7 @@ enum class MediaKind {
          */
         fun fromUri(contentId: String?): MediaKind? = contentId?.let { uri.find(it)?.groupValues?.get(1) }?.let(::fromType)
 
-        /** Music Assistant's `media_type` ("podcast_episode", "audiobook", "radio", "track" …). */
+        /** Music Assistant's `media_type` ("podcast_episode", "audiobook", "radio", "track" and so on). */
         fun fromType(type: String?): MediaKind? = when (type) {
             "podcast_episode" -> PODCAST
             "audiobook" -> AUDIOBOOK
@@ -69,7 +69,7 @@ object Chapters {
 
     /**
      * Sorted by start, each ending where it says, else where the next one starts, else at the
-     * item's end ([durationMs]) – as Music Assistant's own player does. Chapters that end before
+     * item's end ([durationMs]), as Music Assistant's own player does. Chapters that end before
      * they start, or start after the item's end, are left out; a single chapter is no chapter.
      */
     fun of(raw: List<Raw>, durationMs: Long?): List<Chapter> {

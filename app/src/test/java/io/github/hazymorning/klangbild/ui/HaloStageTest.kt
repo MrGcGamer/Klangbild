@@ -32,7 +32,7 @@ class HaloStageTest {
     @Test fun white() = shot("white", Fixtures.model(Fixtures.track(SyntheticCover.WHITE_SPACE)))
     @Test fun featVersion() = shot("feat_version", Fixtures.model(Fixtures.track(SyntheticCover.SALT_WATER), next = spiegel))
 
-    /** A short word never ends a title line; a long "next" line drops its artist rather than cutting it. */
+    /** A short word never ends a title line; a long "Up next" line drops its artist rather than cutting it. */
     @Test fun shortWords() = shot(
         "short_words",
         Fixtures.model(

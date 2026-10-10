@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
-/** Manual dependency graph – the app is small enough not to need a DI framework. */
+/** Manual dependency graph. The app is small enough not to need a DI framework. */
 class AppGraph(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -30,7 +30,7 @@ class AppGraph(context: Context) {
         .writeTimeout(15, TimeUnit.SECONDS)
         // WebSocket keep-alive is handled by HA pings; OkHttp answers server pings itself.
         .addInterceptor(LocalNetwork.CleartextGuard())
-        // …and every redirect hop, too: a picture link must not lead to plain HTTP outside the home.
+        // The guard checks every redirect hop, too: a picture link must not lead to plain HTTP outside the home.
         .addNetworkInterceptor(LocalNetwork.CleartextGuard())
         .build()
 

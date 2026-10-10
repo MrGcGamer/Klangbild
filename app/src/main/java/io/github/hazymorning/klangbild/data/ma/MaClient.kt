@@ -15,7 +15,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
-/** How the optional link to Music Assistant stands – for the menu, never as raw errors. */
+/** How the optional link to Music Assistant stands, for the menu, never as raw errors. */
 enum class MaLink {
     CONNECTED,
 
@@ -31,8 +31,8 @@ class MaAuthException : IOException("Music Assistant rejected the token")
 
 /**
  * Music Assistant's own API, for the one thing Home Assistant does not pass on: the whole
- * queue – what was played before the current song and what follows it. Optional: without an
- * address and a token (from the setup page) Klangbild works from Home Assistant alone.
+ * queue, meaning what was played before the current song and what follows it. Optional: without
+ * an address and a token (from the setup page) Klangbild works from Home Assistant alone.
  *
  * One HTTP call per command (`POST <base>/api`, the long-lived token as bearer), only to the
  * address set up; the cleartext guard of the shared client keeps plain HTTP inside the home
@@ -53,7 +53,10 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         return result as? JsonArray ?: throw IOException("Unexpected answer to player_queues/items")
     }
 
-    /** Adds what [playerId] plays to the favourites (a station's song looked up as a song); throws when Music Assistant cannot. */
+    /**
+     * Adds what [playerId] plays to the favorites (a station's song looked up as a song);
+     * throws when Music Assistant cannot.
+     */
     suspend fun favoriteNowPlaying(playerId: String) {
         command("players/add_currently_playing_to_favorites", buildJsonObject { put("player_id", playerId) })
     }
@@ -67,7 +70,7 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         MaLink.UNREACHABLE
     }
 
-    /** One command; cancelling the coroutine cancels the request. */
+    /** One command; canceling the coroutine cancels the request. */
     private suspend fun command(name: String, args: JsonObject): JsonElement {
         val body = buildJsonObject {
             put("message_id", name)

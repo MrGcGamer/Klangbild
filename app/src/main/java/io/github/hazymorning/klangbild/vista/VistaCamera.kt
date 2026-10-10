@@ -81,7 +81,10 @@ object VistaCamera {
         return lo to max(lo, hi)
     }
 
-    /** Where the view's middle may stand up and down at [zoom] for a view at [cx] (dp): the paper's reach, the label's bank, the tilt. */
+    /**
+     * Where the view's middle may stand up and down at [zoom] for a view at [cx] (dp): the paper's
+     * reach, the label's bank, the tilt.
+     */
     fun rangeY(zoom: Float, label: LabelSide, cx: Float = PIVOT_X): Pair<Float, Float> {
         var (low, hi) = paperY(zoom)
         if (label != LabelSide.NONE) low = max(low, lowestFor(cx, zoom, label))

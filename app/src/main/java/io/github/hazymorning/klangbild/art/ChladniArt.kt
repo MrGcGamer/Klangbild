@@ -11,19 +11,19 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Artwork for music without a cover (radio, local files): a Chladni figure – the pattern
- * sand forms on a vibrating plate. Literally a picture of sound, which is what the app's
- * name means. Every station or album gets its own stable figure and colours.
+ * Artwork for music without a cover (radio, local files): a Chladni figure, the pattern
+ * sand forms on a vibrating plate. It is literally a picture of sound, which is what the app's
+ * name means. Every station or album gets its own stable figure and colors.
  *
- * The plate is round, seen from above, hung on the wall like the prints (outside the disc
- * the image is transparent): a ring mode of the plate (Bessel functions in the radius) is
+ * The plate is round, seen from above, and hangs on the wall like the prints (outside the disc
+ * the image is transparent). A ring mode of the plate (Bessel functions in the radius) is
  * superposed with a nearly equal mode that has three to six lobes around it, so the sand
- * circles undulate like ripples – the calm figures of real sand photographs, not a grid of
- * lines. The sand stays clear of the rim. Both modes share the same axis, so every figure
- * is mirror-symmetric – no figure can turn into a hooked, pinwheel-like sign.
+ * circles undulate like ripples. These are the calm figures of real sand photographs, not a
+ * grid of lines. The sand stays clear of the rim. Both modes share the same axis, so every
+ * figure is mirror-symmetric and no figure can turn into a hooked, pinwheel-like sign.
  *
  * Pure Kotlin (returns ARGB pixels), so it renders identically on the JVM and the device
- * and can be produced at the exact on-screen pixel size – no upscaling, ever.
+ * and can be produced at the exact on-screen pixel size, with no upscaling ever.
  */
 object ChladniArt {
 
@@ -48,17 +48,17 @@ object ChladniArt {
 
     fun specFor(seedText: String): Spec {
         val rnd = Random(stableHash(seedText.ifBlank { "Klangbild" }))
-        // A ring mode – two or three nodal circles, the outermost well inside the rim – made
-        // wavy by a second mode with three to six lobes. Nodal diameters through the centre
-        // would turn into crosses, wheels and rosettes; a single circle or two lobes read as
-        // an "O", plain circles as a target.
+        // A ring mode (two or three nodal circles, the outermost well inside the rim) made
+        // wavy by a second mode with three to six lobes. Nodal diameters through the center
+        // would turn into crosses, wheels and rosettes. A single circle or two lobes read as
+        // an "O", and plain circles read as a target.
         val rings = 2 + rnd.nextInt(2)
         val n2 = LOBES[rnd.nextInt(LOBES.size)]
         val k1 = J0_ZEROS[rings - 1] / OUTER_RING
         val k2 = k1 * (0.97f + 0.06f * rnd.nextFloat())
-        // The second mode's share: the outermost circle undulates clearly but stays rounded –
-        // more than 1.5 r / (n² − 1) gives the lobes points – and no circle may wander far
-        // towards its neighbour, the clamp or the sandless rim.
+        // The second mode's share: the outermost circle undulates clearly but stays rounded
+        // (more than 1.5 r / (n² − 1) gives the lobes points), and no circle may wander far
+        // toward its neighbor, the clamp or the sandless rim.
         val radii = FloatArray(rings) { J0_ZEROS[it] / k1 }
         fun undulation(i: Int) = abs(besselTable(n2).at(k2 * radii[i])) / (k1 * abs(besselTable(1).at(J0_ZEROS[i])))
         val rounded = minOf(MAX_WAVE, 1.5f * OUTER_RING / (n2 * n2 - 1))
@@ -90,7 +90,8 @@ object ChladniArt {
 
     /**
      * The plate's vibration at radius [r] (0..1) and angle [theta]: sand gathers where it is
-     * zero. Both terms are cosines around the same axis – mirror-symmetric by construction.
+     * zero. Both terms are cosines around the same axis, so the field is mirror-symmetric by
+     * construction.
      */
     fun field(spec: Spec, r: Float, theta: Float): Float =
         besselTable(spec.n1).at(spec.k1 * r) * cos(spec.n1 * theta) +
@@ -128,14 +129,14 @@ object ChladniArt {
                 val r = hypot(u, v) / PLATE
                 val o = y * size + x
                 if (r >= 1f) {
-                    // Off the plate: nothing – the wall (and its light) shows through. One
+                    // Off the plate there is nothing: the wall (and its light) shows through. One
                     // pixel of anti-aliasing keeps the rim smooth.
                     val edge = ((1f - (r - 1f) * PLATE * size / 2f)).coerceIn(0f, 1f)
                     out[o] = if (edge <= 0f) 0 else argb(pr * 1.2f, pg * 1.2f, pb * 1.2f, edge)
                     continue
                 }
                 if (r < MOUNT) {
-                    // The plate is clamped in its centre: a small dark bolt with a lit edge.
+                    // The plate is clamped in its center: a small dark bolt with a lit edge.
                     val edge = exp(-((MOUNT - r) / 0.006f).let { it * it }) * 0.5f
                     val k = 0.45f + 0.25f * (1f - r / MOUNT)
                     out[o] = argb(pr * k + 255f * edge * 0.35f, pg * k + 255f * edge * 0.35f, pb * k + 255f * edge * 0.35f)
@@ -157,14 +158,14 @@ object ChladniArt {
                 val dist = abs(f) / max(hypot(fr, ft), 0.6f)
                 val line = exp(-(dist / lineWidth) * (dist / lineWidth))
                 val halo = exp(-(dist / (lineWidth * 4f)) * (dist / (lineWidth * 4f)))
-                // sand: stippled grains, denser on the nodal lines; a little dust elsewhere.
-                // Sand slides off the bolt and off the free rim: none right next to either,
-                // so no line ends abruptly at the plate's edge.
+                // Sand: stippled grains, denser on the nodal lines, and a little dust elsewhere.
+                // Sand slides off the bolt and off the free rim, so there is none right next to
+                // either and no line ends abruptly at the plate's edge.
                 val rimClear = ((SAND_OUT - r) / (SAND_OUT - SAND_IN)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
                 val clear = ((r - MOUNT) / 0.05f).coerceIn(0f, 1f) * rimClear
                 val grain = if (rnd.nextFloat() < line * 0.9f * clear) 0.75f + 0.25f * rnd.nextFloat() else 0f
                 val dust = if (rnd.nextFloat() < (halo * 0.06f + 0.004f) * rimClear) 0.55f else 0f
-                // plate: brushed metal, a soft light from the upper left, a bright rim
+                // Plate: brushed metal with a soft light from the upper left and a bright rim.
                 val light = 1.06f - 0.22f * hypot(u + 0.25f, v + 0.3f)
                 val tex = 1f + (rnd.nextFloat() - 0.5f) * 0.05f
                 val rim = exp(-((1f - r) / 0.012f).let { it * it }) * 0.35f

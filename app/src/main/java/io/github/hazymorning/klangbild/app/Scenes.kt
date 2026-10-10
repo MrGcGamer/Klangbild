@@ -18,9 +18,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
 /**
- * How scenes are lit: the time of day, the wall, how much colour a light wall takes (the light
- * level, which also sets how colourful the cover's colours are), and whether the cover's
- * colours are the wall ([coverField]).
+ * How scenes are lit: the time of day, the wall, how much color a light wall takes (the light
+ * level, which also sets how colorful the cover's colors are), and whether the cover's
+ * colors are the wall ([coverField]).
  */
 data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float, val coverField: Boolean = false) {
     fun fits(scene: ArtworkScene) =
@@ -35,7 +35,7 @@ data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint
 data class Frame(val screen: ScreenSpec, val view: StageView)
 
 /**
- * Prepares the stage's scenes (cover, palette, light – see [SceneBuilder]) off the main thread,
+ * Prepares the stage's scenes (cover, palette, light; see [SceneBuilder]) off the main thread,
  * one at a time, and keeps the most recent ones: a scene for a track that comes back (the next
  * song, a step back, the cards of the cover flow) is there at once. A scene whose light no
  * longer fits is re-lit from what it has, without loading the cover again.
@@ -107,7 +107,7 @@ class Scenes(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Throwable) {
-            // Broken image, out of memory …: the generated figure always works.
+            // A broken image, out of memory and the like: the generated figure always works.
             runCatching { withContext(dispatcher) { build(track, look, forFrame, withCover = false) } }.getOrNull()
         }
         synchronized(cache) {

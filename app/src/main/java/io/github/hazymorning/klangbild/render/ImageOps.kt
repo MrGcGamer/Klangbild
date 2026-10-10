@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * A float image in *linear* light, three planes. Blurring and compositing light in linear
+ * A float image in linear light, three planes. Blurring and compositing light in linear
  * space looks like real light spreading on a wall; doing it in sRGB looks muddy.
  */
 class LinearImage(val width: Int, val height: Int) {

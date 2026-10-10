@@ -17,7 +17,8 @@ enum class Depth(val parallax: Float) { SKY(0.15f), FAR(0.35f), MID(0.65f), FRON
 enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val rim: Float, val layer: Depth, val occludes: Boolean = true) {
     SKY(PaperKind.WASH, 0f, 0f, 0f, Depth.SKY),
     RANGE_FAR(PaperKind.CARD, 0f, 1.0f, 0.1f, Depth.FAR),
-    // The caps lie flat on their mountains: their shade is baked into the range (see occludes), so no shadow spills onto the sky.
+    // The caps lie flat on their mountains: their shade is baked into the range (see occludes),
+    // so no shadow spills onto the sky.
     SNOW(PaperKind.WHITE, 0f, 1.0f, 0f, Depth.FAR),
     RANGE_NEAR(PaperKind.CARD, 1f, 0.7f, 0.1f, Depth.FAR),
     WOOD_FAR(PaperKind.CARD, 1f, 0.5f, 0.1f, Depth.MID),

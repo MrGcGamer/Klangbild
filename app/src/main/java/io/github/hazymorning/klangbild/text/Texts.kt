@@ -36,7 +36,10 @@ class Texts(
     /** The plural form of [id] for [count], with [args] as its arguments. */
     fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String = fontSafe(resources.getQuantityString(id, count, *args))
 
-    /** [count] in words where the language has a word for it ("Three", "Drei"), else in figures. */
+    /**
+     * [count] in words where the language has a word for it ("Three" in English, its German word
+     * in German), else in figures.
+     */
     fun countWord(count: Int): String =
         resources.getStringArray(R.array.count_words).getOrNull(count) ?: NumberFormat.getIntegerInstance(locale).format(count)
 
@@ -55,7 +58,10 @@ class Texts(
     fun clockFigures(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         (if (clock24) clock24Format else figures12Format).format(Instant.ofEpochMilli(epochMs).atZone(zone))
 
-    /** The date at [epochMs] with the weekday, as the language writes it: "Saturday, October 10", "Samstag, 10. Oktober". */
+    /**
+     * The date at [epochMs] with the weekday, as the language writes it: "Saturday, October 10"
+     * in English, day before month in German.
+     */
     fun date(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         fontSafe(dateFormat.format(Instant.ofEpochMilli(epochMs).atZone(zone)))
 

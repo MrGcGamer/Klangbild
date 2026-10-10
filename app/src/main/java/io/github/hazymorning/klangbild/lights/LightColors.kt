@@ -48,7 +48,10 @@ class CoverLightColors(field: FieldScene, private val moving: Boolean) : LightCo
     }
 
     companion object {
-        /** The colors move on by one light in this much of the field's time (s): at medium motion about every two and a half minutes. */
+        /**
+         * The colors move on by one light in this much of the field's time (s): at medium motion
+         * about every two and a half minutes.
+         */
         const val ROTATE_S = 90.0
 
         /** The share of each step a color rests before it passes on. */

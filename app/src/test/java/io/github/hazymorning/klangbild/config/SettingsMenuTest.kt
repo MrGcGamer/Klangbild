@@ -28,7 +28,7 @@ class SettingsMenuTest {
     }
 
     @Test
-    fun `scales stop at their ends with left and right and go round with OK`() {
+    fun `scales stop at their ends with left and right and wrap around with OK`() {
         val normal = Settings()
         assertThat(SettingsMenu.step(MenuEntry.LIGHT, normal, +1)!!.light).isEqualTo(LightLevel.STRONG)
         assertThat(SettingsMenu.step(MenuEntry.LIGHT, normal, -1)!!.light).isEqualTo(LightLevel.SUBTLE)

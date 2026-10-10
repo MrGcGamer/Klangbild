@@ -39,7 +39,7 @@ class MaQueueTest {
         assertThat(played.album).isEqualTo("Nachtfahrt")
         assertThat(played.year).isEqualTo(2024)
         assertThat(played.durationMs).isEqualTo(251_000L)
-        // A local picture comes through Music Assistant's proxy – the larger size first.
+        // A local picture comes through Music Assistant's proxy, the larger size first.
         assertThat(played.artworkUrl).isEqualTo("$base/imageproxy/3f2a?size=1024")
         assertThat(played.artworkFallbackUrl).isEqualTo("$base/imageproxy/3f2a?size=512")
 

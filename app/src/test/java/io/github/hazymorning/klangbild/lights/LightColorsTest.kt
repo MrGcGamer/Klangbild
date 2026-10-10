@@ -14,7 +14,7 @@ import io.github.hazymorning.klangbild.vista.SkyState
 import org.junit.Test
 import kotlin.math.sqrt
 
-/** Three lights, three colors: from the cover, and in the window view from its light. */
+/** Three lights with a color each: from the cover, and in the window view from its own light. */
 class LightColorsTest {
     private fun field(vararg colors: Int): FieldScene {
         val n = 48
@@ -78,7 +78,7 @@ class LightColorsTest {
         val noon = lights(VistaLightColors(PaperLight.look(SkyState(sunElevation = 40f, sunAzimuth = 180f)), fireOnRight = true))
         val labs = noon.map(::lab)
         for ((a, b) in listOf(labs[0] to labs[1], labs[1] to labs[2], labs[0] to labs[2])) assertThat(distance(a, b)).isGreaterThan(0.05f)
-        // As light: each clearly a colour, and the sky above the TV blue.
+        // As light: each clearly a color, and the sky above the TV blue.
         val amber = LightColor.whiteXy(2700f)
         for (c in noon) assertThat(LightColor.of(c, 0f).distance(amber)).isGreaterThan(0.06f)
         val sky = LightColor.of(noon[1], 0f)

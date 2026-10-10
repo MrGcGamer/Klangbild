@@ -104,7 +104,7 @@ data class UiState(
     val lighting: Lighting = Lighting.DAY,
     /** Light wall by day, dark at night (or as set). */
     val appearance: Appearance = Appearance.DARK,
-    /** What the stage shows (clock, progress, album ...) and how strong its light is. */
+    /** What the stage shows (clock, progress, album and so on) and how strong its light is. */
     val display: DisplayOptions = DisplayOptions(),
     val source: SourceState = SourceState(LinkState.CONNECTING),
     val session: SessionOptions = SessionOptions(),

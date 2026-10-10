@@ -378,7 +378,8 @@ object PaperLight {
         val heavy = (0.25f * cover + 0.35f * rain + 0.6f * storm - 0.25f * snow).coerceIn(0f, 0.9f)
         val deckDark = Oklab.fromArgb(slate).let { Lab(it.l * (0.86f - 0.18f * storm), it.a, it.b).toArgb() }
         val deck = Inks(mixRgb(cloudLit, deckDark, heavy * 0.55f), mixRgb(cloudShade, deckDark, heavy), mixRgb(cloudRim, slate, heavy * 0.5f))
-        // Rain falls as threads a little lighter than the sky behind; snow as flakes of white paper; the mist is the horizon's color, lighter.
+        // Rain falls as threads a little lighter than the sky behind; snow as flakes of white paper;
+        // the mist is the horizon's color, lighter.
         val rainInk = mixOk(sky[1], c(0xFFE6ECF2), 0.45f - 0.25f * night)
         val snowInk = scaled(WHITE, FloatArray(3) { dusk * (0.93f + 0.07f * (1f - night)) * maxOf(0.42f, level) })
         val mist = mixOk(horizon, c(0xFFF2F2EE), 0.3f * (1f - night))

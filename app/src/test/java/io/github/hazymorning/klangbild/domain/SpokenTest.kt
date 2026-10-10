@@ -91,7 +91,7 @@ class SpokenTest {
         assertThat(ChapterPlace.at(book, null, numbered)).isNull()
 
         val ch = book.chapters
-        // Back: to the chapter's start – right after a start, to the one before.
+        // Back: to the chapter's start, or to the one before if just after a start.
         assertThat(Chapters.jump(ch, 1_500_000L, -1)).isEqualTo(1_000_000L)
         assertThat(Chapters.jump(ch, 1_001_000L, -1)).isEqualTo(0L)
         assertThat(Chapters.jump(ch, 1_000L, -1)).isEqualTo(0L)

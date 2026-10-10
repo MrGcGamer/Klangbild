@@ -7,12 +7,12 @@ package io.github.hazymorning.klangbild.domain
  *  - Classical titles like "Suite bergamasque, L. 75: III. Clair de lune" become a work
  *    line ("Suite bergamasque, L. 75") above the movement ("III. Clair de lune").
  *  - "(feat. X)" moves from the title to the artists.
- *  - Version noise ("– 2011 Remaster", "(Live)") leaves the title and becomes a small note.
- *  - Emoji at the edges of a title are dropped ("🌙 Mondlicht-Tape ✨" → "Mondlicht-Tape").
+ *  - Version noise ("2011 Remaster" after a dash, "(Live)") leaves the title and becomes a small note.
+ *  - Emoji at the edges of a title are dropped ("🌙 Moonlight Tape ✨" → "Moonlight Tape").
  *  - Spaced hyphens become en dashes that stay with the preceding word, so no line ever
- *    starts with a dash ("Presto – / Allegro assai", not "Presto / – Allegro assai").
- *  - Abbreviations keep their number: "Nr. 9", "op. 125", "KV 331" never break, with a
- *    no-break space after the abbreviation's full stop.
+ *    starts with a dash (the break comes after "Presto" and its dash, never before the dash).
+ *  - Abbreviations keep their number: "No. 9", "op. 125", "KV 331" never break, with a
+ *    no-break space after the abbreviation's period.
  */
 data class TrackText(
     val title: String,
@@ -23,7 +23,7 @@ data class TrackText(
     val version: String?,
     /** The individual artist names (featured artists included), for fitting onto one line. */
     val artistNames: List<String> = emptyList(),
-    /** What stands for the artists left out ("and others", "u. a."), in the language shown. */
+    /** What stands for the artists left out ("and others", or its short German form), in the language shown. */
     val others: String,
 ) {
     /** One artist, or two, or the first and [others]: for the short "what comes next" line. */
@@ -118,7 +118,7 @@ data class TrackText(
         private val dottedAbbreviation = Regex("""\b(Nr|No|Op|op|Hob|Bd|Vol|vol|Kap|Nº|L|K|D|S)\.\s+(?=\d|[IVXLC]+\b)""")
         private val catalogueSpace = Regex("""\b(BWV|KV|RV|HWV|WoO|TrV|FP|BB|Sz)\s+(?=\d)""")
 
-        /** "Nr. 9" → "Nr. 9" (no break); "KV 331" → "KV 331" (no break). */
+        /** "No. 9" → "No. 9" (no break); "KV 331" → "KV 331" (no break). */
         fun abbreviations(s: String): String = s
             .replace(dottedAbbreviation) { it.groupValues[1] + ". " }
             .replace(catalogueSpace) { it.groupValues[1] + " " }

@@ -1,8 +1,8 @@
 package io.github.hazymorning.klangbild.domain
 
 /**
- * What is playing, normalised from Home Assistant / Music Assistant.
- * Only plain data – presentation decisions live in [TrackText].
+ * What is playing, normalized from Home Assistant / Music Assistant.
+ * Only plain data; presentation decisions live in [TrackText].
  */
 data class TrackInfo(
     val title: String,
@@ -21,9 +21,9 @@ data class TrackInfo(
     val kind: MediaKind = MediaKind.MUSIC,
     /** The chapters of a book or an episode (from Music Assistant), sorted; empty without any. */
     val chapters: List<Chapter> = emptyList(),
-    /** Music Assistant has it among the favourites (only its own queue says so). */
+    /** Music Assistant has it among the favorites (only its own queue says so). */
     val favorite: Boolean = false,
-    /** A station's song with its own picture (from the stream) – it goes before any other. */
+    /** A station's song with its own picture (from the stream). It goes before any other. */
     val songPicture: Boolean = false,
     /** Stable identity used for transitions and caching. */
     val key: String = listOf(title, artists.joinToString(), album.orEmpty()).joinToString("|"),
@@ -32,7 +32,7 @@ data class TrackInfo(
     val artSeed: String get() = source ?: album ?: artists.firstOrNull() ?: title
 
     /**
-     * Identity of the picture this track shows – the album (one card for all its songs, even
+     * Identity of the picture this track shows: the album (one card for all its songs, even
      * where each song carries its own copy of the artwork), else the artwork, else the
      * generated figure's seed.
      */

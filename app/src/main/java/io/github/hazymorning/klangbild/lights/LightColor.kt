@@ -19,21 +19,21 @@ data class Xy(val x: Float, val y: Float) {
  * Light on a wall looks far paler than the same color on a screen, and a soft color that is
  * plain on the screen is next to white as light (a pale sky blue, a muted green). So the light
  * takes the color's hue at its purest (the edge of what a screen can show) and goes a good part
- * of the way from white towards it, further the more colorful the color is. Only real grays
+ * of the way from white toward it, further the more colorful the color is. Only real grays
  * become white: a neutral one by day, warmer at night, never the amber of a 2700 K bulb, which
  * reads as orange. Very dark colors keep their hue but give it softly.
  */
 object LightColor {
-    /** Below this chroma (Oklab) a color is a gray: white light instead ... */
+    /** Below this chroma (Oklab) a color is a gray and gets white light. */
     const val GREY_CHROMA = 0.012f
 
-    /** ... fully a color from this one on. */
+    /** From this chroma on a color is fully a color. */
     const val COLOUR_CHROMA = 0.035f
 
-    /** How far from white towards the hue's purest color the light goes: at least ... */
+    /** How far from white toward the hue's purest color the light goes, at the least. */
     const val SATURATION_MIN = 0.42f
 
-    /** ... plus this much per unit of chroma, up to [SATURATION_MAX]. */
+    /** How much further it goes per unit of chroma, up to [SATURATION_MAX]. */
     const val SATURATION_GAIN = 3.2f
     const val SATURATION_MAX = 0.92f
 
@@ -44,7 +44,7 @@ object LightColor {
     /** The coolest white a light with white only is given (K). */
     const val WHITE_COOL_K = 6_500f
 
-    /** A light with white only takes this share of the way from white towards the color, as its warmth. */
+    /** A light with white only takes this share of the way from white toward the color, as its warmth. */
     const val WHITE_ONLY_SHARE = 0.5f
 
     /** The color for the light from [rgb] (linear sRGB, 0..1); [warmth] 0 by day to 1 at night. */

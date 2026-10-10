@@ -315,7 +315,7 @@ object SettingsMenu {
     val PAUSE_DELAYS = listOf(0, 5, 15, 30, 60, 180, 300, 600)
     val PLAYING_DELAYS = listOf(0, 60, 120, 300, 600, 900, 1800)
 
-    /** "Off", "Five seconds", "15 seconds", "Three minutes" ... */
+    /** "Off", "Five seconds", "15 seconds", "Three minutes" and so on. */
     fun delay(seconds: Int, t: Texts): String = when {
         seconds <= 0 -> t[R.string.off]
         seconds < 60 -> t.plural(R.plurals.seconds, seconds, t.countWord(seconds))
@@ -338,7 +338,7 @@ object SettingsMenu {
     /** The offered value nearest to [v] (which may have been set from outside). */
     private fun nearest(choices: List<Int>, v: Int): Int = choices.minByOrNull { kotlin.math.abs(it - v) } ?: choices.first()
 
-    /** "Off", "30 minutes", "1 hour", "End of chapter", "End of episode" ... */
+    /** "Off", "30 minutes", "1 hour", "End of chapter", "End of episode" and so on. */
     fun sleepValue(choice: SleepChoice, kind: MediaKind?, t: Texts): String = when (choice) {
         SleepChoice.OFF -> t[R.string.off]
         SleepChoice.CHAPTER_END -> t[R.string.sleep_chapter_end]

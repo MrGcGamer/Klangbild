@@ -24,7 +24,7 @@ class StageModel(
     val scene: ArtworkScene,
     val text: TrackText,
     val status: PlayerStatus,
-    /** The progress bar's length: the track's – or, in a book with chapters, the chapter's. */
+    /** The progress bar's length: the track's, or the chapter's in a book with chapters. */
     val durationMs: Long?,
     /** Smoothed playback position "now" in the item's own time (null without duration information). */
     val positionMs: () -> Long?,
@@ -37,9 +37,9 @@ class StageModel(
      * notice ("Reconnecting…"). Wins over the bar.
      */
     val line: String? = null,
-    /** "Spiegel im Spiegel · Arvo Pärt": what comes next ... */
+    /** What comes next, as in "Spiegel im Spiegel · Arvo Pärt". */
     val next: String? = null,
-    /** ... and its title alone, for when both don't fit. */
+    /** The next item's title alone, for when title and artist don't both fit. */
     val nextTitle: String? = null,
     /** The status line at the top right: where the music plays, the volume, the time. */
     val statusLine: StatusLine? = null,
@@ -109,11 +109,11 @@ object StageTexts {
 fun Int.asColor() = Color(this)
 
 /**
- * Colour matrix for the artwork: the time-of-day lighting (perceptual dimming, only a touch
- * warmer at night – dim light loses colour rather than gaining it) and a gentle highlight
- * compression – even a white cover never glares on black (white becomes a soft paper tone
- * around L* 88 instead of #FFFFFF; a full-screen-bright print would also make the TV's
- * brightness limiter dim everything). On the light wall a white cover stays a little whiter
+ * Color matrix for the artwork. It applies the time-of-day lighting (perceptual dimming, only a
+ * touch warmer at night, since dim light loses color rather than gaining it) and a gentle
+ * highlight compression, so even a white cover never glares on black. White becomes a soft paper
+ * tone around L* 88 instead of #FFFFFF; a full-screen-bright print would also make the TV's
+ * brightness limiter dim everything. On the light wall a white cover stays a little whiter
  * than the paper around it.
  */
 fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): ColorFilter {

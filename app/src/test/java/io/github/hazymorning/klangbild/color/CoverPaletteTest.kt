@@ -66,7 +66,7 @@ class CoverPaletteTest {
             val light = CoverPalette.derive(CoverPalette.analyze(pixels), Lighting.DAY, Appearance.LIGHT)
             val paper = Oklab.fromArgb(light.wall)
             assertThat(paper.l).isIn(com.google.common.collect.Range.closed(0.88f, 0.93f))
-            // a breath of the cover's colour at most
+            // a hint of the cover's color at most
             assertThat(paper.chroma).isAtMost(0.02f)
             // ink never pure black
             assertThat(Oklab.fromArgb(light.ink).l).isAtLeast(0.2f)
@@ -74,7 +74,7 @@ class CoverPaletteTest {
     }
 
     @Test
-    fun `the light wall takes a breath of a warm cover's colour and stays warm paper for a cool one`() {
+    fun `the light wall takes a hint of a warm cover's color and stays warm paper for a cool one`() {
         val red = CoverPalette.derive(CoverPalette.analyze(solid(0xFFB0412E.toInt())), Lighting.DAY, Appearance.LIGHT)
         val blue = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT)
         val teal = CoverPalette.derive(CoverPalette.analyze(solid(0xFF1F7A78.toInt())), Lighting.DAY, Appearance.LIGHT)
@@ -82,13 +82,13 @@ class CoverPaletteTest {
         assertThat(red.lead).isNotNull()
         assertThat(grey.lead).isNull()
         assertThat(Oklab.fromArgb(red.wall).chroma).isGreaterThan(Oklab.fromArgb(grey.wall).chroma)
-        // paper is never mint or blue: a cool cover gives it less colour, not its hue
+        // paper is never mint or blue: a cool cover gives it less color, not its hue
         for (p in listOf(red, blue, teal, grey)) {
             assertThat(Oklab.fromArgb(p.wall).hue).isIn(com.google.common.collect.Range.closed(45f, 95f))
         }
         assertThat(Oklab.fromArgb(blue.wall).chroma).isAtMost(Oklab.fromArgb(red.wall).chroma)
         assertThat(Oklab.fromArgb(grey.wall).hue).isWithin(20f).of(CoverPalette.WARM_HUE)
-        // the "Wandlicht" setting at "Aus" leaves plain paper
+        // the Intensity setting turned off leaves plain paper
         val plain = CoverPalette.derive(CoverPalette.analyze(solid(0xFF2E5BA6.toInt())), Lighting.DAY, Appearance.LIGHT, wallTint = 0f)
         assertThat(Oklab.fromArgb(plain.wall).chroma).isAtMost(Oklab.fromArgb(grey.wall).chroma)
     }

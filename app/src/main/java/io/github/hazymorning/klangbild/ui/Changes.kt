@@ -17,11 +17,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Plays one change of a theatre: [t] runs from 0 to 1 in [totalMs]. If another song is waiting
- * before the end ([newer] returns), the rest of the change hurries – at most [Motion.HURRY_MS] –
- * once [onHurry] has learnt where it stood: the change still lands (nothing jumps), and the
+ * Plays one change of a theater: [t] runs from 0 to 1 in [totalMs]. If another song is waiting
+ * before the end ([newer] returns), the rest of the change hurries (at most [Motion.HURRY_MS])
+ * once [onHurry] has learned where it stood. The change still lands (nothing jumps), and the
  * next one follows at once. Anything else that comes meanwhile (a card that joins the strip, a
- * better cover) simply waits for the change to land.
+ * better cover) waits for the change to land.
  */
 suspend fun playChange(
     t: Animatable<Float, AnimationVector1D>,
@@ -46,22 +46,25 @@ suspend fun playChange(
     if (hurried) watch.join() else watch.cancel()
 }
 
-/** How the lines of a change's new text rise: each in [Motion.TEXT_LINE_MS], from [startMs] plus its stagger, in a change of [totalMs]. */
+/**
+ * How the lines of a change's new text rise: each in [Motion.TEXT_LINE_MS], from [startMs] plus its stagger, in a change
+ * of [totalMs].
+ */
 class TextRise(private val startMs: Int, val totalMs: Int) {
-    /** When the first line sets off (0…1 of the change). */
+    /** When the first line sets off (0 to 1 of the change). */
     val begins: Float get() = startMs.toFloat() / totalMs
 
-    /** How far [line] has risen at [at] (0…1 of the change). */
+    /** How far [line] has risen at [at] (0 to 1 of the change). */
     fun level(at: Float, line: TextLine): Float =
         Motion.phaseMs(at, startMs + line.stagger, startMs + line.stagger + Motion.TEXT_LINE_MS, totalMs, Motion.Decelerate)
 }
 
 /**
- * The new text of a theatre's changes. Its lines rise one after another as the change runs on
- * [t]. When the change hurries they stop where they are ([hold]) – the lines of a song that is
- * skipped past never come up – and rise the rest of the way only if that song stays after all
+ * The new text of a theater's changes. Its lines rise one after another as the change runs on
+ * [t]. When the change hurries they stop where they are ([hold]), so the lines of a song that
+ * is skipped past never come up. They rise the rest of the way only if that song stays after all
  * ([release]). When the next song's text comes ([begin]), this one leaves from where it stood
- * ([leaving]): nothing jumps.
+ * ([leaving]), so nothing jumps.
  */
 @Stable
 class RisingText(private val t: Animatable<Float, AnimationVector1D>) {
@@ -87,7 +90,7 @@ class RisingText(private val t: Animatable<Float, AnimationVector1D>) {
         held = null
     }
 
-    /** The change hurries at [at] (0…1): lines on their way up stop where they are. */
+    /** The change hurries at [at] (0 to 1): lines on their way up stop where they are. */
     fun hold(at: Float) {
         if (rise != null && held == null) held = at
     }
@@ -99,8 +102,8 @@ class RisingText(private val t: Animatable<Float, AnimationVector1D>) {
     }
 
     /**
-     * Held lines rise the rest of the way, at the pace of their change – at once, the change
-     * has landed – unless another song comes first ([newer] returns): then they stay where they
+     * Held lines rise the rest of the way at the pace of their change. They start at once, since
+     * the change has landed. If another song comes first ([newer] returns), they stay where they
      * are.
      */
     suspend fun release(newer: suspend () -> Unit) {

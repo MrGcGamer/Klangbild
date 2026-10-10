@@ -88,7 +88,7 @@ class LaunchExtrasTest {
     }
 
     @Test
-    fun `the Fensterblick from extras and links`() {
+    fun `the window view from extras and links`() {
         val s = LaunchExtras.applyTo(
             Settings(),
             mapOf("fensterblick_pause" to "30", "fensterblick_musik" to 600, "mini_player" to "rechts", "weather" to "weather.home"),
@@ -106,7 +106,7 @@ class LaunchExtrasTest {
         assertThat(LaunchExtras.session(mapOf("fensterblick" to "an")).vista).isEqualTo(VistaRequest.SHOW)
         assertThat(LaunchExtras.session(mapOf("fensterblick" to "zeitraffer")).vista).isEqualTo(VistaRequest.TIMELAPSE)
         assertThat(LaunchExtras.session(mapOf("fensterblick" to "aus")).vista).isEqualTo(VistaRequest.HIDE)
-        // A link may show it and set its options – the weather entity stays with the setup page.
+        // A link may show it and set its options. The weather entity stays with the setup page.
         val link = LaunchExtras.fromLink(mapOf("fensterblick" to "an", "mini_player" to "links", "weather" to "weather.x"))
         assertThat(link.keys).containsExactly("fensterblick", "mini_player")
     }

@@ -33,7 +33,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.util.TimeZone
 
-/** The quick settings along the bottom edge: over the stage on black and on paper, and over the Fensterblick. */
+/** The quick settings along the bottom edge: over the stage on black and on paper, and over the window view. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
@@ -80,7 +80,7 @@ class QuickBarTest {
                 }
             }
         }
-        // Without light bars and without favourites (no Music Assistant): two entries.
+        // Without lights and without favorites (no Music Assistant): two entries.
         captureRoboImage("build/screenshots/quick/stage_few.png") {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {

@@ -69,7 +69,7 @@ class CoverStripTest {
     }
 
     @Test
-    fun `while the queue is not known yet, the cards behind the next one stay – after a jump none do`() {
+    fun `while the queue is not known yet, the cards behind the next one stay, but after a jump none do`() {
         val strip = CoverStrip()
         val first = strip.update(a1, coming = listOf(b1, c1))
         val forward = strip.update(b1)

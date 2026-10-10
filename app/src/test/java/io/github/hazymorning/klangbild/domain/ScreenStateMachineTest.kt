@@ -56,7 +56,7 @@ class ScreenStateMachineTest {
     }
 
     @Test
-    fun `between two songs the stage stays - a skip never passes through the rest screen`() {
+    fun `between two songs the stage stays, so a skip never passes through the rest screen`() {
         val m = ScreenStateMachine(timing)
         m.decide(src(), 0)
         // The player says for a moment that nothing plays, or plays without a title.

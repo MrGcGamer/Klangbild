@@ -203,7 +203,10 @@ internal class QuickControl(private val host: ControllerHost) {
     private fun favoriteState(track: TrackInfo): FavoriteState =
         favorite?.takeIf { it.first == track.key }?.second ?: if (track.favorite) FavoriteState.DONE else FavoriteState.NONE
 
-    /** What the quick settings need to know: by default what the screen shows now, while working out the screen what it is about to show. */
+    /**
+     * What the quick settings need to know: by default what the screen shows now, while working out
+     * the screen what it is about to show.
+     */
     private fun context(screen: Screen = host.ui.screen, vista: Boolean = host.ui.vista != null): QuickContext {
         val track = (screen as? Screen.Stage)?.track
         return QuickContext(

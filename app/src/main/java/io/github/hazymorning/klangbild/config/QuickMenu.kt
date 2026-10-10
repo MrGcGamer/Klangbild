@@ -8,7 +8,7 @@ import io.github.hazymorning.klangbild.text.Texts
 /** What the screen shows: one of the two views of the music, or the window view. */
 enum class Picture { SINGLE, FLOW, VISTA }
 
-/** How far the current song's way into the favourites has come. */
+/** How far the current song's way into the favorites has come. */
 enum class FavoriteState {
     /** Not asked yet (or not known to be one). */
     NONE,
@@ -42,7 +42,10 @@ data class QuickContext(
     val pending: Picture? = null,
     /** Something plays (or is paused) on the stage. */
     val music: Boolean = false,
-    /** Favourites can be asked for (a Music Assistant player, with a way to reach it), and how far the current song's way has come. */
+    /**
+     * Favorites can be asked for (a Music Assistant player, with a way to reach it), and how far
+     * the current song's way has come.
+     */
     val favorite: FavoriteState? = null,
     /** Shuffle on or off as far as known; null when the player cannot shuffle. */
     val shuffle: Boolean? = null,
@@ -99,7 +102,7 @@ object QuickMenu {
         QuickItem.LIGHTS, QuickItem.SHUFFLE -> listOf(t[R.string.on], t[R.string.off])
     }
 
-    /** From the music's own picture outwards: the cover, the strip of covers, the landscape. */
+    /** From the music's own picture outward: the cover, the strip of covers, the landscape. */
     val PICTURES = listOf(Picture.SINGLE, Picture.FLOW, Picture.VISTA)
 
     /** The picture after one step from [p] (−1 or +1); [wrap] goes round. */

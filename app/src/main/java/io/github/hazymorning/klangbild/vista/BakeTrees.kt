@@ -274,7 +274,10 @@ internal class FirCut(val tiers: List<Outline>, val caps: List<Outline>, val tru
 /** A broad-leaved tree: crown discs, trunk, and the crown's middle and radius (dp). */
 internal class RoundTree(val discs: List<Outline>, val trunk: Outline, val cx: Float, val cy: Float, val r: Float)
 
-/** A birch as cut: trunk, twigs, the trunk's marks, the crown's leaf clusters, snow on the twigs; its axis, half width and top (dp). */
+/**
+ * A birch as cut: trunk, twigs, the trunk's marks, the crown's leaf clusters, snow on the twigs;
+ * its axis, half width and top (dp).
+ */
 internal class BirchCut(
     val trunk: Outline,
     val branches: List<Outline>,

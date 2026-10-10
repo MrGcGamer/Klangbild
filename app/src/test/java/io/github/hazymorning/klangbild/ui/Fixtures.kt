@@ -25,14 +25,14 @@ import io.github.hazymorning.klangbild.text.LocalTexts
 import io.github.hazymorning.klangbild.text.TestTexts
 import io.github.hazymorning.klangbild.text.Texts
 
-/** Test content: the test catalogue plus helpers to turn it into scenes and models. */
+/** Test content: the test catalog plus helpers to turn it into scenes and models. */
 object Fixtures {
     val tracks = Catalogue.tracks
 
-    /** The words of most shots: German, as the catalogue's music and rooms are. */
+    /** The words of most shots: German, as the catalog's music and rooms are. */
     val texts: Texts get() = TestTexts.german
 
-    /** A 4K panel with the UI at 4K (xxxhdpi), to check crispness and the honest cover scale. */
+    /** A 4K panel with the UI at 4K (xxxhdpi), to check crispness and the true cover scale. */
     val TV_4K = ScreenSpec(3840, 2160, 4f)
 
     /** Renders use Berlin time on 8 October 2026. */
@@ -61,7 +61,7 @@ object Fixtures {
         return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance, view = view, coverField = coverField)
     }
 
-    /** Cover Flow scenes for [tracks] (the middle one is the current track). */
+    /** Cover flow scenes for [tracks] (the middle one is the current track). */
     fun flowScenes(
         tracks: List<TrackInfo>,
         appearance: Appearance = Appearance.DARK,
@@ -179,7 +179,7 @@ object Fixtures {
         )
     }
 
-    /** The animated stage (pause dimming, buffering breath) for one stage, frozen in time. */
+    /** The animated stage (pause dimming, buffering pulse) for one stage, frozen in time. */
     @Composable
     fun Theatre(
         stage: StageData,

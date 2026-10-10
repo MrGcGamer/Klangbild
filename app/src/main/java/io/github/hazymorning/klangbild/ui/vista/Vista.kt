@@ -48,7 +48,7 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
-/** What the Fensterblick needs from the world outside: where it is, the weather, its clock. */
+/** What the window view needs from the world outside: where it is, the weather, its clock. */
 @Stable
 class VistaFeed(
     val place: () -> Place,
@@ -61,11 +61,11 @@ class VistaFeed(
 )
 
 /**
- * The Fensterblick: the paper diorama, its light following [feed]'s clock, its clouds and its
+ * The window view: the paper diorama, its light following [feed]'s clock, its clouds and its
  * campfire moving with the wall clock. The picture is baked once for the screen, the season's
- * shapes and the bank cut wide for the [label]; when the season changes the shapes (snow,
- * leaves, blossom – every few days) a new bake fades in over [SEASON_FADE_MS]. [content] lies on
- * top (the music's label), reading the colours of the moment.
+ * shapes and the bank cut wide for the [label]. When the season changes the shapes (snow,
+ * leaves, blossom, every few days), a new bake fades in over [SEASON_FADE_MS]. [content] lies on
+ * top (the music's label) and reads the colors of the moment.
  */
 @Composable
 fun Vista(
@@ -93,8 +93,8 @@ fun Vista(
                     }
                     // The season's shapes are looked at now and then; they change over days.
                     if (state.frames % SHAPES_EVERY == 0L) state.shapesNow().let { if (it != shapes) shapes = it }
-                    // Everything here moves slowly: twenty pictures a second are smooth – the
-                    // time-lapse's racing light gets the stage's thirty.
+                    // Everything here moves slowly, so twenty pictures a second are smooth. The
+                    // time-lapse, with its fast-moving light, gets the stage's thirty.
                     delay(if (feed.clock.timelapse) TICK_MS else VISTA_TICK_MS)
                 }
             }
@@ -108,7 +108,7 @@ fun Vista(
         var shown by remember { mutableStateOf<PaperImages?>(null) }
         var leaving by remember { mutableStateOf<PaperImages?>(null) }
         val fade = remember { Animatable(1f) }
-        // The whole Fensterblick – picture and label – comes up out of the dark once baked.
+        // The whole window view (picture and label) comes up out of the dark once baked.
         val appear = remember { Animatable(if (still) 1f else 0f) }
         LaunchedEffect(images) {
             val next = images ?: return@LaunchedEffect
@@ -136,16 +136,16 @@ fun Vista(
             shown?.let { s ->
                 PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
             }
-            // The label stands still – it is no part of the scenery; the camera keeps its bank under it.
+            // The label stands still because it is not part of the scenery; the camera keeps its bank under it.
             if (shown != null) Box(Modifier.fillMaxSize()) { content(look) }
         }
     }
 }
 
 /**
- * Bakes the Fensterblick's picture ahead, while it is only on its way (the music paused, the
- * delay running), so that it can come out of the dark at once: in the background, at low
- * priority, a while after the app has settled – and again when the season has moved on.
+ * Bakes the window view's picture ahead, while it is only on its way (the music paused, the
+ * delay running), so that it can come out of the dark at once. It bakes in the background, at
+ * low priority, a while after the app has settled, and again when the season has moved on.
  */
 @Composable
 fun VistaAhead(feed: VistaFeed, label: LabelSide) {
@@ -184,8 +184,8 @@ private const val AHEAD_DELAY_MS = 8_000L
 private const val AHEAD_RECHECK_MS = 3_600_000L
 
 /**
- * The last bake, kept for the next time the Fensterblick comes (the next pause, most often the
- * same screen and season): softly – the system takes it back whenever it needs the memory.
+ * The last bake, kept for the next time the window view comes (the next pause, most often the
+ * same screen and season). It is held softly: the system takes it back whenever it needs the memory.
  */
 private object PaperCache {
     private class Entry(val key: List<Any>, val images: PaperImages)
@@ -211,14 +211,14 @@ const val VISTA_TICK_MS = 50L
 /** The first picture fades in this long once it is baked. */
 private const val FIRST_FADE_MS = 1_200
 
-/** A new season's shapes fade in this slowly (a day's change, seen by nobody) – and quicker in the time-lapse. */
+/** A new season's shapes fade in this slowly (a day's change, seen by nobody), and quicker in the time-lapse. */
 private const val SEASON_FADE_MS = 20_000
 private const val TIMELAPSE_SEASON_FADE_MS = 1_500
 
 /**
- * What the picture shows at this frame, worked out once per frame (or less): the colours, the
- * sun's and moon's places, the clouds. The colours are only worked out anew when the sky has
- * moved on by [LOOK_EVERY_MS] of its own time – each step far below a visible level – except
+ * What the picture shows at this frame, worked out once per frame (or less): the colors, the
+ * sun's and moon's places, the clouds. The colors are only worked out anew when the sky has
+ * moved on by [LOOK_EVERY_MS] of its own time (each step far below a visible level), except
  * in the time-lapse, where every frame counts.
  */
 private class VistaFrameState(private val feed: VistaFeed, private val label: LabelSide = LabelSide.NONE, private val still: Boolean = false) {
@@ -245,12 +245,12 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         return quantised(World.season(sky, feed.zone(), place.latitude).second)
     }
 
-    /** Moves on to this frame; true when the light (colours, sun, moon) was worked out anew. */
+    /** Moves on to this frame; true when the light (colors, sun, moon) was worked out anew. */
     fun advance(): Boolean {
         frames++
         val wall = feed.wall()
         val sky = feed.clock.sky()
-        // The weather glides towards the weather outside over a few minutes: rain sets in, clouds gather.
+        // The weather glides toward the weather outside over a few minutes: rain sets in, clouds gather.
         val target = feed.weather() ?: Weather.FAIR
         val dt = if (lastWall == 0L) -1.0 else (wall - lastWall).coerceAtLeast(0L) / 1000.0
         lastWall = wall
@@ -275,20 +275,20 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         return relit
     }
 
-    /** The shapes to bake: blossom only colours the crowns (the light has it), so it never asks for a new bake. */
+    /** The shapes to bake. Blossom only colors the crowns (the light handles it), so it never asks for a new bake. */
     private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves), flowers = q(s.flowers), fallen = q(s.fallen))
 
     /** Steps of 1/16: a new bake only when a shape has visibly changed. */
     private fun q(v: Float) = (v * 16f).roundToInt() / 16f
 
     companion object {
-        /** The colours are worked out anew after this much of the sky's own time. */
+        /** The colors are worked out anew after this much of the sky's own time. */
         const val LOOK_EVERY_MS = 10_000L
 
         /** How fast the picture's weather follows the weather outside (s). */
         const val WEATHER_TAU_S = 150.0
 
-        /** Origin of the clock for what moves by itself: 1 January 2026 (keeps the numbers small). */
+        /** Origin of the clock for what moves by itself: January 1, 2026 (keeps the numbers small). */
         const val MOTION_EPOCH_MS = 1_767_225_600_000L
     }
 }

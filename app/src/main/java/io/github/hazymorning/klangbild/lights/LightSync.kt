@@ -81,7 +81,7 @@ class LightSync(
         val playing: Boolean,
         /** 0 by day to 1 at night (by the sun): the lights dim with the evening. */
         val night: Float,
-        /** Grays become a warmer white towards the night (0 to 1). */
+        /** Grays become a warmer white toward the night (0 to 1). */
         val warmth: Float,
         /** How fast the field moves (0: it stands still). */
         val motion: Float,
@@ -306,7 +306,10 @@ class LightSync(
         }
     }
 
-    /** Saves how the lights are, then takes them over. Lights that were off are switched on dark first, in the new color: never a flash of their old one. */
+    /**
+     * Saves how the lights are, then takes them over. Lights that were off are switched on dark
+     * first, in the new color: never a flash of their old one.
+     */
     private suspend fun activate(b: LightBridge, wanted: Map<String, LightSlot>, states: Map<String, EntityState>, t: Long) {
         // Taken back within a minute (the screen came back): the earlier snapshot still holds.
         if (t - savedAt > REUSE_SNAPSHOT_MS || !wanted.keys.all { it in saved }) {

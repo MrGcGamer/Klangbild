@@ -96,7 +96,8 @@ internal class Baker(val cw: Int, val ch: Int, val d: Float, val shapes: SeasonS
         val h = bottom - top
         val out = FloatArray(w * h)
         for (e in outlines) {
-            // Each piece is cut in a box of its own: a meadow of small flowers costs what they cover, not a whole meadow per flower.
+            // Each piece is cut in a box of its own: a meadow of small flowers costs what they cover,
+            // not a whole meadow per flower.
             val l = max(left, floor(px(e.minX())).toInt() - 1)
             val t = max(top, floor(px(e.minY())).toInt() - 1)
             val r = min(right, ceil(px(e.maxX())).toInt() + 1)

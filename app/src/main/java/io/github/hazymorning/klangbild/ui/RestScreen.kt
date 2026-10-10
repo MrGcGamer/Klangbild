@@ -52,9 +52,9 @@ import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
- * Quiet colours for screens without a cover: soft white on black, or near-black on warm
- * paper – dimmed with the day either way, but however late it is every line still reads
- * (the quietest at least 4.5:1).
+ * Quiet colors for screens without a cover: soft white on black, or near-black on warm
+ * paper. Either way they are dimmed with the day, but however late it is, every line still
+ * reads (the quietest at least 4.5:1).
  */
 data class QuietColors(val wall: Color, val primary: Color, val secondary: Color, val label: Color) {
     companion object {
@@ -94,8 +94,8 @@ object RestTexts {
 
 /**
  * The rest screen's light: a soft oval of warm light behind the clock, both exactly in the
- * screen's middle. By day the lamp is a breath of light, in the evening and at night less –
- * turned down, never off.
+ * screen's middle. By day the lamp gives a faint light, and less in the evening and at night.
+ * It is turned down, never off.
  */
 object RestLight {
     const val MAP_W = 480
@@ -109,7 +109,7 @@ object RestLight {
     private const val EDGE_DP = 36f
 
     /**
-     * Greyscale light field for the whole screen (sRGB-encoded, dithered), brightest at
+     * Grayscale light field for the whole screen (sRGB-encoded, dithered), brightest at
      * [cx], [cy] (dp), black well before the screen edges.
      */
     fun field(cx: Float, cy: Float, screen: ScreenSpec, ditherLsb: Float): IntArray {
@@ -143,7 +143,7 @@ object RestLight {
 
 /**
  * Nothing is playing: a quiet clock on a dim, lamp-lit wall, the date, and one line that
- * says why – never an error code. The clock stands exactly in the screen's middle, measured
+ * says why (never an error code). The clock stands exactly in the screen's middle, measured
  * on what is seen (from the top of the figures to their baseline); the lines hang under it.
  * At night the lamp is turned down; nothing is left out.
  */
@@ -197,8 +197,8 @@ fun RestScreen(
 }
 
 /**
- * The clock and the lines under it, each centred on the screen's vertical axis; the clock's
- * figures centred on its horizontal one.
+ * The clock and the lines under it, each centered on the screen's vertical axis, with the
+ * clock's figures centered on its horizontal one.
  */
 @Composable
 private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
@@ -206,9 +206,9 @@ private fun RestBlock(time: String, date: String?, label: String?, sentence: Str
     Layout(
         content = {
             // The figures keep their own widths (in cells this large the "1" would stand apart);
-            // a new minute dissolves in, so the re-centred line never jumps.
+            // a new minute dissolves in, so the re-centered line never jumps.
             Crossfade(targetState = time, Modifier.layoutId(CLOCK), animationSpec = tween(700, easing = Motion.Dimmer), label = "minute") { t ->
-                // Centred on its ink: the figures' side bearings differ.
+                // Centered on its ink: the figures' side bearings differ.
                 val shift = rememberInkShift(t, clock)
                 BasicText(t, Modifier.offset { IntOffset(shift.roundToInt(), 0) }, style = clock)
             }

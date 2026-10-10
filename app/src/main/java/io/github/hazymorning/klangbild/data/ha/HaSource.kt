@@ -68,7 +68,7 @@ class HaSource(
     @Volatile private var maLink: MaLink? = null
     @Volatile private var lastPlayerKey: String? = null
 
-    /** Home Assistant answered the last `get_queue` – a player without a queue is not asked again until its track changes. */
+    /** Home Assistant answered the last `get_queue`. A player without a queue is not asked again until its track changes. */
     @Volatile private var queueWorks = false
 
     /** Music Assistant's queue was last read at this time, for what it was then (id, place, next). */
@@ -109,7 +109,7 @@ class HaSource(
                 maLink = it.check()
                 publish(connection.status.value, connection.entities.value)
             }
-            // Light periodic refresh: the queue can change without the track changing – asked
+            // Light periodic refresh: the queue can change without the track changing. It is asked
             // only of a Music Assistant player that has a queue, and only while it plays.
             while (isActive) {
                 delay(queueRefreshMs)
@@ -137,7 +137,7 @@ class HaSource(
     }
 
     /**
-     * Adds what plays to Music Assistant's favourites: through the speaker's own button in Home
+     * Adds what plays to Music Assistant's favorites: through the speaker's own button in Home
      * Assistant ("Favorite current song"), else through Music Assistant itself. A station's song
      * is looked up as a song by Music Assistant; it fails when it cannot find one.
      */
@@ -185,7 +185,7 @@ class HaSource(
         attempt { connection.callService("media_player", "media_seek", playerEntity, data = data) }
     }
 
-    /** Called from the status/entity collector and after queue refreshes – serialised. */
+    /** Called from the status/entity collector and after queue refreshes, serialized. */
     @Synchronized
     private fun publish(status: HaStatus, entities: Map<String, EntityState>) {
         val t = now()
@@ -261,8 +261,8 @@ class HaSource(
 
     /**
      * Who plays along: a sync group lists its members in `group_members` (on the leader and
-     * on every member); a Music Assistant group player lists only its children, and its
-     * members list nobody – they only play from the group's queue, which has its name.
+     * on every member). A Music Assistant group player lists only its children, and its
+     * members list nobody: they only play from the group's queue, which has its name.
      */
     private fun groupOf(p: PlayerSnapshot, otherNames: List<String?>, q: QueueInfo?): SpeakerGroup? = when {
         p.isGroupPlayer -> SpeakerGroup(self = null, others = otherNames, name = p.friendlyName)
@@ -302,7 +302,7 @@ class HaSource(
 
     /**
      * A station: the song it plays keeps Home Assistant's picture (the song's own when Music
-     * Assistant knows it) unless Music Assistant's queue brings the song's picture itself – the
+     * Assistant knows it) unless Music Assistant's queue brings the song's picture itself. The
      * station's picture only ever stands behind. The queue names the station; a name in the
      * album's place that is not the station's is the song's album.
      */
@@ -322,7 +322,7 @@ class HaSource(
         )
     }
 
-    /** Starts reading the queue anew; a read under way for an older track is cancelled, a periodic one waits its turn. */
+    /** Starts reading the queue anew; a read under way for an older track is canceled, a periodic one waits its turn. */
     private fun startQueueRead(force: Boolean) {
         synchronized(this) {
             if (force && queueJob?.isActive == true) return
@@ -344,12 +344,12 @@ class HaSource(
             null
         }
         queueWorks = response != null
-        // No answer (a source without a queue, like Spotify Connect): nothing is known to follow.
-        // A periodic refresh that fails keeps what is known.
+        // No answer (a source without a queue, like a streaming app playing on the speaker directly):
+        // nothing is known to follow. A periodic refresh that fails keeps what is known.
         val again = force && queueForKey == key
         val parsed = response?.let { PlayerParser.queue(it, playerEntity, config.baseUrl) }
         if (parsed == null && again) return
-        // Music Assistant's queue is read again only when something moved – or for spoken word,
+        // Music Assistant's queue is read again only when something moved, or for spoken word,
         // whose speed can change at any time.
         val read = parsed?.let { q -> if (!again || windowStale(q)) readWindow(q) else window } ?: window.takeIf { again }
         if (lastPlayerKey != key) return
@@ -373,7 +373,7 @@ class HaSource(
             window?.current?.kind?.spoken == true
 
     /**
-     * The whole queue around the current item, from Music Assistant itself (if set up) – only
+     * The whole queue around the current item, from Music Assistant itself (if set up), but only
      * if it is the same item Home Assistant reports (the queue may have moved in between).
      */
     private suspend fun readWindow(q: QueueInfo): QueueWindow? {

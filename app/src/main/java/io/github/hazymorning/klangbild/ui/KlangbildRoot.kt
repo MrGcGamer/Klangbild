@@ -116,9 +116,9 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
                 translationY = dy.toFloat()
             },
     ) {
-        // The Fensterblick's picture is baked while it is only on its way: it comes at once.
+        // The window view's picture is baked while it is only on its way, so it comes at once.
         ui.vistaAhead?.let { VistaAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
-        // Animate between *kinds* of screens only (stage/rest/setup). The latest content
+        // Animate between kinds of screens only (stage/rest/setup). The latest content
         // per kind is kept, so a track change stays inside the stage (its own transition)
         // and an outgoing screen keeps showing what it showed.
         val latest = remember { HashMap<String, Content>() }
@@ -172,7 +172,7 @@ private sealed interface Content {
     val key: String
 
     data class StageContent(val stage: StageData) : Content {
-        // One stage view for all tracks: track changes are animated inside the theatre.
+        // One stage view for all tracks: track changes are animated inside the theater.
         override val key = "stage"
     }
 
@@ -191,7 +191,7 @@ private sealed interface Content {
     }
 
     data class VistaContent(val vista: VistaUi) : Content {
-        // The Fensterblick changes its label and its light inside; it comes and goes through the dark.
+        // The window view changes its label and its light inside; it comes and goes through the dark.
         override val key = "vista"
     }
 
@@ -221,7 +221,7 @@ private fun contentKey(ui: UiState, quietStart: Boolean): Content = if (ui.vista
     is Screen.Setup -> Content.SetupContent(s.reason, ui.appearance)
 }
 
-/** A view's theatre, given the player's status, how to build a model, the light setting and a lost link. */
+/** A view's theater, given the player's status, how to build a model, the light setting and a lost link. */
 private typealias Theatre = @Composable (
     status: PlayerStatus,
     modelFor: (StageData) -> StageModel,
@@ -231,7 +231,7 @@ private typealias Theatre = @Composable (
 
 /**
  * What both views share for the [stage] that plays: the status line's words, the models, the
- * light setting – then [theatre] draws.
+ * light setting. Then [theatre] draws.
  */
 @Composable
 private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wall: State<Long>, theatre: Theatre) {
@@ -296,10 +296,10 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
         animationSpec = tween(1_200, easing = Motion.Dimmer),
         label = "light-setting",
     )
-    // The cover's colours move only while music plays (a pause holds them, like everything else).
+    // The cover's colors move only while music plays (a pause holds them, like everything else).
     val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
     val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
-    // One tick for the bar and the colours: they are redrawn in the same frames.
+    // One tick for the bar and the colors, so they are redrawn in the same frames.
     val tick = rememberStageTick(fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING)
     CompositionLocalProvider(LocalFieldTime provides fieldTime, LocalStageTick provides tick) {
         theatre(status, modelFor, { lightFactor }, linkDown)

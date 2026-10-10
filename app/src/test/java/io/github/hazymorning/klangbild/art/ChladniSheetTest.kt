@@ -5,7 +5,7 @@ import org.junit.Test
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 
-/** Nine stations, nine plates: a contact sheet of the generated artwork (no baseline). */
+/** A contact sheet of the generated artwork: nine stations, one plate each (no baseline). */
 class ChladniSheetTest {
     @Test fun sheet() {
         val seeds = listOf("Radio Morgenlicht", "Deutschlandfunk Kultur", "BR-Klassik", "WDR 3", "FIP", "SWR2", "Lokale Datei", "Jazzradio", "Klangbild")
@@ -21,7 +21,7 @@ class ChladniSheetTest {
         val msPerImage = (System.nanoTime() - t0) / 1e6 / seeds.size
         java.io.File("build/screenshots/art").mkdirs()
         ImageIO.write(img, "png", java.io.File("build/screenshots/art/chladni_sheet.png"))
-        // Generated once per station, in the background – but it should stay quick.
+        // Generated once per station in the background, but it should stay quick.
         assertThat(msPerImage).isLessThan(2_000.0)
         // Different stations, different figures.
         assertThat(seeds.map { ChladniArt.specFor(it) }.toSet().size).isEqualTo(seeds.size)

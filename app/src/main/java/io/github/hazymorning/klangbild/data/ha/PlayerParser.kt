@@ -47,7 +47,7 @@ object PlayerParser {
             var source = entity.string("media_channel") ?: entity.string("source")?.takeIf { entity.string("app_id") == "radio" }
             val kind = MediaKind.fromUri(entity.string("media_content_id")) ?: if (source != null) MediaKind.RADIO else MediaKind.MUSIC
             // Music Assistant puts an item's description where the album would be when it has
-            // none – for a book its blurb, paragraphs long. That is never an album line.
+            // none. For a book that is its blurb, paragraphs long. That is never an album line.
             var album = entity.string("media_album_name")?.trim()?.takeIf { it.isNotEmpty() && !isDescription(it) && kind != MediaKind.AUDIOBOOK }
             // A station: Music Assistant names it where the album would be, unless the song brings
             // its own album (then the queue names the station). It is the source, not an album.
@@ -128,8 +128,8 @@ object PlayerParser {
     }
 
     /**
-     * `group_members` lists every speaker of a sync group, the leader first – on the leader
-     * and on each member alike. The others are the list without this speaker.
+     * `group_members` lists every speaker of a sync group, the leader first. It is the same on the
+     * leader and on each member. The others are the list without this speaker.
      */
     fun groupMembers(entity: EntityState): List<String> =
         (entity.attr("group_members") as? JsonArray)
@@ -187,8 +187,8 @@ object PlayerParser {
         val year = (album?.get("year") as? JsonPrimitive)?.intOrNull
         val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
         val isRadio = kind == MediaKind.RADIO
-        // Radio: the station is the source, the stream title (if any) is what plays now – its
-        // song's title after the artist ("Artist - Title"), as Music Assistant splits it too.
+        // Radio: the station is the source, and the stream title (if any) is what plays now: its
+        // song's title after the artist (the two joined by a spaced hyphen), as Music Assistant splits it too.
         val streamTitle = item.string("stream_title")?.takeIf { it.isNotBlank() }
         val title = when {
             isRadio -> streamTitle?.let { t -> t.substringAfter(" - ", t).trim().ifEmpty { t } } ?: name

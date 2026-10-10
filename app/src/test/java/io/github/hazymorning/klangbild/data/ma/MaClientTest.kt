@@ -22,7 +22,7 @@ class MaClientTest {
     fun stop() = server.close()
 
     @Test
-    fun `a command is one authorised post to the api`() = runBlocking {
+    fun `a command is one authorized post to the api`() = runBlocking {
         server.enqueue(MockResponse.Builder().body("""[{"name":"x"}]""").build())
         val items = client.items("q1", offset = 4, limit = 9)
         assertThat(items).hasSize(1)

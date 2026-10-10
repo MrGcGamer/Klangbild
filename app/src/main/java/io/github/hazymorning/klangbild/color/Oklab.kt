@@ -9,14 +9,14 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Oklab / OkLCh colour math (Björn Ottosson, 2020). All palette decisions happen in this
+ * Oklab / OkLCh color math (Björn Ottosson, 2020). All palette decisions happen in this
  * perceptual space so that "same lightness" really looks equally light and hue shifts stay
- * harmonious. Pure Kotlin, no Android dependencies – testable on the JVM.
+ * harmonious. Pure Kotlin, no Android dependencies, so it is testable on the JVM.
  */
 data class Lab(val l: Float, val a: Float, val b: Float) {
     val chroma: Float get() = hypot(a, b)
 
-    /** Hue angle in degrees, 0..360. Meaningless for (near) neutral colours. */
+    /** Hue angle in degrees, 0..360. Meaningless for (near) neutral colors. */
     val hue: Float
         get() {
             val h = Math.toDegrees(atan2(b, a).toDouble()).toFloat()
@@ -104,7 +104,7 @@ object Oklab {
     }
 
     /**
-     * Maps a colour into sRGB by reducing chroma at constant lightness and hue
+     * Maps a color into sRGB by reducing chroma at constant lightness and hue
      * (binary search). Keeps hues honest instead of clipping channels.
      */
     fun gamutMap(lab: Lab): Lab {

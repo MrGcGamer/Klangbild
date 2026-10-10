@@ -22,7 +22,7 @@ class SpeakerLabelTest {
         // Its name not known yet: counted.
         assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf(null)), de)).isEqualTo("Wohnzimmer + 1")
         assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad")), de)).isEqualTo("Drei Lautsprecher")
-        // Alone: nothing to say – the screen hangs in that room.
+        // Alone: nothing to say, since the screen hangs in that room.
         assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList()), de)).isNull()
         assertThat(SpeakerLabel.group(null, de)).isNull()
         // Every speaker of the house.

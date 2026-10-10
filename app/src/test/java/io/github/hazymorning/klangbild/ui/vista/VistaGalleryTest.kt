@@ -24,8 +24,8 @@ import java.time.ZonedDateTime
 import java.util.TimeZone
 
 /**
- * The Fensterblick through the year, as the app shows it in Berlin: for each season a day –
- * sunrise, noon, golden hour, dusk, blue hour, night – and the weather's moods. The pictures
+ * The window view through the year, as the app shows it in Berlin: for each season a day
+ * (sunrise, noon, golden hour, dusk, blue hour, night) and the weather's moods. The pictures
  * go to build/screenshots/vista/gallery/, to be looked at side by side.
  */
 @RunWith(AndroidJUnit4::class)

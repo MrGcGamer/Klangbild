@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** "Coverfarben": the cover's colours as the wall – dark and light, single view and Cover Flow, and moving. */
+/** Cover colors: the cover's colors as the wall, dark and light, in the single view and the cover flow, and moving. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")

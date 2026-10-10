@@ -25,9 +25,9 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
 /**
  * The stage's grid on a 960 × 540 dp screen. The artwork is the heaviest element and sets
  * the composition's height: 368 dp, two thirds of the screen. The text block beside it is
- * clearly shorter (at most about 60 % of the artwork's height) and centred on it, measured
+ * clearly shorter (at most about 60 % of the artwork's height) and centered on it, measured
  * from the first line's cap height to the last baseline. Two quiet lines hang on the
- * artwork's edges: the status line (time, where the music plays) from its top edge, what
+ * artwork's edges: the status line (time, where the music plays) from its top edge, and what
  * comes next on its bottom edge. Every line in the column starts on one left edge.
  *
  * The group stands exactly in the middle of the screen: as much room above the artwork as
@@ -35,19 +35,19 @@ data class RectDp(val left: Float, val top: Float, val width: Float, val height:
  *
  *  ┌──────────────────────────────────────────────────────────┐
  *  │            88            368          64       352     88 │
- *  │        ╭──────────────╮      21:47 · Überall            │  ← artwork top
+ *  │        ╭──────────────╮      21:47 · Everywhere          │  ← artwork top
  *  │        │              │      Title                       │
- *  │        │   artwork    │      Artist                      │  ← artwork centre
+ *  │        │   artwork    │      Artist                      │  ← artwork center
  *  │        │              │      Album · Year                │
  *  │        │              │      ━━━━━━━━━━━━──────────      │
  *  │        │              │      1:35                4:11    │
- *  │        ╰──────────────╯      Als Nächstes  …             │  ← artwork bottom
+ *  │        ╰──────────────╯      Up next  …                  │  ← artwork bottom
  *  └──────────────────────────────────────────────────────────┘
  *
  * Cover Flow ([StageView.FLOW]) keeps every rule but makes room for the cards beside the
- * middle one: the middle cover is 300 dp with its centre 303 dp from the left, so the strip's
- * outer edge (255 dp beside it, see [FlowGeometry]) keeps 48 dp from the screen's edge – as
- * much as the column (from 598 dp) keeps on the right.
+ * middle one: the middle cover is 300 dp with its center 303 dp from the left, so the strip's
+ * outer edge (255 dp beside it, see [FlowGeometry]) keeps 48 dp from the screen's edge. That is
+ * as much as the column (from 598 dp) keeps on the right.
  */
 data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SINGLE) {
     private val sx = screen.widthDp / 960f
@@ -68,19 +68,19 @@ data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SI
     val columnLeft get() = margin + art + gap
     val columnWidth get() = screen.widthDp - rightMargin - columnLeft
 
-    /** Centre line of the text block (from its first cap height to its last baseline). */
+    /** Center line of the text block (from its first cap height to its last baseline). */
     val textCenter get() = artTop + art / 2f
 
-    /** The status line's cap height sits on the artwork's top edge … */
+    /** The status line's cap height sits on the artwork's top edge. */
     val statusTop get() = artTop
 
-    /** … and the "what comes next" line's baseline on its bottom edge. */
+    /** The "Up next" line's baseline sits on the artwork's bottom edge. */
     val footerBaseline get() = artTop + art
 
     /** Corner radius of a square artwork (dp): a hair over 2 % of its side. */
     val radius get() = RADIUS * art / SINGLE.art
 
-    /** The cover rect for a cover of [coverDp], centred in the artwork's square. */
+    /** The cover rect for a cover of [coverDp], centered in the artwork's square. */
     fun coverRect(coverDp: Float): RectDp {
         val s = artRect
         val size = min(coverDp, s.width)

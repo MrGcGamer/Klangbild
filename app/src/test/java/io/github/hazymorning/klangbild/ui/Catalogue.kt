@@ -4,7 +4,7 @@ import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.domain.TrackInfo
 
 /**
- * Invented releases for the screenshot tests. They walk through the hard cases – classical
+ * Invented releases for the screenshot tests. They cover the hard cases: classical
  * work titles, many performers, Japanese and Arabic script, emoji, radio without a cover, a
  * missing album, almost black and almost white covers. Covers are painted by
  * [io.github.hazymorning.klangbild.art.SyntheticCovers]; no real artwork lives in the repo.

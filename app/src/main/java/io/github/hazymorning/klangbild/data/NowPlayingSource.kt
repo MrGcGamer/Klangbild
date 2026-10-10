@@ -6,7 +6,7 @@ import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.flow.StateFlow
 
-/** How healthy the link to the music is – phrased for the UI, never as raw errors. */
+/** How healthy the link to the music is, phrased for the UI, never as raw errors. */
 enum class LinkState {
     /** No Home Assistant configured yet. */
     UNCONFIGURED,
@@ -37,18 +37,18 @@ data class SourceState(
     val group: SpeakerGroup? = null,
     /** The queue around the current track is known ([next], and with Music Assistant [coming] and [played]). */
     val queueKnown: Boolean = false,
-    /** What follows the current track and what was played before it (most recent last) – from Music Assistant. */
+    /** What follows the current track and what was played before it (most recent last), from Music Assistant. */
     val coming: List<TrackInfo> = emptyList(),
     val played: List<TrackInfo> = emptyList(),
     /** The optional link to Music Assistant; null when it is not set up. */
     val ma: MaLink? = null,
     /** Where Home Assistant stands (degrees), from its configuration; null until known. */
     val place: Pair<Double, Double>? = null,
-    /** The weather entity's state (`sunny`, `cloudy` …), its cloud cover in % and its wind in km/h, as far as known. */
+    /** The weather entity's state (`sunny`, `cloudy` and so on), its cloud cover in % and its wind in km/h, as far as known. */
     val weather: String? = null,
     val cloudCoverage: Double? = null,
     val windKmh: Double? = null,
-    /** What plays can be added to Music Assistant's favourites. */
+    /** What plays can be added to Music Assistant's favorites. */
     val favorites: Boolean = false,
 )
 
@@ -63,7 +63,7 @@ interface NowPlayingSource {
     /** Plays on from [positionMs] in the item's own time. */
     suspend fun seek(positionMs: Long)
 
-    /** Adds what plays to Music Assistant's favourites (a station's song as the song); whether it worked. */
+    /** Adds what plays to Music Assistant's favorites (a station's song as the song); whether it worked. */
     suspend fun favorite(): Boolean = false
 
     /** Turns shuffle on or off; whether the call went out. */

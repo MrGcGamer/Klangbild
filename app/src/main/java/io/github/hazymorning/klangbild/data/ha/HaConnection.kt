@@ -105,7 +105,7 @@ class HaConnection(
 
     private val _config = MutableStateFlow<JsonObject?>(null)
 
-    /** Home Assistant's own configuration (`get_config`: its location, time zone ...), once a session has asked for it. */
+    /** Home Assistant's own configuration (`get_config`: its location, time zone and so on), once a session has asked for it. */
     val config: StateFlow<JsonObject?> = _config.asStateFlow()
 
     private val _registry = MutableStateFlow<List<RegistryEntry>?>(null)

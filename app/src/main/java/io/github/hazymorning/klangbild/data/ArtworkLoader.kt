@@ -29,8 +29,8 @@ class ArtworkLoader(
     }
 
     /**
-     * The cover of [track], from the first address that gives one. Cancelling stops the
-     * download under way – a skipped song's cover is not fetched to the end.
+     * The cover of [track], from the first address that gives one. Canceling stops the
+     * download under way, so a skipped song's cover is not fetched to the end.
      */
     suspend fun load(track: TrackInfo): Bitmap? {
         val candidates = ArtworkUrls.candidates(track.artworkUrl, track.artworkFallbackUrl)

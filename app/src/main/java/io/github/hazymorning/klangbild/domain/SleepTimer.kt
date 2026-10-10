@@ -1,6 +1,6 @@
 package io.github.hazymorning.klangbild.domain
 
-/** "Einschlafen": what the music waits for before it pauses. */
+/** The sleep timer: what the music waits for before it pauses. */
 enum class SleepChoice(val minutes: Int = 0) {
     OFF,
     MIN_15(15),
@@ -20,11 +20,11 @@ enum class SleepChoice(val minutes: Int = 0) {
 
 /**
  * The sleep timer: after a number of minutes, or when the chapter or what plays comes to its
- * end, the music pauses – once; then the timer is off again. It lives in the app, not in the
+ * end, the music pauses once, and then the timer is off again. It lives in the app, not in the
  * speaker, so it only works while Klangbild runs.
  *
  * Pure: the controller [evaluate]s it on every tick and wakes it at [wakeAt], the moment it
- * expects to act. An end counts only when playing reaches it – a jump across it (a seek, a
+ * expects to act. An end counts only when playing reaches it. A jump across it (a seek, a
  * skip) moves the timer on to the end that follows.
  */
 class SleepTimer {
@@ -72,8 +72,8 @@ class SleepTimer {
         }
         if (track == null || positionMs == null) return false
         val s = speed.coerceIn(0.25f, 4f)
-        // Reached by playing what it waited for: the end of the item or chapter, or – the item
-        // over before the timer saw it – a new item right after the old one ended.
+        // Reached by playing what it waited for: the end of the item or chapter, or a new item
+        // right after the old one ended (when the item was over before the timer saw it).
         val reached = when {
             !playing -> false
             waitKey == track.key -> waitEndMs?.let { end ->
@@ -100,8 +100,8 @@ class SleepTimer {
         lastPosMs = positionMs
         lastSpeed = s
         lastLookMs = nowMs
-        // Already past it (a position stuck beyond a too short length): no wake-up to wait for –
-        // the next item tells that this one ran out.
+        // Already past it (a position stuck beyond a too short length): there is no wake-up to
+        // wait for, and the next item tells that this one ran out.
         val ahead = end?.let { it - waitLeadMs - positionMs }
         wakeAt = if (playing && ahead != null && ahead > 0) nowMs + (ahead / s).toLong() else null
         return false

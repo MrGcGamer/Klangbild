@@ -3,10 +3,10 @@ package io.github.hazymorning.klangbild.color
 import kotlin.math.cos
 
 /**
- * Time-of-day lighting applied to every colour of the scene: like a dimmable warm lamp.
+ * Time-of-day lighting applied to every color of the scene, like a dimmable warm lamp.
  *
  * @param brightness multiplier on perceptual lightness (1 = day).
- * @param warmth 0..1, shifts colours towards amber in proportion to their lightness,
+ * @param warmth 0..1, shifts colors toward amber in proportion to their lightness,
  *               so blacks stay black and highlights glow warm.
  */
 data class Lighting(val brightness: Float, val warmth: Float) {
@@ -55,7 +55,7 @@ data class Lighting(val brightness: Float, val warmth: Float) {
          */
         fun fromLocalTime(hour: Int, minute: Int): Lighting = fromSunElevation(approximateElevation(hour, minute))
 
-        /** The sun's elevation (°) as a smooth day curve peaking at 13:00 – up from about 7:40 to 18:20. */
+        /** The sun's elevation (°) as a smooth day curve peaking at 13:00, up from about 7:40 to 18:20. */
         fun approximateElevation(hour: Int, minute: Int): Double {
             val t = hour + minute / 60f
             return 50.0 * cos((t - 13.0) / 24.0 * 2.0 * Math.PI) - 8.0
