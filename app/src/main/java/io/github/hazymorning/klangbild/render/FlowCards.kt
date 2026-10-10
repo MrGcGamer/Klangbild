@@ -54,8 +54,8 @@ object FlowCards {
     const val REFLECTION = 0.3f
 
     /**
-     * The card for [cover] (the print at its exact size, [cover] square, already matted if
-     * small), [round] for a generated plate (already transparent outside its disc), with
+     * The card for [cover] (the print at its exact size, [cover] square), [round] for a
+     * generated plate (already transparent outside its disc), with
      * corners of [cornerPx] and [geometry]'s gap and reflection height; a hairline of
      * [edgeLine] (ARGB, 0 for none) inside the edge where the print would dissolve into the
      * wall; [lightness] is the print's mean lightness. On paper there is no mirror image.

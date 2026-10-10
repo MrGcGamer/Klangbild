@@ -206,31 +206,6 @@ class DesignRulesTest {
         assertThat(shape.distance(rect.left - 10f, rect.centerY)).isWithin(0.01f).of(10f)
     }
 
-    @Test
-    fun `covers are never shown larger than their resolution allows`() {
-        assertThat(HaloLayout.coverDp(layout, 300)).isWithin(0.01f).of(195f)
-        assertThat(HaloLayout.coverDp(layout, 640)).isWithin(0.01f).of(layout.art) // 416 → capped at 368
-        assertThat(HaloLayout.coverDp(layout, null)).isEqualTo(layout.art)
-        for (native in listOf(100, 240, 300, 500, 580, 640, 1000, 3000)) {
-            val dp = HaloLayout.coverDp(layout, native)
-            assertThat(dp * 2f / native).isAtMost(HaloLayout.MAX_SOURCE_SCALE_1080P + 1e-4f)
-        }
-    }
-
-    @Test
-    fun `a small print gets a passe-partout that fills the square`() {
-        val print = IntArray(10 * 10) { 0xFFFF0000.toInt() }
-        val out = SceneBuilder.matted(print, 10, 30, density = 2f)
-        assertThat(out.size).isEqualTo(900)
-        assertThat(out[15 * 30 + 15]).isEqualTo(0xFFFF0000.toInt()) // the print, centred
-        // grained mat board
-        assertThat((out[0] shr 16) and 0xFF).isIn(Range.closed(((SceneBuilder.MAT shr 16) and 0xFF) - 2, ((SceneBuilder.MAT shr 16) and 0xFF) + 2))
-        assertThat(out[8 * 30 + 15]).isEqualTo(SceneBuilder.BEVEL) // the bevel just above the print
-        // optically centred: a little more mat below the print than above it
-        val rows = (0 until 30).filter { out[it * 30 + 15] == 0xFFFF0000.toInt() }
-        assertThat(29 - rows.last()).isGreaterThan(rows.first())
-    }
-
     // --- Generated art -------------------------------------------------------------------
 
     @Test
