@@ -36,6 +36,7 @@ import io.github.hazymorning.klangbild.vista.SkyState
 import io.github.hazymorning.klangbild.vista.VistaClock
 import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.delay
+import java.lang.ref.SoftReference
 import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.exp
@@ -93,7 +94,7 @@ fun Fensterblick(
             state.advance()
         }
         val images = rememberOffMain(w, h, density, shapes, label) {
-            if (w > 0 && h > 0) PaperImages(PaperBake.bake(w, h, density, shapes, label)) else null
+            if (w > 0 && h > 0) PaperCache.get(w, h, density, shapes, label) else null
         }
         // A new season's bake fades in over the old one.
         var shown by remember { mutableStateOf<PaperImages?>(null) }
@@ -129,6 +130,25 @@ fun Fensterblick(
             }
             if (shown != null) content(look)
         }
+    }
+}
+
+/**
+ * The last bake, kept for the next time the Fensterblick comes (the next pause, most often the
+ * same screen and season): softly – the system takes it back whenever it needs the memory.
+ */
+private object PaperCache {
+    private class Entry(val key: List<Any>, val images: PaperImages)
+
+    private var last: SoftReference<Entry>? = null
+
+    @Synchronized
+    fun get(w: Int, h: Int, density: Float, shapes: SeasonShapes, label: LabelSide): PaperImages {
+        val key = listOf(w, h, density, shapes, label)
+        last?.get()?.takeIf { it.key == key }?.let { return it.images }
+        val images = PaperImages(PaperBake.bake(w, h, density, shapes, label))
+        last = SoftReference(Entry(key, images))
+        return images
     }
 }
 
