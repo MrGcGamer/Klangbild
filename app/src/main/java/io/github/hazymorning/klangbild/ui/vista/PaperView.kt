@@ -271,7 +271,7 @@ private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache
     val shadowFilter = f.tint(l.shadow)
     for ((id, s) in b.sheets) {
         if (id == SheetId.SKY) continue
-        val alpha = if (id == SheetId.LEAVES || id == SheetId.BUSHES) b.leafAlpha else 1f
+        val alpha = if (id == SheetId.LEAVES) b.leafAlpha else 1f
         if (alpha <= 0.01f) continue
         val shadow = b.shadows[id]
         if (shadow != null && l.shadowAlpha > 0.003f) {

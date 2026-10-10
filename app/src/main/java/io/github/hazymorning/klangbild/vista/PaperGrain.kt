@@ -12,13 +12,13 @@ import kotlin.math.sqrt
 /** What a sheet is made of: how strong its clouds of pulp, its tooth and its fibres show. */
 enum class PaperKind(val clouds: Float, val tooth: Float, val fibres: Float) {
     /** The sky: watercolour paper under a soft wash. */
-    WASH(0.035f, 0.004f, 0.06f),
+    WASH(0.035f, 0.004f, 0.04f),
 
     /** White paper: snow caps, tissue clouds, the sun and the moon. */
-    WHITE(0.02f, 0.004f, 0.07f),
+    WHITE(0.02f, 0.004f, 0.05f),
 
     /** Coloured card: mountains, woods, meadows, banks. */
-    CARD(0.045f, 0.005f, 0.10f),
+    CARD(0.045f, 0.005f, 0.06f),
 }
 
 /**
@@ -45,7 +45,7 @@ class PaperGrain(private val density: Float) {
             val cy = rnd.next() * TILE_DP
             val length = FIBRE_MIN_DP + (FIBRE_MAX_DP - FIBRE_MIN_DP) * rnd.next()
             val angle = rnd.next() * PI.toFloat()
-            val bend = rnd.normal() * 0.9f
+            val bend = rnd.normal() * 1.4f
             val width = 0.28f + 0.26f * rnd.next()
             val value = (0.35f + 0.65f * rnd.next()) * if (rnd.next() < 0.55f) 1f else -1f
             val (x0, y0) = (cx - cos(angle) * length / 2) to (cy - sin(angle) * length / 2)
@@ -169,14 +169,14 @@ class PaperGrain(private val density: Float) {
         const val CELL_DP = 3f
 
         /** One fibre per this many dp² of paper, each this long (dp). */
-        private const val FIBRE_AREA_DP = 26f
-        private const val FIBRE_MIN_DP = 6f
-        private const val FIBRE_MAX_DP = 20f
+        private const val FIBRE_AREA_DP = 20f
+        private const val FIBRE_MIN_DP = 4f
+        private const val FIBRE_MAX_DP = 14f
 
         /** The swell (the paper not lying flat) and the clouds of pulp: their sizes (dp) and strengths. */
         private val SCALES = floatArrayOf(240f, 110f, 44f, 17f, 7f)
-        private val CLOUD_AMPS = floatArrayOf(0f, 0.55f, 0.3f, 0.2f, 0.12f)
-        private const val SWELL = 0.03f
+        private val CLOUD_AMPS = floatArrayOf(0f, 1f, 0.55f, 0.36f, 0.22f)
+        private const val SWELL = 0.05f
     }
 }
 

@@ -141,15 +141,15 @@ object PaperLight {
         c(0xFF2A1E2E), 0.42f, c(0xFFFFF2D2), c(0xFFFFD9A0), 0.45f, c(0xFFFFD49A), 0.32f, stars = 0f, fire = 0.12f,
     )
     private val AFTERNOON = Plate(
-        18f, ints(0xFF78A8D2, 0xFFB3CDE0, 0xFFEDE9DA), f(1.07f, 1f, 0.9f), f(0.86f, 0.93f, 1.06f), 1f, 0.2f, 1f,
+        18f, ints(0xFF78A8D2, 0xFFB3CDE0, 0xFFEDE9DA), f(1.07f, 1f, 0.9f), f(0.86f, 0.93f, 1.06f), 1f, 0.24f, 1f,
         c(0xFF1C3040), 0.36f, c(0xFFFFF8EA), c(0xFFFFF1D8), 0.32f, c(0xFFF6EAD0), 0.1f, stars = 0f, fire = 0.08f,
     )
     private val DAY = Plate(
-        40f, ints(0xFF7DA4CC, 0xFFAFC9DE, 0xFFECE7D6), f(1.05f, 1f, 0.92f), f(0.88f, 0.95f, 1.08f), 1f, 0.16f, 1f,
+        40f, ints(0xFF7DA4CC, 0xFFAFC9DE, 0xFFECE7D6), f(1.05f, 1f, 0.92f), f(0.88f, 0.95f, 1.08f), 1f, 0.22f, 1f,
         c(0xFF1A2533), 0.32f, c(0xFFFFFBF2), c(0xFFFFF6E4), 0.3f, c(0xFFE8F0F2), 0f, stars = 0f, fire = 0.07f,
     )
     private val FORENOON = Plate(
-        18f, ints(0xFF77A7D4, 0xFFB0CCE4, 0xFFE6ECEC), f(1.06f, 1f, 0.92f), f(0.86f, 0.93f, 1.08f), 1f, 0.2f, 1f,
+        18f, ints(0xFF77A7D4, 0xFFB0CCE4, 0xFFE6ECEC), f(1.06f, 1f, 0.92f), f(0.86f, 0.93f, 1.08f), 1f, 0.24f, 1f,
         c(0xFF19324A), 0.36f, c(0xFFFFFAF0), c(0xFFFFF4E4), 0.32f, c(0xFFF0EEE6), 0.08f, stars = 0f, fire = 0.08f,
     )
     private val MORNING = Plate(
@@ -174,27 +174,27 @@ object PaperLight {
 
     // --- the papers ----------------------------------------------------------------------------
 
-    /** The papers of one season: every sheet's colour by daylight, and the colours of crowns and bushes. */
+    /** The papers of one season: every sheet's colour by daylight, and the colours of the broad-leaved crowns. */
     private class Papers(
         val far: Int, val snow: Int, val near: Int, val woodFar: Int, val woodNear: Int, val meadow: Int, val meadowNear: Int,
-        val standees: Int, val front: Int, val leaves: IntArray, val bushes: IntArray,
+        val standees: Int, val front: Int, val leaves: IntArray,
     )
 
     private val SPRING = Papers(
         c(0xFFABB3CE), c(0xFFF2F0EA), c(0xFF7690A8), c(0xFF6E9086), c(0xFF58866C), c(0xFFA5BE6C), c(0xFF96B262), c(0xFF467A5C), c(0xFF264B3C),
-        ints(0xFF9CC47A, 0xFFF2DCE4, 0xFFB4D28A), ints(0xFF7FB060, 0xFF9BC872),
+        ints(0xFF9CC47A, 0xFFF2DCE4, 0xFFB4D28A),
     )
     private val SUMMER = Papers(
         c(0xFFA9B1CC), c(0xFFF2F0EA), c(0xFF7890A8), c(0xFF6D8C86), c(0xFF557E6C), c(0xFF9DAE6E), c(0xFF8CA265), c(0xFF43725A), c(0xFF24473A),
-        ints(0xFF557F5E, 0xFF5F8A62, 0xFF4F7858), ints(0xFF4E7A50, 0xFF628C5A),
+        ints(0xFF557F5E, 0xFF5F8A62, 0xFF4F7858),
     )
     private val AUTUMN = Papers(
         c(0xFFA9AFC6), c(0xFFF2F0EA), c(0xFF7E90A4), c(0xFF708A80), c(0xFF5B7A66), c(0xFFB3AA6A), c(0xFFA69A5C), c(0xFF45705A), c(0xFF2C4636),
-        ints(0xFFE0A33C, 0xFFD2702E, 0xFFB0492C), ints(0xFFC8732E, 0xFFE09A3A),
+        ints(0xFFE0A33C, 0xFFD2702E, 0xFFB0492C),
     )
     private val WINTER = Papers(
         c(0xFFB0B8D0), c(0xFFF4F4F2), c(0xFF8496B0), c(0xFF667F84), c(0xFF4E6C66), c(0xFFA9A884), c(0xFF9C9A78), c(0xFF3C6250), c(0xFF233F33),
-        ints(0xFF8E8070, 0xFF8E8070, 0xFF8E8070), ints(0xFF8E8070, 0xFF8E8070),
+        ints(0xFF8E8070, 0xFF8E8070, 0xFF8E8070),
     )
 
     /** White paper, the bark, the stones and the cut wood of the fire, the flames. */
@@ -233,7 +233,7 @@ object PaperLight {
         val raw = sunSide * sunUp + moonSide * (1f - sunUp) * moon
         // A little light from the upper right always: at noon (sun in front) the folds still read.
         val side = (raw + 0.3f * (1f - abs(raw))).coerceIn(-1f, 1f)
-        val contrast = p.contrast * (1f - 0.8f * cover)
+        val contrast = p.contrast * (1f - 0.6f * cover)
         val night = 1f - smooth(-8f, 2f, s.sunElevation)
         // The direct light gives way to the sky's under clouds.
         val key = FloatArray(3) { p.key[it] + (p.fill[it] * 1.05f - p.key[it]) * 0.7f * cover }
@@ -278,7 +278,6 @@ object PaperLight {
         }
         val leaves = IntArray(3) { veiled(lit(papers.leaves[it], 0f, 0f), SheetId.LEAVES) }
         put(SheetId.LEAVES, leaves[0], leaves[1], leaves[2])
-        put(SheetId.BUSHES, lit(papers.bushes[0], -1f, contrast), lit(papers.bushes[1], 1f, contrast), white)
         put(SheetId.FIREWOOD, lit(BARK, 0f, 0f), lit(STONE, 0f, 0f), lit(WOOD, 0f, 0f))
         sheets[SheetId.SKY] = Inks(muted(p.sky[0]), muted(p.sky[1]), muted(horizon))
 
@@ -375,7 +374,7 @@ object PaperLight {
         }
         return Papers(
             mix { it.far }, mix { it.snow }, mix { it.near }, mix { it.woodFar }, mix { it.woodNear }, mix { it.meadow }, mix { it.meadowNear },
-            mix { it.standees }, mix { it.front }, IntArray(3) { i -> mix { it.leaves[i] } }, IntArray(2) { i -> mix { it.bushes[i] } },
+            mix { it.standees }, mix { it.front }, IntArray(3) { i -> mix { it.leaves[i] } },
         )
     }
 

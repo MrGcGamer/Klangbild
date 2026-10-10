@@ -11,7 +11,7 @@ class PaperBakeTest {
     @Test
     fun `every sheet is cut, and nothing is left of the leaves in winter`() {
         assertThat(summer.sheets.keys).containsAtLeastElementsIn(SheetId.entries.toList())
-        assertThat(winter.sheets.keys).containsNoneOf(SheetId.LEAVES, SheetId.BUSHES)
+        assertThat(winter.sheets.keys).doesNotContain(SheetId.LEAVES)
         assertThat(winter.sheets.keys).contains(SheetId.SNOW)
         for ((id, s) in summer.sheets) {
             assertWithMessage("$id").that(s.pixels.any { it ushr 24 != 0 }).isTrue()

@@ -22,7 +22,7 @@ class Fir(val x: Float, val footY: Float, val height: Float)
  *
  * From the back: sky; the far range, folded card with snow caps of torn white paper; the near
  * range, lower and darker; two strips of forest cut as one silhouette each, the nearer one dipping
- * into the valley; the meadow of the clearing with a campfire, a few firs and bushes standing
+ * into the valley; the meadow of the clearing with a campfire and a few firs standing
  * on it as cut-outs with a white margin; a strip of nearer meadow; and the near bank with the
  * tall firs that frame the view. The bank under the music's label is cut wide and nearly level
  * ([Foreground]): the label lies on calm, dark paper in every light.
@@ -98,7 +98,7 @@ object PaperMotif {
      */
     fun foreground(side: LabelSide): Foreground = when (side) {
         LabelSide.LEFT -> LEFT
-        LabelSide.NONE -> Foreground(frontLeftLow, LEFT.frontRight, LEFT.standees, LEFT.bushes, LEFT.frontFirs, LEFT.fireX, LEFT.fireY)
+        LabelSide.NONE -> Foreground(frontLeftLow, LEFT.frontRight, LEFT.standees, LEFT.frontFirs, LEFT.fireX, LEFT.fireY)
         LabelSide.RIGHT -> LEFT.mirrored()
     }
 
@@ -119,7 +119,6 @@ object PaperMotif {
         frontLeft = frontLeftWide,
         frontRight = frontRightLow,
         standees = listOf(352f to 74f, 382f to 50f, 300f to 98f, 262f to 64f, 676f to 58f, 720f to 90f, 762f to 68f, 790f to 46f),
-        bushes = listOf(410f to 16f, 812f to 18f, 236f to 20f),
         frontFirs = listOf(Fir(6f, 450f, 232f), Fir(982f, 482f, 382f), Fir(906f, 490f, 300f)),
         fireX = 612f,
         fireY = 458f,
@@ -142,8 +141,6 @@ object PaperMotif {
         val frontRight: List<Knot>,
         /** Firs standing on the meadow as cut-outs: x and height (dp); their feet on the meadow's contour. */
         val standees: List<Pair<Float, Float>>,
-        /** Round bushes on the meadow: x and height (dp). */
-        val bushes: List<Pair<Float, Float>>,
         /** The tall firs on the near banks. */
         val frontFirs: List<Fir>,
         /** The campfire's foot (dp). */
@@ -154,7 +151,7 @@ object PaperMotif {
         fun mirrored(): Foreground {
             fun m(knots: List<Knot>) = knots.map { Knot(WIDTH - it.x, it.y, it.corner) }
             return Foreground(
-                m(frontRight), m(frontLeft), standees.map { (x, h) -> WIDTH - x to h }, bushes.map { (x, h) -> WIDTH - x to h },
+                m(frontRight), m(frontLeft), standees.map { (x, h) -> WIDTH - x to h },
                 frontFirs.map { Fir(WIDTH - it.x, it.footY, it.height) }, WIDTH - fireX, fireY,
             )
         }

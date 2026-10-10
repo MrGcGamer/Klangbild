@@ -29,7 +29,6 @@ enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val r
     LEAVES(PaperKind.CARD, 0f, 0.25f, 0f, occludes = false),
     MEADOW(PaperKind.CARD, 1.6f, 0f, 0.1f),
     STANDEES(PaperKind.CARD, 1.2f, 0f, 0.08f),
-    BUSHES(PaperKind.CARD, 0.8f, 0f, 0.08f, occludes = false),
     FIREWOOD(PaperKind.CARD, 0.3f, 0f, 0.12f),
     MEADOW_NEAR(PaperKind.CARD, 0.8f, 0f, 0.1f),
     FRONT_LEFT(PaperKind.CARD, 2.6f, 0.6f, 0.1f),
@@ -268,7 +267,6 @@ object PaperBake {
             SheetId.LEAVES -> if (shapes.leaves > 0.05f) woodNear(leaves = true) else null
             SheetId.MEADOW -> meadow()
             SheetId.STANDEES -> standees()
-            SheetId.BUSHES -> if (shapes.leaves > 0.05f) bushes() else null
             SheetId.FIREWOOD -> firewood()
             SheetId.MEADOW_NEAR -> meadowNear()
             SheetId.FRONT_LEFT -> front(left = true)
@@ -416,21 +414,6 @@ object PaperBake {
             val all = firs.flatMap { it.tiers + it.trunk }
             val b = build(SheetId.STANDEES, all.minOf { it.minX() } - 4f, all.minOf { it.minY() } - 4f, all.maxOf { it.maxX() } + 4f, all.maxOf { it.maxY() } + 4f)
             for (f in firs) standee(b, f, margin = 1.3f, aoSigma = 2f)
-            return b
-        }
-
-        /** Round bushes on the meadow, cut with a white margin; their two greens the season's. */
-        fun bushes(): Build? {
-            val rnd = Rnd(67)
-            val trees = fg.bushes.map { (x, s) -> roundTree(x, meadowLine.yAt(x) + 8f, s, rnd) }
-            if (trees.isEmpty()) return null
-            val all = trees.flatMap { it.discs }
-            val b = build(SheetId.BUSHES, all.minOf { it.minX() } - 4f, all.minOf { it.minY() } - 4f, all.maxOf { it.maxX() } + 4f, all.maxOf { it.maxY() } + 4f)
-            for (t in trees) {
-                val m = mask(t.discs, pad = (3f * d).toInt() + 4) ?: continue
-                lay(b, margin(m, 1.2f), ZERO, c(1f), aoCast = 0.2f, aoSigma = 1.5f)
-                lay(b, m, W { x, _ -> Shapes.smoothstep(t.cx - t.r * 0.4f, t.cx + t.r * 0.5f, x) }, ZERO)
-            }
             return b
         }
 
@@ -849,14 +832,18 @@ object PaperBake {
                 val n = 70
                 val right = ArrayList<Pair<Float, Float>>()
                 val left = ArrayList<Pair<Float, Float>>()
+                // Torn edges, as ragged as the tongue is wide: the tip itself stays a clean point.
+                val tornRight = noise1(n + 1, 300 + k, floatArrayOf(3f, 7f, 17f), floatArrayOf(0.6f, 0.8f, 0.5f))
+                val tornLeft = noise1(n + 1, 310 + k, floatArrayOf(3f, 7f, 17f), floatArrayOf(0.6f, 0.8f, 0.5f))
                 for (i in 0..n) {
                     val v = i / n.toFloat()
                     val wv = hw * sin(PI.toFloat() * min(1f, v * 1.15f + 0.05f)).coerceAtLeast(0f).pow(0.85f) * (1f - v).pow(0.35f)
                     val xc = fx + ox + lean * hh * v * v + 1.5f * sin(v * 5f + ox)
-                    right += (xc + wv) to (base - v * hh)
-                    left += (xc - wv) to (base - v * hh)
+                    val rag = 0.6f * min(1f, wv / 2.5f)
+                    right += (xc + wv + rag * tornRight[i]) to (base - v * hh)
+                    left += (xc - wv - rag * tornLeft[i]) to (base - v * hh)
                 }
-                val outline = wobbled(Outline.of(right + left.reversed()), 300 + k, 0.55f, closed = true, scales = floatArrayOf(2f, 5f, 11f), amps = floatArrayOf(0.7f, 0.8f, 0.5f))
+                val outline = Outline.of(right + left.reversed())
                 val m = mask(listOf(outline), pad = (2f * d).toInt() + 3)!!
                 val soft = m.v.copyOf().also { blur(it, m.width, m.height, max(1, (0.9f * d - 0.5f).roundToInt())) }
                 val footX = px(fx + ox)
