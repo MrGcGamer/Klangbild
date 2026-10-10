@@ -278,11 +278,22 @@ Assistant selbst.
 Ein Gerät stand nicht zur Verfügung. Gemessen wurde
 
 - **auf der JVM** (Robolectric/Desktop): Backzeit und Speicher (siehe Technik);
-- **im Android-TV-Emulator der CI** (Android 14, Software-GPU SwiftShader), 1080p- und
-  4K-Profil: 15 Minuten ruhig, dann 2 Minuten Zeitraffer – Ergebnisse unten.
+- **im Android-TV-Emulator der CI** (Android 14, Software-GPU SwiftShader, CI-Lauf
+  38022314275): 15 Minuten ruhig, dann 2 Minuten Zeitraffer, je im 1080p- und im 4K-Profil.
 
-Der Messlauf mit dem fertigen Diorama läuft in der CI (Lauf 38022314275); seine Werte werden
-hier eingetragen, sobald er durch ist.
+| Profil | ruhig: Bilder/s | CPU (ein Kern) | Speicher (PSS) | Zeitraffer: Bilder/s | CPU | Speicher |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1080p | 8 | 36 % | 105–114 MB, kein Wachstum | 4 | 52 % | 108–116 MB |
+| 4K (zeichnet in 1080p) | 6 | 37 % | 108–115 MB, kein Wachstum | 5 | 40 % | 110–117 MB |
+
+Kein Absturz (Logcat), der Bildschirm nach 15 Minuten zeigt das Bild wie die Tests – mit
+echtem Android-Rendering, also auch die stehenden Ebenen, die Farbmatrizen und den
+Feuerschein. Zum Vergleich der Mess-Prototyp des zweiten Anlaufs: 3–5 Bilder/s, 21–26 % CPU,
+63–88 MB. Mehr Bilder trotz reicherem Bild, weil pro Bild nur noch die zwei stehenden Ebenen,
+die Wolken und das Feuer gezeichnet werden; mehr Speicher, weil das Diorama mehr Bögen hat
+und die Ebenen je eine Bildschirmfläche belegen (gemessen vor dem Freigeben der gebackenen
+Pixel, das den Java-Speicher um weitere 30 MB senkt). Das 4K-Profil des Emulators zeichnet die
+Oberfläche in 1080p (`wm size`: 3840 × 2160, Override 1920 × 1080).
 
 Die Bildrate des Emulators sagt wenig über den Google TV Streamer: SwiftShader rechnet alles
 auf der CPU. Aussagekräftig sind Speicher (wächst er?) und dass nichts abstürzt.
