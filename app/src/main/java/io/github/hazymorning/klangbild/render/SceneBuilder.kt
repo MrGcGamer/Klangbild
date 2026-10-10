@@ -34,7 +34,7 @@ class ArtworkScene(
     /**
      * The wall around the print, scaled to the whole screen: in the dark the print's light on
      * black ([WallGlow]; in Cover Flow the pool of light above the cards, [FlowLight]), in the
-     * light paper with the print's shadow ([WallShade]; in Cover Flow plain paper).
+     * light plain paper – no shadow, no frame, no line round the print.
      */
     val wall: Bitmap,
     val palette: ScenePalette,
@@ -145,7 +145,7 @@ object SceneBuilder {
         // The cover's colours: the wall itself with "Coverfarben", else only for the light bars.
         val field = CoverField.build(
             thumb, THUMB, analysis, lighting, appearance, strength = wallTint,
-            layout = layout.takeIf { coverField }, shape = shape.takeIf { !flow }, quietInk = palette.inkQuiet,
+            layout = layout.takeIf { coverField }, quietInk = palette.inkQuiet,
         )
         val wall = when {
             // The field is the wall; the plain one is only its colour underneath.
@@ -154,12 +154,12 @@ object SceneBuilder {
                 // The light above the cards takes the print's top edge.
                 Bitmap.createBitmap(FlowLight.field(FlowLight.topEdge(thumb, THUMB), layout, lighting), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
             }
-            flow -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
             appearance == Appearance.DARK -> {
                 // The wall sees the outside of the picture: its edges.
                 Bitmap.createBitmap(WallGlow.field(thumb, THUMB, shape, layout.screen, lighting), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
             }
-            else -> Bitmap.createBitmap(WallShade.field(palette.wall, shape, layout.screen), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
+            // Paper, in Cover Flow as around the single print.
+            else -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
         }
         val flowCard = if (!flow) null else card ?: FlowCards.build(
             cover = cover,
@@ -168,7 +168,6 @@ object SceneBuilder {
             geometry = FlowGeometry(layout),
             density = layout.screen.density,
             appearance = appearance,
-            edgeLine = edgeLine(analysis.kind, shape.round, appearance),
             lightness = analysis.meanL,
         )
         return ArtworkScene(
@@ -188,17 +187,6 @@ object SceneBuilder {
             field = field,
             coverField = coverField,
         )
-    }
-
-    /**
-     * A faint inner hairline (ARGB) where the artwork would dissolve into the wall: white at
-     * 7 % inside dark square artwork on black, black at 8 % inside pale artwork on paper.
-     */
-    fun edgeLine(kind: CoverKind, round: Boolean, appearance: Appearance): Int = when {
-        round -> 0
-        appearance == Appearance.DARK && kind == CoverKind.DARK -> 0x12FFFFFF
-        appearance == Appearance.LIGHT && kind == CoverKind.LIGHT -> 0x14000000
-        else -> 0
     }
 
     /**

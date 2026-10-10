@@ -90,7 +90,7 @@ class FieldScene(
     /** Back to front. */
     val blobs: List<FieldBlob>,
     /**
-     * Over the shapes: vignette, text shade, the artwork's shadow – for the screen and
+     * Over the shapes: the text shade – for the screen and
      * [CoverField.OVERSCAN_DP] around it; null where only the light bars need the field.
      */
     val veil: Bitmap?,
@@ -105,11 +105,6 @@ object CoverField {
     const val VEIL_W = 240
     const val VEIL_H = 135
 
-    /** The artwork's shadow on the field: dropped this far (dp), this soft (σ, dp), at most this deep. */
-    const val SHADOW_DROP = 14f
-    const val SHADOW_SIGMA = 26f
-    const val SHADOW_DEPTH = 0.45f
-
     /** The shade (on paper the brightening) under the text: at least this, more where the field needs it. */
     const val TEXT_SCRIM_MIN = 0.06f
     const val TEXT_SCRIM_MAX = 0.7f
@@ -123,9 +118,9 @@ object CoverField {
     /**
      * The field for a cover ([thumb], [size]² pixels, and its [analysis]). [strength] is the
      * light level (1 = as designed): how colourful the field is. Without a [layout] only the
-     * shapes are made (what the light bars need); with it the veil too: the picture's [shape]
-     * casts its shadow, and [quietInk] – the quietest text – sets the shade under the text so it
-     * keeps 4.5:1 wherever the shapes drift.
+     * shapes are made (what the light bars need); with it the veil too: [quietInk] – the
+     * quietest text – sets the shade under the text so it keeps 4.5:1 wherever the shapes drift.
+     * The picture casts no shadow on the field: nothing frames it.
      */
     fun build(
         thumb: IntArray,
@@ -135,7 +130,6 @@ object CoverField {
         appearance: Appearance,
         strength: Float,
         layout: HaloLayout?,
-        shape: PrintShape? = null,
         quietInk: Int? = null,
     ): FieldScene {
         val dark = appearance == Appearance.DARK
@@ -170,7 +164,7 @@ object CoverField {
         }
         val field = FieldScene(base, linear(dominant.lab), blobs, null, dark)
         if (layout == null) return field
-        return FieldScene(base, field.baseLight, blobs, veil(field, layout, shape, quietInk), dark)
+        return FieldScene(base, field.baseLight, blobs, veil(field, layout, quietInk), dark)
     }
 
     /** How far apart (shares of the screen's width) the colour masses' homes are pushed. */
@@ -365,11 +359,10 @@ object CoverField {
 
     /**
      * Over the shapes (ARGB, [VEIL_W] × [VEIL_H] for the screen and the overscan around it): the
-     * shade under the text (on paper a brightening) and the artwork's soft shadow, merged into
-     * one colour and opacity per point. Nothing darkens the screen's edges: there the field
-     * meets the light behind the TV.
+     * shade under the text (on paper a brightening), as one colour and opacity per point.
+     * Nothing darkens the screen's edges: there the field meets the light behind the TV.
      */
-    private fun veil(field: FieldScene, layout: HaloLayout, shape: PrintShape?, quietInk: Int?): Bitmap {
+    private fun veil(field: FieldScene, layout: HaloLayout, quietInk: Int?): Bitmap {
         val screen = layout.screen
         val dark = field.dark
         val scrim = textScrim(field, layout, quietInk)
@@ -393,10 +386,9 @@ object CoverField {
                 val dx = max(max(tx0 - ppx, ppx - tx1), 0f)
                 val dy = max(max(ty0 - py, py - ty1), 0f)
                 val text = scrim * exp(-(dx * dx + dy * dy) / (2f * TEXT_SCRIM_SIGMA * TEXT_SCRIM_SIGMA))
-                val cast = shape?.let { SHADOW_DEPTH * WallShade.cover(it.signedDistance(ppx, py - SHADOW_DROP), SHADOW_SIGMA) } ?: 0f
-                // field × keep + colour × alpha: in the dark shade and shadow take light away; on
-                // paper the shade brightens towards the ground while the shadow darkens.
-                val darken = 1f - (1f - cast) * (if (dark) 1f - text else 1f)
+                // field × keep + colour × alpha: in the dark the shade takes light away; on paper it
+                // brightens towards the ground.
+                val darken = if (dark) text else 0f
                 val lighten = if (dark) 0f else text
                 val keep = (1f - darken) * (1f - lighten)
                 val alpha = 1f - keep

@@ -153,20 +153,6 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `on the light wall the artwork casts a soft shadow below it, none above`() {
-        val wall = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), Lighting.DAY, Appearance.LIGHT).wall
-        val field = WallShade.field(wall, shape, screen)
-        val rect = layout.artRect
-        val below = luminance(field.at(rect.centerX, rect.bottom + 6f))
-        val above = luminance(field.at(rect.centerX, rect.top - 6f))
-        val far = luminance(field.at(rect.right + 40f, rect.top + 20f))
-        assertThat(below).isLessThan(far * 0.9f)
-        assertThat(above).isGreaterThan(below)
-        // a few dozen dp away the paper is clean
-        assertThat(far).isWithin(0.004f).of(luminance(wall))
-    }
-
-    @Test
     fun `night turns the lamp down to about half, never off, and takes its colour`() {
         val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
         val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
