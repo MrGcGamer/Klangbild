@@ -46,11 +46,33 @@ import io.github.hazymorning.klangbild.ui.theme.rememberFigures
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/** The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in the light. */
+/**
+ * The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in
+ * the light. It reaches [BEYOND_EDGES_DP] beyond the screen on every side: the screen's drift
+ * against burn-in never uncovers an edge. [beyondOnly] draws only that margin – a new wall's
+ * colour coming up with its light during a change; [alpha] fades it.
+ */
 @Composable
-fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier) {
-    Canvas(modifier.fillMaxSize()) { drawRect(color) }
+fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier, alpha: () -> Float = { 1f }, beyondOnly: Boolean = false) {
+    Canvas(modifier.fillMaxSize()) {
+        val a = alpha().coerceIn(0f, 1f)
+        if (a <= 0.002f) return@Canvas
+        val m = BEYOND_EDGES_DP * density
+        val w = size.width
+        val h = size.height
+        if (!beyondOnly) {
+            drawRect(color, Offset(-m, -m), Size(w + 2 * m, h + 2 * m), alpha = a)
+        } else {
+            drawRect(color, Offset(-m, -m), Size(m, h + 2 * m), alpha = a)
+            drawRect(color, Offset(w, -m), Size(m, h + 2 * m), alpha = a)
+            drawRect(color, Offset(0f, -m), Size(w, m), alpha = a)
+            drawRect(color, Offset(0f, h), Size(w, m), alpha = a)
+        }
+    }
 }
+
+/** How far every full-screen ground reaches beyond the screen (dp): more than the drift (±6 dp) ever moves it. */
+const val BEYOND_EDGES_DP = 24f
 
 /**
  * The wall around the artwork, one static bitmap scaled softly to the screen: in the dark the

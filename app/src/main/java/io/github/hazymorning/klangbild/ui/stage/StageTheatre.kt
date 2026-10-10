@@ -182,8 +182,14 @@ fun StageTheatre(
     val stood: (TextLine) -> Float = { line -> if (kind.isSoft) text.level(line) else text.leaving(line) }
 
     Box(modifier.fillMaxSize()) {
-        BaseWall(cur.scene.palette.wall.asColor())
-        if (prev != null && pictureChanges) WallLayer(prev.scene, level = level)
+        // The old wall stays whole until the new one – its light and its colour beyond the screen's
+        // edges – has come up over it: a new wall never shows the old one in a strip at the side.
+        val oldWall = prev?.scene?.takeIf { pictureChanges }
+        BaseWall((oldWall ?: cur.scene).palette.wall.asColor())
+        if (oldWall != null) {
+            WallLayer(oldWall, level = level)
+            BaseWall(cur.scene.palette.wall.asColor(), alpha = newGlow, beyondOnly = true)
+        }
         WallLayer(cur.scene, alpha = newGlow, level = level)
         if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
         ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim })

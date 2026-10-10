@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.drawBehind
+import io.github.hazymorning.klangbild.ui.stage.BEYOND_EDGES_DP
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,7 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
@@ -105,15 +109,18 @@ fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, mo
     // The last menu stays while it fades out.
     val last = remember { arrayOfNulls<MenuState>(1) }
     if (menu != null) last[0] = menu
-    AnimatedVisibility(
-        visible = menu != null,
-        modifier = modifier,
-        enter = fadeIn(tween(450, easing = Motion.Dimmer)),
-        exit = fadeOut(tween(600, easing = Motion.Dimmer)),
-        label = "menu",
-    ) {
-        (menu ?: last[0])?.let { MenuScreen(it, lighting, appearance) }
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(menu != null) {
+        shown.animateTo(if (menu != null) 1f else 0f, tween(if (menu != null) 450 else 600, easing = Motion.Dimmer))
     }
+    if (menu == null && shown.value <= 0f) return
+    val state = menu ?: last[0] ?: return
+    // Faded draw by draw, not through a layer of the screen's size: the menu's ground reaches
+    // beyond the screen's edges, and a layer would cut it off there while it fades.
+    MenuScreen(state, lighting, appearance, modifier.graphicsLayer {
+        alpha = shown.value
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+    })
 }
 
 private sealed interface MenuLine {
@@ -204,7 +211,13 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
     val cursor = menu.cursor.coerceIn(0, menu.rows.size - 1)
     val row = menu.rows[cursor]
 
-    BoxWithConstraints(modifier.fillMaxSize().background(colors.wall)) {
+    BoxWithConstraints(
+        modifier.fillMaxSize().drawBehind {
+            // The ground reaches beyond the screen: the drift against burn-in never shows what lies under it.
+            val m = BEYOND_EDGES_DP * density
+            drawRect(colors.wall, Offset(-m, -m), Size(size.width + 2 * m, size.height + 2 * m))
+        },
+    ) {
         val density = LocalDensity.current.density
         val screen = ScreenSpec((maxWidth.value * density).roundToInt(), (maxHeight.value * density).roundToInt(), density)
         val layout = HaloLayout(screen)

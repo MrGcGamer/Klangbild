@@ -1,30 +1,30 @@
 package io.github.hazymorning.klangbild.ui
 
 import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
@@ -49,6 +49,7 @@ import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
+import io.github.hazymorning.klangbild.ui.stage.BEYOND_EDGES_DP
 import io.github.hazymorning.klangbild.ui.theme.textType
 import kotlin.math.exp
 import kotlin.math.max
@@ -101,15 +102,20 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     val last = remember { arrayOfNulls<QuickState>(1) }
     if (quick != null) last[0] = quick
     val density = LocalDensity.current.density
-    AnimatedVisibility(
-        visible = quick != null,
-        modifier = modifier,
-        enter = fadeIn(tween(320, easing = Motion.Dimmer)) + slideInVertically(tween(380, easing = Motion.Dimmer)) { (QuickGrid.RISE * density).roundToInt() },
-        exit = fadeOut(tween(260, easing = Motion.Dimmer)) + slideOutVertically(tween(300, easing = Motion.Dimmer)) { (QuickGrid.RISE * density).roundToInt() },
-        label = "quick",
-    ) {
-        (quick ?: last[0])?.let { QuickBar(it, lighting, appearance) }
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(quick != null) {
+        shown.animateTo(if (quick != null) 1f else 0f, tween(if (quick != null) 360 else 280, easing = Motion.Dimmer))
     }
+    if (quick == null && shown.value <= 0f) return
+    val state = quick ?: last[0] ?: return
+    // It rises as it fades in – faded draw by draw, not through a layer of the screen's size,
+    // which would cut its ground off at the screen's edges while it moves.
+    QuickBar(state, lighting, appearance, modifier.graphicsLayer {
+        val v = shown.value
+        alpha = v
+        translationY = (1f - v) * QuickGrid.RISE * density
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+    })
 }
 
 /** The quick settings' voices: like the menu's, near-neutral, on black or on paper. */
@@ -188,6 +194,9 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
     Box(modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             val d = density
+            // The veil reaches beyond the screen's sides and bottom (and below, where the row rises
+            // from): seamless to the edges, whatever the drift against burn-in.
+            val m = BEYOND_EDGES_DP * d
             drawRect(
                 Brush.verticalGradient(
                     0f to colors.veil.copy(alpha = 0f),
@@ -196,7 +205,8 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
                     startY = QuickGrid.VEIL_TOP * d,
                     endY = size.height,
                 ),
-                topLeft = Offset(0f, QuickGrid.VEIL_TOP * d),
+                topLeft = Offset(-m, QuickGrid.VEIL_TOP * d),
+                size = Size(size.width + 2 * m, size.height - QuickGrid.VEIL_TOP * d + m + QuickGrid.RISE * d),
             )
             val g = glow ?: return@Canvas
             // The band of light, centred on the value's middle line; it adds to the veil. The
