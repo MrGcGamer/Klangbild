@@ -137,6 +137,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.zxing.core)
+    implementation(libs.suncalc)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
