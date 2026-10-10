@@ -76,19 +76,19 @@ object Motion {
     val Turn = CubicBezierEasing(0.35f, 0f, 0.35f, 1f)
 
     /**
-     * A full track change: the old artwork goes dark (0–320 ms), the new one comes up
-     * (300–900 ms) and settles from 1.5 % larger; the light on the wall turns to the new
-     * colours (0–900 ms). The old text leaves (200 ms); the new lines rise into place one
-     * after another from 560 ms, 420 ms each.
+     * A full track change cross-fades – the screen never goes dark: the new artwork comes up
+     * over the old one (0–600 ms), the old goes once it is covered (600–750 ms); the light on
+     * the wall turns to the new colours (0–800 ms). The old text leaves (220 ms); the new lines
+     * rise into place one after another from 260 ms, 380 ms each.
      */
-    const val TRACK_CHANGE_MS = 1_250
-    const val ART_OUT_MS = 320
-    const val ART_IN_START_MS = 300
-    const val ART_IN_END_MS = 900
-    const val GLOW_MS = 900
-    const val TEXT_OUT_MS = 200
-    const val TEXT_IN_MS = 560
-    const val TEXT_LINE_MS = 420
+    const val TRACK_CHANGE_MS = 1_000
+    const val ART_IN_END_MS = 600
+    const val ART_OUT_START_MS = 600
+    const val ART_OUT_END_MS = 750
+    const val GLOW_MS = 800
+    const val TEXT_OUT_MS = 220
+    const val TEXT_IN_MS = 260
+    const val TEXT_LINE_MS = 380
 
     /** New track, same picture (next song of the album): only the text changes, sooner. */
     const val TEXT_CHANGE_MS = 950
