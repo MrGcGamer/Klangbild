@@ -235,6 +235,7 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
     private var lookWeather: Weather? = null
     private var weather: Weather? = null
     private var cloudTime = 0.0
+    private var drift = 0.0
     private var lastWall = 0L
     private val clouds = ArrayList<CloudPlace>()
 
@@ -258,6 +259,7 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
         // The clouds' own clock runs faster in the wind; a gust speeds them up, it never moves them.
         cloudTime = if (dt < 0.0) seconds * CloudField.speed(w.wind) else cloudTime + dt * CloudField.speed(w.wind)
+        drift = if (dt < 0.0) seconds * w.wind else drift + dt * w.wind
         val moving = feed.clock.timelapse
         val relit = moving || abs(sky - lookSky) >= LOOK_EVERY_MS || lookWeather?.let { it.distance(w) > 0.01f } != false
         if (relit) {
@@ -269,7 +271,7 @@ private class VistaFrameState(private val feed: VistaFeed, private val label: La
         }
         // A still shows the camera at rest: the whole picture.
         val camera = if (still) VistaCamera.REST else VistaCamera.at(seconds, label)
-        motion = PaperMotion(seconds, ArrayList(CloudField.places(cloudTime, CloudField.density(w.cover), clouds)), camera, w)
+        motion = PaperMotion(seconds, ArrayList(CloudField.places(cloudTime, CloudField.density(w.cover), clouds)), camera, w, cloudTime, drift)
         return relit
     }
 

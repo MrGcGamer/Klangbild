@@ -6,9 +6,9 @@ import kotlin.math.floor
 /**
  * A cloud in the sky right now: which design, its left end and its baseline (dp), its scale and
  * how much of it is there; [deck]: part of an overcast sky's ceiling – it hangs upside down, its
- * humps towards the ground.
+ * humps towards the ground; [stretch]: drawn this much wider (mist).
  */
-class CloudPlace(val design: Int, val x: Float, val y: Float, val scale: Float, val alpha: Float, val deck: Boolean = false)
+class CloudPlace(val design: Int, val x: Float, val y: Float, val scale: Float, val alpha: Float, val deck: Boolean = false, val stretch: Float = 1f)
 
 /**
  * The clouds: lanes at different heights, each an endless procession of torn tissue drifting

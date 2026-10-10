@@ -93,10 +93,11 @@ class PaperLook(
     /** Where the shadows fall: −1 to the left … 1 to the right; and how long they are (about 1). */
     val shadowSide: Float,
     val shadowLength: Float,
-    /** Rain streaks and snowflakes (sRGB), and the valley's mist – what the weather lets fall and lie. */
+    /** Rain streaks and snowflakes (sRGB), and the valley's mist and how thick it lies (0..1). */
     val rainInk: Int,
     val snowInk: Int,
     val mist: Int,
+    val mistAlpha: Float,
     /** How strongly the campfire lights the clearing (0..1), the colour of its light and how far it reaches (dp). */
     val fire: Float,
     val fireGlow: Int,
@@ -376,6 +377,9 @@ object PaperLight {
         val rainInk = mixOk(sky[1], c(0xFFE6ECF2), 0.45f - 0.25f * night)
         val snowInk = scaled(WHITE, FloatArray(3) { dusk * (0.93f + 0.07f * (1f - night)) * maxOf(0.42f, level) })
         val mist = mixOk(horizon, c(0xFFF2F2EE), 0.3f * (1f - night))
+        // Mist lies in the valley in fog, a little in rain and snow – and a breath of it on calm mornings round sunrise.
+        val dawn = (1f - smooth(150f, 175f, s.sunAzimuth)) * smooth(-7f, -1.5f, s.sunElevation) * (1f - smooth(5f, 13f, s.sunElevation))
+        val mistAlpha = (0.85f * fog + 0.3f * rain + 0.15f * snow + 0.3f * dawn * (1f - 0.6f * cover) * (1f - storm)).coerceIn(0f, 1f)
         return PaperLook(
             sheets = sheets,
             cloud = Inks(muted(cloudLit), muted(cloudShade), muted(cloudRim)),
@@ -387,7 +391,7 @@ object PaperLight {
             moonLit = moonLit, moonDark = moonDark, moonAlpha = (1f - veil) * (0.5f + 0.5f * night), moonDarkAlpha = (1f - veil) * night,
             stars = p.stars * (1f - cover) * (1f - fog),
             shadow = p.shadow, shadowAlpha = shadowAlpha * (1f - 0.7f * fog), shadowSide = -side, shadowLength = 0.7f + 0.5f * low,
-            rainInk = rainInk, snowInk = snowInk, mist = mist,
+            rainInk = rainInk, snowInk = snowInk, mist = mist, mistAlpha = mistAlpha,
             fire = p.fire, fireGlow = FIRE_GLOW, fireReach = 46f + 70f * night,
             lantern = smooth(0.15f, 0.8f, night),
             label = label,

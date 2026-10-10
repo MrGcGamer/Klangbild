@@ -24,7 +24,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
@@ -34,6 +36,7 @@ import io.github.hazymorning.klangbild.vista.CameraPose
 import io.github.hazymorning.klangbild.vista.CloudPlace
 import io.github.hazymorning.klangbild.vista.Depth
 import io.github.hazymorning.klangbild.vista.Inks
+import io.github.hazymorning.klangbild.vista.MistField
 import io.github.hazymorning.klangbild.vista.Noise
 import io.github.hazymorning.klangbild.vista.PaperBake
 import io.github.hazymorning.klangbild.vista.PaperBaked
@@ -44,6 +47,7 @@ import io.github.hazymorning.klangbild.vista.SheetId
 import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.VistaCamera
 import io.github.hazymorning.klangbild.vista.Weather
+import io.github.hazymorning.klangbild.vista.Weatherfall
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.max
@@ -66,12 +70,18 @@ class PaperImages(val baked: PaperBaked) {
     val glow = img(baked.glow)
 }
 
-/** What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the wind, the camera, what falls. */
+/**
+ * What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the wind,
+ * the camera, what falls – [time] the wall clock's seconds, [cloudTime] the clouds' own clock
+ * (faster in the wind), [drift] how far the wind has blown so far (its integral over time).
+ */
 class PaperMotion(
     val time: Double,
     val clouds: List<CloudPlace>,
     val camera: CameraPose = VistaCamera.REST,
     val weather: Weather = Weather.FAIR,
+    val cloudTime: Double = time,
+    val drift: Double = time * Weather.BREEZE,
 )
 
 /**
@@ -87,6 +97,7 @@ class PaperMotion(
 fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlaces, motion: () -> PaperMotion, modifier: Modifier = Modifier) {
     val filters = remember(images) { FilterCache() }
     val stars = remember(images) { StarBatches() }
+    val fall = remember(images) { FallBatches() }
     val b = images.baked
     val all = 0 to b.canvasHeight
     val sky = remember(images) { 0 to b.sheets.getValue(SheetId.SKY).let { it.top + it.height } }
@@ -97,10 +108,13 @@ fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlace
         Canvas(Modifier.canvas(b, sky).camera(Depth.SKY, motion, b, sky, cached = true)) { rows(sky) { drawBack(images, look(), places(), filters) } }
         Canvas(Modifier.canvas(b, all).camera(Depth.SKY, motion, b, all, cached = false)) { drawMoving(images, look(), places(), motion(), filters, stars) }
         Canvas(Modifier.canvas(b, far).camera(Depth.FAR, motion, b, far, cached = true)) { rows(far) { drawLand(images, look(), filters, Depth.FAR) } }
+        Canvas(Modifier.canvas(b, all).camera(Depth.FAR, motion, b, all, cached = false)) { drawWeather(images, look(), motion(), filters, fall, Depth.FAR) }
         Canvas(Modifier.canvas(b, mid).camera(Depth.MID, motion, b, mid, cached = true)) { rows(mid) { drawLand(images, look(), filters, Depth.MID) } }
         Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawStandeesAndFlames(images, look(), motion(), filters) }
+        Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawWeather(images, look(), motion(), filters, fall, Depth.MID) }
         Canvas(Modifier.canvas(b, front).camera(Depth.FRONT, motion, b, front, cached = true)) { rows(front) { drawLand(images, look(), filters, Depth.FRONT) } }
         Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawLights(images, look(), motion(), filters) }
+        Canvas(Modifier.canvas(b, all).camera(Depth.FRONT, motion, b, all, cached = false)) { drawWeather(images, look(), motion(), filters, fall, Depth.FRONT) }
     }
 }
 
@@ -416,6 +430,136 @@ private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMoti
         )
     }
 }
+
+/**
+ * The weather at one depth, moving with its layer: the valley's mist lying there (tissue bands,
+ * drawn wide and faint), then the snowflakes and the rain's threads falling in front of it.
+ */
+private fun DrawScope.drawWeather(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache, fall: FallBatches, depth: Depth) {
+    val b = images.baked
+    val w = m.weather
+    if (l.mistAlpha > 0.01f && depth != Depth.FRONT) {
+        val filter = f.of(Inks.flat(l.mist))
+        for (c in MistField.places(m.cloudTime, l.mistAlpha, depth, fall.mist)) {
+            withTransform({
+                translate(b.px(c.x), b.px(c.y))
+                scale(c.scale * c.stretch, c.scale, pivot = Offset.Zero)
+            }) {
+                sheet(images.clouds[c.design], b.clouds[c.design], filter, c.alpha)
+            }
+        }
+    }
+    if (w.snow > 0.003f) {
+        for (band in Weatherfall.SNOW) if (band.depth == depth) {
+            val n = Weatherfall.place(band, m.time, m.drift, w.wind, w.snow, snow = true, fall.items)
+            drawIntoCanvas { fall.flakes(it.nativeCanvas, n, b, l.snowInk, l.shadow, l.shadowAlpha) }
+        }
+    }
+    if (w.rain > 0.003f) {
+        for (band in Weatherfall.RAIN) if (band.depth == depth) {
+            val n = Weatherfall.place(band, m.time, m.drift, w.wind, w.rain, snow = false, fall.items)
+            drawIntoCanvas { fall.threads(it.nativeCanvas, n, b, l.rainInk, band) }
+        }
+    }
+}
+
+/**
+ * Draws what falls in a few calls: the flakes as round points and the drops as lines, sorted
+ * into a handful of sizes and strengths – each batch one call. Buffers are kept between frames.
+ */
+private class FallBatches {
+    val items = FloatArray(Weatherfall.STRIDE * 200)
+    val mist = ArrayList<CloudPlace>()
+    private val sizes = 3
+    private val strengths = 3
+    private val buffers = Array(sizes * strengths) { FloatArray(400 * 2) }
+    private val lines = Array(strengths) { FloatArray(200 * 4) }
+    private val counts = IntArray(sizes * strengths)
+    private val lineCounts = IntArray(strengths)
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+
+    /** The flakes: discs of white paper, each with a breath of shadow below it (seen against a pale sky), by size and strength. */
+    fun flakes(canvas: android.graphics.Canvas, n: Int, b: PaperBaked, ink: Int, shadow: Int, shadowAlpha: Float) {
+        if (n == 0) return
+        counts.fill(0)
+        var lo = Float.MAX_VALUE
+        var hi = 0f
+        for (i in 0 until n) {
+            val s = items[i * Weatherfall.STRIDE + 2]
+            lo = minOf(lo, s)
+            hi = maxOf(hi, s)
+        }
+        for (i in 0 until n) {
+            val o = i * Weatherfall.STRIDE
+            val size = if (hi > lo) (((items[o + 2] - lo) / (hi - lo)) * sizes).toInt().coerceIn(0, sizes - 1) else 0
+            val strength = (items[o + 3] * strengths).toInt().coerceIn(0, strengths - 1)
+            val k = size * strengths + strength
+            val buf = buffers[k]
+            val c = counts[k]
+            if (c * 2 + 1 >= buf.size) continue
+            buf[c * 2] = b.px(items[o])
+            buf[c * 2 + 1] = b.px(items[o + 1])
+            counts[k] = c + 1
+        }
+        paint.style = android.graphics.Paint.Style.STROKE
+        val drop = FLAKE_SHADOW_DP * b.density
+        for (k in buffers.indices) {
+            if (counts[k] == 0) continue
+            val size = k / strengths
+            val strength = k % strengths
+            val r = lo + (hi - lo) * (size + 0.5f) / sizes
+            val a = (strength + 1f) / strengths
+            paint.strokeWidth = 2f * r * b.density
+            paint.color = shadow
+            paint.alpha = (255 * a * (0.18f + 0.4f * shadowAlpha)).toInt().coerceIn(0, 255)
+            canvas.save()
+            canvas.translate(drop * 0.4f, drop)
+            canvas.drawPoints(buffers[k], 0, counts[k] * 2, paint)
+            canvas.restore()
+            paint.color = ink
+            paint.alpha = (255 * a).toInt().coerceIn(0, 255)
+            canvas.drawPoints(buffers[k], 0, counts[k] * 2, paint)
+        }
+    }
+
+    /** The rain: fine threads, slanting with the wind, by strength. */
+    fun threads(canvas: android.graphics.Canvas, n: Int, b: PaperBaked, ink: Int, band: Weatherfall.Band) {
+        if (n == 0) return
+        val lc = lineCounts
+        lc.fill(0)
+        for (i in 0 until n) {
+            val o = i * Weatherfall.STRIDE
+            val strength = (items[o + 3] * strengths).toInt().coerceIn(0, strengths - 1)
+            val buf = lines[strength]
+            val c = lc[strength]
+            if (c * 4 + 3 >= buf.size) continue
+            val len = items[o + 2]
+            val slant = items[o + 4]
+            // The head where it is, the tail behind it along the way it came.
+            buf[c * 4] = b.px(items[o] - slant * len)
+            buf[c * 4 + 1] = b.px(items[o + 1] - len)
+            buf[c * 4 + 2] = b.px(items[o])
+            buf[c * 4 + 3] = b.px(items[o + 1])
+            lc[strength] = c + 1
+        }
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = (0.7f + 0.03f * band.sizeMax) * b.density
+        for (k in 0 until strengths) {
+            if (lc[k] == 0) continue
+            paint.color = ink
+            paint.alpha = (255 * RAIN_ALPHA * (k + 1f) / strengths).toInt().coerceIn(0, 255)
+            canvas.drawLines(lines[k], 0, lc[k] * 4, paint)
+        }
+    }
+}
+
+/** How strong the rain's threads are at most: a veil, not a curtain. */
+private const val RAIN_ALPHA = 0.42f
+
+/** How far below a flake its shadow falls (dp). */
+private const val FLAKE_SHADOW_DP = 0.9f
 
 /** How far the cut-outs lean in the breeze, at most (degrees). */
 private const val SWAY_DEG = 0.8f

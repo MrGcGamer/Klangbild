@@ -30,12 +30,23 @@ class VistaMotionTest {
 
     private val berlin = Place(52.52, 13.40)
 
-    private fun run(name: String, hour: Int, minute: Int, frames: Int, stepMs: Long, timelapse: Boolean = false, cover: Float = 0.6f) {
-        val start = java.time.ZonedDateTime.of(2026, 10, 10, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
+    private fun run(
+        name: String,
+        hour: Int,
+        minute: Int,
+        frames: Int,
+        stepMs: Long,
+        timelapse: Boolean = false,
+        cover: Float = 0.6f,
+        weather: Weather = Weather(cover = cover),
+        month: Int = 10,
+        day: Int = 10,
+    ) {
+        val start = java.time.ZonedDateTime.of(2026, month, day, hour, minute, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         var wall = start
         val clock = VistaClock(now = { wall })
         if (timelapse) clock.timelapse(true)
-        val feed = VistaFeed(place = { berlin }, weather = { Weather(cover = cover) }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
+        val feed = VistaFeed(place = { berlin }, weather = { weather }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
         compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }
         // The picture is baked off the main thread: give it the time it takes, then let it fade in.
@@ -60,4 +71,13 @@ class VistaMotionTest {
 
     @Test
     fun timelapse() = run("timelapse", 6, 0, frames = 12, stepMs = 5_000, timelapse = true, cover = 0.3f)
+
+    @Test
+    fun snow() = run("snow", 14, 0, frames = 8, stepMs = 250, weather = Weather(cover = 0.95f, snow = 0.7f, wind = 0.25f), month = 1, day = 22)
+
+    @Test
+    fun rain() = run("rain", 16, 0, frames = 8, stepMs = 250, weather = Weather(cover = 1f, rain = 0.7f, wind = 0.4f))
+
+    @Test
+    fun fog() = run("fog", 9, 30, frames = 6, stepMs = 5_000, weather = Weather(cover = 0.75f, fog = 1f, wind = 0.05f))
 }
