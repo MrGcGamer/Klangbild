@@ -43,9 +43,9 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** The baked sheets as images the screen can draw (made off the main thread). */
+/** The baked sheets as images the screen can draw (made off the main thread); the baked pixels are let go once copied. */
 class PaperImages(val baked: PaperBaked) {
-    private fun img(s: Sheet): ImageBitmap = Bitmap.createBitmap(s.pixels, s.width, s.height, Bitmap.Config.ARGB_8888).asImageBitmap()
+    private fun img(s: Sheet): ImageBitmap = Bitmap.createBitmap(s.pixels, s.width, s.height, Bitmap.Config.ARGB_8888).asImageBitmap().also { s.release() }
 
     val sheets: Map<SheetId, ImageBitmap> = baked.sheets.mapValues { img(it.value) }
     val shadows: Map<SheetId, ImageBitmap> = baked.shadows.mapValues { img(it.value) }

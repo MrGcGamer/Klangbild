@@ -40,9 +40,17 @@ enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val r
  * A baked piece of the picture in its own box (pixels): for the sheets of the canvas (which
  * starts [PaperMotif.OVERSCAN] dp left of and above the screen), for sprites relative to their
  * anchor. Its pixels hold ink weights, the paper's light and coverage (see [Inks]); a sheet
- * baked smaller (soft shadows) is drawn [scale] times its size.
+ * baked smaller (soft shadows) is drawn [scale] times its size. Once the screen has made an
+ * image of it, its pixels are let go ([release]): only its place is needed to draw it.
  */
-class Sheet(val left: Int, val top: Int, val width: Int, val height: Int, val pixels: IntArray, val scale: Int = 1)
+class Sheet(val left: Int, val top: Int, val width: Int, val height: Int, pixels: IntArray, val scale: Int = 1) {
+    var pixels: IntArray = pixels
+        private set
+
+    fun release() {
+        pixels = IntArray(0)
+    }
+}
 
 /** Snow, leaves and blossom as the season stands – what changes the shapes, not only the colours. */
 data class SeasonShapes(
