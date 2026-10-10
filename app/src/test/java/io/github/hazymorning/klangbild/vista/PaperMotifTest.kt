@@ -69,4 +69,27 @@ class PaperMotifTest {
         assertThat(top).isWithin(1f).of(highest)
         assertThat(PaperMotif.skyline(352f)).isWithin(1f).of(134f)
     }
+
+    @Test
+    fun `the tent and the stones stand where they are seen - clear of the banks, the fire and each other`() {
+        for (side in LabelSide.entries) {
+            val fg = PaperMotif.foreground(side)
+            val left = Shapes.line(fg.frontLeft)
+            val right = Shapes.line(fg.frontRight)
+            fun hidden(x: Float, y: Float) = (x < PaperMotif.WIDTH / 2 && y > left.yAt(x)) || (x > PaperMotif.WIDTH / 2 && y > right.yAt(x))
+            // The tent: its corners and its top in the open, well apart from the fire's stones.
+            val foot = fg.fireY - 5f
+            for (x in listOf(fg.tentX - PaperBake.TENT_HALF, fg.tentX, fg.tentX + PaperBake.TENT_HALF * 1.45f)) {
+                assertThat(hidden(x, foot - 1f)).isFalse()
+            }
+            assertThat(kotlin.math.abs(fg.tentX - fg.fireX)).isGreaterThan(PaperBake.TENT_HALF + 27f + 12f)
+            for (r in fg.rocks) {
+                assertThat(hidden(r.x, r.y - r.h * 0.5f)).isFalse()
+                assertThat(kotlin.math.abs(r.x - fg.fireX)).isGreaterThan(27f + r.w / 2f + 6f)
+            }
+            // The tent stands on the fire's side, away from the label.
+            if (side == LabelSide.LEFT) assertThat(fg.tentX).isGreaterThan(PaperMotif.LABEL_LEFT_X + PaperMotif.LABEL_MAX_WIDTH)
+            if (side == LabelSide.RIGHT) assertThat(fg.tentX).isLessThan(PaperMotif.LABEL_RIGHT_X)
+        }
+    }
 }

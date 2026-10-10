@@ -34,6 +34,7 @@ import io.github.hazymorning.klangbild.vista.SeasonShapes
 import io.github.hazymorning.klangbild.vista.SkyMap
 import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.SkyState
+import io.github.hazymorning.klangbild.vista.VistaCamera
 import io.github.hazymorning.klangbild.vista.VistaClock
 import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -77,7 +78,7 @@ fun Fensterblick(
         val h = constraints.maxHeight
         val density = LocalDensity.current.density
         val still = LocalStill.current
-        val state = remember(feed) { VistaFrameState(feed) }
+        val state = remember(feed) { VistaFrameState(feed, still) }
         val frame = remember { mutableLongStateOf(0L) }
         // The light moves on only every few seconds: what is drawn from it alone waits for that.
         val light = remember { mutableIntStateOf(0) }
@@ -134,7 +135,8 @@ fun Fensterblick(
             shown?.let { s ->
                 PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
             }
-            if (shown != null) content(look)
+            // The label lies on the near bank: it moves with it as the camera drifts.
+            if (shown != null) Box(Modifier.fillMaxSize().onNearBank(motion)) { content(look) }
         }
     }
 }
@@ -218,7 +220,7 @@ private const val PREVIEW_SEASON_FADE_MS = 1_500
  * moved on by [LOOK_EVERY_MS] of its own time – each step far below a visible level – except
  * while the preview glides or runs the time-lapse, where every frame counts.
  */
-private class VistaFrameState(private val feed: VistaFeed) {
+private class VistaFrameState(private val feed: VistaFeed, private val still: Boolean = false) {
     var frames = 0L
         private set
     var look: PaperLook = PaperLight.look(SkyState(30f, 180f))
@@ -263,12 +265,13 @@ private class VistaFrameState(private val feed: VistaFeed) {
             places = SkyMap.places(s, heavens.siderealDeg, heavens.latitude)
         }
         val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
-        motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)))
+        // A still shows the camera at rest: the whole picture.
+        motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)), if (still) VistaCamera.REST else VistaCamera.at(seconds))
         return relit
     }
 
     /** The shapes to bake: blossom only colours the crowns (the light has it), so it never asks for a new bake. */
-    private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves))
+    private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves), flowers = q(s.flowers), fallen = q(s.fallen))
 
     /** Steps of 1/16: a new bake only when a shape has visibly changed. */
     private fun q(v: Float) = (v * 16f).roundToInt() / 16f

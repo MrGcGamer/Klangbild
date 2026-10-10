@@ -5,18 +5,42 @@ import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 
 class PaperBakeTest {
-    private val summer = PaperBake.bake(960, 540, 1f)
+    private val summer = PaperBake.bake(960, 540, 1f, SeasonShapes(flowers = 0.6f))
     private val winter = PaperBake.bake(960, 540, 1f, SeasonShapes(snow = 1f, peaks = 1f, leaves = 0f), LabelSide.RIGHT)
 
     @Test
     fun `every sheet is cut, and nothing is left of the leaves in winter`() {
-        assertThat(summer.sheets.keys).containsAtLeastElementsIn(SheetId.entries.toList())
+        // The meadow's cut-outs are sprites of their own; the birches' crowns go with them.
+        val sheets = SheetId.entries - setOf(SheetId.STANDEES, SheetId.CROWNS)
+        assertThat(summer.sheets.keys).containsAtLeastElementsIn(sheets)
         assertThat(winter.sheets.keys).doesNotContain(SheetId.LEAVES)
+        assertThat(winter.sheets.keys).containsNoneOf(SheetId.BLOOMS, SheetId.BLOOMS_NEAR)
         assertThat(winter.sheets.keys).contains(SheetId.SNOW)
         for ((id, s) in summer.sheets) {
             assertWithMessage("$id").that(s.pixels.any { it ushr 24 != 0 }).isTrue()
             assertWithMessage("$id").that(s.width * s.height).isEqualTo(s.pixels.size)
         }
+    }
+
+    @Test
+    fun `firs and birches stand on the meadow as sprites of their own - the birches bare in winter`() {
+        val fg = PaperMotif.foreground(LabelSide.LEFT)
+        assertThat(summer.standees).hasSize(fg.standees.size + fg.birches.size)
+        assertThat(summer.standees.count { st -> st.parts.any { it.first == SheetId.CROWNS } }).isEqualTo(fg.birches.size)
+        assertThat(winter.standees.none { st -> st.parts.any { it.first == SheetId.CROWNS } }).isTrue()
+        for (st in summer.standees) {
+            assertThat(st.shadows).hasSize(st.parts.size)
+            // Each stands on its foot: its pieces end just below it.
+            assertThat(st.parts.maxOf { it.second.top + it.second.height }).isIn(com.google.common.collect.Range.closed(0, 12))
+        }
+    }
+
+    @Test
+    fun `flowers in spring and summer, fallen leaves in autumn, neither in winter`() {
+        val autumn = PaperBake.bake(960, 540, 1f, SeasonShapes(leaves = 0.6f, fallen = 1f))
+        assertThat(summer.sheets.keys).containsAtLeast(SheetId.BLOOMS, SheetId.BLOOMS_NEAR)
+        assertThat(autumn.sheets.keys).containsAtLeast(SheetId.BLOOMS, SheetId.BLOOMS_NEAR)
+        assertThat(PaperBake.bake(960, 540, 1f).sheets.keys).containsNoneOf(SheetId.BLOOMS, SheetId.BLOOMS_NEAR)
     }
 
     @Test

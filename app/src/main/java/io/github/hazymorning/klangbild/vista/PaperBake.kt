@@ -14,26 +14,40 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
+ * How far back a sheet stands, for the camera's slow drift: the sky, the far mountains, the
+ * clearing and the near banks each move as one layer – the nearer, the more ([parallax]).
+ */
+enum class Depth(val parallax: Float) { SKY(0.15f), FAR(0.35f), MID(0.65f), FRONT(1f) }
+
+/**
  * The sheets of the diorama, back to front. Each stands at its own distance in front of what
  * lies behind it ([depth], dp – how far and how softly its shadow falls; 0: none), is a little
  * out of focus the farther it is from the clearing ([blur], dp), and catches the light on its cut
- * top edge ([rim]); [occludes]: it darkens what stands close behind it.
+ * top edge ([rim]); [occludes]: it darkens what stands close behind it. [layer]: which of the
+ * camera's layers it moves with.
  */
-enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val rim: Float, val occludes: Boolean = true) {
-    SKY(PaperKind.WASH, 0f, 0f, 0f),
-    RANGE_FAR(PaperKind.CARD, 0f, 1.0f, 0.1f),
+enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val rim: Float, val layer: Depth, val occludes: Boolean = true) {
+    SKY(PaperKind.WASH, 0f, 0f, 0f, Depth.SKY),
+    RANGE_FAR(PaperKind.CARD, 0f, 1.0f, 0.1f, Depth.FAR),
     // The caps lie flat on their mountains: their shade is baked into the range (see occludes), no shadow spills on the sky.
-    SNOW(PaperKind.WHITE, 0f, 1.0f, 0f),
-    RANGE_NEAR(PaperKind.CARD, 1f, 0.7f, 0.1f),
-    WOOD_FAR(PaperKind.CARD, 1f, 0.5f, 0.1f),
-    WOOD_NEAR(PaperKind.CARD, 1.2f, 0.25f, 0.1f),
-    LEAVES(PaperKind.CARD, 0f, 0.25f, 0f, occludes = false),
-    MEADOW(PaperKind.CARD, 1.6f, 0f, 0.1f),
-    STANDEES(PaperKind.CARD, 1.2f, 0f, 0.08f),
-    FIREWOOD(PaperKind.CARD, 0.3f, 0f, 0.12f),
-    MEADOW_NEAR(PaperKind.CARD, 0.8f, 0f, 0.1f),
-    FRONT_LEFT(PaperKind.CARD, 2.6f, 0.6f, 0.1f),
-    FRONT_RIGHT(PaperKind.CARD, 2.6f, 0.6f, 0.1f),
+    SNOW(PaperKind.WHITE, 0f, 1.0f, 0f, Depth.FAR),
+    RANGE_NEAR(PaperKind.CARD, 1f, 0.7f, 0.1f, Depth.FAR),
+    WOOD_FAR(PaperKind.CARD, 1f, 0.5f, 0.1f, Depth.MID),
+    WOOD_NEAR(PaperKind.CARD, 1.2f, 0.25f, 0.1f, Depth.MID),
+    LEAVES(PaperKind.CARD, 0f, 0.25f, 0f, Depth.MID, occludes = false),
+    MEADOW(PaperKind.CARD, 1.6f, 0f, 0.1f, Depth.MID),
+    // Flowers and fallen leaves lie flat on their meadow.
+    BLOOMS(PaperKind.CARD, 0f, 0f, 0f, Depth.MID, occludes = false),
+    // The meadow's cut-outs are sprites of their own ([Standee]): they sway; birches wear their crowns in the leaves' colours.
+    STANDEES(PaperKind.CARD, 1.2f, 0f, 0.08f, Depth.MID),
+    CROWNS(PaperKind.CARD, 1.2f, 0f, 0.06f, Depth.MID),
+    TENT(PaperKind.CARD, 1.2f, 0f, 0.1f, Depth.MID),
+    PROPS(PaperKind.CARD, 0.9f, 0f, 0.1f, Depth.MID),
+    FIREWOOD(PaperKind.CARD, 0.3f, 0f, 0.12f, Depth.MID),
+    MEADOW_NEAR(PaperKind.CARD, 0.8f, 0f, 0.1f, Depth.FRONT),
+    BLOOMS_NEAR(PaperKind.CARD, 0f, 0f, 0f, Depth.FRONT, occludes = false),
+    FRONT_LEFT(PaperKind.CARD, 2.6f, 0.6f, 0.1f, Depth.FRONT),
+    FRONT_RIGHT(PaperKind.CARD, 2.6f, 0.6f, 0.1f, Depth.FRONT),
 }
 
 /**
@@ -62,10 +76,21 @@ data class SeasonShapes(
     val leaves: Float = 1f,
     /** Blossom, 0 to 1 – it only colours the crowns ([SkyState.blossom]); the bake ignores it. */
     val blossom: Float = 0f,
+    /** Flowers in the meadows (spring and early summer), 0 to 1. */
+    val flowers: Float = 0f,
+    /** Fallen leaves on the meadows (autumn), 0 to 1. */
+    val fallen: Float = 0f,
 )
 
 /** One tongue of the campfire's flames: crumpled tissue, flickering about its foot (canvas pixels). */
 class Flame(val sheet: Sheet, val footX: Float, val footY: Float, val seed: Int)
+
+/**
+ * A cut-out standing on the meadow, swaying a little about its foot ([footX], [footY], canvas
+ * pixels): its pieces (relative to the foot) with the sheet whose inks they take, each piece's
+ * soft shadow, and its own [seed] for the breeze.
+ */
+class Standee(val footX: Float, val footY: Float, val parts: List<Pair<SheetId, Sheet>>, val shadows: List<Sheet>, val seed: Int)
 
 /** Everything the picture is drawn from, for one screen size, one state of the season and one label side. */
 class PaperBaked(
@@ -82,6 +107,11 @@ class PaperBaked(
     val flames: List<Flame>,
     val fireX: Float,
     val fireY: Float,
+    /** The meadow's cut-outs, each to be drawn on its own (they sway). */
+    val standees: List<Standee>,
+    /** The middle of the tent's door (canvas pixels): its lantern's light at night. */
+    val doorX: Float,
+    val doorY: Float,
     /** Paper discs for the sun and the moon (relative to their middle), and their shadow. */
     val sun: Sheet,
     val moon: Sheet,
@@ -97,6 +127,28 @@ class PaperBaked(
 ) {
     /** Canvas pixels of a screen position in dp. */
     fun px(dp: Float): Float = (dp + PaperMotif.OVERSCAN) * density
+
+    /**
+     * The rows of the canvas (pixels, from … until) that a layer's sheets and their shadows
+     * cover: a layer kept as an image needs no more (it is drawn and kept only there).
+     */
+    fun band(depth: Depth): Pair<Int, Int> {
+        var top = canvasHeight
+        var bottom = 0
+        for ((id, s) in sheets) {
+            if (id.layer != depth) continue
+            top = minOf(top, s.top)
+            bottom = maxOf(bottom, s.top + s.height)
+            shadows[id]?.let { sh ->
+                top = minOf(top, sh.top)
+                bottom = maxOf(bottom, sh.top + sh.height * sh.scale)
+            }
+        }
+        if (bottom <= top) return 0 to canvasHeight
+        // A few rows to spare: the shadows are offset when drawn.
+        val spare = (8f * density).toInt()
+        return (top - spare).coerceAtLeast(0) to (bottom + spare).coerceAtMost(canvasHeight)
+    }
 }
 
 /**
@@ -113,10 +165,17 @@ object PaperBake {
         val ch = ceil((m.HEIGHT + 2 * m.OVERSCAN) * density).toInt().coerceAtLeast(heightPx)
         val b = Baker(cw, ch, density, shapes, m.foreground(label))
         val sheets = LinkedHashMap<SheetId, Sheet>()
+        var standees: List<Standee> = emptyList()
         // From the front to the back: every sheet knows what stands in front of it.
         for (id in SheetId.entries.reversed()) {
-            val build = b.build(id) ?: continue
-            sheets[id] = b.finish(build)
+            when (id) {
+                SheetId.CROWNS -> continue
+                SheetId.STANDEES -> standees = b.standees()
+                else -> {
+                    val build = b.build(id) ?: continue
+                    sheets[id] = b.finish(build)
+                }
+            }
         }
         val ordered = LinkedHashMap<SheetId, Sheet>()
         for (id in SheetId.entries) sheets[id]?.let { ordered[id] = it }
@@ -124,7 +183,8 @@ object PaperBake {
         val clouds = (0 until CLOUD_DESIGNS).map { b.cloud(it) }
         return PaperBaked(
             cw, ch, density, ordered, shadows, clouds, clouds.map { b.shadow(it, shadowBlurDp(CLOUD_DEPTH)) },
-            b.flames(), b.px(b.fg.fireX), b.px(b.fg.fireY), b.disc(SUN_RADIUS, 77), b.disc(MOON_RADIUS, 78),
+            b.flames(), b.px(b.fg.fireX), b.px(b.fg.fireY), standees, b.px(b.fg.tentX), b.px(b.tentFoot - TENT_HEIGHT * 0.24f),
+            b.disc(SUN_RADIUS, 77), b.disc(MOON_RADIUS, 78),
             b.shadow(b.disc(SUN_RADIUS, 79), DISC_SHADOW_DP), b.glow(), shapes, leafAlpha(shapes.leaves), label,
             (System.nanoTime() - started) / 1_000_000,
         )
@@ -150,12 +210,19 @@ object PaperBake {
     /** The paper's light is stored in the raster up to this factor while it is cut. */
     private const val TONE_MAX = 1.25f
 
-    /** How far down (dp) each sheet is baked: below, nearer sheets hide it everywhere. */
-    private const val SKY_BOTTOM = 312f
-    private const val RANGE_BOTTOM = 344f
+    /**
+     * How far down (dp) each sheet is baked: below, nearer sheets hide it everywhere – even when
+     * the camera's layers have drifted apart by a few dp.
+     */
+    private const val SKY_BOTTOM = 318f
+    private const val RANGE_BOTTOM = 350f
     private const val WOOD_FAR_BOTTOM = 402f
     private const val WOOD_NEAR_BOTTOM = 458f
-    private const val MEADOW_BOTTOM = 500f
+    private const val MEADOW_BOTTOM = 522f
+
+    /** The tent: half its width and its height (dp). */
+    const val TENT_HALF = 30f
+    const val TENT_HEIGHT = 41f
 
     /** A weight (or the paper's light) at a point of the screen (dp). */
     private fun interface W {
@@ -275,9 +342,13 @@ object PaperBake {
             SheetId.WOOD_NEAR -> woodNear(leaves = false)
             SheetId.LEAVES -> if (shapes.leaves > 0.05f) woodNear(leaves = true) else null
             SheetId.MEADOW -> meadow()
-            SheetId.STANDEES -> standees()
+            SheetId.BLOOMS -> blooms(near = false)
+            SheetId.STANDEES, SheetId.CROWNS -> null
+            SheetId.TENT -> tent()
+            SheetId.PROPS -> props()
             SheetId.FIREWOOD -> firewood()
             SheetId.MEADOW_NEAR -> meadowNear()
+            SheetId.BLOOMS_NEAR -> blooms(near = true)
             SheetId.FRONT_LEFT -> front(left = true)
             SheetId.FRONT_RIGHT -> front(left = false)
         }
@@ -417,14 +488,211 @@ object PaperBake {
             return b
         }
 
-        /** Firs standing on the meadow as cut-outs, a white margin round each, folded down the middle. */
-        fun standees(): Build? {
+        /**
+         * The meadow's cut-outs, each a sprite of its own about its foot, so it can sway: firs
+         * with a fine margin of the card's light core, folded down the middle; and birches –
+         * their white trunks and twigs, their crowns of little leaf clusters in the season's
+         * colours (gone in winter).
+         */
+        fun standees(): List<Standee> {
             val rnd = Rnd(61)
-            val firs = fg.standees.map { (x, h) -> fir(x, meadowLine.yAt(x) + 6f, h, rnd, width = 0.46f, snow = snowOnTrees()) }
-            if (firs.isEmpty()) return null
-            val all = firs.flatMap { it.tiers + it.trunk }
-            val b = build(SheetId.STANDEES, all.minOf { it.minX() } - 4f, all.minOf { it.minY() } - 4f, all.maxOf { it.maxX() } + 4f, all.maxOf { it.maxY() } + 4f)
-            for (f in firs) standee(b, f, margin = 1.3f, aoSigma = 2f)
+            val items = (fg.standees.map { (x, h) -> Triple(x, h, false) } + fg.birches.map { (x, h) -> Triple(x, h, true) }).sortedBy { it.first }
+            return items.mapIndexed { k, (x, h, isBirch) ->
+                val foot = meadowLine.yAt(x) + 6f
+                val parts = ArrayList<Pair<SheetId, Sheet>>()
+                if (isBirch) {
+                    val t = birch(x, foot, h, rnd)
+                    val crownOn = shapes.leaves > 0.05f
+                    // The crown stands in front of its twigs: cut first (front to back), then the trunk behind it.
+                    val crown = if (crownOn) {
+                        val all = t.crown
+                        val cb = build(SheetId.CROWNS, all.minOf { it.minX() } - 3f, all.minOf { it.minY() } - 3f, all.maxOf { it.maxX() } + 3f, all.maxOf { it.maxY() } + 3f)
+                        for ((i, cl) in t.crown.withIndex()) {
+                            val tone = 1f + 0.06f * rnd.normal() - 0.12f * Shapes.smoothstep(t.top + h * 0.25f, t.top + h * 0.6f, cl.maxY())
+                            lay(cb, mask(listOf(cl)), c(if (i % 3 == 1) 1f else 0f), ZERO, c(tone), aoCast = 0.12f, aoSigma = 1.2f)
+                        }
+                        SheetId.CROWNS to finish(cb)
+                    } else {
+                        null
+                    }
+                    val wood = listOf(t.trunk) + t.branches
+                    val b = build(SheetId.STANDEES, wood.minOf { it.minX() } - 3f, wood.minOf { it.minY() } - 3f, wood.maxOf { it.maxX() } + 3f, foot + 3f)
+                    lay(b, mask(t.branches), ZERO, ZERO, c(0.55f))
+                    lay(b, mask(listOf(t.trunk)), ZERO, c(1f), W { xx, _ -> 1.04f - 0.16f * ((xx - t.axis) / t.width).coerceIn(-1f, 1f) }, aoCast = 0.15f, aoSigma = 1.5f)
+                    lay(b, mask(t.marks), ZERO, ZERO, c(0.42f))
+                    if (snowOnTrees() > 0f) lay(b, mask(t.snow), ZERO, c(0.95f))
+                    parts += SheetId.STANDEES to finish(b)
+                    if (crown != null) parts += crown
+                } else {
+                    val f = fir(x, foot, h, rnd, width = 0.46f, jag = 0.85f, snow = snowOnTrees())
+                    val all = f.tiers + f.trunk
+                    val b = build(SheetId.STANDEES, all.minOf { it.minX() } - 4f, all.minOf { it.minY() } - 4f, all.maxOf { it.maxX() } + 4f, all.maxOf { it.maxY() } + 4f)
+                    standee(b, f, margin = 0.75f, aoSigma = 2f)
+                    parts += SheetId.STANDEES to finish(b)
+                }
+                val fx = px(x)
+                val fy = px(foot)
+                val shadows = parts.map { (_, sh) -> relative(shadow(sh, shadowBlurDp(SheetId.STANDEES.depth)), fx, fy) }
+                Standee(fx, fy, parts.map { (id, sh) -> id to relative(sh, fx, fy) }, shadows, k)
+            }
+        }
+
+        /** [s] placed relative to an anchor at canvas pixel ([ax], [ay]). */
+        private fun relative(s: Sheet, ax: Float, ay: Float) = Sheet(s.left - ax.roundToInt(), s.top - ay.roundToInt(), s.width, s.height, s.pixels, s.scale)
+
+        /** Where the tent stands: a little behind the fire, on the same ground. */
+        val tentFoot: Float get() = fg.fireY - 5f
+
+        /**
+         * A small tent of paper by the fire: its front a triangle of canvas, sagging a little
+         * between its poles, the side wall running back to the right, the door a dark triangle
+         * with its flap folded back, the ridge pole's tip above. At night a lantern lights the
+         * door from inside (drawn as light, see [PaperBaked.doorX]).
+         */
+        fun tent(): Build {
+            val cx = fg.tentX
+            val foot = tentFoot
+            val hw = TENT_HALF
+            val h = TENT_HEIGHT
+            val ax = cx + 1.5f
+            val ay = foot - h
+            fun sag(x0: Float, y0: Float, x1: Float, y1: Float, depth: Float): List<Pair<Float, Float>> = (0..10).map { i ->
+                val t = i / 10f
+                val nx = -(y1 - y0)
+                val ny = x1 - x0
+                val l = kotlin.math.hypot(nx, ny)
+                val k = depth * 4f * t * (1f - t) / l
+                (x0 + (x1 - x0) * t + nx * k) to (y0 + (y1 - y0) * t + ny * k)
+            }
+            val face = wobbled(Outline.of(sag(ax, ay, cx + hw, foot, 0.9f) + sag(cx + hw, foot, cx - hw, foot, -0.4f).drop(1) + sag(cx - hw, foot, ax, ay, 0.9f).drop(1)), 811, 0.25f, closed = true)
+            val side = wobbled(Outline.of(listOf(ax to ay, (ax + hw * 0.44f) to (ay + 3f), (cx + hw * 1.45f) to (foot - 3.5f), (cx + hw) to foot)), 812, 0.2f, closed = true)
+            val doorTop = foot - h * 0.6f
+            val door = Outline.of(listOf((ax - 0.5f) to doorTop, (cx + hw * 0.3f) to foot, (cx - hw * 0.24f) to foot))
+            val flap = Outline.of(listOf((ax - 0.5f) to doorTop, (cx - hw * 0.24f) to foot, (cx - hw * 0.5f) to (foot - 0.7f)))
+            val pole = Shapes.stroke(ax, ay + 1f, ax + 0.3f, ay - 2.2f, ax + 0.6f, ay - 5f, 1.5f, 1.1f)
+            val b = build(SheetId.TENT, cx - hw - 4f, ay - 7f, cx + hw * 1.45f + 4f, foot + 4f)
+            // The side wall turns to the right; the front faces the viewer: halfway between the lights.
+            lay(b, mask(listOf(side)), c(1f), ZERO, c(0.9f), aoCast = 0.2f, aoSigma = 2f)
+            lay(b, mask(listOf(face)), c(0.5f), ZERO, W { _, y -> 1.02f - 0.08f * Shapes.smoothstep(ay, foot, y) }, aoCast = 0.25f, aoSigma = 2f)
+            lay(b, mask(listOf(door)), ZERO, c(1f))
+            lay(b, mask(listOf(flap)), c(0.8f), ZERO, c(1.12f), aoCast = 0.2f, aoSigma = 1f)
+            lay(b, mask(listOf(pole)), ZERO, ZERO, c(0.5f))
+            return b
+        }
+
+        /**
+         * Boulders of folded grey card on the meadow, the faces towards the light lit; and snow
+         * on them and on the tent's ridge, where the season has it.
+         */
+        fun props(): Build? {
+            val rocks = fg.rocks.mapIndexed { i, r -> rock(r, 840 + i) }
+            val snow = shapes.snow
+            val tent = if (snow > 0.05f) tentSnow(snow) else emptyList()
+            val all = rocks.map { it.first } + tent
+            if (all.isEmpty()) return null
+            val b = build(SheetId.PROPS, all.minOf { it.minX() } - 4f, all.minOf { it.minY() } - 4f, all.maxOf { it.maxX() } + 4f, all.maxOf { it.maxY() } + 4f)
+            for ((i, rock) in rocks.withIndex()) {
+                val (outline, crease) = rock
+                val r = fg.rocks[i]
+                lay(b, mask(listOf(outline)), W { x, y -> (((x - crease(y)) * d) + 0.5f).coerceIn(0f, 1f) }, ZERO, W { _, y -> 1.04f - 0.12f * Shapes.smoothstep(r.y - r.h, r.y, y) }, aoCast = 0.25f, aoSigma = 1.5f)
+                if (snow > 0.05f) {
+                    val cap = Outline.of((0..16).map { k -> val t = k / 16f; (r.x - r.w * 0.6f + r.w * 1.2f * t) to (r.y - r.h * (0.72f - 0.35f * snow) + 1.2f * sin(t * 9f + i)) } + listOf((r.x + r.w) to (r.y - r.h * 2f), (r.x - r.w) to (r.y - r.h * 2f)))
+                    lay(b, intersect(mask(listOf(outline)), mask(listOf(cap))), ZERO, c(1f))
+                }
+            }
+            if (tent.isNotEmpty()) lay(b, mask(tent), ZERO, c(1f), c(1.02f))
+            return b
+        }
+
+        /** A boulder for [r]: its outline (rounded above, flat below) and its crease (x at a height). */
+        private fun rock(r: Rock, seed: Int): Pair<Outline, (Float) -> Float> {
+            val rnd = Rnd(seed)
+            val pts = (0..28).map { k ->
+                val a = PI.toFloat() * (1f + k / 28f)
+                val bulge = 1f + 0.12f * sin(3f * a + seed) + 0.05f * rnd.normal()
+                (r.x + r.w / 2f * cos(a) * bulge) to (r.y + r.h * sin(a) * bulge.coerceAtMost(1.1f))
+            } + listOf((r.x + r.w / 2f) to (r.y + 1.5f), (r.x - r.w / 2f) to (r.y + 1.5f))
+            val outline = wobbled(Outline.of(pts), seed, 0.3f, closed = true)
+            val topX = r.x + r.w * (0.05f + 0.1f * rnd.normal())
+            val footX = r.x + r.w * 0.18f
+            return outline to { y -> topX + (footX - topX) * ((y - (r.y - r.h)) / r.h).coerceIn(0f, 1f) }
+        }
+
+        /** Snow along the tent's ridge and on its side wall's top. */
+        private fun tentSnow(snow: Float): List<Outline> {
+            val cx = fg.tentX
+            val foot = tentFoot
+            val ax = cx + 1.5f
+            val ay = foot - TENT_HEIGHT
+            val depth = 2.5f + 4f * snow
+            val left = Outline.of((0..10).map { i -> val t = i / 10f; (ax - TENT_HALF * 0.55f * t) to (ay + TENT_HEIGHT * 0.55f * t) } +
+                (10 downTo 0).map { i -> val t = i / 10f; (ax - TENT_HALF * 0.55f * t + 0.6f) to (ay + TENT_HEIGHT * 0.55f * t + depth * (0.6f + 0.4f * sin(i * 1.7f))) })
+            val hw = TENT_HALF
+            val ridge = Outline.of(listOf((ax - 0.5f) to (ay - 0.8f), (ax + hw * 0.46f) to (ay + 2.2f), (cx + hw * 1.46f) to (foot - 4f - 0.2f * depth), (cx + hw * 1.36f) to (foot - 3.5f + 0.5f * depth), (ax + hw * 0.4f) to (ay + 3f + depth), (ax - 0.5f) to (ay + depth)))
+            return listOf(left, ridge)
+        }
+
+        /**
+         * Flowers in the meadow's grass in spring and early summer – five petals round a heart,
+         * in patches – and fallen leaves in autumn; smaller on the far meadow, kept clear of the
+         * fire, the tent and the stones.
+         */
+        fun blooms(near: Boolean): Build? {
+            val flowers = shapes.flowers
+            val fallen = shapes.fallen
+            if (max(flowers, fallen) < 0.05f) return null
+            val line = if (near) Shapes.line(PaperMotif.meadowNear) else meadowLine
+            val nearLine = Shapes.line(PaperMotif.meadowNear)
+            val rnd = Rnd(if (near) 133 else 131)
+            val pieces = ArrayList<Pair<Outline, Int>>()
+            val count = ((if (near) 90 else 150) * max(flowers, fallen)).toInt()
+            var placed = 0
+            var tries = 0
+            while (placed < count && tries < count * 40) {
+                tries++
+                val x = -12f + (PaperMotif.WIDTH + 24f) * rnd.next()
+                val top = line.yAt(x) + 5f
+                val bottom = if (near) PaperMotif.HEIGHT + 6f else nearLine.yAt(x) + 2f
+                if (bottom <= top) continue
+                val y = top + (bottom - top) * rnd.next()
+                // In patches, never by the fire, the tent or a stone.
+                val patch = Noise.at(x / 46.0 + (if (near) 17.0 else 3.0), y / 21.0 - 5.0).toFloat()
+                if (patch < 0.08f + 0.5f * rnd.next()) continue
+                if (kotlin.math.hypot(x - fg.fireX, (y - fg.fireY) * 1.6f) < 48f) continue
+                if (!near && abs(x - fg.tentX - 5f) < TENT_HALF + 16f && y < tentFoot + 6f) continue
+                if (fg.rocks.any { abs(x - it.x) < it.w * 0.7f && abs(y - it.y + it.h * 0.4f) < it.h }) continue
+                val s = if (near) 1.15f else 0.75f + 0.25f * ((y - top) / (bottom - top))
+                placed++
+                if (flowers >= fallen) {
+                    val ink = if (rnd.next() < 0.55f) 0 else 1
+                    val r = 1.1f * s * (0.8f + 0.4f * rnd.next())
+                    val turn = rnd.next() * 6.3f
+                    for (k in 0 until 5) {
+                        val a = turn + k * 1.2566f
+                        pieces += Shapes.circle(x + cos(a) * r * 1.05f, y + sin(a) * r * 0.75f, r * 0.72f, segments = 10) to ink
+                    }
+                    pieces += Shapes.circle(x, y, r * 0.48f, segments = 8) to 2
+                } else {
+                    val a = rnd.next() * 3.14f
+                    val rx = 2.1f * s * (0.8f + 0.4f * rnd.next())
+                    val ry = rx * 0.48f
+                    val pts = (0 until 12).map { k ->
+                        val t = k / 12f * 6.283f
+                        val px = cos(t) * rx * (1f - 0.18f * cos(t))
+                        val py = sin(t) * ry
+                        (x + px * cos(a) - py * sin(a)) to (y + px * sin(a) + py * cos(a))
+                    }
+                    pieces += Outline.of(pts) to (if (rnd.next() < 0.5f) 1 else 2)
+                }
+            }
+            if (pieces.isEmpty()) return null
+            val all = pieces.map { it.first }
+            val b = build(if (near) SheetId.BLOOMS_NEAR else SheetId.BLOOMS, all.minOf { it.minX() } - 2f, all.minOf { it.minY() } - 2f, all.maxOf { it.maxX() } + 2f, all.maxOf { it.maxY() } + 2f)
+            for (ink in 0..2) {
+                val group = pieces.filter { it.second == ink }.map { it.first }
+                if (group.isEmpty()) continue
+                lay(b, mask(group), c(if (ink == 1) 1f else 0f), c(if (ink == 2) 1f else 0f), c(1.02f))
+            }
             return b
         }
 
@@ -485,7 +753,7 @@ object PaperBake {
                 val cornerX = if (left) -o - 4f else PaperMotif.WIDTH + o + 4f
                 Outline(e.xs + floatArrayOf(cornerX), e.ys + floatArrayOf(PaperMotif.BOTTOM))
             }
-            val firs = fg.frontFirs.filter { (it.x < PaperMotif.WIDTH / 2f) == left }.map { fir(it.x, it.footY, it.height, rnd, width = 0.42f, snow = snowOnTrees()) }
+            val firs = fg.frontFirs.filter { (it.x < PaperMotif.WIDTH / 2f) == left }.map { fir(it.x, it.footY, it.height, rnd, width = 0.42f, jag = 0.7f, snow = snowOnTrees()) }
             val parts = listOf(bank) + firs.flatMap { it.tiers + it.trunk }
             val b = build(if (left) SheetId.FRONT_LEFT else SheetId.FRONT_RIGHT, parts.minOf { it.minX() } - 4f, parts.minOf { it.minY() } - 4f, parts.maxOf { it.maxX() } + 4f, PaperMotif.BOTTOM)
             val band = if (shapes.snow > 0.05f) 3f + 7f * shapes.snow else 0f
@@ -493,18 +761,21 @@ object PaperBake {
             val from = if (left) -20f else knots.last().x - 6f
             val to = if (left) knots.last().x + 6f else PaperMotif.WIDTH + 30f
             lay(b, mask(grass(line, from, to, rnd, 3f, 10f)), c(0.55f), c(0.5f * shapes.snow), c(1.06f))
-            for (f in firs) standee(b, f, margin = 2f, aoSigma = 3f)
+            for (f in firs) standee(b, f, margin = 1.0f, aoSigma = 3f)
             return b
         }
 
         // --- pieces -------------------------------------------------------------------------
 
-        /** A fir as a stand-up cut-out: the white margin, the trunk, the tiers folded down the middle, snow on them. */
+        /**
+         * A fir as a stand-up cut-out: a fine margin of the card's light core round it, the
+         * trunk (its bark in shade), the tiers folded down the middle, snow on them.
+         */
         fun standee(b: Build, f: FirCut, margin: Float, aoSigma: Float) {
             val pad = ((margin * 3f + aoSigma * 3f) * d).toInt() + 4
             val all = mask(f.tiers + f.trunk, pad) ?: return
             lay(b, margin(all, margin), ZERO, c(1f), aoCast = 0.22f, aoSigma = aoSigma)
-            lay(b, mask(listOf(f.trunk), pad), c(0.35f), ZERO, c(0.55f))
+            lay(b, mask(listOf(f.trunk), pad), c(0.2f), ZERO, W { x, _ -> 0.5f + 0.1f * ((x - f.axisX) / 3f).coerceIn(-1f, 1f) })
             lay(b, mask(f.tiers, pad), foldOf(f), ZERO)
             capFir(b, f)
         }
@@ -905,19 +1176,25 @@ object PaperBake {
 
         // --- trees --------------------------------------------------------------------------
 
-        /** A broad-leaved tree: a trunk and a crown of four overlapping paper discs. */
+        /**
+         * A broad-leaved tree: a crown of clustered leaf masses – a large one in the middle, smaller
+         * ones round its top and sides, its underside flatter – on a short trunk that forks into it.
+         */
         fun roundTree(cx: Float, footY: Float, h: Float, rnd: Rnd): RoundTree {
-            val r = h * 0.3f
-            val cy = footY - h + r * 1.1f
-            val discs = (0 until 4).map { k ->
-                val a = -PI.toFloat() / 2 + (k - 1.5f) * 0.9f
-                val dx = (if (k == 0) 0f else cos(a) * r * 0.45f) + rnd.normal() * r * 0.05f
-                val dy = (if (k == 0) 0f else sin(a) * r * 0.3f + r * 0.25f) + rnd.normal() * r * 0.05f
-                val rr = r * (0.75f + 0.2f * rnd.next())
-                wobbled(Shapes.ellipse(cx + dx, cy + dy, rr, rr * 0.92f, segments = 40), (cx * 13 + k).toInt(), 0.5f, closed = true)
+            val r = h * 0.36f
+            val cy = footY - h + r
+            val discs = ArrayList<Outline>()
+            discs += wobbled(Shapes.ellipse(cx, cy + r * 0.12f, r * 0.84f, r * 0.76f, segments = 40), (cx * 13).toInt(), 0.5f, closed = true)
+            val k = 6
+            for (i in 0 until k) {
+                val a = PI.toFloat() * (1.05f + 0.9f * i / (k - 1f)) + rnd.normal() * 0.12f
+                val rr = r * (0.42f + 0.16f * rnd.next())
+                val dx = cos(a) * r * 0.62f
+                val dy = sin(a) * r * 0.5f + r * 0.08f
+                discs += wobbled(Shapes.ellipse(cx + dx, cy + dy, rr, rr * 0.9f, segments = 32), (cx * 13 + i + 1).toInt(), 0.4f, closed = true)
             }
-            val tw = max(0.8f, h * 0.05f)
-            val trunk = Outline.of(listOf(cx - tw to cy, cx + tw to cy, cx + tw * 1.2f to footY + 2f, cx - tw * 1.2f to footY + 2f))
+            val tw = max(0.8f, h * 0.045f)
+            val trunk = Outline.of(listOf(cx - tw * 0.8f to cy + r * 0.2f, cx + tw * 0.8f to cy + r * 0.2f, cx + tw * 1.15f to footY - 1f, cx + tw * 1.5f to footY + 2f, cx - tw * 1.5f to footY + 2f, cx - tw * 1.15f to footY - 1f))
             return RoundTree(discs, trunk, cx, cy, r)
         }
 
@@ -934,7 +1211,7 @@ object PaperBake {
                 else -> 7
             }
             if (rnd.next() < 0.3f) tiers++
-            val trunkH = h * 0.07f
+            val trunkH = h * 0.05f
             val top = footY - h
             val crownH = h - trunkH
             val lean = rnd.normal() * 0.035f
@@ -975,9 +1252,83 @@ object PaperBake {
                     caps += Outline.of(listOf(apex) + down + down.reversed().map { (x, y) -> x to y + depth * (0.7f + 0.3f * sin(x * 0.7f)) })
                 }
             }
-            val tw = max(0.7f, h * 0.042f)
-            val trunk = Outline.of(listOf(cx - tw to footY - trunkH - 3f, cx + tw to footY - trunkH - 3f, cx + tw * 1.2f to footY + 2f, cx - tw * 1.2f to footY + 2f))
+            // A slim trunk, only its foot showing under the lowest boughs, a little wider where it meets
+            // the ground. Tall firs keep it slender: a trunk as wide as the small ones' would stand like a bell.
+            val tw = max(0.55f, min(h * 0.026f, 1.5f + h * 0.011f))
+            val trunk = Outline.of(
+                listOf(
+                    cx - tw * 0.85f to footY - trunkH - 4f, cx + tw * 0.85f to footY - trunkH - 4f, cx + tw to footY - 1.2f,
+                    cx + tw * 1.3f to footY + 1.6f, cx - tw * 1.3f to footY + 1.6f, cx - tw to footY - 1.2f,
+                ),
+            )
             return FirCut(outlines, caps, trunk, cx, top, lean)
+        }
+
+        /**
+         * A birch: a slender white trunk, a little bent, with its dark marks; thin twigs rising
+         * from its upper half; a crown of small leaf clusters along them (the season's colour,
+         * gone in winter, when the twigs carry snow instead).
+         */
+        fun birch(cx: Float, footY: Float, h: Float, rnd: Rnd): BirchCut {
+            val top = footY - h
+            val lean = rnd.normal() * 0.025f
+            val tw = max(1.1f, h * 0.03f)
+            val tipX = cx + lean * h
+            val trunk = Shapes.stroke(cx, footY + 1.5f, cx + lean * h * 0.3f + 1.2f, footY - h * 0.55f, tipX, top + h * 0.08f, tw * 2.3f, tw * 0.6f)
+            fun axisAt(y: Float): Float {
+                val t = ((footY - y) / h).coerceIn(0f, 1f)
+                return cx + (tipX - cx) * t * t + 1.2f * 2f * t * (1f - t)
+            }
+            val branches = ArrayList<Outline>()
+            val twigTips = ArrayList<Pair<Float, Float>>()
+            val n = 6
+            for (i in 0 until n) {
+                val t = 0.42f + 0.48f * i / (n - 1f)
+                val by = footY - h * t
+                val bx = axisAt(by)
+                val dir = if (i % 2 == 0) -1f else 1f
+                val len = h * (0.15f + 0.08f * rnd.next()) * (1.1f - 0.4f * t)
+                val ex = bx + dir * len
+                val ey = by - len * (0.8f + 0.3f * rnd.next())
+                branches += Shapes.stroke(bx, by, bx + dir * len * 0.55f, by - len * 0.25f, ex, ey, tw * 0.9f, tw * 0.3f)
+                twigTips += ex to ey
+            }
+            val marks = ArrayList<Outline>()
+            var y = footY - h * 0.06f
+            while (y > top + h * 0.15f) {
+                val ax = axisAt(y)
+                val half = tw * (1.1f - 0.5f * (footY - y) / h)
+                val w = half * (0.5f + 0.7f * rnd.next())
+                val off = (rnd.next() - 0.5f) * half * 0.8f
+                marks += Shapes.ellipse(ax + off, y, w, 0.35f + 0.3f * rnd.next(), segments = 12)
+                y -= 3.5f + 5f * rnd.next()
+            }
+            // The crown: an upright oval of overlapping leaf clusters round the upper trunk, and a few at the twigs' tips.
+            val crown = ArrayList<Outline>()
+            val cy = top + h * 0.37f
+            val ry = h * 0.31f
+            val rx = h * 0.17f
+            var tries = 0
+            while (crown.size < 17 && tries < 400) {
+                tries++
+                val u = rnd.next() * 2f - 1f
+                val v = rnd.next() * 2f - 1f
+                if (u * u + v * v > 1f) continue
+                val yy = cy + v * ry
+                val r = h * (0.05f + 0.03f * rnd.next()) * (1f - 0.25f * v)
+                crown += wobbled(Shapes.ellipse(axisAt(yy) + u * rx, yy, r * 1.12f, r * 0.86f, segments = 20), (cx * 7 + crown.size).toInt(), 0.3f, closed = true)
+            }
+            for ((i, tip) in twigTips.withIndex()) {
+                if (i % 2 == 1) continue
+                val r = h * 0.042f
+                crown += wobbled(Shapes.ellipse(tip.first, tip.second + r * 0.3f, r * 1.1f, r * 0.85f, segments = 18), (cx * 11 + i).toInt(), 0.3f, closed = true)
+            }
+            val snow = if (snowOnTrees() > 0f) branches.map { br ->
+                Outline(br.xs, FloatArray(br.ys.size) { br.ys[it] - 0.6f })
+            } else {
+                emptyList()
+            }
+            return BirchCut(trunk, branches, marks, crown, snow, cx, tw, top)
         }
 
         // --- helpers ------------------------------------------------------------------------
@@ -1034,6 +1385,18 @@ object PaperBake {
 
     /** A broad-leaved tree: crown discs, trunk, and the crown's middle and radius (dp). */
     private class RoundTree(val discs: List<Outline>, val trunk: Outline, val cx: Float, val cy: Float, val r: Float)
+
+    /** A birch as cut: trunk, twigs, the trunk's marks, the crown's leaf clusters, snow on the twigs; its axis, half width and top (dp). */
+    private class BirchCut(
+        val trunk: Outline,
+        val branches: List<Outline>,
+        val marks: List<Outline>,
+        val crown: List<Outline>,
+        val snow: List<Outline>,
+        val axis: Float,
+        val width: Float,
+        val top: Float,
+    )
 
     /** How far (dp) a snow cap reaches beyond its mountain's edge. */
     private const val CAP_OVERHANG = 1.4f

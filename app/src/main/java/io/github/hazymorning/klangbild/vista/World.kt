@@ -110,6 +110,8 @@ object World {
             peaks = 1f - window(d, 92f, 170f, 258f, 324f),
             leaves = window(d, 98f, 130f, 288f, 320f),
             blossom = window(d, 94f, 108f, 114f, 130f),
+            flowers = window(d, 96f, 120f, 186f, 222f),
+            fallen = window(d, 268f, 292f, 318f, 340f),
         )
         return mix to shapes
     }

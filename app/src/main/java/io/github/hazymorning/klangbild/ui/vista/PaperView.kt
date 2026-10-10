@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui.vista
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -19,6 +18,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -26,9 +26,13 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import io.github.hazymorning.klangbild.vista.CameraPose
 import io.github.hazymorning.klangbild.vista.CloudPlace
+import io.github.hazymorning.klangbild.vista.Depth
 import io.github.hazymorning.klangbild.vista.Inks
 import io.github.hazymorning.klangbild.vista.Noise
 import io.github.hazymorning.klangbild.vista.PaperBake
@@ -38,6 +42,7 @@ import io.github.hazymorning.klangbild.vista.PaperMotif
 import io.github.hazymorning.klangbild.vista.Sheet
 import io.github.hazymorning.klangbild.vista.SheetId
 import io.github.hazymorning.klangbild.vista.SkyPlaces
+import io.github.hazymorning.klangbild.vista.VistaCamera
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.max
@@ -49,6 +54,8 @@ class PaperImages(val baked: PaperBaked) {
 
     val sheets: Map<SheetId, ImageBitmap> = baked.sheets.mapValues { img(it.value) }
     val shadows: Map<SheetId, ImageBitmap> = baked.shadows.mapValues { img(it.value) }
+    val standees: List<List<ImageBitmap>> = baked.standees.map { st -> st.parts.map { img(it.second) } }
+    val standeeShadows: List<List<ImageBitmap>> = baked.standees.map { st -> st.shadows.map { img(it) } }
     val clouds = baked.clouds.map { img(it) }
     val cloudShadows = baked.cloudShadows.map { img(it) }
     val flames = baked.flames.map { img(it.sheet) }
@@ -58,43 +65,88 @@ class PaperImages(val baked: PaperBaked) {
     val glow = img(baked.glow)
 }
 
-/** What moves, at one moment: the clouds, the fire, the stars' flicker. */
+/** What moves, at one moment: the clouds, the fire, the stars' flicker, the cut-outs in the breeze, the camera. */
 class PaperMotion(
     val time: Double,
     val clouds: List<CloudPlace>,
+    val camera: CameraPose = VistaCamera.REST,
 )
 
 /**
- * Draws the diorama in four layers. The sky (with the sun and the moon) and the land change
- * only with the light – every ten seconds or so – so each is drawn into a layer of its own and
- * kept between frames; the stars, the clouds and the fire move on every frame, drawn over them.
- * Everything that changes is a colour matrix, a position or a small transform: nothing is cut
- * anew. [look] and [places] should only be read anew when the light has moved on.
+ * Draws the diorama in layers, each moved by the camera as far as its depth asks
+ * ([VistaCamera]): the sky (with the sun and the moon), the far mountains, the clearing and the
+ * near banks change only with the light – every ten seconds or so – so each is drawn into a
+ * layer of its own and kept between frames, the camera only moving the finished layer; the
+ * stars and the clouds, the cut-outs swaying in the breeze, the fire and its light are drawn
+ * every frame. Everything that changes is a colour matrix, a position or a small transform:
+ * nothing is cut anew. [look] and [places] should only be read anew when the light has moved on.
  */
 @Composable
 fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlaces, motion: () -> PaperMotion, modifier: Modifier = Modifier) {
     val filters = remember(images) { FilterCache() }
     val stars = remember(images) { StarBatches() }
+    val b = images.baked
+    val all = 0 to b.canvasHeight
+    val sky = remember(images) { 0 to b.sheets.getValue(SheetId.SKY).let { it.top + it.height } }
+    val far = remember(images) { b.band(Depth.FAR) }
+    val mid = remember(images) { b.band(Depth.MID) }
+    val front = remember(images) { b.band(Depth.FRONT) }
     Box(modifier) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
-            overscanned(images.baked) { drawBack(images, look(), places(), filters) }
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            overscanned(images.baked) { drawMoving(images, look(), places(), motion(), filters, stars) }
-        }
-        Canvas(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
-            overscanned(images.baked) { drawLand(images, look(), filters) }
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            overscanned(images.baked) { drawFire(images, look(), motion(), filters) }
-        }
+        Canvas(Modifier.canvas(b, sky).camera(Depth.SKY, motion, b, sky, cached = true)) { rows(sky) { drawBack(images, look(), places(), filters) } }
+        Canvas(Modifier.canvas(b, all).camera(Depth.SKY, motion, b, all, cached = false)) { drawMoving(images, look(), places(), motion(), filters, stars) }
+        Canvas(Modifier.canvas(b, far).camera(Depth.FAR, motion, b, far, cached = true)) { rows(far) { drawLand(images, look(), filters, Depth.FAR) } }
+        Canvas(Modifier.canvas(b, mid).camera(Depth.MID, motion, b, mid, cached = true)) { rows(mid) { drawLand(images, look(), filters, Depth.MID) } }
+        Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawStandeesAndFlames(images, look(), motion(), filters) }
+        Canvas(Modifier.canvas(b, front).camera(Depth.FRONT, motion, b, front, cached = true)) { rows(front) { drawLand(images, look(), filters, Depth.FRONT) } }
+        Canvas(Modifier.canvas(b, all).camera(Depth.MID, motion, b, all, cached = false)) { drawLights(images, look(), motion(), filters) }
     }
 }
 
-/** The canvas starts [PaperMotif.OVERSCAN] dp left of and above the screen. */
-private inline fun DrawScope.overscanned(b: PaperBaked, block: DrawScope.() -> Unit) {
-    val o = PaperMotif.OVERSCAN * b.density
-    translate(-o, -o) { block() }
+/**
+ * A layer's canvas: the baked canvas's rows [rows] (pixels), placed where they stand – the
+ * canvas reaches [PaperMotif.OVERSCAN] beyond the screen on every side, so neither the camera
+ * nor the screen's drift ever shows an edge, and a layer kept as an image is only as tall as
+ * the paper it holds.
+ */
+private fun Modifier.canvas(b: PaperBaked, rows: Pair<Int, Int>): Modifier = layout { measurable, constraints ->
+    val o = (PaperMotif.OVERSCAN * b.density).roundToInt()
+    val p = measurable.measure(Constraints.fixed(b.canvasWidth, rows.second - rows.first))
+    layout(constraints.maxWidth, constraints.maxHeight) { p.place(-o, rows.first - o) }
+}
+
+/** Draws in the baked canvas's coordinates on a canvas that starts at row [rows]. */
+private inline fun DrawScope.rows(rows: Pair<Int, Int>, block: DrawScope.() -> Unit) {
+    translate(0f, -rows.first.toFloat()) { block() }
+}
+
+/**
+ * Moves a layer with the camera, as far as its [depth] asks – read every frame, but only the
+ * layer's transform changes: a [cached] layer keeps what it drew (until the light moves on).
+ * The layer holds the baked canvas's [rows]; it turns about the camera's point on the screen.
+ */
+private fun Modifier.camera(depth: Depth, motion: () -> PaperMotion, b: PaperBaked, rows: Pair<Int, Int>, cached: Boolean): Modifier = graphicsLayer {
+    val pose = motion().camera
+    val k = pose.scale(depth)
+    scaleX = k
+    scaleY = k
+    translationX = pose.dx(depth) * density
+    translationY = pose.dy(depth) * density
+    transformOrigin = TransformOrigin(b.px(VistaCamera.PIVOT_X) / b.canvasWidth, (b.px(VistaCamera.PIVOT_Y) - rows.first) / (rows.second - rows.first))
+    if (cached) compositingStrategy = CompositingStrategy.Offscreen
+}
+
+/**
+ * Moves what lies on the near bank (the music's label) with it – a screen-sized box, the same
+ * point of the screen at the middle of the camera's move.
+ */
+fun Modifier.onNearBank(motion: () -> PaperMotion): Modifier = graphicsLayer {
+    val pose = motion().camera
+    val k = pose.scale(Depth.FRONT)
+    scaleX = k
+    scaleY = k
+    translationX = pose.dx(Depth.FRONT) * density
+    translationY = pose.dy(Depth.FRONT) * density
+    transformOrigin = TransformOrigin(VistaCamera.PIVOT_X / PaperMotif.WIDTH, VistaCamera.PIVOT_Y / PaperMotif.HEIGHT)
 }
 
 /**
@@ -264,13 +316,13 @@ private fun DrawScope.drawMoving(images: PaperImages, l: PaperLook, p: SkyPlaces
     }
 }
 
-/** The land, back to front: each sheet's soft shadow on what lies behind it, then the sheet. */
-private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache) {
+/** One layer of the land, back to front: each sheet's soft shadow on what lies behind it, then the sheet. */
+private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache, depth: Depth) {
     val b = images.baked
     val d = b.density
     val shadowFilter = f.tint(l.shadow)
     for ((id, s) in b.sheets) {
-        if (id == SheetId.SKY) continue
+        if (id == SheetId.SKY || id.layer != depth) continue
         val alpha = if (id == SheetId.LEAVES) b.leafAlpha else 1f
         if (alpha <= 0.01f) continue
         val shadow = b.shadows[id]
@@ -285,24 +337,34 @@ private fun DrawScope.drawLand(images: PaperImages, l: PaperLook, f: FilterCache
 }
 
 /**
- * The campfire: its tongues of tissue, each stretching and leaning a little on its own, never
- * in a loop; and its warm light on the clearing, breathing with them.
+ * The cut-outs on the meadow, each swaying a little about its foot in a breeze of its own –
+ * a few tenths of a degree, never in a loop – with its shadow; then the campfire's tongues of
+ * tissue, each stretching and leaning on its own.
  */
-private fun DrawScope.drawFire(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
+private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
     val b = images.baked
     val d = b.density
     val t = m.time
-    if (l.fire > 0.005f) {
-        val reach = l.fireReach * d
-        // The glow's Gaussian falls to e^-½ at [reach]; the sprite's own at 0.395 of its radius.
-        val w = 2f * reach / 0.395f
-        val h = w * 0.68f
-        val breath = 0.9f + 0.1f * Noise.wander(t, 0.7, 600).toFloat()
-        drawImage(
-            images.glow, dstOffset = IntOffset((b.fireX - w / 2).roundToInt(), (b.fireY - 10f * d - h / 2).roundToInt()),
-            dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(l.fireGlow), alpha = (l.fire * breath).coerceIn(0f, 1f),
-            blendMode = BlendMode.Plus, filterQuality = FilterQuality.Low,
-        )
+    val shadowFilter = f.tint(l.shadow)
+    val depth = SheetId.STANDEES.depth
+    for ((i, st) in b.standees.withIndex()) {
+        val sway = SWAY_DEG * Noise.wander(t, 5.5 + 0.8 * st.seed, 700 + st.seed).toFloat()
+        withTransform({
+            translate(st.footX, st.footY)
+            rotate(sway, pivot = Offset.Zero)
+        }) {
+            if (l.shadowAlpha > 0.003f) {
+                for ((k, sh) in st.shadows.withIndex()) {
+                    val alpha = if (st.parts[k].first == SheetId.CROWNS) b.leafAlpha else 1f
+                    sheet(images.standeeShadows[i][k], sh, shadowFilter, l.shadowAlpha * alpha, l.shadowSide * (1f + 3.8f * depth) * l.shadowLength * d, (1.4f + 1.6f * depth) * d)
+                }
+            }
+            for ((k, part) in st.parts.withIndex()) {
+                val (id, sheet) = part
+                val alpha = if (id == SheetId.CROWNS) b.leafAlpha else 1f
+                if (alpha > 0.01f) sheet(images.standees[i][k], sheet, f.of(l.inks(id)), alpha)
+            }
+        }
     }
     val filter = f.of(l.flame)
     for ((i, flame) in b.flames.withIndex()) {
@@ -318,6 +380,44 @@ private fun DrawScope.drawFire(images: PaperImages, l: PaperLook, m: PaperMotion
         }
     }
 }
+
+/**
+ * The light of the camp, added over everything near it: the fire's on the clearing, breathing
+ * with its flames, and at night the lantern's in the tent's door.
+ */
+private fun DrawScope.drawLights(images: PaperImages, l: PaperLook, m: PaperMotion, f: FilterCache) {
+    val b = images.baked
+    val d = b.density
+    val t = m.time
+    if (l.fire > 0.005f) {
+        val reach = l.fireReach * d
+        // The glow's Gaussian falls to e^-½ at [reach]; the sprite's own at 0.395 of its radius.
+        val w = 2f * reach / 0.395f
+        val h = w * 0.68f
+        val breath = 0.9f + 0.1f * Noise.wander(t, 0.7, 600).toFloat()
+        drawImage(
+            images.glow, dstOffset = IntOffset((b.fireX - w / 2).roundToInt(), (b.fireY - 10f * d - h / 2).roundToInt()),
+            dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(l.fireGlow), alpha = (l.fire * breath).coerceIn(0f, 1f),
+            blendMode = BlendMode.Plus, filterQuality = FilterQuality.Low,
+        )
+    }
+    if (l.lantern > 0.01f) {
+        val w = LANTERN_DP * d
+        val h = w * 0.85f
+        drawImage(
+            images.glow, dstOffset = IntOffset((b.doorX - w / 2).roundToInt(), (b.doorY - h / 2).roundToInt()),
+            dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(LANTERN), alpha = (0.85f * l.lantern).coerceIn(0f, 1f),
+            blendMode = BlendMode.Plus, filterQuality = FilterQuality.Low,
+        )
+    }
+}
+
+/** How far the cut-outs lean in the breeze, at most (degrees). */
+private const val SWAY_DEG = 0.8f
+
+/** The lantern's light in the tent's door: its colour and how wide it falls (dp). */
+private const val LANTERN_DP = 40f
+private const val LANTERN = 0xFFFFB45A.toInt()
 
 private val STAR = Color(0xFFF3EEDF)
 

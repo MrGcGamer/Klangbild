@@ -14,6 +14,9 @@ class Mountain(val knots: List<Knot>, val summitX: Float, val summitY: Float, va
 /** A fir standing in the picture: its foot (dp) and its height. */
 class Fir(val x: Float, val footY: Float, val height: Float)
 
+/** A boulder of folded grey card: its middle on the ground (dp), its width and height. */
+class Rock(val x: Float, val y: Float, val w: Float, val h: Float)
+
 /**
  * The one picture, a diorama of paper on the 960 × 540 dp screen (and [OVERSCAN] beyond, so
  * the slow drift never shows an edge): looking south across a clearing in the woods to the
@@ -98,7 +101,7 @@ object PaperMotif {
      */
     fun foreground(side: LabelSide): Foreground = when (side) {
         LabelSide.LEFT -> LEFT
-        LabelSide.NONE -> Foreground(frontLeftLow, LEFT.frontRight, LEFT.standees, LEFT.frontFirs, LEFT.fireX, LEFT.fireY)
+        LabelSide.NONE -> Foreground(frontLeftLow, LEFT.frontRight, LEFT.standees, LEFT.birches, LEFT.frontFirs, LEFT.fireX, LEFT.fireY, LEFT.tentX, LEFT.rocks)
         LabelSide.RIGHT -> LEFT.mirrored()
     }
 
@@ -118,10 +121,13 @@ object PaperMotif {
     private val LEFT = Foreground(
         frontLeft = frontLeftWide,
         frontRight = frontRightLow,
-        standees = listOf(352f to 74f, 382f to 50f, 300f to 98f, 262f to 64f, 676f to 58f, 720f to 90f, 762f to 68f, 790f to 46f),
+        standees = listOf(352f to 74f, 382f to 50f, 300f to 98f, 756f to 92f, 818f to 54f),
+        birches = listOf(258f to 78f, 788f to 80f),
         frontFirs = listOf(Fir(6f, 450f, 232f), Fir(982f, 482f, 382f), Fir(906f, 490f, 300f)),
         fireX = 612f,
         fireY = 458f,
+        tentX = 690f,
+        rocks = listOf(Rock(489f, 451f, 27f, 15f), Rock(512f, 455f, 13f, 7f), Rock(734f, 459f, 14f, 8f)),
     )
 
     /**
@@ -141,18 +147,25 @@ object PaperMotif {
         val frontRight: List<Knot>,
         /** Firs standing on the meadow as cut-outs: x and height (dp); their feet on the meadow's contour. */
         val standees: List<Pair<Float, Float>>,
+        /** Birches standing on the meadow the same way: x and height (dp). */
+        val birches: List<Pair<Float, Float>>,
         /** The tall firs on the near banks. */
         val frontFirs: List<Fir>,
         /** The campfire's foot (dp). */
         val fireX: Float,
         val fireY: Float,
+        /** The tent's middle by the fire (dp); it stands a little behind the fire. */
+        val tentX: Float,
+        /** Boulders on the meadows. */
+        val rocks: List<Rock>,
     ) {
         /** The same, mirrored about the screen's middle. */
         fun mirrored(): Foreground {
             fun m(knots: List<Knot>) = knots.map { Knot(WIDTH - it.x, it.y, it.corner) }
             return Foreground(
-                m(frontRight), m(frontLeft), standees.map { (x, h) -> WIDTH - x to h },
-                frontFirs.map { Fir(WIDTH - it.x, it.footY, it.height) }, WIDTH - fireX, fireY,
+                m(frontRight), m(frontLeft), standees.map { (x, h) -> WIDTH - x to h }, birches.map { (x, h) -> WIDTH - x to h },
+                frontFirs.map { Fir(WIDTH - it.x, it.footY, it.height) }, WIDTH - fireX, fireY, WIDTH - tentX,
+                rocks.map { Rock(WIDTH - it.x, it.y, it.w, it.h) },
             )
         }
     }

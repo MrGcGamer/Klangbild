@@ -90,6 +90,8 @@ class PaperLook(
     val fire: Float,
     val fireGlow: Int,
     val fireReach: Float,
+    /** The lantern in the tent: its door glows warm from inside as the night comes (0..1). */
+    val lantern: Float,
     /**
      * The music's label on the near bank: title; artist and the bar's fill; everything else –
      * near-neutral with a breath of the bank's hue, each keeping 4.5:1 on it.
@@ -176,28 +178,37 @@ object PaperLight {
 
     // --- the papers ----------------------------------------------------------------------------
 
-    /** The papers of one season: every sheet's colour by daylight, and the colours of the broad-leaved crowns. */
+    /**
+     * The papers of one season: every sheet's colour by daylight, the colours of the broad-leaved
+     * crowns, and of what lies in the meadows – flowers (two colours and their hearts) in spring
+     * and summer, fallen leaves (two colours) in autumn.
+     */
     private class Papers(
         val far: Int, val snow: Int, val near: Int, val woodFar: Int, val woodNear: Int, val meadow: Int, val meadowNear: Int,
-        val standees: Int, val front: Int, val leaves: IntArray,
+        val standees: Int, val front: Int, val leaves: IntArray, val blooms: IntArray,
     )
 
     private val SPRING = Papers(
         c(0xFFABB3CE), c(0xFFF2F0EA), c(0xFF7690A8), c(0xFF6E9086), c(0xFF58866C), c(0xFFA5BE6C), c(0xFF96B262), c(0xFF467A5C), c(0xFF264B3C),
-        ints(0xFF9CC47A, 0xFFB9D68E, 0xFFB4D28A),
+        ints(0xFF9CC47A, 0xFFB9D68E, 0xFFB4D28A), ints(0xFFF3EFE6, 0xFFE6A6B9, 0xFFE8C455),
     )
     private val SUMMER = Papers(
         c(0xFFA9B1CC), c(0xFFF2F0EA), c(0xFF7890A8), c(0xFF6D8C86), c(0xFF557E6C), c(0xFF9DAE6E), c(0xFF8CA265), c(0xFF43725A), c(0xFF24473A),
-        ints(0xFF557F5E, 0xFF5F8A62, 0xFF4F7858),
+        ints(0xFF557F5E, 0xFF5F8A62, 0xFF4F7858), ints(0xFFF3EFE6, 0xFFEBC24E, 0xFFC98FB4),
     )
     private val AUTUMN = Papers(
         c(0xFFA9AFC6), c(0xFFF2F0EA), c(0xFF7E90A4), c(0xFF708A80), c(0xFF5B7A66), c(0xFFB3AA6A), c(0xFFA69A5C), c(0xFF45705A), c(0xFF2C4636),
-        ints(0xFFE0A33C, 0xFFD2702E, 0xFFB0492C),
+        ints(0xFFE0A33C, 0xFFD2702E, 0xFFB0492C), ints(0xFFE2B04A, 0xFFD27A33, 0xFFA8452C),
     )
     private val WINTER = Papers(
         c(0xFFB0B8D0), c(0xFFF4F4F2), c(0xFF8496B0), c(0xFF667F84), c(0xFF4E6C66), c(0xFFA9A884), c(0xFF9C9A78), c(0xFF3C6250), c(0xFF233F33),
-        ints(0xFF8E8070, 0xFF8E8070, 0xFF8E8070),
+        ints(0xFF8E8070, 0xFF8E8070, 0xFF8E8070), ints(0xFF9A8A70, 0xFF8E7A62, 0xFF7E6A56),
     )
+
+    /** The tent's canvas, the dark of its door, and the grey card of the boulders. */
+    private val CANVAS = c(0xFFB86A4C)
+    private val DOOR = c(0xFF2F2621)
+    private val BOULDER = c(0xFF97948C)
 
     /** White paper, the bark, the stones and the cut wood of the fire, the flames. */
     private val WHITE = c(0xFFF4F1E8)
@@ -276,17 +287,25 @@ object PaperLight {
             val a = veiled(lit(paper, 0f, 0f), id)
             put(id, a, shift(a, 0.025f), veiled(white, id))
         }
-        folded(papers.standees, SheetId.STANDEES, contrast * 1.2f).let { (a, b) -> put(SheetId.STANDEES, a, b, white) }
+        // The cut-outs' margins are the card's light core, not white paper: a breath of the tree in them.
+        folded(papers.standees, SheetId.STANDEES, contrast * 1.2f).let { (a, b) -> put(SheetId.STANDEES, a, b, mixRgb(white, b, 0.22f)) }
         folded(papers.front, SheetId.FRONT_LEFT, contrast * 1.2f).let { (a, b) ->
-            put(SheetId.FRONT_LEFT, a, b, white)
-            put(SheetId.FRONT_RIGHT, a, b, white)
+            put(SheetId.FRONT_LEFT, a, b, mixRgb(white, b, 0.3f))
+            put(SheetId.FRONT_RIGHT, a, b, mixRgb(white, b, 0.3f))
         }
+        folded(CANVAS, SheetId.TENT, contrast * 1.1f).let { (a, b) -> put(SheetId.TENT, a, b, lit(DOOR, 0f, 0f)) }
+        folded(BOULDER, SheetId.PROPS, contrast * 1.2f).let { (a, b) -> put(SheetId.PROPS, a, b, white) }
+        val blooms = IntArray(3) { i -> veiled(lit(papers.blooms[i], 0f, 0f), SheetId.BLOOMS) }
+        put(SheetId.BLOOMS, blooms[0], blooms[1], blooms[2])
+        put(SheetId.BLOOMS_NEAR, blooms[0], blooms[1], blooms[2])
         val bloom = s.blossom.coerceIn(0f, 1f)
         val leaves = IntArray(3) { i ->
             val paper = if (i == 1 && bloom > 0f) mixOk(papers.leaves[1], BLOSSOM, bloom) else papers.leaves[i]
             veiled(lit(paper, 0f, 0f), SheetId.LEAVES)
         }
         put(SheetId.LEAVES, leaves[0], leaves[1], leaves[2])
+        // The birches on the meadow: their crowns in the leaves' colours, close by (no haze).
+        put(SheetId.CROWNS, lit(papers.leaves[0], 0f, 0f), lit(papers.leaves[1], 0f, 0f), lit(papers.leaves[2], 0f, 0f))
         put(SheetId.FIREWOOD, lit(BARK, 0f, 0f), lit(STONE, 0f, 0f), lit(WOOD, 0f, 0f))
         sheets[SheetId.SKY] = Inks(muted(p.sky[0]), muted(p.sky[1]), muted(horizon))
 
@@ -318,6 +337,7 @@ object PaperLight {
             stars = p.stars * (1f - cover),
             shadow = p.shadow, shadowAlpha = shadowAlpha, shadowSide = -side, shadowLength = 0.7f + 0.5f * low,
             fire = p.fire, fireGlow = FIRE_GLOW, fireReach = 46f + 70f * night,
+            lantern = smooth(0.15f, 0.8f, night),
             label = label,
             labelCover = 1f - 0.3f * night,
         )
@@ -383,7 +403,7 @@ object PaperLight {
         }
         return Papers(
             mix { it.far }, mix { it.snow }, mix { it.near }, mix { it.woodFar }, mix { it.woodNear }, mix { it.meadow }, mix { it.meadowNear },
-            mix { it.standees }, mix { it.front }, IntArray(3) { i -> mix { it.leaves[i] } },
+            mix { it.standees }, mix { it.front }, IntArray(3) { i -> mix { it.leaves[i] } }, IntArray(3) { i -> mix { it.blooms[i] } },
         )
     }
 
