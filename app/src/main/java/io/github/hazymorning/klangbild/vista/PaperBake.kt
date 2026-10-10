@@ -273,10 +273,23 @@ object PaperBake {
             val h = bottom - top
             val out = FloatArray(w * h)
             for (e in outlines) {
-                val c = Coverage(w, h)
-                c.polygon(FloatArray(e.size) { px(e.xs[it]) - left }, FloatArray(e.size) { px(e.ys[it]) - top })
+                // Each piece is cut in a box of its own: a meadow of small flowers costs what they cover, not the meadow each.
+                val l = max(left, floor(px(e.minX())).toInt() - 1)
+                val t = max(top, floor(px(e.minY())).toInt() - 1)
+                val r = min(right, ceil(px(e.maxX())).toInt() + 1)
+                val bt = min(bottom, ceil(px(e.maxY())).toInt() + 1)
+                if (r <= l || bt <= t) continue
+                val ew = r - l
+                val c = Coverage(ew, bt - t)
+                c.polygon(FloatArray(e.size) { px(e.xs[it]) - l }, FloatArray(e.size) { px(e.ys[it]) - t })
                 val v = c.resolve()
-                for (i in v.indices) if (v[i] > out[i]) out[i] = v[i]
+                for (y in 0 until bt - t) {
+                    val row = (t - top + y) * w + (l - left)
+                    for (x in 0 until ew) {
+                        val k = v[y * ew + x]
+                        if (k > out[row + x]) out[row + x] = k
+                    }
+                }
             }
             return Mask(left, top, w, h, out)
         }
