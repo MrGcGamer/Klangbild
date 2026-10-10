@@ -95,6 +95,8 @@ android {
                     "robolectric.dependency.repo.url",
                     "https://maven-central.storage-download.googleapis.com/maven2",
                 )
+                // FirstLaunchTest against the stand-in Home Assistant (ci/fake_ha.py): -Pklangbild.fakeHa=http://127.0.0.1:8123
+                (project.findProperty("klangbild.fakeHa") as String?)?.let { url -> it.systemProperty("klangbild.fakeHa", url) }
             }
         }
     }

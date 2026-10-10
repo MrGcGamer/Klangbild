@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.app
 
+import android.util.Log
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
@@ -210,6 +211,7 @@ class NowPlayingController(
             // Leaving setup: the new settings start a fresh connection.
             session.value = session.value.copy(showSetup = false)
             machine.requestSetup(false)
+            take(updated, "setup page")
         },
         checkMa = { url, token -> MaClient(http, url, token).check() },
         maGuess = {
@@ -244,7 +246,11 @@ class NowPlayingController(
         settingsJob = scope.launch {
             settingsStore.settings.collect { s ->
                 // While the menu's own changes are being written, it already shows them.
-                if (localEdits.get() == 0) onSettings(s)
+                if (localEdits.get() != 0) return@collect
+                // A late echo of an older state – the very first read, overtaken by the launch's
+                // extras – never undoes a connection the store holds now.
+                if (!s.isConfigured && settings.value.isConfigured && settingsStore.settings.first().isConfigured) return@collect
+                onSettings(s)
             }
         }
         ticker = scope.launch {
@@ -326,7 +332,9 @@ class NowPlayingController(
         if (LaunchExtras.hasStoredExtras(extras)) {
             scope.launch {
                 val current = settingsStore.settings.first()
-                settingsStore.update({ LaunchExtras.applyTo(it, extras) }, current)
+                val updated = LaunchExtras.applyTo(current, extras)
+                settingsStore.update({ updated }, current)
+                take(updated, "extras")
             }
         }
         reconcileSource()
@@ -730,6 +738,17 @@ class NowPlayingController(
     private fun quickIndex(items: List<QuickItem>, item: QuickItem): Int =
         items.indexOf(item).takeIf { it >= 0 } ?: items.indexOfFirst { it.ordinal > item.ordinal }.takeIf { it >= 0 } ?: (items.size - 1)
 
+    /**
+     * Settings just written by the app itself (from the launch's extras, from the setup page),
+     * taken at once: the store's own echo of them has been seen to stay away on a first start
+     * (Android TV 14 emulator, right after installing), which left the app on the setup page.
+     */
+    private fun take(s: Settings, from: String) {
+        if (localEdits.get() != 0) return
+        if (s.isConfigured != settings.value.isConfigured) Log.i(TAG, "Settings from the $from: connection ${if (s.isConfigured) "set" else "not set"}")
+        onSettings(s)
+    }
+
     @Synchronized
     private fun onSettings(s: Settings) {
         val view = s.view
@@ -774,6 +793,7 @@ class NowPlayingController(
         val key = if (s.isConfigured) listOf("ha", s.haUrl, s.haToken, s.entityId, s.sunEntity, s.maUrl, s.maToken, s.weatherEntities).joinToString("|") else "unconfigured"
         if (key == sourceKey || viewers == 0) return
         sourceKey = key
+        Log.i(TAG, if (s.isConfigured) "Connecting to Home Assistant (${s.entityId})" else "No connection set: setup")
         sourceJob?.cancel()
         // A report held back belongs to the source that sent it.
         heldJob?.cancel()
@@ -832,6 +852,7 @@ class NowPlayingController(
             if (lastVolume != null && volume != lastVolume) volumeFlashUntil = t + VOLUME_FLASH_MS
             lastVolume = volume
         }
+        if (st.link != _ui.value.source.link) Log.i(TAG, "Link: ${st.link}")
         _ui.value = _ui.value.copy(source = st)
         recompute()
     }
@@ -1098,6 +1119,9 @@ class NowPlayingController(
 
         /** A stop shorter than this is a hand-over between the app and the screensaver. */
         const val HANDOVER_MS = 10_000L
+
+        /** The tag of the few lines the app writes to the log: connection and settings, never a token. */
+        const val TAG = "Klangbild"
 
         /** How long a closing connection waits for the light bars to be given back. */
         const val LIGHTS_RELEASE_MS = 4_000L

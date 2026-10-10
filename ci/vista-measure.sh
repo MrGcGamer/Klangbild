@@ -69,5 +69,7 @@ cpu=$(( (end_ticks - start_ticks) * 100 / HZ ))
   echo "app CPU: ${cpu} cs over ${elapsed} s = $(( cpu / (elapsed > 0 ? elapsed : 1) ))% of one core"
   echo "memory (minute, PSS kB, graphics kB, native kB):"
   cat "$OUT/memory.csv"
+  echo "the app's log:"
+  grep " Klangbild: " "$OUT/logcat.txt" | tail -10
   if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then echo "CRASH:"; grep -A 20 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -40; fi
 } | tee "$OUT/summary.txt"
