@@ -217,10 +217,10 @@ private class VistaFrameState(private val feed: VistaFeed) {
             val place = feed.place()
             val heavens = World.heavens(sky, place)
             val day = feed.clock.preview.dayOfYear
-            val season = if (day != null) World.seasonOnDay(day.toFloat()).first else World.season(sky, feed.zone(), place.latitude).first
+            val (season, shapes) = if (day != null) World.seasonOnDay(day.toFloat()) else World.season(sky, feed.zone(), place.latitude)
             val s = SkyState(
                 heavens.sunElevation, heavens.sunAzimuth, heavens.moonElevation, heavens.moonAzimuth, heavens.moonFraction,
-                cover = cover, season = season,
+                cover = cover, season = season, blossom = shapes.blossom,
             )
             look = PaperLight.look(s)
             places = SkyMap.places(s, heavens.siderealDeg, heavens.latitude)
@@ -230,7 +230,8 @@ private class VistaFrameState(private val feed: VistaFeed) {
         return relit
     }
 
-    private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves), q(s.blossom))
+    /** The shapes to bake: blossom only colours the crowns (the light has it), so it never asks for a new bake. */
+    private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves))
 
     /** Steps of 1/16: a new bake only when a shape has visibly changed. */
     private fun q(v: Float) = (v * 16f).roundToInt() / 16f

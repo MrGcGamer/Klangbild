@@ -57,7 +57,7 @@ class PaperStudyTest {
     fun weatherAndSeasons() {
         study("20_overcast", SkyState(30f, 200f, cover = 1f))
         study("21_partly", SkyState(30f, 200f, cover = 0.45f))
-        study("22_spring", SkyState(30f, 170f, season = SeasonMix.SPRING), SeasonShapes(leaves = 0.7f, blossom = 1f, peaks = 0.6f))
+        study("22_spring", SkyState(30f, 170f, season = SeasonMix.SPRING, blossom = 1f), SeasonShapes(leaves = 0.7f, blossom = 1f, peaks = 0.6f))
         study("23_autumn", SkyState(14f, 220f, season = SeasonMix.AUTUMN), SeasonShapes(leaves = 0.8f, peaks = 0.4f))
         study("24_winter", SkyState(12f, 190f, season = SeasonMix.WINTER), SeasonShapes(snow = 1f, peaks = 1f, leaves = 0f))
         study("25_leaf_fall", SkyState(18f, 200f, season = SeasonMix.AUTUMN), SeasonShapes(leaves = 0.35f, peaks = 0.5f))

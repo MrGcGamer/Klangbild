@@ -21,6 +21,8 @@ data class SkyState(
     val cover: Float = 0f,
     /** Where the year stands. */
     val season: SeasonMix = SeasonMix.SUMMER,
+    /** Blossom on the broad-leaved trees, 0 to 1 (a few weeks of spring). */
+    val blossom: Float = 0f,
 )
 
 /** How much of each season colours the land now (the four add up to 1); they pass into each other over weeks. */
@@ -145,7 +147,7 @@ object PaperLight {
         c(0xFF1C3040), 0.36f, c(0xFFFFF8EA), c(0xFFFFF1D8), 0.32f, c(0xFFF6EAD0), 0.1f, stars = 0f, fire = 0.08f,
     )
     private val DAY = Plate(
-        40f, ints(0xFF7DA4CC, 0xFFAFC9DE, 0xFFECE7D6), f(1.05f, 1f, 0.92f), f(0.88f, 0.95f, 1.08f), 1f, 0.22f, 1f,
+        40f, ints(0xFF7DA4CC, 0xFFAFC9DE, 0xFFECE7D6), f(1.05f, 1f, 0.92f), f(0.88f, 0.95f, 1.08f), 1f, 0.26f, 1f,
         c(0xFF1A2533), 0.32f, c(0xFFFFFBF2), c(0xFFFFF6E4), 0.3f, c(0xFFE8F0F2), 0f, stars = 0f, fire = 0.07f,
     )
     private val FORENOON = Plate(
@@ -182,7 +184,7 @@ object PaperLight {
 
     private val SPRING = Papers(
         c(0xFFABB3CE), c(0xFFF2F0EA), c(0xFF7690A8), c(0xFF6E9086), c(0xFF58866C), c(0xFFA5BE6C), c(0xFF96B262), c(0xFF467A5C), c(0xFF264B3C),
-        ints(0xFF9CC47A, 0xFFF2DCE4, 0xFFB4D28A),
+        ints(0xFF9CC47A, 0xFFB9D68E, 0xFFB4D28A),
     )
     private val SUMMER = Papers(
         c(0xFFA9B1CC), c(0xFFF2F0EA), c(0xFF7890A8), c(0xFF6D8C86), c(0xFF557E6C), c(0xFF9DAE6E), c(0xFF8CA265), c(0xFF43725A), c(0xFF24473A),
@@ -204,6 +206,9 @@ object PaperLight {
     private val WOOD = c(0xFFC9AE88)
     private val FLAME = ints(0xFFFFD66E, 0xFFF4892F, 0xFFD2442A)
     private val FIRE_GLOW = c(0xFFFF8F3A)
+
+    /** The blossom some broad-leaved crowns wear for a few weeks of spring. */
+    private val BLOSSOM = c(0xFFF0D8E2)
 
     /** How much of the horizon's colour veils each far sheet. */
     private fun haze(id: SheetId): Float = when (id) {
@@ -231,8 +236,8 @@ object PaperLight {
         val sunSide = sin(Math.toRadians((s.sunAzimuth - 180f).toDouble())).toFloat()
         val moonSide = sin(Math.toRadians((s.moonAzimuth - 180f).toDouble())).toFloat()
         val raw = sunSide * sunUp + moonSide * (1f - sunUp) * moon
-        // A little light from the upper right always: at noon (sun in front) the folds still read.
-        val side = (raw + 0.3f * (1f - abs(raw))).coerceIn(-1f, 1f)
+        // Some light from the upper right always: at noon (the sun in front) the folds still read.
+        val side = (raw + 0.45f * (1f - abs(raw))).coerceIn(-1f, 1f)
         val contrast = p.contrast * (1f - 0.6f * cover)
         val night = 1f - smooth(-8f, 2f, s.sunElevation)
         // The direct light gives way to the sky's under clouds.
@@ -276,7 +281,11 @@ object PaperLight {
             put(SheetId.FRONT_LEFT, a, b, white)
             put(SheetId.FRONT_RIGHT, a, b, white)
         }
-        val leaves = IntArray(3) { veiled(lit(papers.leaves[it], 0f, 0f), SheetId.LEAVES) }
+        val bloom = s.blossom.coerceIn(0f, 1f)
+        val leaves = IntArray(3) { i ->
+            val paper = if (i == 1 && bloom > 0f) mixOk(papers.leaves[1], BLOSSOM, bloom) else papers.leaves[i]
+            veiled(lit(paper, 0f, 0f), SheetId.LEAVES)
+        }
         put(SheetId.LEAVES, leaves[0], leaves[1], leaves[2])
         put(SheetId.FIREWOOD, lit(BARK, 0f, 0f), lit(STONE, 0f, 0f), lit(WOOD, 0f, 0f))
         sheets[SheetId.SKY] = Inks(muted(p.sky[0]), muted(p.sky[1]), muted(horizon))

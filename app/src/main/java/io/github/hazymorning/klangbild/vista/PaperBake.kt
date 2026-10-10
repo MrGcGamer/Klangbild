@@ -22,7 +22,8 @@ import kotlin.math.sqrt
 enum class SheetId(val kind: PaperKind, val depth: Float, val blur: Float, val rim: Float, val occludes: Boolean = true) {
     SKY(PaperKind.WASH, 0f, 0f, 0f),
     RANGE_FAR(PaperKind.CARD, 0f, 1.0f, 0.1f),
-    SNOW(PaperKind.WHITE, 0.12f, 1.0f, 0f),
+    // The caps lie flat on their mountains: their shade is baked into the range (see occludes), no shadow spills on the sky.
+    SNOW(PaperKind.WHITE, 0f, 1.0f, 0f),
     RANGE_NEAR(PaperKind.CARD, 1f, 0.7f, 0.1f),
     WOOD_FAR(PaperKind.CARD, 1f, 0.5f, 0.1f),
     WOOD_NEAR(PaperKind.CARD, 1.2f, 0.25f, 0.1f),
@@ -51,7 +52,7 @@ data class SeasonShapes(
     val peaks: Float = 0f,
     /** Leaves on the broad-leaved trees, 0 (bare) to 1 (full crowns). */
     val leaves: Float = 1f,
-    /** Blossom, 0 to 1. */
+    /** Blossom, 0 to 1 – it only colours the crowns ([SkyState.blossom]); the bake ignores it. */
     val blossom: Float = 0f,
 )
 
@@ -300,7 +301,7 @@ object PaperBake {
                 val reach = 34f * Shapes.smoothstep(0.6f, 1f, shapes.peaks) + 10f * shapes.snow
                 if (reach > 2f) for ((i, mt) in mountains.withIndex()) {
                     val outline = cut(mt.knots, seed * 31 + i, amp = 0.6f)
-                    val cap = capOutline(outline, mt, mt.summitY + reach, foot, seed * 57 + i, tongues = 6f)
+                    val cap = capOutline(outline, mt, mt.summitY + reach, foot, seed * 57 + i, tongues = 4f)
                     val face = faceRight(mt, foot)
                     lay(b, intersect(mask(listOf(outline)), mask(listOf(cap))), W { x, y -> 0.25f * face.at(x, y) }, c(0.75f))
                 }
@@ -317,8 +318,10 @@ object PaperBake {
             for ((i, mt) in mountains.withIndex()) {
                 if (line - mt.summitY < 3f) continue
                 val outline = cut(mt.knots, 2 * 31 + i, amp = 0.6f)
-                val cap = capOutline(outline, mt, line, PaperMotif.FAR_FOOT, 400 + i, tongues = 11f)
-                lay(b, intersect(mask(listOf(outline)), mask(listOf(cap))), faceRight(mt, PaperMotif.FAR_FOOT), faceFront(mt, PaperMotif.FAR_FOOT))
+                val cap = capOutline(outline, mt, line, PaperMotif.FAR_FOOT, 400 + i, tongues = 7f)
+                // Cut a hair wider than its mountain, as a glued-on piece would be: the card's edge never shows under it.
+                val wide = mask(listOf(outline), pad = (CAP_OVERHANG * 3f * d).toInt() + 4)?.let { margin(it, CAP_OVERHANG) }
+                lay(b, intersect(wide, mask(listOf(cap))), faceRight(mt, PaperMotif.FAR_FOOT), faceFront(mt, PaperMotif.FAR_FOOT))
             }
             return b
         }
@@ -593,7 +596,8 @@ object PaperBake {
                 var tongue = 0f
                 for (cb in mt.creases) {
                     val cx = mt.summitX + (cb - mt.summitX) * ((line - mt.summitY) / (foot - mt.summitY)).coerceIn(0f, 1f)
-                    val u = (x - cx) / 4.5f
+                    // A wide, shallow V where the fold holds the snow – never a drip.
+                    val u = (x - cx) / 11f
                     tongue += tongues * exp(-u * u)
                 }
                 xs[i] = x
@@ -1022,6 +1026,9 @@ object PaperBake {
 
     /** A broad-leaved tree: crown discs, trunk, and the crown's middle and radius (dp). */
     private class RoundTree(val discs: List<Outline>, val trunk: Outline, val cx: Float, val cy: Float, val r: Float)
+
+    /** How far (dp) a snow cap reaches beyond its mountain's edge. */
+    private const val CAP_OVERHANG = 1.4f
 
     /** The grid (dp) on which what stands in front is noted, for the shade it casts. */
     private const val AO_CELL = 2f
