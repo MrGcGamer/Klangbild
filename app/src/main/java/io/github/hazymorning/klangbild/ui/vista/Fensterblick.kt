@@ -84,7 +84,9 @@ fun Fensterblick(
                     }
                     // The season's shapes are looked at now and then; they change over days.
                     if (state.frames % SHAPES_EVERY == 0L) state.shapesNow().let { if (it != shapes) shapes = it }
-                    delay(TICK_MS)
+                    // Everything here moves slowly: twenty pictures a second are smooth – the
+                    // preview's gliding light gets the stage's thirty.
+                    delay(if (feed.clock.preview.active) TICK_MS else VISTA_TICK_MS)
                 }
             }
         } else {
@@ -123,8 +125,11 @@ fun Fensterblick(
     }
 }
 
-/** How often (frames) the season's shapes are checked: about every two seconds. */
+/** How often (frames) the season's shapes are checked: every few seconds. */
 private const val SHAPES_EVERY = 60L
+
+/** The picture's tick (ms): about twenty frames a second. */
+const val VISTA_TICK_MS = 50L
 
 /** A new season's shapes fade in this slowly (a day's change, seen by nobody) – and quicker in the preview. */
 private const val SEASON_FADE_MS = 20_000

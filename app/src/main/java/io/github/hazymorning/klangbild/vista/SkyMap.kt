@@ -18,24 +18,84 @@ class SkyPlaces(
     val moonY: Float,
     val moonFraction: Float,
     val stars: List<StarPlace>,
+    /** Whether the sun (or else the moon) stands above the horizon – for the light on the water. */
+    val sunUp: Boolean = true,
+    val moonUp: Boolean = false,
 )
 
 /**
  * The sky as the picture shows it: looking south, east on the left and west on the right,
- * [DP_PER_DEGREE_X] dp for every degree of azimuth and [DP_PER_DEGREE_Y] for every degree of
- * elevation above the horizon – a very wide view, so the sun's whole day crosses the picture
- * and even a summer evening's sun sets inside it.
+ * [DP_PER_DEGREE_X] dp for every degree of azimuth – a very wide view, so the sun's whole day
+ * crosses the picture and even a summer evening's sun sets inside it.
+ *
+ * Elevation is measured from the mountains' skyline, not from the lake: the sun rises over the
+ * ridge the moment the light turns to morning and sets behind it as the evening colours come –
+ * and even December's low noon sun clears the summits. Higher up the sky is drawn a little
+ * tighter, so the whole dome fits above them.
  */
 object SkyMap {
     const val DP_PER_DEGREE_X = 3.0f
-    const val DP_PER_DEGREE_Y = 5.0f
+
+    /** Below the skyline, the dp per degree of elevation (only seen where the land is low). */
+    private const val DP_PER_DEGREE_BELOW = 5.0f
+
+    /** The zenith's place (dp from the top) and how the dome is drawn tighter towards it. */
+    private const val ZENITH_Y = 24f
+    private const val DOME = 0.8
 
     fun x(azimuth: Float): Float = PaperMotif.WIDTH / 2f + (azimuth - 180f) * DP_PER_DEGREE_X
-    fun y(elevation: Float): Float = PaperMotif.HORIZON - elevation * DP_PER_DEGREE_Y
+
+    /** The height in the picture (dp) of a body at [elevation] above the horizon, at [x] (dp). */
+    fun y(elevation: Float, x: Float): Float {
+        val ground = skyline(x)
+        if (elevation <= 0f) return ground - elevation * DP_PER_DEGREE_BELOW
+        val up = Math.pow((elevation / 90.0).coerceAtMost(1.0), DOME).toFloat()
+        return ground - (ground - ZENITH_Y) * up
+    }
 
     /** The places for [s], the stars turned for local sidereal time [lstDeg] at latitude [latDeg]. */
-    fun places(s: SkyState, lstDeg: Double = 0.0, latDeg: Double = 51.0): SkyPlaces =
-        SkyPlaces(x(s.sunAzimuth), y(s.sunElevation), x(s.moonAzimuth), y(s.moonElevation), s.moonFraction, stars(lstDeg, latDeg))
+    fun places(s: SkyState, lstDeg: Double = 0.0, latDeg: Double = 51.0): SkyPlaces {
+        val sunX = x(s.sunAzimuth)
+        val moonX = x(s.moonAzimuth)
+        return SkyPlaces(
+            sunX, y(s.sunElevation, sunX), moonX, y(s.moonElevation, moonX), s.moonFraction, stars(lstDeg, latDeg),
+            sunUp = s.sunElevation > 0f, moonUp = s.moonElevation > 0f,
+        )
+    }
+
+    /**
+     * The skyline the sky's elevations start from: the far range's ridge, smoothed over
+     * [SKYLINE_SPAN] dp so a body's path never kinks over a summit, sampled every 4 dp.
+     */
+    fun skyline(x: Float): Float {
+        val t = ((x - SKYLINE_FROM) / SKYLINE_STEP).coerceIn(0f, (skylineSamples.size - 1).toFloat())
+        val i = t.toInt().coerceAtMost(skylineSamples.size - 2)
+        val f = t - i
+        return skylineSamples[i] + (skylineSamples[i + 1] - skylineSamples[i]) * f
+    }
+
+    private const val SKYLINE_FROM = -200f
+    private const val SKYLINE_STEP = 4f
+    private const val SKYLINE_SPAN = 140f
+
+    private val skylineSamples: FloatArray = run {
+        val ridge = Shapes.line(PaperMotif.rangeFar)
+        val n = ((PaperMotif.WIDTH + 400f) / SKYLINE_STEP).toInt() + 1
+        FloatArray(n) { i ->
+            val x = SKYLINE_FROM + i * SKYLINE_STEP
+            // A smooth average (a cosine window): the summits' corners are gone, their height is kept roughly.
+            var sum = 0f
+            var weight = 0f
+            var dx = -SKYLINE_SPAN / 2f
+            while (dx <= SKYLINE_SPAN / 2f) {
+                val w = 0.5f + 0.5f * kotlin.math.cos(Math.PI.toFloat() * dx / (SKYLINE_SPAN / 2f))
+                sum += ridge.yAt(x + dx) * w
+                weight += w
+                dx += 2f
+            }
+            sum / weight
+        }
+    }
 
     /**
      * A fixed field of stars on the celestial sphere (the same every night), turned to the
@@ -53,7 +113,7 @@ object SkyMap {
             val az = atan2(-cos(dec) * sin(ha), sin(dec) * cos(lat) - cos(dec) * sin(lat) * cos(ha))
             val azDeg = (Math.toDegrees(az) + 360.0) % 360.0
             val px = x(azDeg.toFloat())
-            val py = y(Math.toDegrees(alt).toFloat())
+            val py = y(Math.toDegrees(alt).toFloat(), px)
             if (px < -PaperMotif.OVERSCAN || px > PaperMotif.WIDTH + PaperMotif.OVERSCAN || py < -PaperMotif.OVERSCAN) continue
             out += StarPlace(px, py, st.size, st.brightness)
         }

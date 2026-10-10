@@ -92,11 +92,17 @@ object PaperBake {
         val deep = Shapes.smoothstep(0.55f, 0.9f, shapes.snow)
         val sheets = LinkedHashMap<SheetId, Sheet>()
         sheets[SheetId.SKY] = b.sky()
-        sheets[SheetId.RANGE_FAR] = b.ridge(m.rangeFar, foot = 12f to 70f, snow = { x, depth -> b.peakSnow(m.rangeFar, x, depth, shapes, 228f, 300f, 0, teeth = 10f) }, seed = 2)
-        sheets[SheetId.RANGE_NEAR] = b.ridge(m.rangeNear, foot = 8f to 44f, snow = { x, depth -> b.peakSnow(m.rangeNear, x, depth, shapes, 274f, 352f, 5, teeth = 0f) }, seed = 3)
+        sheets[SheetId.RANGE_FAR] = b.ridge(
+            m.rangeFar, foot = 12f to 70f, snow = { x, depth -> b.peakSnow(m.rangeFar, x, depth, shapes, 228f, 300f, 0, teeth = 10f) }, seed = 2,
+            bottom = RANGE_FAR_BOTTOM,
+        )
+        sheets[SheetId.RANGE_NEAR] = b.ridge(
+            m.rangeNear, foot = 8f to 44f, snow = { x, depth -> b.peakSnow(m.rangeNear, x, depth, shapes, 274f, 352f, 5, teeth = 0f) }, seed = 3,
+            bottom = RANGE_NEAR_BOTTOM,
+        )
         sheets[SheetId.SHORE] = b.ridge(
             m.shore, foot = 3f to 14f, snow = { _, depth -> b.groundSnow(depth, shapes, 2f + 40f * deep) }, seed = 4,
-            extras = treeLine(m.shore, b), extraSnow = shapes.snow, extraInk = 1f,
+            extras = treeLine(m.shore, b), extraSnow = shapes.snow, extraInk = 1f, bottom = PaperMotif.HORIZON + 6f,
         )
         sheets[SheetId.LAKE] = b.lake()
         val rowLeft = firRow(m.woodLeft, -14f, 470f, tall = 46f, short = 9f, spacing = 9.5f, b, seed = 1)
@@ -104,12 +110,12 @@ object PaperBake {
         sheets[SheetId.WOOD_LEFT] = b.ridge(
             m.woodLeft, foot = 20f to 110f, snow = { _, depth -> b.groundSnow(depth, shapes, 3.5f + 400f * deep) }, seed = 5,
             extras = rowLeft.firs, extraSnow = shapes.snow,
-            outline = b.withShore(m.woodLeft, m.woodLeftShore, left = true), extraInk = 1f, footEnd = 190f,
+            outline = b.withShore(m.woodLeft, m.woodLeftShore, left = true), extraInk = 1f, footEnd = 190f, bottom = HIDDEN_BELOW,
         )
         sheets[SheetId.WOOD_RIGHT] = b.ridge(
             m.woodRight, foot = 20f to 100f, snow = { _, depth -> b.groundSnow(depth, shapes, 3.5f + 400f * deep) }, seed = 6,
             extras = rowRight.firs, extraSnow = shapes.snow,
-            outline = b.withShore(m.woodRight, m.woodRightShore, left = false), extraInk = 1f, footEnd = 170f,
+            outline = b.withShore(m.woodRight, m.woodRightShore, left = false), extraInk = 1f, footEnd = 170f, bottom = HIDDEN_BELOW,
         )
         val accents = mapOf(SheetId.WOOD_LEFT to b.accents(rowLeft.broad), SheetId.WOOD_RIGHT to b.accents(rowRight.broad))
         sheets[SheetId.MEADOW] = b.ridge(m.meadow, foot = 30f to 120f, snow = { _, depth -> b.groundSnow(depth, shapes, 5f + 400f * deep) }, seed = 7)
@@ -220,6 +226,20 @@ object PaperBake {
         return out
     }
 
+    /** The sky is baked down to here (dp): lower, the far range hides it everywhere. */
+    private const val SKY_BOTTOM = 292f
+
+    /** Below this (dp) the meadow hides every sheet behind it, from edge to edge. */
+    private const val HIDDEN_BELOW = 524f
+
+    /** The lake can only be seen between these (dp): the wooded shores close it in. */
+    private const val LAKE_LEFT = 286f
+    private const val LAKE_RIGHT = 936f
+
+    /** The ranges are baked down to here (dp): the nearer range and the far shore hide what is lower. */
+    private const val RANGE_FAR_BOTTOM = 322f
+    private const val RANGE_NEAR_BOTTOM = 352f
+
     /** How many cloud designs there are; the sky draws them in an order that never repeats. */
     const val CLOUD_DESIGNS = 6
 
@@ -306,7 +326,8 @@ object PaperBake {
 
         /** The sky: four gradient stops from the top of the canvas to the horizon, as weights (stop 0 is the base). */
         fun sky(): Sheet {
-            val h = ceil(px(PaperMotif.HORIZON + 8f)).toInt()
+            // Below the far range's lowest point the sky is hidden everywhere.
+            val h = ceil(px(SKY_BOTTOM)).toInt()
             val r = InkRaster(cw, h, seed = 1)
             val horizon = px(PaperMotif.HORIZON)
             for (y in 0 until h) {
@@ -321,9 +342,13 @@ object PaperBake {
          * viewer (red), its own colour near the bottom (green).
          */
         fun lake(): Sheet {
+            // Only between the wooded shores, and only down to where the meadow hides it.
+            val left = max(0, floor(px(LAKE_LEFT)).toInt())
+            val right = min(cw, ceil(px(LAKE_RIGHT)).toInt())
             val top = floor(px(PaperMotif.HORIZON - 1f)).toInt()
-            val h = ch - top
-            val r = InkRaster(cw, h, seed = 7)
+            val h = min(ch, ceil(px(HIDDEN_BELOW)).toInt()) - top
+            val w = right - left
+            val r = InkRaster(w, h, seed = 7)
             val shore = px(PaperMotif.HORIZON)
             for (y in 0 until h) {
                 val py = top + y + 0.5f
@@ -331,15 +356,16 @@ object PaperBake {
                 val cov = (py - shore + 0.5f).coerceIn(0f, 1f)
                 val deeper = Shapes.smoothstep(0f, 70f, depth)
                 val own = Shapes.smoothstep(60f, 200f, depth)
-                for (x in 0 until cw) r.over(x, y, deeper * (1f - own), own, 0f, cov, dither = true)
+                for (x in 0 until w) r.over(x, y, deeper * (1f - own), own, 0f, cov, dither = true)
             }
-            return Sheet(0, top, cw, h, r.pixels)
+            return Sheet(left, top, w, h, r.pixels)
         }
 
         /**
-         * A sheet under a contour: everything below [knots] (closed down, or [outline]), plus
-         * [extras] cut from the same paper on top (firs, grass). The foot fades in between
-         * [foot] dp under the contour; [snow] says for a column and a depth whether snow lies there.
+         * A sheet under a contour: everything below [knots] (closed down to [bottom], or
+         * [outline]), plus [extras] cut from the same paper on top (firs, grass), baked in a box
+         * just big enough for it. The foot fades in between [foot] dp under the contour; [snow]
+         * says for a column and a depth whether snow lies there.
          */
         fun ridge(
             knots: List<Knot>,
@@ -353,28 +379,39 @@ object PaperBake {
             extraInk: Float = 0f,
             /** Where the foot fades out again (dp under the contour): a band of light between the sheets. */
             footEnd: Float = Float.MAX_VALUE,
+            /** How far down the sheet is baked (dp): below, nearer sheets hide it everywhere. */
+            bottom: Float = PaperMotif.BOTTOM,
         ): Sheet {
             val line = line(knots)
-            var minY = line.ys.min()
-            for (e in extras) minY = min(minY, e.minY())
-            val top = max(0, floor(px(minY) - 2).toInt())
-            val poly = outline ?: line.closedDown(PaperMotif.BOTTOM)
-            val bot = min(ch, ceil(px(poly.maxY())).toInt())
+            val poly = clipBelow(outline ?: line.closedDown(bottom), bottom)
+            var minX = poly.minX()
+            var maxX = poly.maxX()
+            var minY = poly.minY()
+            for (e in extras) {
+                minX = min(minX, e.minX())
+                maxX = max(maxX, e.maxX())
+                minY = min(minY, e.minY())
+            }
+            val left = max(0, floor(px(minX)).toInt() - 2)
+            val right = min(cw, ceil(px(maxX)).toInt() + 2)
+            val top = max(0, floor(px(minY)).toInt() - 2)
+            val bot = min(ch, ceil(px(poly.maxY())).toInt() + 1)
+            val w = right - left
             val h = bot - top
-            val r = InkRaster(cw, h, seed)
-            val cov = Coverage(cw, h)
-            cov.polygon(FloatArray(poly.size) { px(poly.xs[it]) }, FloatArray(poly.size) { px(poly.ys[it]) - top })
+            val r = InkRaster(w, h, seed)
+            val cov = Coverage(w, h)
+            cov.polygon(FloatArray(poly.size) { px(poly.xs[it]) - left }, FloatArray(poly.size) { px(poly.ys[it]) - top })
             val c = cov.resolve()
-            val ridge = FloatArray(cw) { x -> line.yAt((x + 0.5f) / d - o) }
+            val ridge = FloatArray(w) { x -> line.yAt((left + x + 0.5f) / d - o) }
             for (y in 0 until h) {
                 val yDp = (top + y + 0.5f) / d - o
-                for (x in 0 until cw) {
-                    val k = c[y * cw + x]
+                for (x in 0 until w) {
+                    val k = c[y * w + x]
                     if (k <= 0f) continue
                     val depth = yDp - ridge[x]
                     val f = Shapes.smoothstep(foot.first, foot.second, depth) * (1f - Shapes.smoothstep(footEnd - 60f, footEnd, depth))
                     val edge = 1f - Shapes.smoothstep(RIM_DP - 0.5f / d, RIM_DP + 0.5f / d, depth)
-                    val s = snow((x + 0.5f) / d - o, depth)
+                    val s = snow((left + x + 0.5f) / d - o, depth)
                     r.over(x, y, f * (1f - s), edge * (1f - s), s, k, dither = true)
                 }
             }
@@ -382,20 +419,24 @@ object PaperBake {
             // show it; on the small ones it would be specks.
             for (e in extras) {
                 val band = if (extraSnow > 0f && e.maxY() - e.minY() > 24f) 0.8f + 1.4f * extraSnow else 0f
-                cut(r, top, h, e, extraInk, band)
+                cut(r, left, top, e, extraInk, band)
             }
-            return Sheet(0, top, cw, h, r.pixels)
+            return Sheet(left, top, w, h, r.pixels)
         }
 
+        /** [poly] with everything below [bottom] (dp) cut away – its points pulled up to it. */
+        private fun clipBelow(poly: Outline, bottom: Float): Outline =
+            if (poly.maxY() <= bottom) poly else Outline(poly.xs, FloatArray(poly.size) { min(poly.ys[it], bottom) })
+
         /**
-         * Lays outline [e] (dp) onto raster [r] (which starts at canvas row [top]) in the ink
+         * Lays outline [e] (dp) onto raster [r] (which starts at canvas column [left], row [top]) in the ink
          * [ink] (green's weight), with snow on its upward-facing edges [snowBand] dp deep.
          */
-        private fun cut(r: InkRaster, top: Int, h: Int, e: Outline, ink: Float, snowBand: Float) {
-            val ex0 = max(0, floor(px(e.minX())).toInt() - 1)
-            val ex1 = min(cw, ceil(px(e.maxX())).toInt() + 1)
+        private fun cut(r: InkRaster, left: Int, top: Int, e: Outline, ink: Float, snowBand: Float) {
+            val ex0 = max(left, floor(px(e.minX())).toInt() - 1)
+            val ex1 = min(left + r.width, ceil(px(e.maxX())).toInt() + 1)
             val ey0 = max(top, floor(px(e.minY())).toInt() - 1)
-            val ey1 = min(top + h, ceil(px(e.maxY())).toInt() + 1)
+            val ey1 = min(top + r.height, ceil(px(e.maxY())).toInt() + 1)
             if (ex1 <= ex0 || ey1 <= ey0) return
             val ew = ex1 - ex0
             val eh = ey1 - ey0
@@ -416,7 +457,7 @@ object PaperBake {
                 } else {
                     0f
                 }
-                r.over(ex0 + x, ey0 + y - top, 0f, ink * (1f - snow), snow, k)
+                r.over(ex0 + x - left, ey0 + y - top, 0f, ink * (1f - snow), snow, k)
             }
         }
 

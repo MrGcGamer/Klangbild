@@ -26,7 +26,6 @@ import io.github.hazymorning.klangbild.ui.DebugOverlay
 import io.github.hazymorning.klangbild.ui.FrameStats
 import io.github.hazymorning.klangbild.ui.KlangbildRoot
 import io.github.hazymorning.klangbild.ui.RootHooks
-import io.github.hazymorning.klangbild.ui.vista.ProtoVista
 import kotlinx.coroutines.launch
 
 /**
@@ -74,7 +73,7 @@ class MainActivity : ComponentActivity() {
         view?.setContent {
             val ui by controller.ui.collectAsStateWithLifecycle()
             val hooks = remember { RootHooks(positionNow = controller::positionNow, peekUntil = peekUntil, fieldTime = controller::fieldTime, vistaClock = controller.vistaClock) }
-            if (ui.session.proto > 0) ProtoVista(timelapse = ui.session.proto == 2) else KlangbildRoot(ui, spec, hooks)
+            KlangbildRoot(ui, spec, hooks)
             if (ui.session.debugOverlay) {
                 // Frames are only counted while the overlay shows them.
                 DisposableEffect(Unit) {

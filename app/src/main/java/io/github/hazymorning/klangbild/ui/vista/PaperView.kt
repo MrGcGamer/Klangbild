@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PointMode
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -66,6 +68,7 @@ class PaperMotion(
 @Composable
 fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlaces, motion: () -> PaperMotion, modifier: Modifier = Modifier) {
     val filters = remember(images) { FilterCache() }
+    val stars = remember(images) { StarBatches() }
     Canvas(modifier) {
         val l = look()
         val p = places()
@@ -73,10 +76,39 @@ fun PaperView(images: PaperImages, look: () -> PaperLook, places: () -> SkyPlace
         val b = images.baked
         val o = PaperMotif.OVERSCAN * density
         translate(-o, -o) {
-            drawPaper(images, b, l, p, m, filters, density)
+            drawPaper(images, b, l, p, m, filters, stars, density)
         }
     }
 }
+
+/**
+ * The stars as a dozen batches of points – by size and by which of four slow flickers they
+ * follow – made anew only when they have turned (every few seconds), drawn with a call each.
+ */
+private class StarBatches {
+    class Batch(val points: List<Offset>, val radius: Float, val brightness: Float, val group: Int)
+
+    private var source: SkyPlaces? = null
+    private var batches: List<Batch> = emptyList()
+
+    fun of(p: SkyPlaces, b: PaperBaked, d: Float): List<Batch> {
+        if (p === source) return batches
+        source = p
+        val groups = HashMap<Long, MutableList<Offset>>()
+        val meta = HashMap<Long, Pair<Float, Float>>()
+        for (i in p.stars.indices) {
+            val s = p.stars[i]
+            if (s.y > PaperMotif.HORIZON - 4f) continue
+            val key = (s.size.toRawBits().toLong() shl 8) or (i % FLICKERS).toLong()
+            groups.getOrPut(key) { ArrayList() } += Offset(b.px(s.x), b.px(s.y))
+            meta[key] = s.size * d to s.brightness
+        }
+        batches = groups.map { (key, points) -> Batch(points, meta.getValue(key).first, meta.getValue(key).second, (key and 0xFF).toInt()) }
+        return batches
+    }
+}
+
+private const val FLICKERS = 4
 
 /** Colour filters for inks, made once per new set of colours. */
 private class FilterCache {
@@ -110,7 +142,7 @@ private fun DrawScope.sheet(img: ImageBitmap, s: Sheet, filter: ColorFilter?, al
     }
 }
 
-private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook, p: SkyPlaces, m: PaperMotion, f: FilterCache, d: Float) {
+private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook, p: SkyPlaces, m: PaperMotion, f: FilterCache, stars: StarBatches, d: Float) {
     fun dp(v: Float) = b.px(v)
     val shadowFilter = f.tint(l.shadow)
     val sdx = l.shadowDx * d
@@ -124,13 +156,14 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
 
     land(SheetId.SKY)
 
-    // Stars: dots of three sizes, a slow flicker each.
+    // Stars: dots of three sizes, in four groups that flicker slowly, each on its own.
     if (l.stars > 0.01f) {
-        for (i in p.stars.indices) {
-            val s = p.stars[i]
-            if (s.y > PaperMotif.HORIZON - 4f) continue
-            val flicker = 0.78f + 0.22f * Noise.wander(m.time, 2.6 + (i % 5) * 0.7, 300 + i).toFloat()
-            drawCircle(STAR, radius = s.size * d, center = Offset(dp(s.x), dp(s.y)), alpha = (l.stars * s.brightness * flicker).coerceIn(0f, 1f))
+        for (batch in stars.of(p, b, d)) {
+            val flicker = 0.78f + 0.22f * Noise.wander(m.time, 2.6 + batch.group * 0.7, 300 + batch.group).toFloat()
+            drawPoints(
+                batch.points, PointMode.Points, STAR, strokeWidth = 2f * batch.radius, cap = StrokeCap.Round,
+                alpha = (l.stars * batch.brightness * flicker).coerceIn(0f, 1f),
+            )
         }
     }
 
@@ -143,7 +176,7 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
             dstSize = IntSize(w.roundToInt(), h.roundToInt()), colorFilter = f.tint(l.horizonGlow), alpha = l.horizonGlowAlpha, filterQuality = FilterQuality.Low,
         )
     }
-    if (l.glowAlpha > 0.01f && p.sunY < PaperMotif.HORIZON + 30f) {
+    if (l.glowAlpha > 0.01f && p.sunY < PaperMotif.HORIZON) {
         val r = 150f * d
         drawImage(
             images.glow, dstOffset = IntOffset((dp(p.sunX) - r).roundToInt(), (dp(p.sunY) - r).roundToInt()),
@@ -216,9 +249,8 @@ private fun DrawScope.drawPaper(images: PaperImages, b: PaperBaked, l: PaperLook
  */
 private fun DrawScope.drawGlints(l: PaperLook, p: SkyPlaces, m: PaperMotion, d: Float, b: PaperBaked) {
     if (l.glintAlpha <= 0.01f) return
-    val x = if (p.sunY < PaperMotif.HORIZON) p.sunX else p.moonX
-    val above = if (p.sunY < PaperMotif.HORIZON) PaperMotif.HORIZON - p.sunY else PaperMotif.HORIZON - p.moonY
-    if (above <= 0f) return
+    if (!p.sunUp && !p.moonUp) return
+    val x = if (p.sunUp) p.sunX else p.moonX
     val colour = Color(l.glint)
     for (k in 0 until GLINTS) {
         val f = k / (GLINTS - 1f)

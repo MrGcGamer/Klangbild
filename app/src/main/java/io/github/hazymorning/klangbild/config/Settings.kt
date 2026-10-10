@@ -188,8 +188,6 @@ data class Settings(
 data class SessionOptions(
     val showSetup: Boolean = false,
     val debugOverlay: Boolean = false,
-    /** The Fensterblick's performance prototype: 0 off, 1 steady light, 2 the light changing every frame. */
-    val proto: Int = 0,
     /** The Fensterblick shown at once (`fensterblick=an`), or with the day passing in two minutes (`zeitraffer`). */
     val vista: VistaRequest? = null,
 )
@@ -353,7 +351,6 @@ object LaunchExtras {
     const val WEATHER = "weather"
     const val SETUP = "setup"
     const val DEBUG = "debug"
-    const val PROTO = "fensterblick_proto"
     const val VISTA = "fensterblick"
 
     private val stored = listOf(
@@ -483,11 +480,6 @@ object LaunchExtras {
     fun session(extras: Map<String, Any?>) = SessionOptions(
         showSetup = boolOf(extras[SETUP]) ?: false,
         debugOverlay = boolOf(extras[DEBUG]) ?: false,
-        proto = when ((extras[PROTO] as? String)?.trim()?.lowercase()) {
-            "an", "on", "true", "1" -> 1
-            "zeitraffer", "timelapse" -> 2
-            else -> 0
-        },
         vista = when ((extras[VISTA] as? String)?.trim()?.lowercase() ?: (extras[VISTA] as? Boolean)?.toString()) {
             "an", "on", "true", "1", "ja", "zeigen" -> VistaRequest.SHOW
             "zeitraffer", "timelapse" -> VistaRequest.TIMELAPSE

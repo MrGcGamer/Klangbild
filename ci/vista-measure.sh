@@ -21,25 +21,28 @@ if ! pgrep -f fake_ha.py > /dev/null; then
   python3 "$HERE/fake_ha.py" 8123 > "$OUT/fake_ha.log" 2>&1 &
 fi
 
-adb wait-for-device
-adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
-adb install -r "$APK" > /dev/null
-adb shell am force-stop "$PKG"
-adb shell wm size > "$OUT/display.txt"
-adb shell wm density >> "$OUT/display.txt"
-adb shell am start -n "$PKG/.MainActivity" \
+# Every adb call has a deadline: a software-rendered emulator can stall, the run must not.
+a() { timeout 90 adb "$@"; }
+
+timeout 600 adb wait-for-device
+a shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
+a install -r "$APK" > /dev/null
+a shell am force-stop "$PKG"
+a shell wm size > "$OUT/display.txt"
+a shell wm density >> "$OUT/display.txt"
+a shell am start -n "$PKG/.MainActivity" \
   --es ha_url http://10.0.2.2:8123 --es token smoke --es entity media_player.wohnzimmer "$@" > /dev/null
 sleep 20
-PID="$(adb shell pidof "$PKG" | tr -d '\r')"
-adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
-ticks() { adb shell cat "/proc/$PID/stat" | awk '{print $14 + $15}'; }
+PID="$(a shell pidof "$PKG" | tr -d '\r')"
+a shell dumpsys gfxinfo "$PKG" reset > /dev/null
+ticks() { a shell cat "/proc/$PID/stat" | awk '{print $14 + $15}'; }
 HZ=100
 start_ticks="$(ticks)"
 start_s="$(date +%s)"
 echo "minute,pss_kb,graphics_kb,native_kb" > "$OUT/memory.csv"
 minute=0
 while [ $(( $(date +%s) - start_s )) -lt "$SECONDS_TO_RUN" ]; do
-  mem="$(adb shell dumpsys meminfo "$PKG")"
+  mem="$(a shell dumpsys meminfo "$PKG")"
   pss="$(echo "$mem" | awk '/TOTAL PSS:/ {print $3; exit} /TOTAL:/ {print $2; exit}')"
   gfx="$(echo "$mem" | awk '/Graphics:/ {print $2; exit}')"
   nat="$(echo "$mem" | awk '/Native Heap:/ {print $3; exit}')"
@@ -50,11 +53,11 @@ while [ $(( $(date +%s) - start_s )) -lt "$SECONDS_TO_RUN" ]; do
 done
 end_ticks="$(ticks)"
 elapsed=$(( $(date +%s) - start_s ))
-adb exec-out screencap -p > "$OUT/screen.png"
-adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo.txt"
-adb shell dumpsys gfxinfo "$PKG" framestats > "$OUT/framestats.txt"
-adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-end.txt"
-adb logcat -d > "$OUT/logcat.txt"
+a exec-out screencap -p > "$OUT/screen.png"
+a shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo.txt"
+a shell dumpsys gfxinfo "$PKG" framestats > "$OUT/framestats.txt"
+a shell dumpsys meminfo "$PKG" > "$OUT/meminfo-end.txt"
+a logcat -d > "$OUT/logcat.txt"
 
 frames="$(awk '/Total frames rendered:/ {print $4; exit}' "$OUT/gfxinfo.txt")"
 cpu=$(( (end_ticks - start_ticks) * 100 / HZ ))

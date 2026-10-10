@@ -241,5 +241,5 @@ private const val HINT_STEP_DP = 21f
 private const val BAR_DP = 3f
 private const val BAR_WIDTH_DP = 190f
 private const val CORNER_DP = 4f
-private const val BAR_REFRESH_MS = 33L
+private const val BAR_REFRESH_MS = VISTA_TICK_MS
 private const val BAR_PAUSED_MS = 500L

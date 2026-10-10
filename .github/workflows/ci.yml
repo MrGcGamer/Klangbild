@@ -16,7 +16,7 @@ on:
         description: "Fensterblick-Messlauf auf dem Emulator (1080p und 4K): Bilder, CPU, Speicher"
         required: false
         type: choice
-        options: ["aus", "prototyp", "kurz", "15 Minuten"]
+        options: ["aus", "kurz", "15 Minuten"]
         default: "aus"
 
 # A manual release run must not cancel the push run of the same commit (and vice versa).
