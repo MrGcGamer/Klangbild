@@ -1,24 +1,114 @@
 package io.github.hazymorning.klangbild.setup
 
+import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.text.Texts
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+
 /**
- * The phone-side setup page, served by the TV itself. Self-contained (no external
- * resources), German, and as quiet as the app: one sans-serif face (the phone's own),
+ * The phone's setup page, served by the TV itself, in the language the TV shows. Self-contained
+ * (no external resources) and as quiet as the app: one sans-serif face (the phone's own),
  * sentence case, warm near-black or paper as the phone is set.
  */
 object SetupPage {
-    fun html(prefilledCode: String?): String {
-        val code = prefilledCode ?: ""
-        return TEMPLATE.replace("__CODE__", code).replace("__CODE_HIDDEN__", if (code.isNotEmpty()) "hidden" else "")
+    fun html(t: Texts, prefilledCode: String?): String {
+        val code = prefilledCode.orEmpty()
+        val words = TEXTS.associate { (key, id) -> key to t[id] }
+        // Words for the page's script, as one JSON object (escaped, so no text can end the script).
+        val script = buildJsonObject { for ((key, id) in SCRIPT_TEXTS) put(key, JsonPrimitive(t[id])) }.toString().replace("</", "<\\/")
+        var page = TEMPLATE
+            .replace("__LANG__", t.locale.language)
+            .replace("__CODE__", escape(code))
+            .replace("__CODE_HIDDEN__", if (code.isNotEmpty()) "hidden" else "")
+            .replace("__SCRIPT_TEXTS__", script)
+        for ((key, value) in words) page = page.replace("{{$key}}", escape(value))
+        return page
     }
+
+    /** [s] safe in HTML text and attribute values. */
+    private fun escape(s: String): String = buildString(s.length) {
+        for (c in s) {
+            when (c) {
+                '&' -> append("&amp;")
+                '<' -> append("&lt;")
+                '>' -> append("&gt;")
+                '"' -> append("&quot;")
+                '\'' -> append("&#39;")
+                else -> append(c)
+            }
+        }
+    }
+
+    /** The page's fixed words: `{{key}}` in the template. */
+    private val TEXTS = listOf(
+        "title" to R.string.page_title,
+        "subtitle" to R.string.page_subtitle,
+        "codeHeading" to R.string.page_code_heading,
+        "codeLabel" to R.string.page_code_label,
+        "haHeading" to R.string.page_ha_heading,
+        "address" to R.string.page_address,
+        "signIn" to R.string.page_sign_in,
+        "signInHint" to R.string.page_sign_in_hint,
+        "tokenToggle" to R.string.page_token_toggle,
+        "tokenLabel" to R.string.page_token_label,
+        "tokenHint" to R.string.page_token_hint,
+        "find" to R.string.page_find,
+        "speakerHeading" to R.string.page_speaker_heading,
+        "speakersEmpty" to R.string.page_speakers_empty,
+        "entityLabel" to R.string.page_entity_label,
+        "entityPlaceholder" to R.string.page_entity_placeholder,
+        "generalHeading" to R.string.page_general_heading,
+        "sleepBefore" to R.string.page_sleep_before,
+        "sleepAfter" to R.string.page_sleep_after,
+        "release" to R.string.page_release,
+        "close" to R.string.page_close,
+        "clock" to R.string.page_clock,
+        "remote" to R.string.page_remote,
+        "maHeading" to R.string.page_ma_heading,
+        "maHint" to R.string.page_ma_hint,
+        "maTokenPlaceholder" to R.string.page_ma_token_placeholder,
+        "maTokenHint" to R.string.page_ma_token_hint,
+        "lightsHeading" to R.string.page_lights_heading,
+        "lightsHint" to R.string.page_lights_hint,
+        "lightsEmpty" to R.string.page_lights_empty,
+        "vistaHeading" to R.string.page_vista_heading,
+        "vistaHint" to R.string.page_vista_hint,
+        "weather" to R.string.page_weather,
+        "weatherAuto" to R.string.page_weather_auto,
+        "weatherNone" to R.string.page_weather_none,
+        "save" to R.string.page_save,
+    )
+
+    /** Words the page's script shows as it goes. */
+    private val SCRIPT_TEXTS = listOf(
+        "noSpeakers" to R.string.page_no_speakers,
+        "noLights" to R.string.page_no_lights,
+        "left" to R.string.page_light_left,
+        "center" to R.string.page_light_center,
+        "right" to R.string.page_light_right,
+        "none" to R.string.page_none,
+        "weatherAuto" to R.string.page_weather_auto,
+        "weatherNone" to R.string.page_weather_none,
+        "connecting" to R.string.page_connecting,
+        "failed" to R.string.page_failed,
+        "connected" to R.string.page_connected,
+        "tvUnreachable" to R.string.page_tv_unreachable,
+        "saved" to R.string.page_saved,
+        "tokenKept" to R.string.page_token_kept,
+        "signingIn" to R.string.page_signing_in,
+        "signedIn" to R.string.page_signed_in,
+        "signInFailed" to R.string.page_signin_failed,
+        "withToken" to R.string.page_with_token,
+    )
 
     private val TEMPLATE = """
 <!doctype html>
-<html lang="de">
+<html lang="__LANG__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
-<title>Klangbild einrichten</title>
+<title>{{title}}</title>
 <style>
   :root {
     --wall: #0f0d0c; --card: #171412; --line: #2c2723; --ink: #ebe3d8; --muted: #b3a89b;
@@ -49,6 +139,10 @@ object SetupPage {
     border-radius: 10px; padding: 12px 20px; font: 600 15px system-ui, sans-serif; margin-top: 18px; }
   button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); width: 100%; padding: 15px; font-size: 16px; }
   button:disabled { opacity: .45; }
+  details { margin-top: 18px; }
+  summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 15px; text-decoration: underline;
+    text-underline-offset: 3px; text-decoration-color: var(--line); }
+  summary::-webkit-details-marker { display: none; }
   .speakers { display: grid; gap: 10px; }
   .speaker { display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line);
     border-radius: 12px; padding: 12px 14px; margin: 0; color: var(--ink); }
@@ -60,84 +154,95 @@ object SetupPage {
   .row input[type=checkbox], .row input[type=radio] { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
   .inline { display: flex; gap: 10px; align-items: center; color: var(--muted); }
   .inline input { width: 90px; }
-  #status { min-height: 1.5em; margin-top: 16px; }
-  #status.bad { color: var(--bad); } #status.good { color: var(--ink); }
+  .status { min-height: 1.5em; margin-top: 16px; }
+  .status.bad { color: var(--bad); } .status.good { color: var(--ink); }
   .hidden { display: none; }
 </style>
 </head>
 <body>
   <h1>Klangbild</h1>
-  <p class="sub">Einrichtung für den Fernseher</p>
+  <p class="sub">{{subtitle}}</p>
 
   <section id="codeBox" class="__CODE_HIDDEN__">
-    <h2>Code</h2>
-    <label for="code">Der sechsstellige Code auf dem Fernseher</label>
+    <h2>{{codeHeading}}</h2>
+    <label for="code">{{codeLabel}}</label>
     <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" value="__CODE__">
   </section>
 
   <section>
-    <h2>1 · Home Assistant</h2>
-    <label for="url">Adresse</label>
+    <h2>{{haHeading}}</h2>
+    <label for="url">{{address}}</label>
     <input id="url" type="url" inputmode="url" placeholder="http://192.168.1.10:8123" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <label for="token">Langlebiges Zugangstoken</label>
-    <textarea id="token" placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOi…" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-    <p class="hint" id="tokenHint">In Home Assistant: Profil → Sicherheit → „Langlebige Zugangstoken“ → Token erstellen.</p>
-    <button id="find">Lautsprecher suchen</button>
+    <button id="signIn">{{signIn}}</button>
+    <p class="hint">{{signInHint}}</p>
+    <p class="status" id="haStatus"></p>
+    <details id="tokenBox">
+      <summary>{{tokenToggle}}</summary>
+      <label for="token">{{tokenLabel}}</label>
+      <textarea id="token" placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOi…" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <p class="hint">{{tokenHint}}</p>
+      <button id="find">{{find}}</button>
+    </details>
   </section>
 
   <section>
-    <h2>2 · Lautsprecher</h2>
-    <div class="speakers" id="speakers"><p class="hint">Erst Home Assistant verbinden – dann erscheinen hier die Lautsprecher.</p></div>
-    <label for="entity">oder Entität direkt eingeben</label>
-    <input id="entity" type="text" placeholder="media_player.wohnzimmer" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <h2>{{speakerHeading}}</h2>
+    <div class="speakers" id="speakers"><p class="hint">{{speakersEmpty}}</p></div>
+    <label for="entity">{{entityLabel}}</label>
+    <input id="entity" type="text" placeholder="{{entityPlaceholder}}" autocapitalize="off" autocorrect="off" spellcheck="false">
   </section>
 
   <section>
-    <h2>3 · Allgemein</h2>
-    <div class="inline">Ausschalten nach <input id="sleep" type="number" min="1" max="720" value="10"> Minuten ohne Musik, dann:</div>
-    <label class="row"><input type="radio" name="action" value="release" checked> Bildschirmschoner des Fernsehers</label>
-    <label class="row"><input type="radio" name="action" value="close"> App schließen</label>
-    <label class="row"><input id="clock" type="checkbox" checked> Uhrzeit anzeigen</label>
-    <label class="row"><input id="remote" type="checkbox" checked> Fernbedienung steuert die Musik (OK: Pause, ◀ ▶: Titel)</label>
+    <h2>{{generalHeading}}</h2>
+    <div class="inline">{{sleepBefore}} <input id="sleep" type="number" min="1" max="720" value="10"> {{sleepAfter}}</div>
+    <label class="row"><input type="radio" name="action" value="release" checked> {{release}}</label>
+    <label class="row"><input type="radio" name="action" value="close"> {{close}}</label>
+    <label class="row"><input id="clock" type="checkbox" checked> {{clock}}</label>
+    <label class="row"><input id="remote" type="checkbox" checked> {{remote}}</label>
   </section>
 
   <section>
-    <h2>4 · Music Assistant (freiwillig)</h2>
-    <p class="hint">Für Cover Flow: Mit Music Assistant zeigt Klangbild die ganze Warteschlange – was lief und was kommt.</p>
-    <label for="maUrl">Adresse</label>
+    <h2>{{maHeading}}</h2>
+    <p class="hint">{{maHint}}</p>
+    <label for="maUrl">{{address}}</label>
     <input id="maUrl" type="url" inputmode="url" placeholder="http://192.168.1.10:8095" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <label for="maToken">Langlebiges Zugangstoken</label>
-    <textarea id="maToken" placeholder="Aus Music Assistant" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-    <p class="hint">In Music Assistant unter Einstellungen → Profil ein langlebiges Zugangstoken erstellen. Leer lassen, wenn du es nicht brauchst.</p>
+    <label for="maToken">{{tokenLabel}}</label>
+    <textarea id="maToken" placeholder="{{maTokenPlaceholder}}" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <p class="hint">{{maTokenHint}}</p>
   </section>
 
   <section>
-    <h2>5 · Lichtleisten (freiwillig)</h2>
-    <p class="hint">Farbige Lichter hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. Klangbild merkt sich, wie sie vorher waren, und stellt das nach der Musik wieder her.</p>
-    <div id="lights"><p class="hint">Erst Home Assistant verbinden – dann erscheinen hier die Farblichter.</p></div>
+    <h2>{{lightsHeading}}</h2>
+    <p class="hint">{{lightsHint}}</p>
+    <div id="lights"><p class="hint">{{lightsEmpty}}</p></div>
   </section>
 
   <section>
-    <h2>6 · Fensterblick</h2>
-    <p class="hint">Die Landschaft aus Papier, die bei Pause erscheint: Sonne, Mond und Sterne stehen, wo sie bei dir gerade stehen. Die Wolken folgen dem Wetter – nur wie bewölkt es ist, Regen oder Schnee fallen nie.</p>
-    <label for="weather">Wetter</label>
-    <select id="weather"><option value="">Automatisch</option><option value="none">Keines – immer ein heiterer Himmel</option></select>
+    <h2>{{vistaHeading}}</h2>
+    <p class="hint">{{vistaHint}}</p>
+    <label for="weather">{{weather}}</label>
+    <select id="weather"><option value="">{{weatherAuto}}</option><option value="none">{{weatherNone}}</option></select>
   </section>
 
   <section>
-    <button class="primary" id="save">Speichern</button>
-    <p id="status"></p>
+    <button class="primary" id="save">{{save}}</button>
+    <p class="status" id="status"></p>
   </section>
 
 <script>
+  const T = __SCRIPT_TEXTS__;
   const ${'$'} = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
   let hasToken = false;
-  let bars = { barsLeft: '', barsCenter: '', barsRight: '' };
+  let lights = { lightsLeft: '', lightsCenter: '', lightsRight: '' };
   let lightsShown = false;
   let weather = '';
   let weatherShown = false;
+  // The code survives the trip to Home Assistant's sign-in page and back in this tab.
+  if (!${'$'}('code').value) ${'$'}('code').value = sessionStorage.getItem('klangbild-code') || '';
   function code() { return ${'$'}('code').value.trim(); }
-  function status(text, kind) { const s = ${'$'}('status'); s.textContent = text || ''; s.className = kind || ''; }
+  function show(id, text, kind) { const s = ${'$'}(id); s.textContent = text || ''; s.className = 'status ' + (kind || ''); }
+  function status(text, kind) { show('status', text, kind); }
   async function api(path, body) {
     const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ code: code() }, body || {})) });
@@ -148,8 +253,8 @@ object SetupPage {
     return data;
   }
   function renderSpeakers(list, selected) {
-    const box = ${'$'}('speakers'); box.innerHTML = '';
-    if (!list.length) { box.innerHTML = '<p class="hint">Keine media_player-Entitäten gefunden.</p>'; return; }
+    const box = ${'$'}('speakers'); box.textContent = '';
+    if (!list.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = T.noSpeakers; box.append(p); return; }
     list.forEach((sp) => {
       const row = document.createElement('label'); row.className = 'speaker';
       const r = document.createElement('input'); r.type = 'radio'; r.name = 'speaker'; r.value = sp.id;
@@ -162,60 +267,74 @@ object SetupPage {
     });
   }
   function renderLights(list) {
-    const box = ${'$'}('lights'); box.innerHTML = '';
-    if (!list.length) { box.innerHTML = '<p class="hint">Keine Farblichter gefunden.</p>'; return; }
-    [['barsLeft', 'Links'], ['barsCenter', 'Mitte'], ['barsRight', 'Rechts']].forEach(([key, label]) => {
+    const box = ${'$'}('lights'); box.textContent = '';
+    if (!list.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = T.noLights; box.append(p); return; }
+    [['lightsLeft', T.left], ['lightsCenter', T.center], ['lightsRight', T.right]].forEach(([key, label]) => {
       const l = document.createElement('label'); l.htmlFor = key; l.textContent = label;
       const sel = document.createElement('select'); sel.id = key;
-      const none = document.createElement('option'); none.value = ''; none.textContent = 'Keine'; sel.append(none);
+      const none = document.createElement('option'); none.value = ''; none.textContent = T.none; sel.append(none);
       list.forEach((li) => {
         const o = document.createElement('option'); o.value = li.id; o.textContent = li.name + ' · ' + li.state;
-        o.selected = li.id === bars[key]; sel.append(o);
+        o.selected = li.id === lights[key]; sel.append(o);
       });
       box.append(l, sel);
     });
     lightsShown = true;
   }
   function renderWeather(list) {
-    const sel = ${'$'}('weather'); sel.innerHTML = '';
-    const auto = document.createElement('option'); auto.value = ''; auto.textContent = 'Automatisch'; sel.append(auto);
+    const sel = ${'$'}('weather'); sel.textContent = '';
+    const auto = document.createElement('option'); auto.value = ''; auto.textContent = T.weatherAuto; sel.append(auto);
     list.forEach((w) => {
       const o = document.createElement('option'); o.value = w.id; o.textContent = w.name + ' · ' + w.state; sel.append(o);
     });
-    const none = document.createElement('option'); none.value = 'none'; none.textContent = 'Keines – immer ein heiterer Himmel'; sel.append(none);
+    const none = document.createElement('option'); none.value = 'none'; none.textContent = T.weatherNone; sel.append(none);
     sel.value = weather;
     if (sel.value !== weather) sel.value = '';
     weatherShown = true;
   }
   async function load() {
     if (code().length !== 6) return;
+    sessionStorage.setItem('klangbild-code', code());
     const s = await api('/api/state');
     if (s.ok === false) { status(s.message, 'bad'); return; }
     ${'$'}('url').value = s.url || '';
-    hasToken = !!s.hasToken;
-    if (hasToken) ${'$'}('token').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
+    hasToken = s.auth === 'token';
+    if (hasToken) ${'$'}('token').placeholder = T.tokenKept;
     ${'$'}('entity').value = s.entity || '';
     ${'$'}('sleep').value = s.sleepMinutes || 10;
     document.querySelectorAll('input[name=action]').forEach((r) => r.checked = (r.value === s.sleepAction));
     ${'$'}('clock').checked = !!s.clock; ${'$'}('remote').checked = !!s.remote;
     ${'$'}('maUrl').value = s.maUrl || '';
-    bars = { barsLeft: s.barsLeft || '', barsCenter: s.barsCenter || '', barsRight: s.barsRight || '' };
+    lights = { lightsLeft: s.lightsLeft || '', lightsCenter: s.lightsCenter || '', lightsRight: s.lightsRight || '' };
     weather = s.weather || ''; ${'$'}('weather').value = weather;
-    if (s.hasMaToken) ${'$'}('maToken').placeholder = 'Gespeichertes Token bleibt erhalten – nur zum Ändern neu einfügen';
-    if (s.url && hasToken) find();
+    if (s.hasMaToken) ${'$'}('maToken').placeholder = T.tokenKept;
+    if (params.get('signin') === 'failed') show('haStatus', T.signInFailed, 'bad');
+    else if (s.auth === 'signin') show('haStatus', T.signedIn, 'good');
+    else if (hasToken) show('haStatus', T.withToken, 'good');
+    if (s.url && s.auth !== 'none') find();
+  }
+  async function signIn() {
+    ${'$'}('signIn').disabled = true;
+    try {
+      const r = await api('/api/signin', { url: ${'$'}('url').value });
+      if (!r.ok) { show('haStatus', r.message || T.failed, 'bad'); return; }
+      show('haStatus', T.signingIn, 'good');
+      location.href = r.authorize;
+    } catch (e) { show('haStatus', T.tvUnreachable, 'bad'); }
+    finally { ${'$'}('signIn').disabled = false; }
   }
   async function find() {
-    status('Verbinde mit Home Assistant …');
+    status(T.connecting);
     ${'$'}('find').disabled = true;
     try {
       const r = await api('/api/discover', { url: ${'$'}('url').value, token: ${'$'}('token').value });
-      if (!r.ok) { status(r.message || 'Das hat nicht geklappt.', 'bad'); return; }
+      if (!r.ok) { status(r.message || T.failed, 'bad'); return; }
       ${'$'}('url').value = r.url;
       renderSpeakers(r.speakers, ${'$'}('entity').value);
       renderLights(r.lights || []);
       renderWeather(r.weather || []);
-      status('Verbunden. Bitte den Lautsprecher wählen.', 'good');
-    } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
+      status(T.connected, 'good');
+    } catch (e) { status(T.tvUnreachable, 'bad'); }
     finally { ${'$'}('find').disabled = false; }
   }
   async function save() {
@@ -227,19 +346,22 @@ object SetupPage {
         sleepMinutes: parseInt(${'$'}('sleep').value, 10), sleepAction: action,
         clock: ${'$'}('clock').checked, remote: ${'$'}('remote').checked,
         maUrl: ${'$'}('maUrl').value, maToken: ${'$'}('maToken').value };
-      // The weather once the page has listed it, or when it was chosen – a stored entity the page could not list stays.
+      // The weather once the page has listed it, or when it was chosen: a stored entity the page could not list stays.
       const w = ${'$'}('weather').value;
       if (weatherShown || w !== '' || weather === '') body.weather = w;
-      // The bars only once the page has shown them – otherwise they stay as they are.
-      if (lightsShown) ['barsLeft', 'barsCenter', 'barsRight'].forEach((k) => body[k] = ${'$'}(k).value);
+      // The lights only once the page has shown them; otherwise they stay as they are.
+      if (lightsShown) ['lightsLeft', 'lightsCenter', 'lightsRight'].forEach((k) => body[k] = ${'$'}(k).value);
       const r = await api('/api/save', body);
-      status(r.message || (r.ok ? 'Gespeichert.' : 'Das hat nicht geklappt.'), r.ok ? 'good' : 'bad');
-    } catch (e) { status('Der Fernseher ist nicht erreichbar.', 'bad'); }
+      status(r.message || (r.ok ? T.saved : T.failed), r.ok ? 'good' : 'bad');
+      if (r.ok) sessionStorage.removeItem('klangbild-code');
+    } catch (e) { status(T.tvUnreachable, 'bad'); }
     finally { ${'$'}('save').disabled = false; }
   }
+  ${'$'}('signIn').onclick = signIn;
   ${'$'}('find').onclick = find;
   ${'$'}('save').onclick = save;
   ${'$'}('code').oninput = () => { if (code().length === 6) load(); };
+  if (params.has('signin')) history.replaceState(null, '', '/');
   load();
 </script>
 </body>

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Measures the Fensterblick on the running Android TV emulator: installs the release APK,
+# Measures the window view on the running Android TV emulator: installs the release APK,
 # starts the app with the given extras, lets it run, and records frames (gfxinfo), the app's
 # CPU time and its memory (PSS, graphics) once a minute. Leaves everything in measure/ and
 # prints a summary. The emulator renders with a software GPU (SwiftShader): its frame times
-# say little about the Google TV Streamer's GPU; CPU time per frame, frames per second and
-# memory growth are what this run is for.
+# say little about a real TV's GPU. CPU time per frame, frames per second and memory growth
+# are what this run is for.
 #
-#   bash ci/vista-measure.sh klangbild.apk <seconds> <label> [am start extras …]
+#   bash ci/vista-measure.sh klangbild.apk <seconds> <label> [am start extras ...]
 set -u
 APK="$1"
 SECONDS_TO_RUN="$2"
@@ -21,7 +21,7 @@ if ! pgrep -f fake_ha.py > /dev/null; then
   python3 "$HERE/fake_ha.py" 8123 > "$OUT/fake_ha.log" 2>&1 &
 fi
 
-# Every adb call has a deadline: a software-rendered emulator can stall, the run must not.
+# Every adb call has a deadline: a software-rendered emulator can stall, and the run must not.
 a() { timeout 90 adb "$@"; }
 
 timeout 600 adb wait-for-device
@@ -31,7 +31,7 @@ a shell am force-stop "$PKG"
 a shell wm size > "$OUT/display.txt"
 a shell wm density >> "$OUT/display.txt"
 a shell am start -n "$PKG/.MainActivity" \
-  --es ha_url http://10.0.2.2:8123 --es token smoke --es entity media_player.wohnzimmer "$@" > /dev/null
+  --es ha_url http://10.0.2.2:8123 --es token smoke --es entity media_player.living_room "$@" > /dev/null
 sleep 20
 PID="$(a shell pidof "$PKG" | tr -d '\r')"
 a shell dumpsys gfxinfo "$PKG" reset > /dev/null

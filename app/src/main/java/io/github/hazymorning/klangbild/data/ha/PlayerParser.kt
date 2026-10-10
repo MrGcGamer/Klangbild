@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
 import io.github.hazymorning.klangbild.domain.MediaKind
+import io.github.hazymorning.klangbild.domain.PlayerAbilities
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
@@ -85,18 +86,46 @@ object PlayerParser {
             muted = (entity.attr("is_volume_muted") as? JsonPrimitive)?.booleanOrNull == true,
             isGroupPlayer = entity.string("mass_player_type") == "group",
             shuffle = shuffleOf(entity),
+            abilities = abilitiesOf(entity),
         )
     }
 
-    /** Shuffle as the player reports it – or null when it cannot shuffle (`supported_features` lacks SHUFFLE_SET). */
+    /** Shuffle as the player reports it, or null when it cannot shuffle (`supported_features` lacks SHUFFLE_SET). */
     fun shuffleOf(entity: EntityState): Boolean? {
         val on = (entity.attr("shuffle") as? JsonPrimitive)?.booleanOrNull
         val features = entity.number("supported_features")?.toLong() ?: return on
-        return if (features and SHUFFLE_SET != 0L) on ?: false else null
+        return if (features and Feature.SHUFFLE_SET != 0L) on ?: false else null
     }
 
-    /** Home Assistant's `MediaPlayerEntityFeature.SHUFFLE_SET`. */
-    const val SHUFFLE_SET = 32_768L
+    /** What the player supports (`supported_features`); everything when it does not say. */
+    fun abilitiesOf(entity: EntityState): PlayerAbilities {
+        val f = entity.number("supported_features")?.toLong() ?: return PlayerAbilities()
+        fun has(flag: Long) = f and flag != 0L
+        return PlayerAbilities(
+            play = has(Feature.PLAY),
+            pause = has(Feature.PAUSE),
+            seek = has(Feature.SEEK),
+            next = has(Feature.NEXT_TRACK),
+            previous = has(Feature.PREVIOUS_TRACK),
+            volume = has(Feature.VOLUME_SET) || has(Feature.VOLUME_STEP),
+            shuffle = has(Feature.SHUFFLE_SET),
+        )
+    }
+
+    /**
+     * Home Assistant's `MediaPlayerEntityFeature` flags that the remote's actions need
+     * (https://developers.home-assistant.io/docs/core/entity/media-player).
+     */
+    object Feature {
+        const val PAUSE = 1L
+        const val SEEK = 2L
+        const val VOLUME_SET = 4L
+        const val PREVIOUS_TRACK = 16L
+        const val NEXT_TRACK = 32L
+        const val VOLUME_STEP = 1_024L
+        const val PLAY = 16_384L
+        const val SHUFFLE_SET = 32_768L
+    }
 
     /**
      * `group_members` lists every speaker of a sync group, the leader first – on the leader

@@ -35,8 +35,9 @@ import java.text.Normalizer
 
 /**
  * Home Assistant as the source: the configured media_player plus `sun.sun`, enriched with
- * Music Assistant's queue (next track, full-size artwork, individual artist names) – and,
- * when Music Assistant itself is set up ([ma]), with the whole queue around the current track.
+ * Music Assistant's queue (next track, full-size artwork, individual artist names) and, when
+ * Music Assistant itself is set up ([ma]), with the whole queue around the current track.
+ * Remote commands go out only where the player supports them.
  */
 class HaSource(
     http: OkHttpClient,
@@ -78,7 +79,7 @@ class HaSource(
     private var receivedAt = 0L
     private var watched: Set<String> = emptySet()
 
-    /** The colour lights behind the TV, followed for [LightSync] alongside the group's speakers. */
+    /** The lights that join in, followed for [LightSync] alongside the group's speakers. */
     @Volatile private var lightIds: Set<String> = emptySet()
     private val _lights = MutableStateFlow<Map<String, EntityState>>(emptyMap())
     override val lights: StateFlow<Map<String, EntityState>> = _lights.asStateFlow()
@@ -89,8 +90,8 @@ class HaSource(
         publish(connection.status.value, connection.entities.value)
     }
 
-    override suspend fun callLight(service: String, entityId: String, data: JsonObject?): String? = try {
-        connection.callServiceForContext("light", service, entityId, data)
+    override suspend fun call(domain: String, service: String, entityId: String?, data: JsonObject?): String? = try {
+        connection.callServiceForContext(domain, service, entityId, data)
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (_: Exception) {
@@ -99,11 +100,8 @@ class HaSource(
 
     override fun start() {
         connection.start(config, listOf(playerEntity, sunEntity) + weatherEntities)
-        // How many Music Assistant speakers there are (a group of all of them is "everywhere"),
-        // and the speaker's button that adds what plays to the favourites.
-        connection.watchTemplate(speakerTemplate(playerEntity))
         collector = scope.launch {
-            combine(connection.status, connection.entities, connection.templateResult, connection.config) { st, ents, _, _ -> st to ents }
+            combine(connection.status, connection.entities, connection.registry, connection.config, connection.missing) { st, ents, _, _, _ -> st to ents }
                 .collect { (st, ents) -> publish(st, ents) }
         }
         queuePoller = scope.launch {
@@ -131,17 +129,11 @@ class HaSource(
     /** The network came back: do not wait for the backoff timer. */
     fun networkAvailable() = connection.retryNow()
 
+    /** Sends [command] as the player's service, only when the player supports it. */
     override suspend fun send(command: RemoteCommand) {
-        val service = when (command) {
-            RemoteCommand.PLAY_PAUSE -> "media_play_pause"
-            RemoteCommand.PLAY -> "media_play"
-            RemoteCommand.PAUSE -> "media_pause"
-            RemoteCommand.NEXT -> "media_next_track"
-            RemoteCommand.PREVIOUS -> "media_previous_track"
-            RemoteCommand.VOLUME_UP -> "volume_up"
-            RemoteCommand.VOLUME_DOWN -> "volume_down"
-        }
-        runCatching { connection.callService("media_player", service, playerEntity) }
+        val p = lastSnapshot ?: return
+        val service = serviceFor(command, p) ?: return
+        attempt { connection.callService("media_player", service, playerEntity) }
     }
 
     /**
@@ -151,41 +143,46 @@ class HaSource(
      */
     override suspend fun favorite(): Boolean {
         val button = favoriteButton()
-        if (button != null) {
-            return try {
-                connection.callService("button", "press", button)
-                true
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                false
-            }
-        }
+        if (button != null) return attempt { connection.callService("button", "press", button) }
         val client = ma ?: return false
         val player = lastSnapshot?.activeQueue ?: return false
-        return try {
-            client.favoriteNowPlaying(player)
-            true
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            false
-        }
+        return attempt { client.favoriteNowPlaying(player) }
     }
 
-    /** The speaker's favourite button, as the template found it (null without one). */
-    private fun favoriteButton(): String? =
-        connection.templateResult.value?.substringAfter('|', "")?.trim()?.takeIf { it.startsWith("button.") }
+    /** Runs [block]; whether it worked. Only a cancellation passes. */
+    private suspend fun attempt(block: suspend () -> Unit): Boolean = try {
+        block()
+        true
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        false
+    }
+
+    /**
+     * The speaker's own button that adds what plays to Music Assistant's favorites ("Favorite
+     * current song"), found in the entity registry: same device, Music Assistant's translation
+     * key (its entity id depends on the language). Null without one.
+     */
+    private fun favoriteButton(): String? {
+        val registry = connection.registry.value ?: return null
+        val device = registry.firstOrNull { it.entityId == playerEntity }?.deviceId ?: return null
+        return registry.firstOrNull {
+            it.deviceId == device && it.platform == MA_PLATFORM && it.translationKey == FAVORITE_KEY && it.entityId.startsWith("button.")
+        }?.entityId
+    }
 
     override suspend fun shuffle(on: Boolean): Boolean {
+        if (lastSnapshot?.abilities?.shuffle != true) return false
         val data = buildJsonObject { put("shuffle", on) }
-        return runCatching { connection.callService("media_player", "shuffle_set", playerEntity, data = data) }.isSuccess
+        return attempt { connection.callService("media_player", "shuffle_set", playerEntity, data = data) }
     }
 
-    /** Home Assistant passes whole seconds on to Music Assistant, whatever the speed: the item's own time. */
+    /** Plays on from [positionMs] in the item's own time (`seek_position` in seconds). */
     override suspend fun seek(positionMs: Long) {
-        val data = buildJsonObject { put("seek_position", positionMs.coerceAtLeast(0) / 1000) }
-        runCatching { connection.callService("media_player", "media_seek", playerEntity, data = data) }
+        if (lastSnapshot?.abilities?.seek != true) return
+        val data = buildJsonObject { put("seek_position", positionMs.coerceAtLeast(0) / 1000.0) }
+        attempt { connection.callService("media_player", "media_seek", playerEntity, data = data) }
     }
 
     /** Called from the status/entity collector and after queue refreshes – serialised. */
@@ -202,7 +199,6 @@ class HaSource(
         linkDownSince = if (link == LinkState.CONNECTED) null else (linkDownSince ?: t)
 
         val entity = entities[playerEntity]
-        val connectedAndLoaded = status == HaStatus.Connected && entities.isNotEmpty()
         var player = entity?.let { PlayerParser.player(it, config.baseUrl) }
         if (player != null && player != lastSnapshot) {
             receivedAt = t
@@ -219,9 +215,10 @@ class HaSource(
         val enriched = player?.let { enrich(it) }
         val sun = entities[sunEntity]?.number("elevation")
         val weather = weatherEntities.firstNotNullOfOrNull { entities[it] }
-        // The other speakers of a group are followed too, for their names – and the light bars.
+        // The other speakers of a group are followed too, for their names, and so are the
+        // lights; in a larger group also every Music Assistant speaker, to tell "everywhere".
         val others = player?.groupMembers.orEmpty()
-        val follow = others.toSet() + lightIds
+        val follow = others.toSet() + lightIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
         if (follow != watched) {
             watched = follow
             connection.watch(watched)
@@ -234,14 +231,14 @@ class HaSource(
         _state.value = SourceState(
             link = link,
             player = enriched,
-            entityMissing = connectedAndLoaded && entity == null,
+            entityMissing = status == HaStatus.Connected && entity == null && playerEntity in connection.missing.value,
             next = currentQueue?.next,
             sunElevation = sun ?: _state.value.sunElevation,
             receivedAtMs = receivedAt,
             skewMs = connection.clockSkew.offsetMs,
             linkDownSinceMs = linkDownSince,
             group = player?.let { groupOf(it, others.map { id -> entities[id]?.string("friendly_name") }, currentQueue) }
-                ?.let { g -> if (isEverywhere(g)) g.copy(everywhere = true) else g },
+                ?.let { g -> if (isEverywhere(g, entities)) g.copy(everywhere = true) else g },
             queueKnown = queueKnown,
             coming = currentWindow?.coming.orEmpty(),
             played = currentWindow?.played.orEmpty(),
@@ -250,7 +247,7 @@ class HaSource(
             place = placeOf(connection.config.value) ?: _state.value.place,
             weather = weather?.state?.takeIf { it != "unavailable" && it != "unknown" } ?: _state.value.weather.takeIf { weather == null },
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
-            windKmh = weather?.let { w -> w.number("wind_speed")?.let { WeatherMood.kmh(it, w.string("wind_speed_unit")) } }
+            windKmh = weather?.let { w -> w.number("wind_speed")?.let { speed -> WeatherMood.kmh(speed, w.string("wind_speed_unit")) } }
                 ?: _state.value.windKmh.takeIf { weather == null },
         )
     }
@@ -401,10 +398,23 @@ class HaSource(
         }
     }
 
-    /** All of the house's speakers play together (and there are at least three). */
-    private fun isEverywhere(g: SpeakerGroup): Boolean {
-        val all = connection.templateResult.value?.substringBefore('|')?.trim()?.toIntOrNull() ?: return false
-        return g.name == null && all >= 3 && g.others.size + 1 >= all
+    /** Music Assistant's media players, as the entity registry lists them. */
+    private fun maSpeakers(): Set<String> =
+        connection.registry.value?.filter { it.platform == MA_PLATFORM && it.entityId.startsWith("media_player.") }
+            ?.map { it.entityId }?.toSet().orEmpty()
+
+    /**
+     * All of the house's speakers play together (and there are at least [EVERYWHERE_MIN]): the
+     * group is as large as the number of Music Assistant speakers (groups not counted) that are
+     * not unavailable.
+     */
+    private fun isEverywhere(g: SpeakerGroup, entities: Map<String, EntityState>): Boolean {
+        if (g.name != null) return false
+        val all = maSpeakers().count { id ->
+            val e = entities[id] ?: return@count false
+            e.state != "unavailable" && e.string("mass_player_type") == "player"
+        }
+        return all >= EVERYWHERE_MIN && g.others.size + 1 >= all
     }
 
     private fun trackKey(t: TrackInfo) = norm(t.title) + "|" + norm(t.artists.joinToString())
@@ -418,19 +428,36 @@ class HaSource(
         /** A book without chapters is asked once more after this long. */
         const val CHAPTERS_AGAIN_MS = 10_000L
 
-        /** Music Assistant speakers (not groups) that are not unavailable. */
-        const val SPEAKER_COUNT_TEMPLATE =
-            "{{ states.media_player | selectattr('attributes.mass_player_type', 'eq', 'player') " +
-                "| rejectattr('state', 'eq', 'unavailable') | list | count }}"
+        /** Music Assistant's integration in Home Assistant's entity registry. */
+        const val MA_PLATFORM = "music_assistant"
+
+        /** The translation key of Music Assistant's "Favorite current song" button. */
+        const val FAVORITE_KEY = "favorite_now_playing"
+
+        /** "Everywhere" needs at least this many speakers playing together. */
+        const val EVERYWHERE_MIN = 3
 
         /**
-         * The speaker count, then after a "|" the button Music Assistant gives [player] in Home
-         * Assistant to add what plays to the favourites (empty without one).
+         * The service for [command] on player [p], or null when the player does not support it
+         * (https://developers.home-assistant.io/docs/core/entity/media-player). Play and pause
+         * go as one toggle where the player supports both, else as the one it supports.
          */
-        fun speakerTemplate(player: String): String =
-            SPEAKER_COUNT_TEMPLATE + "|{% set d = device_id('" + player.replace("'", "") + "') %}" +
-                "{{ ((device_entities(d) if d else []) | select('match', 'button') " +
-                "| select('in', integration_entities('music_assistant')) | list + [''])[0] }}"
+        fun serviceFor(command: RemoteCommand, p: PlayerSnapshot): String? {
+            val a = p.abilities
+            return when (command) {
+                RemoteCommand.PLAY_PAUSE -> when {
+                    a.play && a.pause -> "media_play_pause"
+                    p.status == PlayerStatus.PLAYING -> "media_pause".takeIf { a.pause }
+                    else -> "media_play".takeIf { a.play }
+                }
+                RemoteCommand.PLAY -> "media_play".takeIf { a.play }
+                RemoteCommand.PAUSE -> "media_pause".takeIf { a.pause }
+                RemoteCommand.NEXT -> "media_next_track".takeIf { a.next }
+                RemoteCommand.PREVIOUS -> "media_previous_track".takeIf { a.previous }
+                RemoteCommand.VOLUME_UP -> "volume_up".takeIf { a.volume }
+                RemoteCommand.VOLUME_DOWN -> "volume_down".takeIf { a.volume }
+            }
+        }
 
         fun norm(s: String): String =
             Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).filter { it.isLetterOrDigit() }

@@ -7,45 +7,56 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.Test
 
 class EntityStoreTest {
-    private fun ev(s: String): JsonObject = Json.parseToJsonElement(s).jsonObject
+    private fun state(s: String): EntityState = EntityState.of(Json.parseToJsonElement(s).jsonObject)!!
+
+    private val playing = """{"entity_id":"media_player.wz","state":"playing",
+        "attributes":{"media_title":"A","media_position":10},
+        "last_changed":"2026-10-10T18:00:00.500000+00:00","last_updated":"2026-10-10T18:00:01+00:00",
+        "context":{"id":"01K","parent_id":"01P","user_id":null}}"""
 
     @Test
-    fun `applies add, change, attribute removal and remove`() {
-        val store = EntityStore()
-        store.apply(ev("""{"a":{"media_player.wz":{"s":"playing","a":{"media_title":"A","media_position":10},"c":"01K","lc":100.5,"lu":101.0}}}"""))
-        var st = store["media_player.wz"]!!
+    fun `reads a state object as the REST API and state events carry it`() {
+        val st = state(playing)
+        assertThat(st.entityId).isEqualTo("media_player.wz")
         assertThat(st.state).isEqualTo("playing")
         assertThat(st.string("media_title")).isEqualTo("A")
-        assertThat(st.lastChanged).isEqualTo(100.5)
-        assertThat(st.lastUpdated).isEqualTo(101.0)
-
-        val changed = store.apply(ev("""{"c":{"media_player.wz":{"+":{"s":"paused","lc":200.0,"a":{"media_position":80}},"-":{"a":["media_title"]}}}}"""))
-        assertThat(changed).containsExactly("media_player.wz")
-        st = store["media_player.wz"]!!
-        assertThat(st.state).isEqualTo("paused")
-        assertThat(st.number("media_position")).isEqualTo(80.0)
-        assertThat(st.string("media_title")).isNull()
-        assertThat(st.lastChanged).isEqualTo(200.0)
-        assertThat(st.lastUpdated).isEqualTo(200.0)
-
-        store.apply(ev("""{"c":{"media_player.wz":{"+":{"lu":250.0,"a":{"volume_level":0.4}}}}}"""))
-        st = store["media_player.wz"]!!
-        assertThat(st.state).isEqualTo("paused")
-        assertThat(st.lastChanged).isEqualTo(200.0)
-        assertThat(st.lastUpdated).isEqualTo(250.0)
-        assertThat(st.number("media_position")).isEqualTo(80.0)
-
-        store.apply(ev("""{"r":["media_player.wz"]}"""))
-        assertThat(store["media_player.wz"]).isNull()
+        assertThat(st.number("media_position")).isEqualTo(10.0)
+        assertThat(st.lastChanged).isEqualTo(1_791_655_200.5)
+        assertThat(st.lastUpdated).isEqualTo(1_791_655_201.0)
+        assertThat(st.context).isEqualTo("01K")
+        assertThat(st.contextParent).isEqualTo("01P")
+        assertThat(st.contextUser).isNull()
+        // Without last_updated it is last_changed; anything without an entity id is no state.
+        assertThat(state("""{"entity_id":"sun.sun","state":"below_horizon","last_changed":"2026-10-10T18:00:00+00:00"}""").lastUpdated)
+            .isEqualTo(1_791_655_200.0)
+        assertThat(EntityState.of(Json.parseToJsonElement("""{"state":"on"}""").jsonObject)).isNull()
+        assertThat(EntityState.of(null as JsonObject?)).isNull()
     }
 
     @Test
-    fun `missing lu means lu equals lc and unknown ids are ignored`() {
+    fun `a state never replaces a newer one`() {
         val store = EntityStore()
-        store.apply(ev("""{"a":{"sun.sun":{"s":"below_horizon","a":{"elevation":-12.3},"c":"x","lc":5.0}}}"""))
-        assertThat(store["sun.sun"]!!.lastUpdated).isEqualTo(5.0)
-        val changed = store.apply(ev("""{"c":{"media_player.ghost":{"+":{"s":"playing"}}}}"""))
-        assertThat(changed).isEmpty()
-        assertThat(store["media_player.ghost"]).isNull()
+        assertThat(store.put(state(playing))).isTrue()
+        val paused = state(playing.replace("\"playing\"", "\"paused\"").replace("18:00:01+00:00", "18:00:05+00:00"))
+        assertThat(store.put(paused)).isTrue()
+        assertThat(store["media_player.wz"]!!.state).isEqualTo("paused")
+        // A slow REST answer from before the event changes nothing.
+        assertThat(store.put(state(playing))).isFalse()
+        assertThat(store["media_player.wz"]!!.state).isEqualTo("paused")
+        // The same state again is no change either.
+        assertThat(store.put(paused)).isFalse()
+    }
+
+    @Test
+    fun `entities are forgotten when removed or no longer followed`() {
+        val store = EntityStore()
+        store.put(state(playing))
+        store.put(state("""{"entity_id":"sun.sun","state":"above_horizon","last_changed":"2026-10-10T18:00:00+00:00"}"""))
+        assertThat(store.retain(setOf("sun.sun"))).isTrue()
+        assertThat(store["media_player.wz"]).isNull()
+        assertThat(store.retain(setOf("sun.sun"))).isFalse()
+        assertThat(store.remove("sun.sun")).isTrue()
+        assertThat(store.remove("sun.sun")).isFalse()
+        assertThat(store.snapshot()).isEmpty()
     }
 }

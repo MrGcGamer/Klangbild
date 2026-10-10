@@ -1,11 +1,15 @@
 package io.github.hazymorning.klangbild.setup
 
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.config.LaunchExtras
-import io.github.hazymorning.klangbild.config.LightBars
+import io.github.hazymorning.klangbild.config.RoomLights
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
+import io.github.hazymorning.klangbild.data.ha.HaCredentials
+import io.github.hazymorning.klangbild.data.ha.HaTokens
 import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -15,16 +19,18 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.Base64
 
 /** One speaker offered on the setup page. */
 data class SpeakerOption(val entityId: String, val name: String, val state: String, val musicAssistant: Boolean)
 
-/** One colour light offered for the bars behind the TV. */
+/** One light offered to join in. */
 data class LightOption(val entityId: String, val name: String, val state: String)
 
-/** One weather entity offered for the Fensterblick's sky. */
+/** One weather entity offered for the window view's sky. */
 data class WeatherOption(val entityId: String, val name: String, val state: String)
 
 sealed interface DiscoverResult {
@@ -37,25 +43,39 @@ sealed interface DiscoverResult {
 }
 
 /**
- * The setup page's logic, independent of sockets: routes, the one-time code, validation.
+ * The setup page's logic, independent of sockets: routes, the one-time code, the sign-in,
+ * validation.
  *
  * Security model (home network, plain HTTP):
  *  - The server only runs while the setup screen is visible on the TV.
- *  - Every API call needs the six-digit code shown on the TV (also embedded in the QR
- *    code). Wrong codes are counted; after [MAX_FAILURES] a new code is drawn.
- *  - Stored tokens are never sent back to the browser, and a stored token is only kept for
- *    the address it was made for.
+ *  - Every API call needs the six-digit code shown on the TV (also in the QR code). Wrong codes
+ *    are counted; after [MAX_FAILURES] a new code is drawn.
+ *  - The sign-in uses Home Assistant's own login page (authorization code grant). The page
+ *    asks for it with the code; the callback must bring back the random state of that one
+ *    request, within [SIGN_IN_MS]. Its tokens never reach the browser.
+ *  - Stored tokens are never sent back to the browser, and credentials are only kept for the
+ *    address they were made for.
  *
+ * @param texts the words in the language shown.
+ * @param clientId the client id Home Assistant knows this TV by: the setup page's own address.
+ * @param discover lists what Home Assistant at an address offers, with the credentials given.
+ * @param exchange swaps an authorization code for tokens at Home Assistant.
+ * @param revoke revokes a refresh token that is no longer needed (best effort).
  * @param checkMa tries an address and token of Music Assistant (optional, for the whole queue).
  * @param maGuess Music Assistant's address as far as the TV can tell (from its picture links).
  */
 class SetupHandler(
     private val settings: () -> Settings,
-    private val discover: suspend (url: String, token: String) -> DiscoverResult,
+    val texts: () -> Texts,
+    private val discover: suspend (url: String, credentials: HaCredentials) -> DiscoverResult,
     private val save: suspend (Settings) -> Unit,
+    private val clientId: () -> String?,
+    private val exchange: suspend (url: String, code: String, clientId: String) -> HaTokens,
+    private val revoke: suspend (url: String, refreshToken: String) -> Unit = { _, _ -> },
     private val checkMa: suspend (url: String, token: String) -> MaLink = { _, _ -> MaLink.UNREACHABLE },
     private val maGuess: () -> String? = { null },
     private val random: SecureRandom = SecureRandom(),
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     @Volatile var code: String = newCode()
         private set
@@ -64,17 +84,35 @@ class SetupHandler(
     /** Called when the code changed (the TV redraws the QR code). */
     var onCodeChanged: (String) -> Unit = {}
 
+    /** A sign-in under way: Home Assistant's login page was opened for [url] with [state]. */
+    private class Authorization(val state: String, val url: String, val clientId: String, val at: Long)
+
+    /** A sign-in that worked, waiting to be saved with the rest of the form. */
+    private class SignedIn(val url: String, val clientId: String, val refreshToken: String)
+
+    @Volatile private var authorization: Authorization? = null
+    @Volatile private var signedIn: SignedIn? = null
+
     private fun newCode(): String = (0 until 6).joinToString("") { random.nextInt(10).toString() }
 
+    @Synchronized
     fun rotateCode() {
         code = newCode()
         failures = 0
         onCodeChanged(code)
     }
 
+    /** The setup is over (the screen closed): a sign-in that was never saved is revoked. */
+    suspend fun reset() {
+        authorization = null
+        val dropped = signedIn
+        signedIn = null
+        if (dropped != null) revoke(dropped.url, dropped.refreshToken)
+    }
+
+    @Synchronized
     private fun codeMatches(candidate: String?): Boolean {
-        val ok = candidate != null &&
-            MessageDigest.isEqual(candidate.trim().toByteArray(), code.toByteArray())
+        val ok = candidate != null && MessageDigest.isEqual(candidate.trim().toByteArray(), code.toByteArray())
         if (!ok) {
             failures++
             if (failures >= MAX_FAILURES) rotateCode()
@@ -87,36 +125,46 @@ class SetupHandler(
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun handle(req: MiniHttp.Request): MiniHttp.Response {
+        val t = texts()
         return when {
-            req.method == "GET" && req.path == "/" -> MiniHttp.Response.html(SetupPage.html(prefilledCode = req.query["code"]?.takeIf { it.length == 6 && it.all(Char::isDigit) }))
+            req.method == "GET" && req.path == "/" ->
+                MiniHttp.Response.html(SetupPage.html(t, prefilledCode = req.query["code"]?.takeIf { it.length == 6 && it.all(Char::isDigit) }))
             req.method == "GET" && req.path == "/favicon.ico" -> MiniHttp.Response(204, "image/x-icon", ByteArray(0))
-            req.method == "POST" && req.path == "/api/state" -> withCode(req) { stateJson() }
-            req.method == "POST" && req.path == "/api/discover" -> withCode(req) { body -> discoverJson(body) }
-            req.method == "POST" && req.path == "/api/save" -> withCode(req) { body -> saveJson(body) }
-            req.path.startsWith("/api/") -> MiniHttp.Response.json(405, error("Nicht erlaubt."))
-            else -> MiniHttp.Response.text(404, "Nicht gefunden")
+            req.method == "GET" && req.path == CALLBACK_PATH -> callback(req)
+            req.method == "POST" && req.path == "/api/state" -> withCode(req, t) { stateJson() }
+            req.method == "POST" && req.path == "/api/signin" -> withCode(req, t) { body -> signInJson(body, t) }
+            req.method == "POST" && req.path == "/api/discover" -> withCode(req, t) { body -> discoverJson(body, t) }
+            req.method == "POST" && req.path == "/api/save" -> withCode(req, t) { body -> saveJson(body, t) }
+            req.path.startsWith("/api/") -> MiniHttp.Response.json(405, error(t[R.string.setup_error_not_allowed]))
+            else -> MiniHttp.Response.text(404, t[R.string.setup_error_not_found])
         }
     }
 
-    private suspend fun withCode(req: MiniHttp.Request, block: suspend (JsonObject) -> MiniHttp.Response): MiniHttp.Response {
+    private suspend fun withCode(req: MiniHttp.Request, t: Texts, block: suspend (JsonObject) -> MiniHttp.Response): MiniHttp.Response {
         val body = try {
             json.parseToJsonElement(req.bodyText.ifBlank { "{}" }).jsonObject
         } catch (_: Exception) {
-            return MiniHttp.Response.json(400, error("Ungültige Anfrage."))
+            return MiniHttp.Response.json(400, error(t[R.string.setup_error_request]))
         }
-        if (!codeMatches(body.str("code"))) {
-            return MiniHttp.Response.json(403, error("Der Code stimmt nicht. Bitte den Code vom Fernseher eingeben."))
-        }
+        if (!codeMatches(body.str("code"))) return MiniHttp.Response.json(403, error(t[R.string.setup_error_code]))
         return block(body)
     }
 
     private fun stateJson(): MiniHttp.Response {
         val s = settings()
+        val pending = signedIn
+        val url = pending?.url ?: s.haUrl
+        val auth = when {
+            pending != null -> "signin"
+            url == s.haUrl && s.haCredentials is HaCredentials.SignedIn -> "signin"
+            url == s.haUrl && s.haCredentials is HaCredentials.LongLived -> "token"
+            else -> "none"
+        }
         return MiniHttp.Response.json(
             200,
             buildJsonObject {
-                put("url", s.haUrl ?: "")
-                put("hasToken", !s.haToken.isNullOrBlank())
+                put("url", url ?: "")
+                put("auth", auth)
                 put("entity", s.entityId ?: "")
                 put("sleepMinutes", s.sleepAfterMinutes)
                 put("sleepAction", s.sleepAction.name.lowercase())
@@ -124,21 +172,69 @@ class SetupHandler(
                 put("remote", s.remoteControl)
                 put("maUrl", s.maUrl ?: maGuess() ?: "")
                 put("hasMaToken", !s.maToken.isNullOrBlank())
-                put("barsLeft", s.bars.left ?: "")
-                put("barsCenter", s.bars.center ?: "")
-                put("barsRight", s.bars.right ?: "")
+                put("lightsLeft", s.roomLights.left ?: "")
+                put("lightsCenter", s.roomLights.center ?: "")
+                put("lightsRight", s.roomLights.right ?: "")
                 put("weather", s.weatherEntity ?: "")
             }.toString(),
         )
     }
 
-    private suspend fun discoverJson(body: JsonObject): MiniHttp.Response {
+    /** Starts a sign-in: the address of Home Assistant's login page, for this request only. */
+    private fun signInJson(body: JsonObject, t: Texts): MiniHttp.Response {
         val url = body.str("url")?.let { HaUrls.normalizeBase(it) }
-            ?: return MiniHttp.Response.json(400, error("Bitte die Adresse von Home Assistant angeben, z. B. http://192.168.1.10:8123."))
-        val token = body.str("token")?.trim()?.takeIf { it.isNotEmpty() }
-            ?: settings().haToken?.takeIf { settings().haUrl == url }
-            ?: return MiniHttp.Response.json(400, error("Bitte ein langlebiges Zugangstoken einfügen."))
-        return when (val r = discover(url, token)) {
+            ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_address]))
+        val client = clientId() ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_not_allowed]))
+        val state = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(STATE_BYTES).also(random::nextBytes))
+        authorization = Authorization(state, url, client, now())
+        val authorize = "$url/auth/authorize?response_type=code" +
+            "&client_id=${enc(client)}&redirect_uri=${enc(redirectUri(client))}&state=${enc(state)}"
+        return MiniHttp.Response.json(200, buildJsonObject {
+            put("ok", true)
+            put("authorize", authorize)
+        }.toString())
+    }
+
+    /**
+     * Home Assistant's login page sends the phone back here with a code for the tokens. Only the
+     * state of the one sign-in under way is taken, once. The phone goes on to the setup page.
+     */
+    private suspend fun callback(req: MiniHttp.Request): MiniHttp.Response {
+        val pending = authorization
+        val state = req.query["state"]
+        val authCode = req.query["code"]
+        if (pending == null || state == null || authCode == null) return redirect(SIGN_IN_FAILED)
+        val valid = MessageDigest.isEqual(state.toByteArray(), pending.state.toByteArray()) && now() - pending.at <= SIGN_IN_MS
+        if (!valid) return redirect(SIGN_IN_FAILED)
+        authorization = null
+        val tokens = try {
+            exchange(pending.url, authCode, pending.clientId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return redirect(SIGN_IN_FAILED)
+        }
+        val refresh = tokens.refreshToken ?: return redirect(SIGN_IN_FAILED)
+        signedIn?.let { revoke(it.url, it.refreshToken) }
+        signedIn = SignedIn(pending.url, pending.clientId, refresh)
+        return redirect(SIGN_IN_OK)
+    }
+
+    /**
+     * The credentials the form means for [url]: a token pasted now, else the sign-in just made,
+     * else what is stored for that address.
+     */
+    private fun credentialsFor(url: String, body: JsonObject): HaCredentials? {
+        body.str("token")?.trim()?.takeIf { it.isNotEmpty() }?.let { return HaCredentials.LongLived(it) }
+        signedIn?.takeIf { it.url == url }?.let { return HaCredentials.SignedIn(it.refreshToken, it.clientId) }
+        return settings().takeIf { it.haUrl == url }?.haCredentials
+    }
+
+    private suspend fun discoverJson(body: JsonObject, t: Texts): MiniHttp.Response {
+        val url = body.str("url")?.let { HaUrls.normalizeBase(it) }
+            ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_address]))
+        val credentials = credentialsFor(url, body) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_credentials]))
+        return when (val r = discover(url, credentials)) {
             is DiscoverResult.Failed -> MiniHttp.Response.json(200, buildJsonObject {
                 put("ok", false)
                 put("message", r.message)
@@ -178,52 +274,47 @@ class SetupHandler(
         }
     }
 
-    private suspend fun saveJson(body: JsonObject): MiniHttp.Response {
+    private suspend fun saveJson(body: JsonObject, t: Texts): MiniHttp.Response {
         val current = settings()
         val url = body.str("url")?.let { HaUrls.normalizeBase(it) }
-            ?: return MiniHttp.Response.json(400, error("Die Adresse von Home Assistant fehlt oder ist ungültig."))
-        val ha = current.withHa(url, body.str("token")?.trim()?.takeIf { it.isNotEmpty() })
-        if (ha.haToken == null) return MiniHttp.Response.json(400, error("Das Zugangstoken fehlt."))
-        val withMa = maSettings(ha, body) ?: return MiniHttp.Response.json(400, error("Die Adresse von Music Assistant ist ungültig."))
-        if (withMa.maUrl != null && withMa.maToken == null) {
-            return MiniHttp.Response.json(400, error("Bitte das Zugangstoken von Music Assistant einfügen – oder die Adresse leeren."))
-        }
+            ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_address]))
+        val credentials = credentialsFor(url, body) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_credentials]))
+        val ha = current.withHa(url, credentials)
+        val withMa = maSettings(ha, body) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_ma_address]))
+        if (withMa.maUrl != null && withMa.maToken == null) return MiniHttp.Response.json(400, error(t[R.string.setup_error_ma_token]))
         if (withMa.hasMusicAssistant && (withMa.maUrl != current.maUrl || withMa.maToken != current.maToken)) {
             when (checkMa(withMa.maUrl!!, withMa.maToken!!)) {
                 MaLink.CONNECTED -> Unit
-                MaLink.AUTH_FAILED -> return MiniHttp.Response.json(400, error("Music Assistant hat das Zugangstoken abgelehnt."))
-                MaLink.UNREACHABLE -> return MiniHttp.Response.json(
-                    400,
-                    error("Music Assistant antwortet nicht unter dieser Adresse. Bitte prüfen – oder die Adresse leeren, dann geht es ohne."),
-                )
+                MaLink.AUTH_FAILED -> return MiniHttp.Response.json(400, error(t[R.string.setup_error_ma_rejected]))
+                MaLink.UNREACHABLE -> return MiniHttp.Response.json(400, error(t[R.string.setup_error_ma_unreachable]))
             }
         }
         val entity = body.str("entity")?.trim()?.takeIf { LaunchExtras.isEntityId(it) }
-            ?: return MiniHttp.Response.json(400, error("Bitte einen Lautsprecher auswählen."))
+            ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_speaker]))
         val minutes = (body["sleepMinutes"] as? JsonPrimitive)?.intOrNull ?: body.str("sleepMinutes")?.toIntOrNull()
             ?: current.sleepAfterMinutes
-        if (minutes !in 1..720) return MiniHttp.Response.json(400, error("Die Ruhezeit muss zwischen 1 und 720 Minuten liegen."))
+        if (minutes !in 1..MAX_SLEEP_MINUTES) return MiniHttp.Response.json(400, error(t[R.string.setup_error_sleep]))
         val action = when (body.str("sleepAction")) {
             "close" -> SleepAction.CLOSE
             "release" -> SleepAction.RELEASE
             else -> current.sleepAction
         }
-        // The light bars only when the page showed them (it found the lights); "" is none.
-        val barKeys = listOf("barsLeft", "barsCenter", "barsRight")
-        val bars = if (barKeys.none { it in body }) {
-            current.bars
+        // The lights only when the page showed them (it found the lights); "" is none.
+        val lightKeys = listOf("lightsLeft", "lightsCenter", "lightsRight")
+        val roomLights = if (lightKeys.none { it in body }) {
+            current.roomLights
         } else {
-            val ids = barKeys.map { k -> body.str(k)?.trim().orEmpty() }
-            if (ids.any { it.isNotEmpty() && !LaunchExtras.isLightId(it) }) return MiniHttp.Response.json(400, error("Bitte nur Lichter als Lichtleisten wählen."))
-            LightBars(ids[0].ifEmpty { null }, ids[1].ifEmpty { null }, ids[2].ifEmpty { null })
+            val ids = lightKeys.map { k -> body.str(k)?.trim().orEmpty() }
+            if (ids.any { it.isNotEmpty() && !LaunchExtras.isLightId(it) }) return MiniHttp.Response.json(400, error(t[R.string.setup_error_lights]))
+            RoomLights(ids[0].ifEmpty { null }, ids[1].ifEmpty { null }, ids[2].ifEmpty { null })
         }
-        // The Fensterblick's weather: "" finds Home Assistant's own, "none" keeps the sky fair; absent stays as it was.
+        // The window view's weather: "" finds Home Assistant's own, "none" keeps the sky fair; absent stays as it was.
         val weather = when (val w = body.str("weather")?.trim()) {
             null -> current.weatherEntity
             "" -> null
             Settings.NO_WEATHER -> Settings.NO_WEATHER
             else -> w.takeIf { it.startsWith("weather.") && LaunchExtras.isEntityId(it) }
-                ?: return MiniHttp.Response.json(400, error("Bitte eine Wetter-Entität wählen."))
+                ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_weather]))
         }
         val updated = withMa.copy(
             weatherEntity = weather,
@@ -232,12 +323,17 @@ class SetupHandler(
             sleepAction = action,
             showClock = body.bool("clock") ?: current.showClock,
             remoteControl = body.bool("remote") ?: current.remoteControl,
-            bars = bars,
+            roomLights = roomLights,
         )
         save(updated)
+        // The sign-in is the connection's now; one it replaced is revoked.
+        if ((credentials as? HaCredentials.SignedIn)?.refreshToken == signedIn?.refreshToken) signedIn = null
+        val old = current.haCredentials as? HaCredentials.SignedIn
+        val oldUrl = current.haUrl
+        if (old != null && oldUrl != null && old != updated.haCredentials) revoke(oldUrl, old.refreshToken)
         return MiniHttp.Response.json(200, buildJsonObject {
             put("ok", true)
-            put("message", "Gespeichert. Der Fernseher verbindet sich jetzt mit Home Assistant.")
+            put("message", t[R.string.setup_saved])
         }.toString())
     }
 
@@ -249,15 +345,38 @@ class SetupHandler(
         return s.withMa(url, body.str("maToken")?.trim()?.takeIf { it.isNotEmpty() })
     }
 
+    private fun redirect(location: String) = MiniHttp.Response(303, "text/plain; charset=utf-8", ByteArray(0), mapOf("Location" to location))
+
     private fun error(message: String) = buildJsonObject {
         put("ok", false)
         put("message", message)
     }.toString()
+
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
     private fun JsonObject.bool(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
 
     companion object {
         const val MAX_FAILURES = 8
+
+        /** Where Home Assistant's login page sends the phone back to. */
+        const val CALLBACK_PATH = "/auth/callback"
+
+        /** Where the phone goes on to after the sign-in. */
+        const val SIGN_IN_OK = "/?signin=ok"
+        const val SIGN_IN_FAILED = "/?signin=failed"
+
+        /** A sign-in must come back within this long (Home Assistant's codes last ten minutes). */
+        const val SIGN_IN_MS = 10 * 60_000L
+
+        /** The random state of a sign-in (bytes). */
+        private const val STATE_BYTES = 32
+
+        /** The longest "turn off after" the page takes (minutes). */
+        private const val MAX_SLEEP_MINUTES = 720
+
+        /** The redirect URI that belongs to [clientId]: the same host and port, as Home Assistant requires. */
+        fun redirectUri(clientId: String): String = clientId.trimEnd('/') + CALLBACK_PATH
     }
 }

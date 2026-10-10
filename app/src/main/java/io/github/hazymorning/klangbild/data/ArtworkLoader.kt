@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.data
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import io.github.hazymorning.klangbild.data.ha.ArtworkUrls
+import io.github.hazymorning.klangbild.data.ha.HaAuth
 import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.Dispatchers
@@ -12,14 +13,16 @@ import okhttp3.Request
 import java.util.LinkedHashMap
 
 /**
- * Fetches and decodes covers. Tries the upgraded (larger) URL first, then the original,
- * then Home Assistant's own proxy. The access token is only attached for the HA host.
- * Returns null when there is no cover at all – the scene then paints a Chladni figure.
+ * Fetches and decodes covers. Tries the upgraded (larger) URL first, then the original, then
+ * Home Assistant's own proxy. The access token is only attached for Home Assistant's own host.
+ * Returns null when there is no cover at all; the scene then paints a Chladni figure.
  */
 class ArtworkLoader(
     private val http: OkHttpClient,
-    private val haBaseUrl: () -> String?,
-    private val haToken: () -> String?,
+    /** For Home Assistant's own pictures, which carry the token: follows no redirect. */
+    private val tokenHttp: OkHttpClient,
+    /** How the current connection signs in to Home Assistant, if there is one. */
+    private val haAuth: () -> HaAuth?,
 ) {
     private val cache = object : LinkedHashMap<String, Bitmap>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?) = size > 4
@@ -52,12 +55,21 @@ class ArtworkLoader(
 
     private suspend fun fetch(url: String): ByteArray? {
         val builder = Request.Builder().url(url)
-        val base = haBaseUrl()
-        val token = haToken()
-        if (base != null && token != null && HaUrls.isHaHost(base, url)) {
-            builder.header("Authorization", "Bearer $token")
+        val auth = haAuth()
+        val client = if (auth != null && HaUrls.isHaHost(auth.baseUrl, url)) {
+            val token = try {
+                auth.accessToken()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            token?.let { builder.header("Authorization", "Bearer $it") }
+            tokenHttp
+        } else {
+            http
         }
-        return http.fetch(builder.build(), CALL_TIMEOUT_MS) { response ->
+        return client.fetch(builder.build(), CALL_TIMEOUT_MS) { response ->
             if (!response.isSuccessful) return@fetch null
             // A cover is a few megabytes at most; anything far larger is not read at all.
             if (response.body.contentLength() > MAX_BYTES) return@fetch null

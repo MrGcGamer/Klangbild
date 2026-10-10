@@ -28,8 +28,25 @@ data class PlayerSnapshot(
      * runs at this pace.
      */
     val speed: Float = 1f,
-    /** Shuffle on or off – null when the player cannot shuffle. */
+    /** Shuffle on or off; null when the player cannot shuffle. */
     val shuffle: Boolean? = null,
+    /** What the player lets the remote do. */
+    val abilities: PlayerAbilities = PlayerAbilities(),
+)
+
+/**
+ * What a player lets the remote do, from Home Assistant's supported features: only what it
+ * supports is offered and called. A player that does not say is taken to support everything.
+ */
+data class PlayerAbilities(
+    val play: Boolean = true,
+    val pause: Boolean = true,
+    val seek: Boolean = true,
+    val next: Boolean = true,
+    val previous: Boolean = true,
+    /** Volume up and down (by steps, or by setting the level). */
+    val volume: Boolean = true,
+    val shuffle: Boolean = true,
 )
 
 /** The speakers playing together with the configured one. */

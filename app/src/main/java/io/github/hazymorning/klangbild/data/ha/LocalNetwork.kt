@@ -4,6 +4,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
 import java.net.InetAddress
+import java.net.Proxy
 
 /**
  * Cleartext (http://) is only allowed inside the home network. Android's network security
@@ -14,6 +15,9 @@ import java.net.InetAddress
  */
 object LocalNetwork {
     private val localSuffixes = listOf(".local", ".lan", ".home", ".internal", ".home.arpa", ".localdomain", ".fritz.box", ".box")
+
+    /** A cleartext request to a host outside the home network, refused. */
+    class CleartextRefused(host: String) : IOException("Cleartext HTTP to $host is only allowed in the local network")
 
     /** Purely syntactic check (no DNS). */
     fun looksLocal(host: String): Boolean {
@@ -44,13 +48,16 @@ object LocalNetwork {
             (p[0] == 192 && p[1] == 168) ||
             (p[0] == 169 && p[1] == 254) ||
             p[0] == 127 ||
-            (p[0] == 100 && p[1] in 64..127) // CGNAT, e.g. Tailscale
+            (p[0] == 100 && p[1] in 64..127) // CGNAT, e.g. a mesh VPN
 
     private fun isPrivateIpv6(h: String): Boolean =
         h == "::1" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")
 
     /**
-     * OkHttp interceptor that rejects cleartext requests to hosts outside the home network.
+     * OkHttp interceptor that refuses cleartext requests outside the home network. As an
+     * application interceptor it checks the host's name before anything is sent; as a network
+     * interceptor (every redirect hop, the WebSocket's handshake too) it checks the address the
+     * connection actually reached, so a local looking name that leads elsewhere gets nothing.
      * [resolver] is injectable for tests.
      */
     class CleartextGuard(
@@ -58,8 +65,15 @@ object LocalNetwork {
     ) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val url = chain.request().url
-            if (!url.isHttps && !isLocalHost(url.host)) {
-                throw IOException("Cleartext HTTP to ${url.host} is only allowed in the local network")
+            if (!url.isHttps) {
+                val route = chain.connection()?.route()
+                val allowed = when {
+                    route == null -> isLocalHost(url.host)
+                    // Through a proxy the address reached is the proxy's: the name must be local, too.
+                    route.proxy.type() != Proxy.Type.DIRECT -> isLocalHost(url.host) && isPrivateAddress(route.socketAddress.address)
+                    else -> isPrivateAddress(route.socketAddress.address)
+                }
+                if (!allowed) throw CleartextRefused(url.host)
             }
             return chain.proceed(chain.request())
         }

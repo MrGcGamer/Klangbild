@@ -4,7 +4,7 @@ import kotlin.math.abs
 
 /**
  * The moment whose sky the window view shows: the real one or, for measuring on the device
- * (the launch extra [io.github.hazymorning.klangbild.config.LaunchExtras.VISTA] set to
+ * (the launch extra [io.github.hazymorning.klangbild.config.LaunchExtras.WINDOW_VIEW] set to
  * `timelapse`), a whole day passing in [TIMELAPSE_DAY_MS]. Between the two the picture glides;
  * the light never jumps.
  */

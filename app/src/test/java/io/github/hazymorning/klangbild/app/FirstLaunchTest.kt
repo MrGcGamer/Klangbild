@@ -17,7 +17,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The very first start, with the connection in its extras (as Home Assistant or the CI sends
- * it): the app takes it at once and connects – and stays connected; it never falls back to the
+ * it): the app takes it at once, connects and stays connected; it never falls back to the
  * setup page. With `-Pklangbild.fakeHa=http://127.0.0.1:8123` (ci/fake_ha.py running) it talks
  * to the stand-in Home Assistant for a few minutes.
  */
@@ -32,8 +32,8 @@ class FirstLaunchTest {
         val intent = Intent(app, MainActivity::class.java)
             .putExtra("ha_url", ha ?: "http://127.0.0.1:9")
             .putExtra("token", "smoke")
-            .putExtra("entity", "media_player.wohnzimmer")
-            .putExtra("fensterblick", "an")
+            .putExtra("entity", "media_player.living_room")
+            .putExtra("window_view", "on")
         Robolectric.buildActivity(MainActivity::class.java, intent).setup()
         val controller = app.graph.controller
         val seconds = if (ha != null) 200 else 10
