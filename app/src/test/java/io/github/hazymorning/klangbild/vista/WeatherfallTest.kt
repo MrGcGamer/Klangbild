@@ -28,7 +28,7 @@ class WeatherfallTest {
         val before = FloatArray(out.size)
         repeat(600) {
             val n0 = Weatherfall.place(band, t, drift, wind, 1f, true, before)
-            // A frame later, the wind a little stronger: every flake a little further, none jumped.
+            // A frame later, the wind a little stronger: every flake a little farther, none jumped.
             wind = (wind + 0.003f).coerceAtMost(1f)
             t += 1.0 / 20.0
             drift += wind / 20.0
@@ -37,7 +37,7 @@ class WeatherfallTest {
             for (i in 0 until n1) {
                 val x = out[i * Weatherfall.STRIDE]
                 val y = out[i * Weatherfall.STRIDE + 1]
-                // The same flake a frame earlier: close by – a few dp in a gale – or it has just wrapped round, out of sight.
+                // The same flake a frame earlier: close by (a few dp in a gale), or it has just wrapped around and is out of sight.
                 val near = (0 until n0).any { j ->
                     abs(before[j * Weatherfall.STRIDE] - x) < 5f && abs(before[j * Weatherfall.STRIDE + 1] - y) < 3f
                 }

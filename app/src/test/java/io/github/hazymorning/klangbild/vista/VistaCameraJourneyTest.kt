@@ -7,8 +7,8 @@ import kotlin.math.abs
 
 /**
  * The camera's journey, worked out over hours: it stays where the paper reaches (with the
- * screen's drift on top), keeps the label clear of the screen's edges, never jumps – and moves
- * enough to be seen: within any two minutes it goes in or out and across by a good stretch.
+ * screen's drift on top), keeps the near bank under the label, never jumps, and moves enough to
+ * be seen. Within any two minutes it goes in or out and across by a good stretch.
  */
 class VistaCameraJourneyTest {
     private val m = PaperMotif

@@ -71,7 +71,7 @@ class PaperMotifTest {
     }
 
     @Test
-    fun `the tent and the stones stand where they are seen - clear of the banks, the fire and each other`() {
+    fun `the tent and the stones stand where they are seen, clear of the banks, the fire and each other`() {
         for (side in LabelSide.entries) {
             val fg = PaperMotif.foreground(side)
             val left = Shapes.line(fg.frontLeft)

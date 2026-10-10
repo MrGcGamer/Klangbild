@@ -10,7 +10,7 @@ class PaperLightTest {
     private val seasons = listOf(SeasonMix.SPRING, SeasonMix.SUMMER, SeasonMix.AUTUMN, SeasonMix.WINTER)
 
     @Test
-    fun `the label keeps 4,5 to 1 on its bank's lightest paper in every light, sky and season`() {
+    fun `the label keeps four and a half to one on its bank's lightest paper in every light, sky and season`() {
         var worst = Float.MAX_VALUE
         for (season in seasons) for (cover in listOf(0f, 0.45f, 1f)) for (az in listOf(100f, 180f, 260f)) {
             var el = -24f
@@ -37,9 +37,9 @@ class PaperLightTest {
 
     @Test
     fun `the light never jumps as the sun moves`() {
-        // The colours are worked out anew every ten seconds of the sky's time; the sun climbs at
+        // The colors are worked out again every ten seconds of the sky's time; the sun climbs at
         // most a quarter of a degree a minute. A twentieth of a degree is one or two of those
-        // steps: each changes no colour by more than two levels of 255 – nothing to see.
+        // steps, and each changes no color by more than two levels of 255, too little to see.
         for (az in listOf(95f, 180f, 265f)) {
             var prev = PaperLight.look(SkyState(-24f, az))
             var el = -23.95f
@@ -90,7 +90,7 @@ class PaperLightTest {
     }
 
     @Test
-    fun `overcast mutes the colours without darkening the picture`() {
+    fun `overcast mutes the colors without darkening the picture`() {
         val clear = PaperLight.look(SkyState(30f, 200f))
         val grey = PaperLight.look(SkyState(30f, 200f, cover = 1f))
         val c = Oklab.fromArgb(clear.inks(SheetId.MEADOW).base)
@@ -101,7 +101,7 @@ class PaperLightTest {
     }
 
     @Test
-    fun `autumn colours the broad-leaved crowns and the meadow by day, the firs stay`() {
+    fun `autumn colors the broad-leaved crowns and the meadow by day, the firs stay`() {
         val summer = PaperLight.look(SkyState(25f, 200f, season = SeasonMix.SUMMER))
         val autumn = PaperLight.look(SkyState(25f, 200f, season = SeasonMix.AUTUMN))
         fun hue(argb: Int) = Oklab.fromArgb(argb).hue

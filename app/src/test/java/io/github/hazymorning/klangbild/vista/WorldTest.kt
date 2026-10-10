@@ -28,7 +28,7 @@ class WorldTest {
 
     @Test
     fun `the moon's phase follows the calendar`() {
-        // Full moon on 26 October 2026, new moon on 9 November 2026 (UTC dates).
+        // Full moon on October 26, 2026, new moon on November 9, 2026 (UTC dates).
         assertThat(World.heavens(at(10, 26, 6), berlin).moonFraction).isGreaterThan(0.95f)
         assertThat(World.heavens(at(11, 9, 12), berlin).moonFraction).isLessThan(0.05f)
     }
