@@ -49,7 +49,7 @@ data/ha/        HaConnection (WebSocket: auth, subscribe_entities + a second swa
                 LocalNetwork (cleartext only in LAN, every redirect hop), ArtworkUrls (CDN hi-res
                 rewrites), HaSource (NowPlayingSource + LightBridge: player + sun.sun + MA queue
                 (one read at a time, only for MA players with a queue) + speaker count for
-                "Überall" + the optional MA queue window, seek, the light bars' states and calls)
+                "Überall" + the optional MA queue window, seek, shuffle, the light bars' states and calls)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
                 speed; books' authors, episodes' shows, chapters; pictures via imageproxy)
@@ -100,8 +100,8 @@ lights/         LightSync (the colour lights behind the TV via Home Assistant: a
                 sun glow, fire), HueColor (xy in gamut C: a colour's hue at its purest, greys as
                 white – neutral by day, warmer at night – brightness floor)
 app/            NowPlayingController (single source of truth → StateFlow<UiState>; chapters, jumps
-                with the remote, sleep timer, light bars, quick settings, favourites), Scenes (scene cache + builds off the
-                main thread), KlangbildApp/AppGraph
+                with the remote, sleep timer, shuffle, light bars, quick settings, favourites),
+                Scenes (scene cache + builds off the main thread), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API, token bound to its address), SetupPage
                 (HTML), SetupServer (+ QR, discovery)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), stage/ (Stage layers,
@@ -120,7 +120,7 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 as tall as its paper, moved by the camera as a whole; stars, clouds, mist, snow
                 and rain, swaying cut-outs and firs, the fire, its smoke, sparks and light,
                 fireflies every frame; VistaScreen + VistaLabel: the mini-player on the near bank,
-                moving with it)
+                standing still while the camera moves)
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
@@ -245,7 +245,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **Quick settings** (`QuickMenu`, `QuickBar`; down on the remote): one row along the bottom
   edge, rising 22 dp as it fades in – where the key points: Ansicht (Einzelnes Cover / Cover
   Flow / Fensterblick, taken 0.9 s after the last press so no view in between shows), Favorit
-  (with Music Assistant), Lichtleisten An / Aus (off remembers the level), Sleep-Timer. Left /
+  (with Music Assistant), Lichtleisten An / Aus (off remembers the level), Zufallswiedergabe
+  An / Aus (only where the player can shuffle; the sleep timer lives in the menu). Left /
   right choose, OK changes, down, up or back close, 20 s alone close them. Each entry is its name
   (15 sp, quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as wide as
   its widest value (only the last is as wide as what it says), so nothing moves when a value
@@ -369,12 +370,14 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   gusts shared by the meadow), the tall firs on the near banks (sprites cut whole beyond the
   screen) a little less; never a loop, 20 fps; light recomputed every 10 s, each step below
   one level. The camera (`VistaCamera`) journeys: zoom 1.01–1.11 about the screen's middle, the
-  view wandering as far as the paper reaches at that zoom (±6 dp drift on top), the label never
-  closer than 28 dp to the screen's edges; a swing in about two minutes, sums of sines in the
-  golden ratio; each layer follows by its `Depth` (sky 0.15, far range 0.35, clearing 0.65,
-  near banks 1) – the parallax is plain to see; the label moves with the near bank. No edge
-  and no gap between layers ever shows (`VistaCameraTest` renders every corner of the range,
-  `VistaCameraJourneyTest` checks six hours of poses); stills show it at rest. No preview in
+  view wandering as far as the paper reaches at that zoom (±6 dp drift on top) – but never so far
+  that the near bank would leave the label (`BANK_MARGIN`); a swing in about two minutes, sums
+  of sines in the golden ratio; each layer follows by its `Depth` (sky 0.15, far range 0.35,
+  clearing 0.65, near banks 1) – the parallax is plain to see. The label stands still: it is no
+  part of the scenery (riding the bank's scale and pan, its text shimmered – 5.2); the camera
+  keeps its bank under it. No edge and no gap between layers ever shows (`VistaCameraTest`
+  renders every corner of the range, `VistaCameraJourneyTest` checks six hours of poses, the
+  bank under the label included); stills show it at rest. No preview in
   the menu (removed in 5.2: never build features nobody asked for); the time-lapse is only the
   `fensterblick=zeitraffer` extra for measuring. Comes after the pause delay (default 3 min;
   the rest clock first), during music only if set, never over trouble, setup or the menu;
