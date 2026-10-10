@@ -3,13 +3,20 @@ package io.github.hazymorning.klangbild.app
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
+import io.github.hazymorning.klangbild.config.BarLevel
 import io.github.hazymorning.klangbild.config.BackgroundMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
+import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.MiniPlayer
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.MenuRow
+import io.github.hazymorning.klangbild.config.Picture
+import io.github.hazymorning.klangbild.config.QuickContext
+import io.github.hazymorning.klangbild.config.QuickItem
+import io.github.hazymorning.klangbild.config.QuickMenu
+import io.github.hazymorning.klangbild.config.QuickRow
 import io.github.hazymorning.klangbild.config.SessionOptions
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SettingsMenu
@@ -41,14 +48,20 @@ import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.VistaPolicy
+import io.github.hazymorning.klangbild.lights.CoverBars
 import io.github.hazymorning.klangbild.lights.LightBridge
 import io.github.hazymorning.klangbild.lights.LightSync
+import io.github.hazymorning.klangbild.lights.VistaBars
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupHandler
 import io.github.hazymorning.klangbild.setup.SetupInfo
 import io.github.hazymorning.klangbild.setup.SetupServer
+import io.github.hazymorning.klangbild.vista.PaperLight
+import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
+import io.github.hazymorning.klangbild.vista.WeatherMood
+import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -83,6 +96,9 @@ data class FlowData(val cards: List<FlowEntry>, val current: Int) {
 /** The settings menu while it is open: its lines and the one the cursor is on. */
 data class MenuState(val rows: List<MenuRow>, val cursor: Int)
 
+/** The quick menu while it is open: its lines and the one the cursor is on. */
+data class QuickState(val rows: List<QuickRow>, val cursor: Int)
+
 /** Everything the UI renders. */
 data class UiState(
     val screen: Screen = Screen.Rest(io.github.hazymorning.klangbild.domain.RestReason.CONNECTING),
@@ -107,6 +123,8 @@ data class UiState(
     val setup: SetupInfo? = null,
     /** The settings menu, null while it is closed. */
     val menu: MenuState? = null,
+    /** The quick menu, null while it is closed. */
+    val quick: QuickState? = null,
     /** The volume just changed: the status line shows it for a moment. */
     val volumeFlash: Boolean = false,
     /** The chapter of the book or episode on stage, while it has chapters. */
@@ -308,11 +326,8 @@ class NowPlayingController(
         when (session.value.vista) {
             VistaRequest.SHOW -> showVista(timelapse = false)
             VistaRequest.TIMELAPSE -> showVista(timelapse = true)
-            // Asked to go: like a key press – it goes, and its delays start again.
-            VistaRequest.HIDE -> synchronized(this) {
-                vistaPolicy.interaction(now())
-                if (!previewOpen) vistaClock.real()
-            }
+            // Asked to go: like up on the remote – it goes, and its delays start again.
+            VistaRequest.HIDE -> hideVista()
             null -> Unit
         }
         if (LaunchExtras.hasStoredExtras(extras)) {
@@ -332,30 +347,44 @@ class NowPlayingController(
 
     // --- the Fensterblick ---------------------------------------------------------------------
 
-    /** Whether the Fensterblick has the screen now (the keys end it). */
+    /** Whether the Fensterblick has the screen now. */
     val vistaShowing: Boolean get() = _ui.value.vista != null
 
     val previewShowing: Boolean get() = previewOpen
 
     /**
-     * A key was pressed: the Fensterblick (if it shows) goes, and its delays start again.
-     * Returns whether it was showing – then the key has done its work.
+     * A key was pressed: the Fensterblick's delays start again – one that came by itself goes,
+     * a chosen one stays; the key goes on to do its work. Returns whether the Fensterblick was
+     * showing before the key.
      */
     @Synchronized
     fun interaction(): Boolean {
         val was = _ui.value.vista != null && !previewOpen
         vistaPolicy.interaction(now())
-        if (vistaClock.preview.timelapse && !previewOpen) vistaClock.real()
         if (was) recompute()
         return was
     }
 
-    /** The Fensterblick now, whatever plays (the held key, a link); [timelapse] lets a day pass in two minutes. */
+    /** The Fensterblick now, whatever plays, until it is left (down, the quick menu, a link); [timelapse] lets a day pass in two minutes. */
     @Synchronized
     fun showVista(timelapse: Boolean = false) {
         vistaPolicy.request(true)
         if (timelapse) vistaClock.set(VistaClock.Preview(timelapse = true)) else if (!previewOpen) vistaClock.real()
         recompute()
+    }
+
+    /**
+     * Leaves the Fensterblick (up, back, the quick menu, a link): the stage comes back, its sky
+     * returns to the real moment, and the delays start again. Returns whether it was showing.
+     */
+    @Synchronized
+    fun hideVista(): Boolean {
+        if (previewOpen) return false
+        val was = _ui.value.vista != null || vistaPolicy.requested
+        vistaPolicy.leave(now())
+        vistaClock.real()
+        recompute()
+        return was
     }
 
     /** Opens the preview: the Fensterblick at the real moment, ready to be turned. */
@@ -610,21 +639,178 @@ class NowPlayingController(
             // The sleep timer is no setting: it lives until it has paused the music once.
             entry == MenuEntry.SLEEP_TIMER -> stepSleep(direction, wrap)
             entry == MenuEntry.VISTA_PREVIEW -> openPreview()
-            else -> {
-                val updated = SettingsMenu.step(entry, settings.value, direction, wrap) ?: return
-                localEdits.incrementAndGet()
-                onSettings(updated)
-                scope.launch {
-                    try {
-                        // Always the newest state: quick presses may overtake each other.
-                        persistLock.withLock { settingsStore.update({ settings.value }, settings.value) }
-                    } finally {
-                        localEdits.decrementAndGet()
-                    }
-                }
+            else -> SettingsMenu.step(entry, settings.value, direction, wrap)?.let(::applySettings)
+        }
+    }
+
+    /** A change from one of the menus: shown at once, written behind it. */
+    private fun applySettings(updated: Settings) {
+        localEdits.incrementAndGet()
+        onSettings(updated)
+        scope.launch {
+            try {
+                // Always the newest state: quick presses may overtake each other.
+                persistLock.withLock { settingsStore.update({ settings.value }, settings.value) }
+            } finally {
+                localEdits.decrementAndGet()
             }
         }
     }
+
+    // --- quick settings ------------------------------------------------------------------
+
+    /** The entry the quick settings' cursor is on – by what it is, so entries coming and going never move it. */
+    @Volatile private var quickCursor: QuickItem? = null
+    @Volatile private var quickTouchedAt = 0L
+
+    /** Whether the Fensterblick showed when the quick settings opened: it stays as it was while they are open. */
+    @Volatile private var quickHold: Boolean? = null
+
+    /** A view chosen with OK, taken once the presses stop (so a step through the views never shows the one between). */
+    @Volatile private var pendingPicture: Picture? = null
+    private var pictureJob: Job? = null
+
+    /** The light bars' level before they were switched off from the quick settings. */
+    private var barsBefore = BarLevel.NORMAL
+
+    /** The current song's way into the favourites (by the song's key). */
+    @Volatile private var favorite: Pair<String, FavoriteState>? = null
+
+    val quickOpen: Boolean get() = quickCursor != null
+
+    /** Opens the quick settings (down on the remote), on the view. */
+    @Synchronized
+    fun openQuick() {
+        if (menuCursor != null || previewOpen || quickCursor != null) return
+        quickCursor = QuickItem.PICTURE
+        quickTouchedAt = now()
+        quickHold = _ui.value.vista != null
+        recompute()
+    }
+
+    /** Closes the quick settings (up, back, after a while alone); a view still waiting is taken now. */
+    fun closeQuick() {
+        applyPicture()
+        synchronized(this) {
+            quickCursor = null
+            quickHold = null
+        }
+        recompute()
+    }
+
+    /** A key in the quick settings that changes nothing: they stay open a while longer. */
+    fun touchQuick() {
+        quickTouchedAt = now()
+    }
+
+    /** Left (−1) or right (+1) along the quick settings; it stops at their ends. */
+    @Synchronized
+    fun quickMove(delta: Int) {
+        val c = quickCursor ?: return
+        val items = quickRows().map { it.item }
+        quickCursor = items[(quickIndex(items, c) + delta).coerceIn(0, items.size - 1)]
+        quickTouchedAt = now()
+        recompute()
+    }
+
+    /** OK on the entry under the cursor: its next value, or what it says. */
+    fun quickChange() {
+        val row = synchronized(this) {
+            val c = quickCursor ?: return
+            quickTouchedAt = now()
+            val rows = quickRows()
+            rows.getOrNull(quickIndex(rows.map { it.item }, c))
+        } ?: return
+        when (row.item) {
+            QuickItem.PICTURE -> synchronized(this) {
+                val shown = pendingPicture ?: QuickMenu.picture(settings.value, quickContext())
+                pendingPicture = QuickMenu.step(shown, +1, wrap = true)
+                pictureJob?.cancel()
+                pictureJob = scope.launch {
+                    delay(QUICK_SETTLE_MS)
+                    applyPicture()
+                }
+                recompute()
+            }
+            QuickItem.FAVORITE -> addFavorite()
+            QuickItem.BARS -> {
+                // On and off: off remembers the level, on brings it back.
+                val s = settings.value
+                val level = if (s.barLevel == BarLevel.OFF) barsBefore else BarLevel.OFF
+                if (s.barLevel != BarLevel.OFF) barsBefore = s.barLevel
+                applySettings(s.copy(barLevel = level))
+            }
+            QuickItem.SLEEP -> stepSleep(+1, wrap = true)
+        }
+    }
+
+    /** Takes the view chosen in the quick settings: the Fensterblick, or one of the stage's two views. */
+    private fun applyPicture() {
+        val next = synchronized(this) {
+            pictureJob?.cancel()
+            pictureJob = null
+            pendingPicture.also { pendingPicture = null }
+        } ?: return
+        val s = settings.value
+        if (next == Picture.VISTA) {
+            if (quickHold != null) quickHold = true
+            showVista()
+            return
+        }
+        if (quickHold != null) quickHold = false
+        hideVista()
+        val view = if (next == Picture.FLOW) StageView.FLOW else StageView.SINGLE
+        if (view != s.view) applySettings(s.copy(view = view))
+    }
+
+    /** Adds what plays to Music Assistant's favourites; the quick menu says how it went. */
+    private fun addFavorite() {
+        val track = (_ui.value.screen as? Screen.Stage)?.track ?: return
+        val src = source ?: return
+        synchronized(this) {
+            val state = favoriteState(track)
+            if (state == FavoriteState.BUSY || state == FavoriteState.DONE) return
+            favorite = track.key to FavoriteState.BUSY
+        }
+        recompute()
+        scope.launch {
+            val ok = src.favorite()
+            synchronized(this@NowPlayingController) {
+                if (favorite?.first == track.key) favorite = track.key to if (ok) FavoriteState.DONE else FavoriteState.FAILED
+            }
+            recompute()
+        }
+    }
+
+    /** How far [track]'s way into the favourites has come: asked here, or known from Music Assistant. */
+    private fun favoriteState(track: TrackInfo): FavoriteState =
+        favorite?.takeIf { it.first == track.key }?.second ?: if (track.favorite) FavoriteState.DONE else FavoriteState.NONE
+
+    /** What the quick settings need to know: by default what the screen shows now, in [recompute] what it is about to show. */
+    private fun quickContext(screen: Screen = _ui.value.screen, vista: Boolean = _ui.value.vista != null): QuickContext {
+        val stage = screen as? Screen.Stage
+        val track = stage?.track
+        return QuickContext(
+            vista = vista,
+            pending = pendingPicture,
+            music = track != null,
+            favorite = track?.takeIf { _ui.value.source.favorites }?.let { favoriteState(it) },
+            sleep = sleepTimer.choice,
+            kind = track?.kind,
+        )
+    }
+
+    private fun quickRows(ctx: QuickContext = quickContext()): List<QuickRow> = QuickMenu.rows(settings.value, ctx)
+
+    private fun quickState(ctx: QuickContext): QuickState? {
+        val cursor = quickCursor ?: return null
+        val rows = quickRows(ctx)
+        return QuickState(rows, quickIndex(rows.map { it.item }, cursor))
+    }
+
+    /** Where [item] stands among [items] – or, gone (the favourite once the music stops), the entry that took its place. */
+    private fun quickIndex(items: List<QuickItem>, item: QuickItem): Int =
+        items.indexOf(item).takeIf { it >= 0 } ?: items.indexOfFirst { it.ordinal > item.ordinal }.takeIf { it >= 0 } ?: (items.size - 1)
 
     @Synchronized
     private fun onSettings(s: Settings) {
@@ -766,6 +952,11 @@ class NowPlayingController(
         // A menu nobody uses closes by itself – it must not stand still on the OLED; so does a
         // preview left alone (long enough to watch a day go by in it).
         if (menuCursor != null && t - menuTouchedAt > MENU_IDLE_MS) menuCursor = null
+        if (quickCursor != null && (t - quickTouchedAt > QUICK_IDLE_MS || menuCursor != null || previewOpen)) {
+            quickCursor = null
+            quickHold = null
+            if (pendingPicture != null) scope.launch { applyPicture() }
+        }
         if (previewOpen && t - previewTouchedAt > PREVIEW_IDLE_MS) {
             previewOpen = false
             vistaClock.real()
@@ -794,7 +985,9 @@ class NowPlayingController(
         val menu = menuState(s, appearance, stage?.track)
         // The Fensterblick waits while the menu is open (the preview is the menu's own).
         val quietLongEnough = vistaPolicy.shows(decision.screen, t, s.vistaPauseSeconds * 1000L, s.vistaPlayingSeconds * 1000L)
-        val vista = if (previewOpen || (quietLongEnough && menu == null)) {
+        // While the quick settings are open, the Fensterblick stays as it was (unless they change it).
+        val vistaOn = quickHold?.takeIf { quickCursor != null } ?: quietLongEnough
+        val vista = if (previewOpen || (vistaOn && menu == null)) {
             VistaUi(
                 track = stage?.track,
                 status = stage?.status,
@@ -804,10 +997,11 @@ class NowPlayingController(
         } else {
             null
         }
+        val quick = quickState(quickContext(decision.screen, vista != null))
         _ui.value = previous.copy(
             screen = decision.screen,
-            keepScreenOn = decision.keepScreenOn || menu != null,
-            asleep = decision.asleep && menu == null,
+            keepScreenOn = decision.keepScreenOn || menu != null || quick != null,
+            asleep = decision.asleep && menu == null && quick == null,
             sleepAction = s.sleepAction,
             lighting = lighting,
             appearance = appearance,
@@ -815,6 +1009,7 @@ class NowPlayingController(
             session = session.value,
             entityId = s.entityId,
             menu = menu,
+            quick = quick,
             volumeFlash = s.volumeDisplay == VolumeDisplay.ON_CHANGE && t < volumeFlashUntil,
             chapter = chapter,
             sleepAt = steadySleepAt(sleepTimer.pausesAt),
@@ -823,7 +1018,7 @@ class NowPlayingController(
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)
-        lightSync.update(barTarget(s, stage, playing, lighting))
+        lightSync.update(barTarget(s, stage, playing, lighting, vista))
         if (stage != null) {
             if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
         }
@@ -831,22 +1026,72 @@ class NowPlayingController(
         if (decision.screen is Screen.Setup && viewers > 0) setupServer.start() else setupServer.stop()
     }
 
-    /** What the light bars are to show: the shown scene's colours while something is on stage. */
-    private fun barTarget(s: Settings, stage: Screen.Stage?, playing: Boolean, lighting: Lighting): LightSync.Target? {
-        if (stage == null || !s.bars.isSet) return null
+    /**
+     * What the light bars are to show: the Fensterblick's light while it shows, else the shown
+     * scene's colours while something is on stage – each bar a colour of its own.
+     */
+    private fun barTarget(s: Settings, stage: Screen.Stage?, playing: Boolean, lighting: Lighting, vista: VistaUi?): LightSync.Target? {
+        if (!s.bars.isSet) return null
+        val night = ((1f - lighting.brightness) / (1f - Lighting.NIGHT.brightness)).coerceIn(0f, 1f)
+        if (vista != null) {
+            return LightSync.Target(
+                bars = s.bars,
+                level = s.barLevel,
+                colours = vistaBars(vista.miniPlayer),
+                song = VISTA_SONG,
+                playing = true,
+                night = night,
+                warmth = lighting.warmth,
+                motion = 0f,
+                fieldTime = fieldClock::now,
+                vista = true,
+            )
+        }
+        if (stage == null) return null
         val shown = if (s.view == StageView.FLOW) _ui.value.flow?.middle?.stage else _ui.value.stage
         val field = shown?.scene?.field ?: return null
         return LightSync.Target(
             bars = s.bars,
             level = s.barLevel,
-            field = field,
+            colours = coverBars(field, s.motion.speed > 0f),
             song = shown.track.key,
             playing = playing,
-            night = ((1f - lighting.brightness) / (1f - Lighting.NIGHT.brightness)).coerceIn(0f, 1f),
+            night = night,
             warmth = lighting.warmth,
             motion = s.motion.speed,
             fieldTime = fieldClock::now,
         )
+    }
+
+    /** The bars' colours for a cover's field, made once per field (a new object fades the bars to it). */
+    private var coverBars: Pair<Any, CoverBars>? = null
+
+    private fun coverBars(field: io.github.hazymorning.klangbild.render.FieldScene, moving: Boolean): CoverBars {
+        val key = field to moving
+        coverBars?.takeIf { it.first == key }?.let { return it.second }
+        return CoverBars(field, moving).also { coverBars = key to it }
+    }
+
+    /**
+     * The bars' colours for the Fensterblick as it looks now – its sky's moment, the place, the
+     * weather – worked out anew only when the sky has moved on a little (the bars follow in long
+     * fades anyway).
+     */
+    private var vistaBars: Pair<List<Any?>, VistaBars>? = null
+
+    private fun vistaBars(mini: MiniPlayer): VistaBars {
+        val src = _ui.value.source
+        val zone = java.time.ZoneId.systemDefault()
+        val place = src.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(zone)
+        val sky = vistaClock.sky()
+        val cover = vistaClock.cover(WeatherMood.cover(src.weather, src.cloudCoverage))
+        val day = vistaClock.preview.dayOfYear
+        // The fire burns on the other side of the clearing from the label (without one, right of the middle).
+        val fireOnRight = mini != MiniPlayer.RIGHT
+        val key = listOf(sky / VISTA_BARS_STEP_MS, (cover * 20).toInt(), place, day, fireOnRight)
+        vistaBars?.takeIf { it.first == key }?.let { return it.second }
+        val look = PaperLight.look(World.sky(sky, place, zone, cover, day).first)
+        return VistaBars(look, fireOnRight).also { vistaBars = key to it }
     }
 
     private fun lightingFor(s: Settings, src: SourceState): Lighting {
@@ -926,6 +1171,12 @@ class NowPlayingController(
         /** An untouched menu closes after this long. */
         const val MENU_IDLE_MS = 60_000L
 
+        /** Untouched quick settings close after this long: they are for a moment's choice. */
+        const val QUICK_IDLE_MS = 20_000L
+
+        /** A view chosen in the quick settings is taken this long after the last press. */
+        const val QUICK_SETTLE_MS = 900L
+
         /** The preview closes itself after this long without a key (two whole time-lapse days and more). */
         const val PREVIEW_IDLE_MS = 10 * 60_000L
 
@@ -953,5 +1204,11 @@ class NowPlayingController(
 
         /** The sleep timer's wake-up is never sooner than this from now. */
         const val MIN_WAKE_MS = 250L
+
+        /** The light bars' "song" while the Fensterblick shows. */
+        const val VISTA_SONG = "\u0000fensterblick"
+
+        /** The Fensterblick's light for the bars is worked out anew after this much of its sky's time. */
+        const val VISTA_BARS_STEP_MS = 30_000L
     }
 }

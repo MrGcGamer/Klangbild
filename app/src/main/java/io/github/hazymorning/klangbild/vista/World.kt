@@ -46,6 +46,17 @@ object World {
         )
     }
 
+    /**
+     * What the sky does at [epochMs] over [place] – everything the picture's light depends on –
+     * and where the heavens stand; [cover] is the clouds as a mood, [dayOfYear] a day the preview
+     * has chosen for the season instead of the calendar's.
+     */
+    fun sky(epochMs: Long, place: Place, zone: ZoneId, cover: Float, dayOfYear: Int? = null): Pair<SkyState, Heavens> {
+        val h = heavens(epochMs, place)
+        val (season, shapes) = if (dayOfYear != null) seasonOnDay(dayOfYear.toFloat()) else season(epochMs, zone, place.latitude)
+        return SkyState(h.sunElevation, h.sunAzimuth, h.moonElevation, h.moonAzimuth, h.moonFraction, cover = cover, season = season, blossom = shapes.blossom) to h
+    }
+
     /** Local mean sidereal time in degrees (the standard formula, good to a fraction of a degree). */
     fun siderealDegrees(epochMs: Long, longitude: Double): Double {
         val jd = epochMs / 86_400_000.0 + 2440587.5

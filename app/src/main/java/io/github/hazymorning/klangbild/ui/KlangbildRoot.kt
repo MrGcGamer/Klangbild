@@ -149,7 +149,9 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
         }
-        // The settings menu lies over everything and fades in and out on its own.
+        // The quick settings rise from the bottom edge over whatever shows (over the landscape on
+        // its dark ground); the settings menu lies over everything. Both come and go on their own.
+        QuickBarOverlay(ui.quick, ui.lighting, if (content is Content.VistaContent) Appearance.DARK else ui.appearance)
         MenuOverlay(ui.menu, ui.lighting, ui.appearance)
     }
 }

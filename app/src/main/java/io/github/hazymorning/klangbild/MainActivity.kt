@@ -40,9 +40,6 @@ class MainActivity : ComponentActivity() {
     private var centerLongPressed = false
     private var sideLongPressed = false
 
-    /** The key that woke the screen from the Fensterblick: its repeats and its release do nothing more. */
-    private var wakingKey: Int? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         controller.applyLaunch(LaunchExtras.fromIntent(intent))
@@ -112,17 +109,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (controller.previewShowing) return previewKey(keyCode, event) || super.onKeyDown(keyCode, event)
-        // The waking key's repeats are spent too; a fresh press is a new key.
-        if (wakingKey == keyCode) {
-            if (event.repeatCount > 0) return true
-            wakingKey = null
-        }
-        // Any key ends the Fensterblick and starts its delays again. The key is spent on that –
-        // only the media keys still do what they say.
-        if (event.repeatCount == 0 && keyCode in REMOTE_KEYS && controller.interaction() && keyCode !in MEDIA_KEYS) {
-            wakingKey = keyCode
-            return true
-        }
+        // The quick settings take their keys first; they leave the Fensterblick as it is.
+        if (controller.quickOpen && quickKey(keyCode)) return true
+        val setup = controller.ui.value.screen is Screen.Setup
+        val quickKeys = !setup && !controller.volumeKeys && !controller.menuOpen
+        // Down opens the quick settings over whatever shows (the Fensterblick too). Every other key
+        // starts the Fensterblick's delays again: one that came by itself goes, a chosen one stays
+        // – and the key does its work either way.
+        if (event.repeatCount == 0 && keyCode in REMOTE_KEYS && !(quickKeys && keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) controller.interaction()
         if (controller.menuOpen && menuKey(keyCode)) return true
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
@@ -174,21 +168,46 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (controller.ui.value.screen !is Screen.Setup && controller.volumeKeys) {
+                if (!setup && controller.volumeKeys) {
                     controller.send(if (keyCode == KeyEvent.KEYCODE_DPAD_UP) RemoteCommand.VOLUME_UP else RemoteCommand.VOLUME_DOWN)
-                } else {
-                    peek()
-                    // Held down, the arrow brings the Fensterblick (with volume keys it keeps turning the volume).
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.repeatCount == 0) event.startTracking()
+                } else if (event.repeatCount == 0) {
+                    // Down: the quick settings rise from the bottom edge. Up: the stage's hidden
+                    // parts for a moment.
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        if (quickKeys) controller.openQuick()
+                    } else {
+                        peek()
+                    }
                 }
                 return true
             }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                controller.closeQuick()
                 controller.openMenu()
                 return true
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    /**
+     * Keys while the quick settings are open – a row along the bottom edge: left and right choose
+     * one, OK (on release) changes it or does what it says, up leaves the row again (down has
+     * nowhere to go), Menu opens the settings. False lets the key through (media keys, back).
+     */
+    private fun quickKey(keyCode: Int): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> controller.quickMove(-1)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> controller.quickMove(+1)
+            KeyEvent.KEYCODE_DPAD_UP -> controller.closeQuick()
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> controller.touchQuick()
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                controller.closeQuick()
+                controller.openMenu()
+            }
+            else -> return false
+        }
+        return true
     }
 
     /** Keys while the settings menu is open; false lets the key through (media keys). */
@@ -213,10 +232,6 @@ class MainActivity : ComponentActivity() {
             if (controller.previewShowing) controller.previewTimelapse() else if (!controller.menuOpen) controller.openMenu()
             return true
         }
-        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && !controller.volumeKeys && !controller.menuOpen && !controller.previewShowing) {
-            controller.showVista()
-            return true
-        }
         if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && !controller.menuOpen) {
             sideLongPressed = true
             controller.jump(if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else +1)
@@ -227,10 +242,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        if (wakingKey == keyCode) {
-            wakingKey = null
-            return true
-        }
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             if (!centerLongPressed && !event.isCanceled) onCenterPressed()
             centerLongPressed = false
@@ -282,6 +293,10 @@ class MainActivity : ComponentActivity() {
             controller.menuChange(+1, wrap = true)
             return
         }
+        if (controller.quickOpen) {
+            controller.quickChange()
+            return
+        }
         when (val s = controller.ui.value.screen) {
             is Screen.Setup -> when (s.reason) {
                 SetupReason.FIRST_RUN -> Unit
@@ -297,21 +312,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Back closes the app – or just the menu or the setup code opened on top of the music, the
-     * preview (back to the menu) or the Fensterblick.
+     * Back closes the app – or just what lies on top of the music: the preview (back to the
+     * menu), the settings, the quick menu, the Fensterblick, the setup code.
      */
     private fun onBack() {
         val s = controller.ui.value.screen
-        if (controller.previewShowing) {
-            controller.closePreview(toMenu = true)
-        } else if (controller.interaction()) {
+        when {
+            controller.previewShowing -> controller.closePreview(toMenu = true)
+            controller.menuOpen -> controller.closeMenu()
+            controller.quickOpen -> controller.closeQuick()
             // The Fensterblick goes; the app stays.
-        } else if (controller.menuOpen) {
-            controller.closeMenu()
-        } else if (s is Screen.Setup && s.reason == SetupReason.REQUESTED) {
-            controller.requestSetup(false)
-        } else {
-            finish()
+            controller.hideVista() -> Unit
+            s is Screen.Setup && s.reason == SetupReason.REQUESTED -> controller.requestSetup(false)
+            else -> finish()
         }
     }
 
@@ -320,7 +333,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val PEEK_MS = 6_000L
 
-        /** The keys that only end the Fensterblick when it shows. */
+        /** The remote's keys: each starts the Fensterblick's delays again. */
         private val REMOTE_KEYS = setOf(
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_MENU,
@@ -328,10 +341,5 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
         )
 
-        /** Keys that end the Fensterblick and still do their work: the music's own. */
-        private val MEDIA_KEYS = setOf(
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_NEXT,
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-        )
     }
 }

@@ -39,7 +39,7 @@ enum class MenuEntry(val section: MenuSection, val label: String) {
     MINI_PLAYER(MenuSection.VISTA, "Mini-Player"),
     VISTA_PREVIEW(MenuSection.VISTA, "Vorschau"),
     REMOTE(MenuSection.REMOTE, "Musik steuern"),
-    UP_DOWN(MenuSection.REMOTE, "Pfeil hoch und runter"),
+    UP_DOWN(MenuSection.REMOTE, "Hoch und runter"),
     SPOKEN(MenuSection.REMOTE, "Hörbücher, Podcasts"),
     SLEEP_TIMER(MenuSection.TIMER, "Sleep-Timer"),
     SLEEP_AFTER(MenuSection.TIMER, "Ausschalten nach"),
@@ -124,7 +124,7 @@ object SettingsMenu {
         }
         MenuEntry.VISTA_PREVIEW -> "Öffnen"
         MenuEntry.REMOTE -> onOff(s.remoteControl)
-        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Infos zeigen"
+        MenuEntry.UP_DOWN -> if (s.volumeKeys) "Lautstärke" else "Schnelleinstellungen"
         MenuEntry.SPOKEN -> if (s.spokenSkip) "Spulen" else "Titel wechseln"
         MenuEntry.SLEEP_TIMER -> sleepValue(ctx.sleep, ctx.kind)
         MenuEntry.SLEEP_AFTER -> minutes(s.sleepAfterMinutes)
@@ -230,7 +230,8 @@ object SettingsMenu {
                 "Jede Taste holt das Cover zurück."
         }
         MenuEntry.VISTA_PLAYING -> if (s.vistaPlayingSeconds == 0) {
-            if (s.volumeKeys) "Während Musik läuft, bleibt das Cover." else "Während Musik läuft, bleibt das Cover. Pfeil runter lange drücken zeigt den\u00A0Fensterblick jederzeit."
+            if (s.volumeKeys) "Während Musik läuft, bleibt das Cover."
+            else "Während Musik läuft, bleibt das Cover. Den\u00A0Fensterblick gibt es jederzeit: Pfeil runter, dann „Ansicht“."
         } else {
             "Läuft die Musik so lange ohne Tastendruck, wird sie zum\u00A0Fensterblick\u00A0– mit dem\u00A0Mini-Player in der\u00A0Ecke."
         }
@@ -246,9 +247,10 @@ object SettingsMenu {
             if (s.remoteControl) "OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel."
             else "Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü."
         MenuEntry.UP_DOWN -> if (s.volumeKeys) {
-            "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers."
+            "Pfeil hoch und runter ändern die Lautstärke des Lautsprechers; die\u00A0Schnelleinstellungen gibt es dann nicht."
         } else {
-            "Pfeil hoch und runter zeigen ausgeblendete Infos wie Uhrzeit und Fortschrittsbalken kurz an."
+            "Pfeil runter öffnet unten die\u00A0Schnelleinstellungen: Ansicht und Fensterblick, Favorit, Lichtleisten, Sleep-Timer. " +
+                "Pfeil hoch zeigt ausgeblendete Infos kurz\u00A0an."
         }
         MenuEntry.SPOKEN -> if (s.spokenSkip) {
             "Bei Hörbüchern und Podcasts spult links 15\u00A0Sekunden zurück, rechts 30\u00A0Sekunden vor. " +

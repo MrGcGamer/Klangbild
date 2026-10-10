@@ -130,8 +130,13 @@ class LightSyncTest {
     private fun TestScope.sync(): LightSync =
         LightSync(backgroundScope, { testScheduler.currentTime }, StandardTestDispatcher(testScheduler))
 
+    /** The bars' colours for a field, made once (as the controller does): the same field never fades the bars anew. */
+    private val made = HashMap<Pair<FieldScene, Boolean>, CoverBars>()
+
+    private fun coverBars(f: FieldScene, moving: Boolean) = made.getOrPut(f to moving) { CoverBars(f, moving) }
+
     private fun target(song: String, playing: Boolean = true, level: BarLevel = BarLevel.NORMAL, motion: Float = 0f, f: FieldScene = field) =
-        LightSync.Target(bars, level, f, song, playing, night = 0f, warmth = 0.06f, motion = motion, fieldTime = { 0.0 })
+        LightSync.Target(bars, level, coverBars(f, motion > 0f), song, playing, night = 0f, warmth = 0.06f, motion = motion, fieldTime = { 0.0 })
 
     private val field = field()
 
@@ -265,15 +270,15 @@ class LightSyncTest {
         val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = true)))
         val s = sync()
         s.attach(ha)
-        val four = fourColours()
-        s.update(target("a", f = four))
+        val colours = coverBars(fourColours(), moving = true)
+        s.update(LightSync.Target(bars, BarLevel.NORMAL, colours, "a", true, 0f, 0.06f, 0f, { 0.0 }))
         testScheduler.advanceTimeBy(60_000)
         assertThat(ha.to(left)).hasSize(1)
 
         var t = 0.0
-        val moving = LightSync.Target(bars, BarLevel.NORMAL, four, "a", true, 0f, 0.06f, 1f) { t }
+        val moving = LightSync.Target(bars, BarLevel.NORMAL, colours, "a", true, 0f, 0.06f, 1f, { t })
         s.update(moving)
-        // Five minutes: the colour at a screen edge changes slowly, and only visible steps are sent.
+        // Five minutes: the colours move on from bar to bar slowly, and only visible steps are sent.
         repeat(600) {
             t += 0.5
             testScheduler.advanceTimeBy(500)

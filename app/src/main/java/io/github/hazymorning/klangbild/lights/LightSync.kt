@@ -3,8 +3,6 @@ package io.github.hazymorning.klangbild.lights
 import io.github.hazymorning.klangbild.config.BarLevel
 import io.github.hazymorning.klangbild.config.LightBars
 import io.github.hazymorning.klangbild.data.ha.EntityState
-import io.github.hazymorning.klangbild.render.FieldModel
-import io.github.hazymorning.klangbild.render.FieldScene
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,10 +39,11 @@ interface LightBridge {
 }
 
 /**
- * The bars behind the TV in the cover's colours. Each bar takes the colour of the field
- * ([FieldModel]) at the screen's edge it stands by – left, top, right – so with "Bewegung" they
- * drift with the screen; without it they change only with the music. Gentle on the Zigbee network and
- * on whoever else uses the lights:
+ * The bars behind the TV in the colours of what the screen shows: each bar a colour of its own
+ * ([BarColours]) – the cover's most telling colours, kept apart and placed as they sit in the
+ * cover (with "Bewegung" they move on from bar to bar), or in the Fensterblick its sky round the
+ * land, the sun's glow on its side and the campfire's light on the fire's. Gentle on the Zigbee
+ * network and on whoever else uses the lights:
  *
  *  - before it takes the bars over it notes how they were, and gives that back when the
  *    music has ended for a while, when the option is switched off and when the app closes;
@@ -70,9 +69,9 @@ class LightSync(
     data class Target(
         val bars: LightBars,
         val level: BarLevel,
-        /** The current scene's colours (its light texture); the bars follow it. */
-        val field: FieldScene,
-        /** The song: a new one changes the bars once it has played a moment. */
+        /** The colours for each bar; a new one is faded to. */
+        val colours: BarColours,
+        /** The song (or the Fensterblick): a new one changes the bars once it has played a moment. */
         val song: String,
         val playing: Boolean,
         /** 0 by day … 1 at night: the bars dim with the evening. */
@@ -83,11 +82,16 @@ class LightSync(
         val motion: Float,
         /** The field's time (seconds), shared with the screen. */
         val fieldTime: () -> Double,
+        /**
+         * The Fensterblick shows: its light changes slowly, so the bars follow it in long fades
+         * and seldom calls; a pause does not dim them (the picture is the show).
+         */
+        val vista: Boolean = false,
     )
 
     private class Saved(val on: Boolean, val brightness: Int?, val mode: String?, val xy: List<Float>?, val hs: List<Float>?, val kelvin: Int?)
 
-    private class Bar(val id: String, val position: Pair<Float, Float>) {
+    private class Bar(val id: String, val slot: BarSlot) {
         var sentXy: Xy? = null
         var sentBri = 0
         var sentAt = 0L
@@ -126,7 +130,7 @@ class LightSync(
     private var saved: Map<String, Saved> = emptyMap()
     private var savedAt = 0L
     private var shownSong: String? = null
-    private var shownField: FieldScene? = null
+    private var shownColours: BarColours? = null
     private var waitingSong: String? = null
     private var waitingSince = 0L
     private var idleSince: Long? = null
@@ -206,7 +210,7 @@ class LightSync(
             return
         }
         idleSince = null
-        val wanted = positions(tg.bars)
+        val wanted = slots(tg.bars)
         // Bars no longer wanted are given back; new ones are noted first – once their states
         // have arrived (they are followed only now), or after a while with what is there.
         if (wanted.keys != activeFor) {
@@ -216,7 +220,7 @@ class LightSync(
         }
         adopt(wanted, states, t)
         watchForOthers(states, t)
-        val paused = !tg.playing
+        val paused = !tg.playing && !tg.vista
         pausedSince = if (paused) (pausedSince ?: t) else null
         when {
             tg.song != shownSong -> {
@@ -227,19 +231,20 @@ class LightSync(
                 // The first song after taking over is shown at once.
                 if (shownSong == null || t - waitingSince >= SETTLE_MS) {
                     shownSong = tg.song
-                    shownField = tg.field
+                    shownColours = tg.colours
                     send(b, tg, t, if (lastStepAt == 0L) FIRST_TRANSITION_MS else TRACK_TRANSITION_MS, force = true, paused = paused)
                 }
             }
             paused && !shownPaused && t - (pausedSince ?: t) >= PAUSE_DELAY_MS -> send(b, tg, t, PAUSE_TRANSITION_MS, force = true, paused = true)
             !paused && shownPaused -> send(b, tg, t, RESUME_TRANSITION_MS, force = true, paused = false)
-            tg.field !== shownField -> {
-                shownField = tg.field
-                send(b, tg, t, SOFT_TRANSITION_MS, force = false, paused = shownPaused)
+            // The Fensterblick's light moves on in long fades, a call per bar every while at most.
+            tg.colours !== shownColours && (!tg.vista || t - lastStepAt >= VISTA_GAP_MS) -> {
+                shownColours = tg.colours
+                send(b, tg, t, if (tg.vista) VISTA_TRANSITION_MS else SOFT_TRANSITION_MS, force = false, paused = shownPaused)
             }
             // A new level or a later hour (a pause is dimmed above, after its delay).
             share(tg, shownPaused) != shownShare -> send(b, tg, t, SOFT_TRANSITION_MS, force = false, paused = shownPaused)
-            !paused && tg.motion > 0f && t - lastStepAt >= DRIFT_MS -> send(b, tg, t, DRIFT_TRANSITION_MS, force = false, paused = false)
+            !paused && !tg.vista && tg.motion > 0f && t - lastStepAt >= DRIFT_MS -> send(b, tg, t, DRIFT_TRANSITION_MS, force = false, paused = false)
         }
         // Calls that had to wait (a bar still busy, a failure to try again): those bars only.
         val due = bars.values.filter { !it.takenOver && !it.inFlight && it.retryAt in 1..t }.mapTo(HashSet()) { it.id }
@@ -250,13 +255,13 @@ class LightSync(
      * A wanted bar whose state arrived only after the others were taken over (or that was
      * unavailable then): its state is noted, then it joins in at once.
      */
-    private fun adopt(wanted: Map<String, Pair<Float, Float>>, states: Map<String, EntityState>, t: Long) {
-        for ((id, pos) in wanted) {
+    private fun adopt(wanted: Map<String, BarSlot>, states: Map<String, EntityState>, t: Long) {
+        for ((id, slot) in wanted) {
             if (id in bars) continue
             val s = states[id] ?: continue
             if (s.state == "unavailable") continue
             if (id !in saved) saved = saved + (id to savedOf(s))
-            bars[id] = Bar(id, pos).also {
+            bars[id] = Bar(id, slot).also {
                 it.checkedUpdate = s.lastUpdated
                 it.retryAt = t
             }
@@ -264,7 +269,7 @@ class LightSync(
     }
 
     /** Notes how the bars are, then takes them over. Bars that were off are switched on dark first, in the new colour – never a flash of their old one. */
-    private suspend fun activate(wanted: Map<String, Pair<Float, Float>>, states: Map<String, EntityState>, t: Long) {
+    private suspend fun activate(wanted: Map<String, BarSlot>, states: Map<String, EntityState>, t: Long) {
         // Taken back within a minute (the screen came back): the earlier note still holds.
         if (t - savedAt > REUSE_SNAPSHOT_MS || !wanted.keys.all { it in saved }) {
             saved = wanted.keys.mapNotNull { id -> states[id]?.let { id to savedOf(it) } }.toMap()
@@ -272,10 +277,10 @@ class LightSync(
         }
         bars.clear()
         activeFor = wanted.keys.toSet()
-        for ((id, pos) in wanted) {
+        for ((id, slot) in wanted) {
             val s = states[id] ?: continue
             if (s.state == "unavailable") continue
-            bars[id] = Bar(id, pos).also { it.checkedUpdate = s.lastUpdated }
+            bars[id] = Bar(id, slot).also { it.checkedUpdate = s.lastUpdated }
         }
         shownSong = null
         waitingSong = null
@@ -288,14 +293,14 @@ class LightSync(
      * enough from what it shows.
      */
     private fun send(b: LightBridge, target: Target, t: Long, transitionMs: Long, force: Boolean, paused: Boolean, only: Set<String>? = null) {
-        // Where the field will stand when the fade has ended.
+        // Where the colours will stand when the fade has ended.
         val ft = target.fieldTime() + transitionMs / 1000.0 * target.motion
         val share = share(target, paused)
         for (bar in bars.values) {
             if (bar.takenOver || (only != null && bar.id !in only)) continue
             val state = b.lights.value[bar.id]
             if (state == null || state.state == "unavailable") continue
-            FieldModel.light(target.field, bar.position.first, bar.position.second, ft, rgb)
+            target.colours.colour(bar.slot, ft, rgb)
             val xy = HueColor.of(rgb, target.warmth)
             val bri = HueColor.brightness(share * HueColor.dimFor(rgb))
             val small = bar.sentXy?.let { it.distance(xy) < MIN_XY_STEP && abs(bri - bar.sentBri) < MIN_BRI_STEP } == true
@@ -457,15 +462,11 @@ class LightSync(
     private fun followed(t: Target?): Set<String> = if (t == null || t.level == BarLevel.OFF) emptySet() else t.bars.ids.toSet()
 
     companion object {
-        /**
-         * Where each bar takes its colour from (shares of the screen): the screen's edge next to
-         * it – the left and right edges, and for the bar behind the middle the top edge, where
-         * its light shows above the TV.
-         */
-        fun positions(bars: LightBars): Map<String, Pair<Float, Float>> = buildMap {
-            bars.left?.let { put(it, 0.02f to 0.5f) }
-            bars.center?.let { if (it !in this) put(it, 0.5f to 0.04f) }
-            bars.right?.let { if (it !in this) put(it, 0.98f to 0.5f) }
+        /** Where each bar stands: left, behind the middle (its light shows above the TV), right. */
+        fun slots(bars: LightBars): Map<String, BarSlot> = buildMap {
+            bars.left?.let { put(it, BarSlot.LEFT) }
+            bars.center?.let { if (it !in this) put(it, BarSlot.CENTER) }
+            bars.right?.let { if (it !in this) put(it, BarSlot.RIGHT) }
         }
 
         const val TICK_MS = 1_000L
@@ -475,6 +476,10 @@ class LightSync(
         const val TRACK_TRANSITION_MS = 2_500L
         const val DRIFT_MS = 10_000L
         const val DRIFT_TRANSITION_MS = 8_000L
+
+        /** The Fensterblick: its light at most this often (per bar a call), in fades this long. */
+        const val VISTA_GAP_MS = 20_000L
+        const val VISTA_TRANSITION_MS = 15_000L
         const val SOFT_TRANSITION_MS = 1_500L
         const val PAUSE_DELAY_MS = 2_000L
         const val PAUSE_TRANSITION_MS = 2_000L

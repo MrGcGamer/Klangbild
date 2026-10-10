@@ -47,6 +47,8 @@ data class SourceState(
     /** The weather entity's state (`sunny`, `cloudy` …) and its cloud cover in %, as far as known. */
     val weather: String? = null,
     val cloudCoverage: Double? = null,
+    /** What plays can be added to Music Assistant's favourites. */
+    val favorites: Boolean = false,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
@@ -59,4 +61,7 @@ interface NowPlayingSource {
 
     /** Plays on from [positionMs] in the item's own time. */
     suspend fun seek(positionMs: Long)
+
+    /** Adds what plays to Music Assistant's favourites (a station's song as the song); whether it worked. */
+    suspend fun favorite(): Boolean = false
 }

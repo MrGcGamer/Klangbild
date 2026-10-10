@@ -80,11 +80,13 @@ vista/          The Fensterblick, a paper diorama: PaperMotif (folded mountains,
                 sidereal time), World (suncalc: sun, moon, phase; season by date; WeatherMood: the
                 weather as cloud cover only), CloudField (lanes, hashed, never repeats), VistaClock
                 (real time, preview glide, a day in two minutes), Noise
-lights/         LightSync (the colour lights behind the TV via Home Assistant: the field's colour
-                at the screen edge next to each bar, snapshot/restore, rate limits, takeover by others), HueColor (xy in
-                gamut C, greys as warm white, brightness floor)
+lights/         LightSync (the colour lights behind the TV via Home Assistant: a colour per bar,
+                snapshot/restore, rate limits, takeover by others), BarColours (CoverBars: the
+                cover's colours kept apart, placed as in the cover, moving on with "Bewegung";
+                VistaBars: the Fensterblick's sky, sun glow and fire), HueColor (xy in gamut C,
+                greys as warm white, brightness floor)
 app/            NowPlayingController (single source of truth → StateFlow<UiState>; chapters, jumps
-                with the remote, sleep timer, light bars), Scenes (scene cache + builds off the
+                with the remote, sleep timer, light bars, quick settings, favourites), Scenes (scene cache + builds off the
                 main thread), KlangbildApp/AppGraph
 setup/          MiniHttp, SetupHandler (one-time code, API, token bound to its address), SetupPage
                 (HTML), SetupServer (+ QR, discovery)
@@ -95,6 +97,7 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
                 main thread, at once in stills),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures), MenuScreen,
+                QuickBar (the quick settings along the bottom edge),
                 RestScreen, SetupScreen, Motion, Changes (`playChange`, `RisingText`: one change
                 at a time, hurrying, held lines), DebugOverlay,
                 vista/ (Fensterblick: bake off the main thread and ahead of time, 20 fps tick,
@@ -104,7 +107,8 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek), s
 dream/          KlangbildDream (DreamService with ComposeView)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, LightBars, BarLevel) + SettingsStore (DataStore), SettingsMenu
-                (entries, values, German explanations, steps; "Effekte"), LaunchExtras (am start extras)
+                (entries, values, German explanations, steps; "Effekte"), QuickMenu (the quick
+                settings' entries and values), LaunchExtras (am start extras)
 test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME, a book
                 and an episode), Fixtures, the static stages for stills
 ```
@@ -159,13 +163,12 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   (elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) – or fixed. The
   light wall is warm paper (Oklab L 0.915) with a breath of the cover's colour pulled towards
   warm and kept within hues 50–90° (a cool cover gives less colour, never mint), never white; there the artwork casts a soft shadow (`WallShade`) instead of light, a
-  white cover gets a dark hairline, small covers an ivory mat. A wall change cross-fades the
-  stage in 2.4 s.
+  white cover gets a dark hairline. A wall change cross-fades the stage in 2.4 s.
 - **Light (`WallGlow`):** a tight halo in the colours of the artwork's own edges, the same on
   every side: each wall point takes the nearest edge colour, averaged over a stretch that
   grows with distance (diffuse, no streaks); at most L* ≈ 17 at the edge and never more than
-  0.4 × the edge's own luminance (a dark cover gives little light, a matted one only its
-  mat's), falling as a Gaussian with σ = 26 dp, gone before the text column (which stands on
+  0.4 × the edge's own luminance (a dark cover gives little light), falling as a Gaussian
+  with σ = 26 dp, gone before the text column (which stands on
   black). It fills 2 dp under the artwork's edge so the anti-aliased rim never shows black.
   The 36 dp next to the screen edges stay black (`EdgeBandTest` checks rendered pixels),
   faded in as a product of a horizontal and a vertical ramp (a min() of edge distances
@@ -177,8 +180,9 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   Hidden by setting, back on a key press.
 - **Per frame only cheap work:** blur/palette/resampling/glow happen once per track in
   `SceneBuilder`; animations only change alpha/transform/colour filters, read in draw lambdas.
-- **Honest resolution:** ≤ 1.3 source px per 1080p px (`HaloLayout.MAX_SOURCE_SCALE_1080P`);
-  small covers sit optically centred in a near-black mat with grain and a 1 dp white bevel.
+- **Every cover fills its square:** a small one (a station's picture) is enlarged once with
+  Lanczos. No passe-partout: a smaller print in a mat (v5.0) read as a half-transparent frame on
+  paper and, optically centred, as a print that had slipped (`CoverFillTest`).
 - **Calm motion** (`Motion`): a track change (1.25 s) dips through dark instead of
   double-exposing – the old artwork goes dark (0–320 ms), the new one comes up (300–900 ms)
   and settles from 1.5 % larger, the light turns to the new colours (0–900 ms); old text
@@ -211,6 +215,20 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
 - **States say it in words**, in the status line, place first and state last: "Wohnzimmer
   · Pausiert", "Küche · Stumm", "Lautstärke 35 %" (3.5 s), "Überall";
   "Verbindung wird wiederhergestellt …" in the progress bar's place.
+- **Remote:** OK plays and pauses, held it opens the settings; left / right change the song
+  (spoken word: jump); down opens the quick settings, up shows hidden parts for a moment (with
+  "Hoch und runter: Lautstärke" both turn the speaker's volume); back closes what lies on top
+  (settings, quick settings, Fensterblick), else the app.
+- **Quick settings** (`QuickMenu`, `QuickBar`; down on the remote): one row along the bottom
+  edge, rising 22 dp as it fades in – where the key points: Ansicht (Einzelnes Cover / Cover
+  Flow / Fensterblick, taken 0.9 s after the last press so no view in between shows), Favorit
+  (with Music Assistant), Lichtleisten An / Aus (off remembers the level), Sleep-Timer. Left /
+  right choose, OK changes, up or back close, 20 s alone close them. Each entry is its name
+  (15 sp, quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as wide as
+  its widest value (only the last is as wide as what it says), so nothing moves when a value
+  changes; the chosen one lit from below like the menu's line. An opaque veil (black, paper)
+  from 448 dp down, softened above: nothing behind shows through. They leave the Fensterblick
+  as it was.
 - **Settings menu** (OK long-press / Menu): the stage's grid, heading and the chosen line's
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
   a soft, low band of light (σ 120 × 12 dp, ≈ L* 10) that lights it alone; the list glides
@@ -222,8 +240,8 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   (Uhrzeit, Fortschrittsbalken, Nächster Titel, Album und Jahr, Lautsprechergruppe,
   Lautstärke), Effekte (Hintergrund: Einfarbig / Coverfarben, Intensität, Bewegung: Aus /
   Langsam / Mittel / Schnell, Lichtleisten), Fensterblick (Bei Pause, Während der Musik,
-  Mini-Player: Unten links / Unten rechts / Aus, Vorschau), Fernbedienung (Musik steuern, Pfeil hoch und
-  runter, Hörbücher, Podcasts: Spulen / Titel wechseln), Timer (Sleep-Timer, Ausschalten nach,
+  Mini-Player: Unten links / Unten rechts / Aus, Vorschau), Fernbedienung (Musik steuern, Hoch und
+  runter: Schnelleinstellungen / Lautstärke, Hörbücher, Podcasts: Spulen / Titel wechseln), Timer (Sleep-Timer, Ausschalten nach,
   Beim Ausschalten: App schließen / Bildschirmschoner), Verbindung. Label + value must fit the
   352 dp column on one line.
 - **Coverfarben** (setting "Hintergrund", `BackgroundMode.COVER`): the cover's own colours as the
@@ -246,8 +264,15 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   a pause freezes it, nothing jumps; screen and light bars read the same clock. One frame tick
   (~30/s) for the field and the progress bar, never two loops out of step.
 - **Lichtleisten** (Hue Play & co. via Home Assistant, chosen on the setup page; Aus / Schwach /
-  Normal / Stark = 10 / 20 / 40 % brightness): each bar takes the field's colour at the screen
-  edge next to it (left and right edge, the middle bar the top edge), as xy within gamut C, greys as warm white (2700 K, evening
+  Normal / Stark = 10 / 20 / 40 % brightness): three bars, three colours (`BarColours`). From the
+  cover (`CoverBars`): its most telling colours (colour counts more than size), kept ≥ 0.09
+  Oklab apart, placed as they sit in the cover – leftmost colour left, rightmost right, the
+  third above the TV; one colour gives itself and its neighbours ±32° round the hue circle, a
+  grey cover three whites. With "Bewegung" the colours move on from bar to bar (a step per 90 s
+  of field time, resting 70 % of it). In the Fensterblick (`VistaBars`): above the TV its sky,
+  at the sides the sky over the horizon – the sun's glow on its side, at night the campfire's
+  warm light on the fire's side; worked out every 30 s of its sky's time, sent at most every
+  20 s in 15 s fades, no pause dimming while it shows. As xy within gamut C, greys as warm white (2700 K, evening
   2300 K), dark covers softly; night × 0.6, pause × 0.5 (after 2 s). Before taking the bars over
   their state is noted; it is given back after the music has ended for 5 minutes, when the
   option goes off and when the app closes (bars that were off: dimmed, then off without a fade).
@@ -300,10 +325,14 @@ test only       SyntheticCovers + Catalogue (generated test covers and tracks, t
   skyline: the sun rises and sets at the ridge. Few, slow movements (clouds, the flames, the
   fire's glow, stars), never a loop, 20 fps; light recomputed every 10 s, each step below one
   level. Comes after the pause delay (default 3 min; the rest clock first), during music only
-  if set, never over trouble, setup or the menu; any key ends it (media keys still act), held
-  down arrow shows it; baked ahead while it is on its way. The label (cover 56 dp, Jost 24 /
-  DM Sans 17, bar) lies on the dark near bank (snow only along its edge), the fire on the
-  other side; its inks come from the bank and keep 4.5:1 on its lightest grain
+  if set, never over trouble, setup or the menu; chosen in the quick settings ("Ansicht") it
+  shows whatever plays until it is left (back, or another view there). Every key starts the
+  delays again – one that came by itself goes with any key, which still does its work. Baked
+  ahead while it is on its way. The label (cover 56 dp, Jost 24 / DM Sans 17, bar) lies on the
+  dark near bank (snow only along its edge), the fire on the other side; beside the cover one
+  block exactly centred on it – the title's cap height to the bar's lower edge (filling the
+  cover's height), or without a bar (a station) to the last baseline (`VistaLabelTest`). Its
+  inks come from the bank and keep 4.5:1 on its lightest grain
   (`PaperLightTest`). Every sheet in its own box, baked only down to where nearer paper hides
   it; sky and land stand as layers between light changes (≈ 2.3 screens of fill per frame,
   30 MB at 1080p).

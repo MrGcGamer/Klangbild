@@ -5,34 +5,41 @@ package io.github.hazymorning.klangbild.domain
  *
  * - **Something is wrong** (connecting, Home Assistant away, the speaker unavailable or
  *   unknown) or setup is open: never – those screens have something to say.
- * - **Asked for** (the remote's held down key, a link, Home Assistant): at once, whatever plays,
- *   until a key is pressed.
+ * - **Chosen** (down on the remote, the quick menu, a link, Home Assistant): at once, whatever
+ *   plays, until it is left again ([leave]: up, back, the quick menu) – the other keys go on
+ *   doing what they always do.
  * - **Paused, or nothing playing:** after [pauseMs] without music and without a key pressed
  *   (0: never – then the paused cover gives way to the clock after three minutes, as before).
  * - **Playing:** after [playingMs] of music without a key pressed (0: never).
  *
- * Every key press ends it; the delays start again from that press. The rest clock is left for
- * the moments with nothing to show but the time: nothing plays and the Fensterblick is off, or
- * the delay has not passed yet.
+ * Every key press starts the delays again – so a Fensterblick that came by itself goes with any
+ * key (which still does its work), a chosen one stays. The rest clock is left for the moments
+ * with nothing to show but the time: nothing plays and the Fensterblick is off, or the delay has
+ * not passed yet.
  */
 class VistaPolicy {
     private var playingSince: Long? = null
     private var quietSince: Long? = null
     private var lastKey = 0L
 
-    /** Shown because it was asked for, until the next key. */
+    /** Chosen with the remote (or from outside): it stays until it is left. */
     var requested = false
         private set
 
-    /** A key was pressed: the Fensterblick goes, and its delays start again. */
+    /** A key was pressed: the delays start again (a chosen Fensterblick stays). */
     fun interaction(now: Long) {
         lastKey = now
-        requested = false
     }
 
-    /** Asked for from outside or with the held key. */
+    /** Chosen with the remote, the quick menu or from outside. */
     fun request(show: Boolean) {
         requested = show
+    }
+
+    /** Left (up, back, the quick menu): the stage comes back, and the delays start again from now. */
+    fun leave(now: Long) {
+        requested = false
+        lastKey = now
     }
 
     /** Whether the Fensterblick shows instead of [screen] now. */

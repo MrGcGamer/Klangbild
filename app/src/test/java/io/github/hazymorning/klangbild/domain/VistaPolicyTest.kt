@@ -65,12 +65,19 @@ class VistaPolicyTest {
     }
 
     @Test
-    fun `asked for, it shows at once until a key is pressed`() {
+    fun `chosen, it shows at once and stays through other keys until it is left`() {
         policy.request(true)
         assertThat(shows(playing, 0)).isTrue()
+        // Skipping a song, a pause: the keys do their work, the Fensterblick stays.
         policy.interaction(1_000)
-        assertThat(shows(playing, 1_001)).isFalse()
+        assertThat(shows(playing, 1_001)).isTrue()
+        assertThat(shows(paused, 2_000)).isTrue()
+        policy.leave(3_000)
+        assertThat(shows(paused, 3_001)).isFalse()
         assertThat(policy.requested).isFalse()
+        // Left, it comes by itself again only after the whole delay.
+        assertThat(shows(paused, 3_000 + pause - 1)).isFalse()
+        assertThat(shows(paused, 3_000 + pause)).isTrue()
     }
 
     @Test

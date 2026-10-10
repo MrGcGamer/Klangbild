@@ -258,14 +258,7 @@ private class VistaFrameState(private val feed: VistaFeed) {
         if (relit) {
             lookSky = sky
             lookCover = cover
-            val place = feed.place()
-            val heavens = World.heavens(sky, place)
-            val day = feed.clock.preview.dayOfYear
-            val (season, shapes) = if (day != null) World.seasonOnDay(day.toFloat()) else World.season(sky, feed.zone(), place.latitude)
-            val s = SkyState(
-                heavens.sunElevation, heavens.sunAzimuth, heavens.moonElevation, heavens.moonAzimuth, heavens.moonFraction,
-                cover = cover, season = season, blossom = shapes.blossom,
-            )
+            val (s, heavens) = World.sky(sky, feed.place(), feed.zone(), cover, feed.clock.preview.dayOfYear)
             look = PaperLight.look(s)
             places = SkyMap.places(s, heavens.siderealDeg, heavens.latitude)
         }
