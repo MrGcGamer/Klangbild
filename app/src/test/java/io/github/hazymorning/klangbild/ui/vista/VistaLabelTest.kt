@@ -30,10 +30,10 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * The mini-player's lines stand exactly in the middle of its cover – measured on the rendered
- * pixels (1080p, 2 px = 1 dp), on what is seen: from the title's cap height to the artist's
- * baseline (a title alone: its cap height to its baseline). The bar lies under the cover and
- * its lines, from the cover's left edge.
+ * What stands beside the mini-player's cover is one block, exactly in the middle of the cover –
+ * measured on the rendered pixels (1080p, 2 px = 1 dp), on what is seen: from the title's cap
+ * height to the bar's lower edge, or – a station without length, so without bar – to the last
+ * baseline (a title alone: its cap height to its baseline).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -43,35 +43,34 @@ class VistaLabelTest {
     val compose = createComposeRule()
 
     // Capitals with flat tops and feet: the ink's top is the cap height, its bottom the baseline.
-    private val withArtist = TrackInfo("HEIMATLIED", listOf("EMIL THEN"), durationMs = 200_000, artworkUrl = Catalogue.SCHEME + SyntheticCover.BAUHAUS.name)
-    private val titleOnly = TrackInfo("HEIMATLIED", emptyList(), durationMs = 200_000, artworkUrl = Catalogue.SCHEME + SyntheticCover.BAUHAUS.name)
+    private val art = Catalogue.SCHEME + SyntheticCover.BAUHAUS.name
+    private val song = TrackInfo("HEIMATLIED", listOf("EMIL THEN"), durationMs = 200_000, artworkUrl = art)
+    private val station = TrackInfo("HEIMATLIED", listOf("EMIL THEN"), artworkUrl = art)
+    private val titleOnly = TrackInfo("HEIMATLIED", emptyList(), artworkUrl = art)
 
     @Test
-    fun theLinesStandInTheMiddleOfTheCover() {
+    fun whatStandsBesideTheCoverIsCentredOnIt() {
         for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) {
-            for (track in listOf(withArtist, titleOnly)) {
-                val what = "$side, ${if (track.artists.isEmpty()) "title alone" else "title and artist"}"
+            for ((what, track) in listOf("song with bar" to song, "station without bar" to station, "title alone" to titleOnly)) {
+                val label = "$side, $what"
                 val ink = render(track, side)
                 val left = px(if (side == LabelSide.RIGHT) PaperMotif.LABEL_RIGHT_X else PaperMotif.LABEL_LEFT_X)
-                val coverSide = px(PaperMotif.LABEL_HEIGHT - 15f)
-                // The cover's columns: the cover, then (after a gap) the bar.
-                val coverRows = ink.blocks(left, left + coverSide)
-                assertWithMessage("$what: the cover and the bar under it").that(coverRows).hasSize(2)
-                val (cover, bar) = coverRows
-                assertWithMessage("$what: the cover's side").that(cover.second - cover.first + 1).isEqualTo(coverSide)
-                // The text column, above the bar.
-                val lines = ink.lines(left + coverSide + px(4f), 1920, 0, bar.first)
-                assertWithMessage("$what: lines beside the cover").that(lines).hasSize(if (track.artists.isEmpty()) 1 else 2)
-                val top = lines.first().capTop
-                val baseline = lines.last().baseline
-                val textMiddle = (top + baseline + 1) / 2f
+                val coverSide = px(PaperMotif.LABEL_HEIGHT)
+                val cover = ink.blocks(left, left + coverSide).single()
+                assertWithMessage("$label: the cover's side").that(cover.second - cover.first + 1).isEqualTo(coverSide)
+                // Beside the cover: the lines, then (for a song) the bar.
+                val beside = ink.blocks(left + coverSide + px(4f), 1920)
+                val lines = ink.lines(left + coverSide + px(4f), 1920, 0, 1080)
+                val withBar = track.durationMs != null
+                val texts = if (withBar) lines.dropLast(1) else lines
+                assertWithMessage("$label: what stands beside the cover").that(beside).hasSize(texts.size + if (withBar) 1 else 0)
+                assertWithMessage("$label: lines").that(texts).hasSize(if (track.artists.isEmpty()) 1 else 2)
+                val top = texts.first().capTop
+                val bottom = if (withBar) beside.last().second else texts.last().baseline
+                val middle = (top + bottom + 1) / 2f
                 val coverMiddle = (cover.first + cover.second + 1) / 2f
-                assertWithMessage("$what: the lines' middle (cap height $top to baseline $baseline) on the cover's (${cover.first}–${cover.second})")
-                    .that(abs(textMiddle - coverMiddle)).isAtMost(1f)
-                // The bar starts on the cover's left edge, a little under it.
-                val barBox = ink.box(0, bar.first, 1920, bar.second + 1)
-                assertWithMessage("$what: the bar's left end on the cover's left edge").that(abs(barBox.first - left)).isAtMost(1)
-                assertWithMessage("$what: the bar under the cover").that(bar.first - cover.second).isAtLeast(px(8f))
+                assertWithMessage("$label: the block's middle (from $top to $bottom) on the cover's (${cover.first}–${cover.second})")
+                    .that(abs(middle - coverMiddle)).isAtMost(1f)
             }
         }
     }
@@ -133,17 +132,6 @@ class VistaLabelTest {
                 out += top to y - 1
             }
             return out
-        }
-
-        /** The leftmost and rightmost column with ink in rows [y0] until [y1]. */
-        fun box(x0: Int, y0: Int, x1: Int, y1: Int): Pair<Int, Int> {
-            var l = Int.MAX_VALUE
-            var r = -1
-            for (y in y0 until y1) for (x in x0 until x1) if (lit[y * w + x]) {
-                l = minOf(l, x)
-                r = maxOf(r, x)
-            }
-            return l to r
         }
 
         fun lines(x0: Int, x1: Int, y0: Int, y1: Int): List<Line> = blocks(x0, x1, y0, y1).map { (top, bottom) ->
