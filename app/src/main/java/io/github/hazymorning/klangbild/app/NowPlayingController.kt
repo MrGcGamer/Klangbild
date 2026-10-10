@@ -671,7 +671,7 @@ class NowPlayingController(
     private var pictureJob: Job? = null
 
     /** The light bars' level before they were switched off from the quick settings. */
-    private var barsBefore = BarLevel.NORMAL
+    private var barsBefore = BarLevel.DEFAULT
 
     /** The current song's way into the favourites (by the song's key). */
     @Volatile private var favorite: Pair<String, FavoriteState>? = null
@@ -1018,7 +1018,7 @@ class NowPlayingController(
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)
-        lightSync.update(barTarget(s, stage, playing, lighting, vista))
+        lightSync.update(barTarget(s, stage, playing, vista))
         if (stage != null) {
             if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
         }
@@ -1030,9 +1030,10 @@ class NowPlayingController(
      * What the light bars are to show: the Fensterblick's light while it shows, else the shown
      * scene's colours while something is on stage – each bar a colour of its own.
      */
-    private fun barTarget(s: Settings, stage: Screen.Stage?, playing: Boolean, lighting: Lighting, vista: VistaUi?): LightSync.Target? {
+    private fun barTarget(s: Settings, stage: Screen.Stage?, playing: Boolean, vista: VistaUi?): LightSync.Target? {
         if (!s.bars.isSet) return null
-        val night = ((1f - lighting.brightness) / (1f - Lighting.NIGHT.brightness)).coerceIn(0f, 1f)
+        // By the sun: full brightness by day, dimmer from dusk – the room around the TV is dark then.
+        val night = barNight(_ui.value.source)
         if (vista != null) {
             return LightSync.Target(
                 bars = s.bars,
@@ -1041,7 +1042,7 @@ class NowPlayingController(
                 song = VISTA_SONG,
                 playing = true,
                 night = night,
-                warmth = lighting.warmth,
+                warmth = night,
                 motion = 0f,
                 fieldTime = fieldClock::now,
                 vista = true,
@@ -1057,7 +1058,7 @@ class NowPlayingController(
             song = shown.track.key,
             playing = playing,
             night = night,
-            warmth = lighting.warmth,
+            warmth = night,
             motion = s.motion.speed,
             fieldTime = fieldClock::now,
         )
@@ -1092,6 +1093,14 @@ class NowPlayingController(
         vistaBars?.takeIf { it.first == key }?.let { return it.second }
         val look = PaperLight.look(World.sky(sky, place, zone, cover, day).first)
         return VistaBars(look, fireOnRight).also { vistaBars = key to it }
+    }
+
+    /** 0 by day … 1 at night, by the sun (Home Assistant's elevation, else the local clock): how far the light bars dim. */
+    private fun barNight(src: SourceState): Float {
+        val elevation = src.sunElevation ?: Calendar.getInstance().apply { timeInMillis = now() }
+            .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
+        val t = ((BAR_DAY_ELEVATION - elevation.toFloat()) / (BAR_DAY_ELEVATION - BAR_NIGHT_ELEVATION)).coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
     }
 
     private fun lightingFor(s: Settings, src: SourceState): Lighting {
@@ -1207,6 +1216,10 @@ class NowPlayingController(
 
         /** The light bars' "song" while the Fensterblick shows. */
         const val VISTA_SONG = "\u0000fensterblick"
+
+        /** The light bars are at their full brightness with the sun this high (°), at their night's from this low. */
+        const val BAR_DAY_ELEVATION = 6f
+        const val BAR_NIGHT_ELEVATION = -8f
 
         /** The Fensterblick's light for the bars is worked out anew after this much of its sky's time. */
         const val VISTA_BARS_STEP_MS = 30_000L

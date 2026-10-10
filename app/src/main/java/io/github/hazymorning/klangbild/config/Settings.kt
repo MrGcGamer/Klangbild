@@ -13,6 +13,7 @@ import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.domain.StageView
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 
 /** What to do once the sleep timeout has passed without music. */
 enum class SleepAction {
@@ -64,12 +65,29 @@ enum class MotionLevel(val speed: Float) {
     LIVELY(1f),
 }
 
-/** How brightly the light bars behind the TV glow, as a share of their full brightness. */
+/**
+ * How brightly the light bars behind the TV glow by day, as a share of their full brightness –
+ * in steps of a tenth; at night they dim on their own.
+ */
 enum class BarLevel(val brightness: Float) {
-    OFF(0f),
-    SUBTLE(0.1f),
-    NORMAL(0.2f),
-    STRONG(0.4f),
+    OFF(0f), P10(0.1f), P20(0.2f), P30(0.3f), P40(0.4f), P50(0.5f), P60(0.6f), P70(0.7f), P80(0.8f), P90(0.9f), P100(1f);
+
+    val percent: Int get() = (brightness * 100f).roundToInt()
+
+    companion object {
+        val DEFAULT = P60
+
+        /** A stored level by name – the four steps of earlier versions read as their nearest. */
+        fun named(name: String): BarLevel? = when (name) {
+            "SUBTLE" -> P30
+            "NORMAL" -> P50
+            "STRONG" -> P80
+            else -> entries.firstOrNull { it.name == name }
+        }
+
+        /** The step nearest to [percent] (1–100); 0 or less is off. */
+        fun ofPercent(percent: Int): BarLevel = if (percent <= 0) OFF else entries.drop(1).minBy { kotlin.math.abs(it.percent - percent) }
+    }
 }
 
 /** Where the music's label sits in the Fensterblick. */
@@ -126,9 +144,9 @@ data class Settings(
     val maToken: String? = null,
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
-    /** The colour lights behind the TV and how brightly they join in. */
+    /** The colour lights behind the TV and how brightly they join in (by day; at night they dim on their own). */
     val bars: LightBars = LightBars(),
-    val barLevel: BarLevel = BarLevel.NORMAL,
+    val barLevel: BarLevel = BarLevel.DEFAULT,
     /** With an audiobook or a podcast, left and right jump back 15 and ahead 30 seconds. */
     val spokenSkip: Boolean = true,
     /** The Fensterblick takes the screen after the music has been paused this long (s); 0 never. */
@@ -257,7 +275,7 @@ class SettingsStore(private val context: Context) {
             background = p[Keys.background]?.let { runCatching { BackgroundMode.valueOf(it) }.getOrNull() } ?: BackgroundMode.WALL,
             motion = p[Keys.motion]?.let { runCatching { MotionLevel.valueOf(it) }.getOrNull() } ?: MotionLevel.OFF,
             bars = LightBars(p[Keys.barsLeft], p[Keys.barsCenter], p[Keys.barsRight]),
-            barLevel = p[Keys.barLevel]?.let { runCatching { BarLevel.valueOf(it) }.getOrNull() } ?: BarLevel.NORMAL,
+            barLevel = p[Keys.barLevel]?.let { BarLevel.named(it) } ?: BarLevel.DEFAULT,
             spokenSkip = p[Keys.spokenSkip] ?: true,
             vistaPauseSeconds = p[Keys.vistaPause] ?: 180,
             vistaPlayingSeconds = p[Keys.vistaPlaying] ?: 0,
@@ -432,13 +450,15 @@ object LaunchExtras {
                 else -> null
             }?.let { out = out.copy(motion = it) }
         }
-        (extras[BAR_LEVEL] as? String)?.let { v ->
-            when (v.trim().lowercase()) {
+        // A word, or how bright in percent ("60", "60 %").
+        extras[BAR_LEVEL]?.let { raw ->
+            val v = raw.toString().trim().lowercase()
+            when (v) {
                 "off", "aus" -> BarLevel.OFF
-                "subtle", "dezent" -> BarLevel.SUBTLE
-                "normal" -> BarLevel.NORMAL
-                "strong", "kraeftig", "kräftig" -> BarLevel.STRONG
-                else -> null
+                "subtle", "dezent", "schwach" -> BarLevel.P30
+                "normal" -> BarLevel.P50
+                "strong", "kraeftig", "kräftig", "stark" -> BarLevel.P80
+                else -> v.removeSuffix("%").trim().toIntOrNull()?.let { BarLevel.ofPercent(it) }
             }?.let { out = out.copy(barLevel = it) }
         }
         // A light given as "" or "none" is removed; anything but a light entity is ignored.

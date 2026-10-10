@@ -44,7 +44,7 @@ class QuickBarTest {
         TimeZone.setDefault(TimeZone.getTimeZone(Fixtures.zone))
     }
 
-    private val withBars = Settings(bars = LightBars(left = "light.links", center = "light.mitte", right = "light.rechts"), barLevel = BarLevel.NORMAL)
+    private val withBars = Settings(bars = LightBars(left = "light.links", center = "light.mitte", right = "light.rechts"), barLevel = BarLevel.P50)
 
     private fun state(focus: QuickItem, ctx: QuickContext, s: Settings = withBars): QuickState {
         val rows = QuickMenu.rows(s, ctx)

@@ -72,4 +72,16 @@ class BarColoursTest {
         assertWithMessage("the fire's side warm").that(night[0].b).isGreaterThan(night[2].b + 0.02f)
         assertWithMessage("the sky above blue").that(night[1].b).isLessThan(0f)
     }
+
+    @Test
+    fun `at noon the Fensterblick gives three colours of its own - sky, clearing, mountains - none of them amber`() {
+        val noon = bars(VistaBars(PaperLight.look(SkyState(sunElevation = 40f, sunAzimuth = 180f)), fireOnRight = true))
+        val labs = noon.map(::lab)
+        for ((a, b) in listOf(labs[0] to labs[1], labs[1] to labs[2], labs[0] to labs[2])) assertThat(distance(a, b)).isGreaterThan(0.05f)
+        // As light: each clearly a colour, and the sky above the TV blue.
+        val amber = HueColor.whiteXy(2700f)
+        for (c in noon) assertThat(HueColor.of(c, 0f).distance(amber)).isGreaterThan(0.06f)
+        val sky = HueColor.of(noon[1], 0f)
+        assertWithMessage("the sky's light blue").that(sky.y).isLessThan(0.3f)
+    }
 }

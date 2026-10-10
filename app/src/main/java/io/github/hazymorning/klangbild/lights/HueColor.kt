@@ -13,12 +13,15 @@ data class Xy(val x: Float, val y: Float) {
 }
 
 /**
- * The cover's colours as light for the bars behind the TV. Home Assistant's own conversion
- * from RGB oversaturates and drops the intensity, so the colour goes as xy, worked out here:
- * linear sRGB → XYZ → xy, pulled into the lights' gamut; a little more vivid than on the
- * screen (light on a wall looks paler than the same colour on a panel); greys become a warm
- * white (warmer in the evening) instead of a cold blue-ish grey, and very dark colours keep
- * their hue but little of their colour.
+ * The screen's colours as light for the bars behind the TV. Home Assistant's own conversion
+ * from RGB oversaturates and drops the intensity, so the colour goes as xy, worked out here.
+ *
+ * Light on a wall looks far paler than the same colour on a panel, and a soft colour that is
+ * plain on the screen is next to white as light – a pale sky blue, a muted green: the light
+ * takes the colour's hue at its purest (the edge of what a screen can show) and goes a good
+ * part of the way from white towards it, further the more colourful the colour is. Only real
+ * greys become white: a neutral one by day, warmer at night – never the amber of a 2700 K
+ * bulb, which reads as orange. Very dark colours keep their hue but give it softly.
  */
 object HueColor {
     /** Gamut C – the Hue Play's and most current Hue lights' (Home Assistant's own test data). */
@@ -26,27 +29,50 @@ object HueColor {
     private val GREEN = Xy(0.17f, 0.70f)
     private val BLUE = Xy(0.1532f, 0.0475f)
 
-    /** Below this chroma (Oklab) a colour is a grey: warm white instead … */
-    const val GREY_CHROMA = 0.03f
+    /** Below this chroma (Oklab) a colour is a grey: white light instead … */
+    const val GREY_CHROMA = 0.012f
 
     /** … fully a colour from this one on. */
-    const val COLOUR_CHROMA = 0.08f
+    const val COLOUR_CHROMA = 0.035f
 
-    /** How much more vivid the light is than the colour it comes from. */
-    const val VIVID = 1.3f
+    /** How far from white towards the hue's purest colour the light goes: at least … */
+    const val SATURATION_MIN = 0.42f
 
-    /** The colour for the light from [rgb] (linear sRGB, 0..1); [warmth] is the hour's (0 by day, ~0.8 at night). */
+    /** … plus this much per unit of chroma, up to [SATURATION_MAX]. */
+    const val SATURATION_GAIN = 3.2f
+    const val SATURATION_MAX = 0.92f
+
+    /** The white for greys: by day (K) … and at night. */
+    const val WHITE_DAY_K = 4_300f
+    const val WHITE_NIGHT_K = 3_000f
+
+    /** The colour for the light from [rgb] (linear sRGB, 0..1); [warmth] 0 by day … 1 at night. */
     fun of(rgb: FloatArray, warmth: Float): Xy {
         val lab = Oklab.fromLinear(rgb[0].coerceAtLeast(0f), rgb[1].coerceAtLeast(0f), rgb[2].coerceAtLeast(0f))
         val lch = lab.toLch()
-        val white = whiteXy(if (warmth > 0.3f) 2_300f else 2_700f)
-        // Very dark colours keep their hue but give it softly: no glowing navy from a black cover.
-        val chroma = min(lch.c * VIVID, if (lch.l < DARK_L) DARK_CHROMA else MAX_CHROMA)
-        val vivid = Oklab.gamutMap(Lch(max(lch.l, 0.45f), chroma, lch.h).toLab())
-        val colour = clamp(xyOf(vivid) ?: white)
-        // Greys become warm white, blended on the way to colour.
+        val white = whiteXy(WHITE_DAY_K + (WHITE_NIGHT_K - WHITE_DAY_K) * warmth.coerceIn(0f, 1f))
+        val pure = pureXy(lch.h) ?: return white
+        // Very dark colours give their hue softly: no glowing navy from a black cover.
+        val reach = min(SATURATION_MIN + lch.c * SATURATION_GAIN, if (lch.l < DARK_L) DARK_SATURATION else SATURATION_MAX)
+        val colour = clamp(Xy(white.x + (pure.x - white.x) * reach, white.y + (pure.y - white.y) * reach))
+        // Greys become white, blended on the way to colour.
         val c = smoothstep(GREY_CHROMA, COLOUR_CHROMA, lch.c)
         return Xy(white.x + (colour.x - white.x) * c, white.y + (colour.y - white.y) * c)
+    }
+
+    /** xy of the most colourful colour of hue [h] (Oklab, °) a screen can show; null if there is none. */
+    fun pureXy(h: Float): Xy? {
+        var best: Lab? = null
+        var bestC = -1f
+        for (l in CUSP_LIGHTNESS) {
+            val lab = Oklab.gamutMap(Lch(l, 0.4f, h).toLab())
+            val c = lab.toLch().c
+            if (c > bestC) {
+                bestC = c
+                best = lab
+            }
+        }
+        return best?.let { xyOf(it) }
     }
 
     /** How bright the light may be for this colour (a share of the level): dark covers give less light. */
@@ -96,9 +122,11 @@ object HueColor {
     /** The least brightness sent while on: Hue lights treat 1 as off. */
     const val FLOOR = 8
 
-    private const val DARK_L = 0.2f
-    private const val DARK_CHROMA = 0.05f
-    private const val MAX_CHROMA = 0.25f
+    private const val DARK_L = 0.18f
+    private const val DARK_SATURATION = 0.45f
+
+    /** Where to look for a hue's most colourful colour: blue peaks dark, yellow light. */
+    private val CUSP_LIGHTNESS = floatArrayOf(0.45f, 0.55f, 0.65f, 0.75f, 0.85f, 0.95f)
 
     private fun cross(o: Xy, a: Xy, b: Xy) = (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
 

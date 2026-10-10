@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -27,6 +29,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -284,9 +288,24 @@ fun MenuScreen(menu: MenuState, lighting: Lighting, appearance: Appearance = App
 private fun MenuItem(row: MenuRow, focused: Boolean, labelStyle: TextStyle, valueStyle: TextStyle, colors: MenuColors) {
     val labelColor by animateColorAsState(if (focused) colors.labelFocus else colors.label, tween(260, easing = Motion.Dimmer), label = "label")
     val valueColor by animateColorAsState(if (focused) colors.valueFocus else colors.value, tween(260, easing = Motion.Dimmer), label = "value")
+    val lift = with(LocalDensity.current) { SLIDER_LIFT.dp.roundToPx() }
     Row(Modifier.fillMaxWidth()) {
         BasicText(row.entry.label, Modifier.alignByBaseline(), style = labelStyle, color = { labelColor }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
+        // A value on a scale shows where it stands: a slim track like the progress bar's, before the number.
+        row.level?.let { level ->
+            val fill by animateFloatAsState(level, tween(260, easing = Motion.Dimmer), label = "level")
+            Canvas(
+                Modifier
+                    .alignBy { it.measuredHeight + lift }
+                    .padding(end = SLIDER_GAP.dp)
+                    .size(SLIDER_WIDTH.dp, SLIDER_HEIGHT.dp),
+            ) {
+                val r = CornerRadius(size.height / 2f)
+                drawRoundRect(valueColor.copy(alpha = valueColor.alpha * SLIDER_TRACK), cornerRadius = r)
+                if (fill > 0f) drawRoundRect(valueColor, size = Size(maxOf(size.height, size.width * fill), size.height), cornerRadius = r)
+            }
+        }
         Crossfade(
             targetState = row.value,
             modifier = Modifier.alignByBaseline(),
@@ -309,6 +328,13 @@ private fun BaselineAt(x: Float, baseline: Float, width: Float, content: @Compos
         }
     }
 }
+
+/** The slider of a value on a scale: its size (dp), its gap to the number, how strongly its track shows, how far above the baseline its lower edge sits (its middle on the figures' middle). */
+private const val SLIDER_WIDTH = 72f
+private const val SLIDER_HEIGHT = 4f
+private const val SLIDER_GAP = 14f
+private const val SLIDER_TRACK = 0.28f
+private const val SLIDER_LIFT = 4f
 
 /** From a line's centre to its label's baseline (21 sp in a 40 dp line). */
 private const val LABEL_BASELINE_FROM_CENTRE = 7f

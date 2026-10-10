@@ -61,8 +61,8 @@ data class MenuContext(
     val kind: MediaKind? = null,
 )
 
-/** A line as the menu shows it: the value in words and what the option does. */
-data class MenuRow(val entry: MenuEntry, val value: String, val description: String)
+/** A line as the menu shows it: the value in words and what the option does; [level] (0..1) for a value shown on a slider. */
+data class MenuRow(val entry: MenuEntry, val value: String, val description: String, val level: Float? = null)
 
 /**
  * The settings menu, operated with the remote: up and down choose a line, left and right
@@ -76,7 +76,13 @@ object SettingsMenu {
     /** Minutes offered for the sleep timeout. */
     val sleepChoices = listOf(5, 10, 15, 20, 30, 45, 60, 90, 120)
 
-    fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx)) }
+    fun rows(s: Settings, ctx: MenuContext): List<MenuRow> = entries.map { MenuRow(it, value(it, s, ctx), description(it, s, ctx), level(it, s)) }
+
+    /** Where a slider stands: the light bars' brightness. */
+    fun level(e: MenuEntry, s: Settings): Float? = when (e) {
+        MenuEntry.BARS -> s.barLevel.brightness.takeIf { s.bars.isSet }
+        else -> null
+    }
 
     fun value(e: MenuEntry, s: Settings, ctx: MenuContext): String = when (e) {
         MenuEntry.VIEW -> if (s.view == StageView.FLOW) "Cover Flow" else "Einzelnes Cover"
@@ -97,12 +103,7 @@ object SettingsMenu {
             MotionLevel.MEDIUM -> "Mittel"
             MotionLevel.LIVELY -> "Schnell"
         }
-        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else when (s.barLevel) {
-            BarLevel.OFF -> "Aus"
-            BarLevel.SUBTLE -> "Schwach"
-            BarLevel.NORMAL -> "Normal"
-            BarLevel.STRONG -> "Stark"
-        }
+        MenuEntry.BARS -> if (!s.bars.isSet) "Einrichten" else if (s.barLevel == BarLevel.OFF) "Aus" else "${s.barLevel.percent}\u00A0%"
         MenuEntry.APPEARANCE -> when (s.appearance) {
             AppearanceMode.AUTO -> "Automatisch"
             AppearanceMode.LIGHT -> "Hell"
@@ -216,11 +217,11 @@ object SettingsMenu {
             "Lichtleisten hinter dem Fernseher, etwa Philips Hue Play, leuchten in den Farben des Covers. " +
                 "OK zeigt den QR-Code; am Handy wählst du sie aus Home\u00A0Assistant aus."
         } else {
-            "Die Lichtleisten hinter dem Fernseher leuchten in den Farben am Bildschirmrand; nach der Musik sind sie wieder wie vorher. " + when (s.barLevel) {
-                BarLevel.OFF -> "Aus: Sie behalten ihr eigenes Licht."
-                BarLevel.SUBTLE -> "Schwach: ein Schimmer an der Wand."
-                BarLevel.NORMAL -> "Normal ist so, wie Klangbild gedacht ist."
-                BarLevel.STRONG -> "Stark: für helle Räume."
+            if (s.barLevel == BarLevel.OFF) {
+                "Die Lichtleisten hinter dem Fernseher behalten ihr eigenes Licht. Rechts schaltet sie zu."
+            } else {
+                "Jede Lichtleiste hinter dem Fernseher leuchtet in einer Farbe des Bildes. So hell bei Tag; abends und nachts " +
+                    "werden sie von selbst dunkler. Nach der Musik sind sie wieder wie vorher."
             }
         }
         MenuEntry.VISTA_PAUSE -> if (s.vistaPauseSeconds == 0) {
@@ -350,7 +351,7 @@ object SettingsMenu {
     private val LIGHT_ORDER = listOf(LightLevel.OFF, LightLevel.SUBTLE, LightLevel.NORMAL, LightLevel.STRONG)
     private val APPEARANCE_ORDER = listOf(AppearanceMode.DARK, AppearanceMode.AUTO, AppearanceMode.LIGHT)
     private val MOTION_ORDER = listOf(MotionLevel.OFF, MotionLevel.GENTLE, MotionLevel.MEDIUM, MotionLevel.LIVELY)
-    private val BAR_ORDER = listOf(BarLevel.OFF, BarLevel.SUBTLE, BarLevel.NORMAL, BarLevel.STRONG)
+    private val BAR_ORDER = BarLevel.entries
     private val MINI_ORDER = listOf(MiniPlayer.OFF, MiniPlayer.LEFT, MiniPlayer.RIGHT)
 
     private fun <T> move(order: List<T>, current: T, direction: Int, wrap: Boolean): T {

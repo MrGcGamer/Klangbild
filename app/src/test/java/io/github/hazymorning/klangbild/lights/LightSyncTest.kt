@@ -135,7 +135,7 @@ class LightSyncTest {
 
     private fun coverBars(f: FieldScene, moving: Boolean) = made.getOrPut(f to moving) { CoverBars(f, moving) }
 
-    private fun target(song: String, playing: Boolean = true, level: BarLevel = BarLevel.NORMAL, motion: Float = 0f, f: FieldScene = field) =
+    private fun target(song: String, playing: Boolean = true, level: BarLevel = BarLevel.P20, motion: Float = 0f, f: FieldScene = field) =
         LightSync.Target(bars, level, coverBars(f, motion > 0f), song, playing, night = 0f, warmth = 0.06f, motion = motion, fieldTime = { 0.0 })
 
     private val field = field()
@@ -271,12 +271,12 @@ class LightSyncTest {
         val s = sync()
         s.attach(ha)
         val colours = coverBars(fourColours(), moving = true)
-        s.update(LightSync.Target(bars, BarLevel.NORMAL, colours, "a", true, 0f, 0.06f, 0f, { 0.0 }))
+        s.update(LightSync.Target(bars, BarLevel.P20, colours, "a", true, 0f, 0.06f, 0f, { 0.0 }))
         testScheduler.advanceTimeBy(60_000)
         assertThat(ha.to(left)).hasSize(1)
 
         var t = 0.0
-        val moving = LightSync.Target(bars, BarLevel.NORMAL, colours, "a", true, 0f, 0.06f, 1f, { t })
+        val moving = LightSync.Target(bars, BarLevel.P20, colours, "a", true, 0f, 0.06f, 1f, { t })
         s.update(moving)
         // Five minutes: the colours move on from bar to bar slowly, and only visible steps are sent.
         repeat(600) {
@@ -354,14 +354,17 @@ class LightSyncTest {
     }
 
     @Test
-    fun `colours for the lights stay within what they can show, greys are warm white`() {
-        val white = HueColor.whiteXy(2700f)
-        assertThat(white.x).isWithin(0.002f).of(0.459f)
-        assertThat(white.y).isWithin(0.002f).of(0.411f)
-        val grey = HueColor.of(floatArrayOf(0.2f, 0.2f, 0.2f), warmth = 0.06f)
-        assertThat(grey.distance(white)).isLessThan(0.002f)
-        // Evening: a warmer white.
-        assertThat(HueColor.of(floatArrayOf(0.2f, 0.2f, 0.2f), warmth = 0.8f).x).isGreaterThan(white.x)
+    fun `colours for the lights stay within what they can show - greys are a neutral white, soft colours clearly colour`() {
+        val day = HueColor.whiteXy(HueColor.WHITE_DAY_K)
+        val grey = HueColor.of(floatArrayOf(0.2f, 0.2f, 0.2f), warmth = 0f)
+        assertThat(grey.distance(day)).isLessThan(0.002f)
+        // Never the amber of a 2700 K bulb by day; at night a warmer white.
+        assertThat(grey.distance(HueColor.whiteXy(2700f))).isGreaterThan(0.05f)
+        assertThat(HueColor.of(floatArrayOf(0.2f, 0.2f, 0.2f), warmth = 1f).x).isGreaterThan(day.x)
+        // A pale sky blue (as the Fensterblick's sky) is a clear blue light, far from white.
+        val sky = HueColor.of(io.github.hazymorning.klangbild.color.Oklab.toLinear(io.github.hazymorning.klangbild.color.Lch(0.82f, 0.05f, 245f).toLab()), warmth = 0f)
+        assertThat(sky.distance(day)).isGreaterThan(0.12f)
+        assertThat(sky.y).isLessThan(day.y - 0.05f)
         // A pure sRGB green lies outside the bars' gamut: pulled onto its edge.
         val green = HueColor.of(floatArrayOf(0f, 1f, 0f), warmth = 0f)
         assertThat(HueColor.clamp(green)).isEqualTo(green)

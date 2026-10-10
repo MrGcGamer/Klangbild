@@ -53,7 +53,8 @@ interface LightBridge {
  *    while at most), and takes over a bar that only shows up later, noting its state first;
  *  - a new song is shown once it has played for [SETTLE_MS] (quick skips cost nothing), in a
  *    [TRACK_TRANSITION_MS] fade; drifting colours move in long fades every [DRIFT_MS];
- *  - a pause dims the bars to half, the night to [NIGHT] of the level;
+ *  - by day the bars glow at the chosen level, at night at [NIGHT] of it (by the sun); a pause
+ *    dims them to half;
  *  - a bar someone else changes (switched off, set to white, much brighter or darker, another
  *    colour from Home Assistant) is left alone until the next time music starts.
  *
@@ -74,9 +75,9 @@ class LightSync(
         /** The song (or the Fensterblick): a new one changes the bars once it has played a moment. */
         val song: String,
         val playing: Boolean,
-        /** 0 by day … 1 at night: the bars dim with the evening. */
+        /** 0 by day … 1 at night (by the sun): the bars dim with the evening. */
         val night: Float,
-        /** The hour's warmth: greys become a warmer white in the evening. */
+        /** Greys become a warmer white towards the night (0 … 1). */
         val warmth: Float,
         /** How fast the field moves (0: it stands still). */
         val motion: Float,
@@ -496,9 +497,9 @@ class LightSync(
         const val REUSE_SNAPSHOT_MS = 60_000L
         const val SETTLE_REPORT_MS = 2_000L
 
-        /** A pause dims to half; the night to this share of the level. */
+        /** A pause dims to half; the night to this share of the day's level. */
         const val PAUSED = 0.5f
-        const val NIGHT = 0.6f
+        const val NIGHT = 0.45f
 
         /** Changes smaller than these are not sent (they would not be seen). */
         const val MIN_XY_STEP = 0.004f

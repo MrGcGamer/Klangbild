@@ -82,7 +82,8 @@ class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
             if (chosen.size < 3) {
                 val lead = chosen.firstOrNull()?.lab?.toLch() ?: Lch(0.7f, 0f, 0f)
                 val extra = if (lead.c < HueColor.GREY_CHROMA) {
-                    listOf(Lch(lead.l, 0.035f, 70f), Lch(lead.l, 0.02f, 250f))
+                    // Whites a breath warmer and cooler: barely past what the light shows as grey.
+                    listOf(Lch(lead.l, 0.018f, 70f), Lch(lead.l, 0.018f, 250f))
                 } else {
                     listOf(Lch(lead.l, lead.c, lead.h - NEIGHBOUR_HUE), Lch(lead.l, lead.c, lead.h + NEIGHBOUR_HUE))
                 }
@@ -107,10 +108,11 @@ class CoverBars(field: FieldScene, private val moving: Boolean) : BarColours {
 }
 
 /**
- * The Fensterblick's light on the wall: above the TV the sky's colour, at the sides the sky
- * over the horizon – on the side the light comes from with the sun's glow (gold, rose at dusk),
- * and at night, on the campfire's side, the fire's warm light. The bars stand round the window
- * as the sky stands round the land.
+ * The Fensterblick's light on the wall, three colours from its own palette: above the TV its
+ * sky; on the side away from the campfire the clearing's green (by night the moonlit wood); on
+ * the fire's side the mountains' paper – and at night the fire's warm light.
+ * Where the sun stands low, its side takes the glow of dawn or dusk. The bars stand round the
+ * window as the picture's colours stand in it.
  */
 class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
     private val left: FloatArray
@@ -122,18 +124,23 @@ class VistaBars(look: PaperLook, fireOnRight: Boolean) : BarColours {
         val zenith = linear(sky.base)
         val middle = linear(sky.first)
         val horizon = linear(sky.second)
-        center = FloatArray(3) { zenith[it] * 0.35f + middle[it] * 0.65f }
+        center = FloatArray(3) { zenith[it] * 0.55f + middle[it] * 0.45f }
+        // Day 1 … night 0: the stars come out as the day goes.
+        val day = 1f - look.stars.coerceIn(0f, 1f)
+        val meadow = linear(look.inks(SheetId.MEADOW).base)
+        val mountains = linear(look.inks(SheetId.RANGE_FAR).base)
+        // At night the clearing's side takes the moonlit wood: a dark teal beside the sky's blue.
+        val nightWood = linear(look.inks(SheetId.WOOD_NEAR).base)
         // Where the light comes from: shadows fall away from it.
         val fromRight = (-look.shadowSide).coerceIn(-1f, 1f)
-        val glow = linear(look.glow)
-        val horizonGlow = linear(look.horizonGlow)
+        val glow = linear(look.horizonGlow)
         val fire = linear(look.fireGlow)
         fun side(sign: Float, fireHere: Boolean): FloatArray {
-            val out = FloatArray(3) { horizon[it] * 0.7f + middle[it] * 0.3f }
+            val out = if (fireHere) mountains.copyOf() else meadow.copyOf()
+            if (!fireHere) mix(out, nightWood, 1f - day)
             val towards = max(0f, sign * fromRight)
-            mix(out, horizonGlow, min(0.85f, look.horizonGlowAlpha * 1.4f) * (0.35f + 0.65f * towards))
-            mix(out, glow, min(0.7f, look.glowAlpha * 1.6f) * towards)
-            if (fireHere) mix(out, fire, 0.55f * look.fire)
+            mix(out, glow, min(0.9f, look.horizonGlowAlpha * 1.6f) * towards)
+            if (fireHere) mix(out, fire, min(1f, 1.4f * look.fire) * (1f - day * 0.85f))
             return out
         }
         left = side(-1f, !fireOnRight)
