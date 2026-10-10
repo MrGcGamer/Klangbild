@@ -35,16 +35,24 @@ class VistaCameraJourneyTest {
     }
 
     @Test
-    fun `the label stays clear of the screen's edges`() {
-        for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) for ((t, p) in poses(side)) {
-            val k = p.scale(Depth.FRONT)
-            fun x(v: Float) = c.PIVOT_X + (v - c.PIVOT_X) * k + p.dx(Depth.FRONT)
-            fun y(v: Float) = c.PIVOT_Y + (v - c.PIVOT_Y) * k + p.dy(Depth.FRONT)
+    fun `the near bank always lies under the label, which stands still`() {
+        for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) {
+            val bank = Shapes.line(if (side == LabelSide.LEFT) m.foreground(side).frontLeft else m.foreground(side).frontRight)
             val left = if (side == LabelSide.LEFT) m.LABEL_LEFT_X else m.LABEL_RIGHT_X
-            val margin = c.LABEL_MARGIN + c.DRIFT - 0.01f
-            assertWithMessage("$side at $t s: left").that(x(left)).isAtLeast(margin)
-            assertWithMessage("$side at $t s: right").that(x(left + m.LABEL_MAX_WIDTH)).isAtMost(m.WIDTH - margin)
-            assertWithMessage("$side at $t s: bottom").that(y(m.LABEL_BOTTOM)).isAtMost(m.HEIGHT - margin)
+            val top = m.LABEL_BOTTOM - m.LABEL_HEIGHT
+            for ((t, p) in poses(side)) {
+                val k = p.scale(Depth.FRONT)
+                // Every point of the label's top edge and its ends, taken back into the moved near bank.
+                var x = left - c.BANK_MARGIN + 0.5f
+                while (x <= left + m.LABEL_MAX_WIDTH + c.BANK_MARGIN - 0.5f) {
+                    for (y in listOf(top - c.BANK_MARGIN + 0.5f, m.LABEL_BOTTOM)) {
+                        val bx = c.PIVOT_X + (x - c.PIVOT_X - p.dx(Depth.FRONT)) / k
+                        val by = c.PIVOT_Y + (y - c.PIVOT_Y - p.dy(Depth.FRONT)) / k
+                        assertWithMessage("$side at $t s: label point $x/$y over the bank's edge").that(by).isAtLeast(bank.yAt(bx))
+                    }
+                    x += 4f
+                }
+            }
         }
     }
 

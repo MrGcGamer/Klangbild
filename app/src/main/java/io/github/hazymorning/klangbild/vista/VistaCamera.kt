@@ -21,10 +21,12 @@ class CameraPose(val zoom: Float, val panX: Float, val panY: Float) {
  * The camera's slow journey over the diorama, like a hand-held look through a window: it moves
  * in and out (up to [ZOOM_MAX]) and its view wanders across the picture – as far as the paper
  * reaches beyond the screen at that zoom ([PaperMotif.OVERSCAN], with the screen's own drift on
- * top), and never so far that the music's label on the near bank comes closer to the screen's
- * edges than [LABEL_MARGIN]. A swing in and out takes about two minutes, one across about a
- * minute and a half; the waves are sums of sines with incommensurate periods, so the journey
- * never repeats. The nearer a layer, the more it moves: the parallax is plain to see.
+ * top). The music's label stands still on the screen – it is no part of the scenery – and the
+ * view never wanders so far that the near bank it lies on would leave it: the bank covers the
+ * label, with [BANK_MARGIN] to spare, in every pose. A swing in and out takes about two
+ * minutes, one across about a minute and a half; the waves are sums of sines with
+ * incommensurate periods, so the journey never repeats. The nearer a layer, the more it moves:
+ * the parallax is plain to see.
  */
 object VistaCamera {
     /** The nearest layer's enlargement, from … to … */
@@ -34,8 +36,8 @@ object VistaCamera {
     /** The view's middle wanders at most this far up and down (dp): the picture is wide, not tall. */
     const val TILT = 16f
 
-    /** The label never comes closer than this to the screen's sides and bottom (dp). */
-    const val LABEL_MARGIN = 28f
+    /** The near bank reaches at least this far beyond the label's top and inner end (dp). */
+    const val BANK_MARGIN = 8f
 
     /** The screen's own drift against burn-in, which comes on top (dp). */
     const val DRIFT = 6f
@@ -52,8 +54,8 @@ object VistaCamera {
         val z = 0.5f + 0.5f * swing(seconds, ZOOM_PERIOD_S, 0.0)
         val k = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * z
         val (x0, x1) = rangeX(k, label)
-        val (y0, y1) = rangeY(k, label)
         val cx = x0 + (x1 - x0) * (0.5f + 0.5f * swing(seconds, PAN_PERIOD_S, 1.9))
+        val (y0, y1) = rangeY(k, label, cx)
         val cy = y0 + (y1 - y0) * (0.5f + 0.5f * swing(seconds, TILT_PERIOD_S, 4.1))
         return pose(k, cx, cy)
     }
@@ -61,31 +63,81 @@ object VistaCamera {
     /** The pose that shows the picture around ([cx], [cy]) (dp) at [zoom]. */
     fun pose(zoom: Float, cx: Float, cy: Float) = CameraPose(zoom, (PIVOT_X - cx) * zoom, (PIVOT_Y - cy) * zoom)
 
-    /** Where the view's middle may stand across at [zoom] (dp): the paper's reach, the label's margin. */
+    /**
+     * Where the view's middle may stand across at [zoom] (dp): as far as the paper reaches – and,
+     * with a label, only where its bank can still be brought under it by looking a little lower.
+     */
     fun rangeX(zoom: Float, label: LabelSide): Pair<Float, Float> {
         val half = PIVOT_X / zoom
         var lo = -PaperMotif.OVERSCAN + DRIFT + half
         var hi = PaperMotif.WIDTH + PaperMotif.OVERSCAN - DRIFT - half
-        val reach = (PIVOT_X - LABEL_MARGIN - DRIFT) / zoom
-        when (label) {
-            LabelSide.LEFT -> hi = min(hi, PaperMotif.LABEL_LEFT_X + reach)
-            LabelSide.RIGHT -> lo = max(lo, PaperMotif.LABEL_RIGHT_X + PaperMotif.LABEL_MAX_WIDTH - reach)
-            LabelSide.NONE -> Unit
+        if (label != LabelSide.NONE) {
+            val top = paperY(zoom).second
+            // The bank's covering needs the view lower the further it looks towards the label's inner end.
+            fun fits(cx: Float) = lowestFor(cx, zoom, label) <= top
+            if (label == LabelSide.LEFT && !fits(hi)) hi = search(lo, hi) { fits(it) }
+            if (label == LabelSide.RIGHT && !fits(lo)) lo = search(hi, lo) { fits(it) }
         }
         return lo to max(lo, hi)
     }
 
-    /** Where the view's middle may stand up and down at [zoom] (dp): the paper's reach, the label's margin, the tilt. */
-    fun rangeY(zoom: Float, label: LabelSide): Pair<Float, Float> {
-        val half = PIVOT_Y / zoom
-        val lo = -PaperMotif.OVERSCAN + DRIFT + half
-        var hi = PaperMotif.HEIGHT + PaperMotif.OVERSCAN - DRIFT - half
-        var low = lo
-        if (label != LabelSide.NONE) low = max(lo, PaperMotif.LABEL_BOTTOM - (PIVOT_Y - LABEL_MARGIN - DRIFT) / zoom)
+    /** Where the view's middle may stand up and down at [zoom] for a view at [cx] (dp): the paper's reach, the label's bank, the tilt. */
+    fun rangeY(zoom: Float, label: LabelSide, cx: Float = PIVOT_X): Pair<Float, Float> {
+        var (low, hi) = paperY(zoom)
+        if (label != LabelSide.NONE) low = max(low, lowestFor(cx, zoom, label))
         hi = max(low, hi)
         // Not too far up or down: the middle of what is allowed, the tilt to either side.
         val mid = (low + hi) / 2f
         return max(low, mid - TILT) to min(hi, mid + TILT)
+    }
+
+    /** How far up and down the view's middle may stand at [zoom] for the paper to fill the screen (dp). */
+    private fun paperY(zoom: Float): Pair<Float, Float> {
+        val half = PIVOT_Y / zoom
+        return (-PaperMotif.OVERSCAN + DRIFT + half) to (PaperMotif.HEIGHT + PaperMotif.OVERSCAN - DRIFT - half)
+    }
+
+    /**
+     * The highest the view's middle may stand (its least y, dp) with the view at [cx] and [zoom]
+     * so that the near bank still covers the label: every point of the label's top edge, taken
+     * back into the picture, lies [BANK_MARGIN] below the bank's top.
+     */
+    fun lowestFor(cx: Float, zoom: Float, label: LabelSide): Float {
+        val bank = bankOf(label) ?: return -Float.MAX_VALUE
+        val left = if (label == LabelSide.RIGHT) PaperMotif.LABEL_RIGHT_X else PaperMotif.LABEL_LEFT_X
+        val x0 = left - BANK_MARGIN
+        val x1 = left + PaperMotif.LABEL_MAX_WIDTH + BANK_MARGIN
+        val edge = PaperMotif.LABEL_BOTTOM - PaperMotif.LABEL_HEIGHT - BANK_MARGIN
+        var need = -Float.MAX_VALUE
+        var x = x0
+        while (true) {
+            val top = bank.yAt(cx + (x - PIVOT_X) / zoom)
+            need = max(need, top - (edge - PIVOT_Y) / zoom)
+            if (x >= x1) break
+            x = min(x1, x + 6f)
+        }
+        return need
+    }
+
+    /** The bank the label lies on, as a line (or none without a label). */
+    private fun bankOf(label: LabelSide): Polyline? = when (label) {
+        LabelSide.LEFT -> leftBank
+        LabelSide.RIGHT -> rightBank
+        LabelSide.NONE -> null
+    }
+
+    private val leftBank by lazy { Shapes.line(PaperMotif.foreground(LabelSide.LEFT).frontLeft) }
+    private val rightBank by lazy { Shapes.line(PaperMotif.foreground(LabelSide.RIGHT).frontRight) }
+
+    /** The value between [ok] (where [fits] holds) and [bad] closest to [bad] where it still holds. */
+    private fun search(ok: Float, bad: Float, fits: (Float) -> Boolean): Float {
+        var a = ok
+        var b = bad
+        repeat(24) {
+            val m = (a + b) / 2f
+            if (fits(m)) a = m else b = m
+        }
+        return a
     }
 
     /**

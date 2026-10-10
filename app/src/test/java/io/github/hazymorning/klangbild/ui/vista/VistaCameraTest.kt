@@ -77,8 +77,7 @@ class VistaCameraTest {
         val drift = VistaCamera.DRIFT
         for (side in LabelSide.entries) for (zoom in listOf(VistaCamera.ZOOM_MIN, (VistaCamera.ZOOM_MIN + VistaCamera.ZOOM_MAX) / 2f, VistaCamera.ZOOM_MAX)) {
             val (x0, x1) = VistaCamera.rangeX(zoom, side)
-            val (y0, y1) = VistaCamera.rangeY(zoom, side)
-            for (cx in listOf(x0, x1)) for (cy in listOf(y0, y1)) {
+            for (cx in listOf(x0, x1)) for (cy in VistaCamera.rangeY(zoom, side, cx).toList()) {
                 for ((dx, dy) in listOf(-drift to -drift, drift to drift, -drift to drift, drift to -drift)) {
                     val bmp = render(VistaCamera.pose(zoom, cx, cy), dx, dy, side)
                     val px = IntArray(bmp.width * bmp.height)
@@ -116,6 +115,29 @@ class VistaCameraTest {
             val pose = VistaCamera.at(i * 30.0 + 1_000.0, LabelSide.LEFT)
             captureRoboImage("build/screenshots/vista/camera/drift_%02d.png".format(i)) {
                 Fixtures.Still { PaperView(images, { look }, { places }, { PaperMotion(0.0, emptyList(), pose) }, Modifier.fillMaxSize()) }
+            }
+        }
+    }
+
+    @Test
+    fun theLabelStandsStillOnItsBank() {
+        // The label at the corners of the camera's range, on either side: always on its dark bank.
+        val track = Fixtures.track(io.github.hazymorning.klangbild.art.SyntheticCover.NACHTFAHRT)
+        val scene = Fixtures.stage(track).scene
+        var i = 0
+        for (side in listOf(LabelSide.LEFT, LabelSide.RIGHT)) for (zoom in listOf(VistaCamera.ZOOM_MIN, VistaCamera.ZOOM_MAX)) {
+            val (x0, x1) = VistaCamera.rangeX(zoom, side)
+            for (cx in listOf(x0, x1)) {
+                val (y0, _) = VistaCamera.rangeY(zoom, side, cx)
+                val pose = VistaCamera.pose(zoom, cx, y0)
+                captureRoboImage("build/screenshots/vista/camera/label_%02d.png".format(i++)) {
+                    Fixtures.Still {
+                        Box(Modifier.fillMaxSize()) {
+                            PaperView(imagesFor(side), { look }, { places }, { PaperMotion(0.0, emptyList(), pose) }, Modifier.fillMaxSize())
+                            VistaLabel(LabelText.Music(track, scene, true) { (track.durationMs ?: 0L) / 3 }, side, inks = { look.label })
+                        }
+                    }
+                }
             }
         }
     }

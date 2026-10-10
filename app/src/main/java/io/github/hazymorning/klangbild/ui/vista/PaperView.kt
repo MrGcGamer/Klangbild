@@ -160,20 +160,6 @@ private fun Modifier.camera(depth: Depth, motion: () -> PaperMotion, b: PaperBak
 }
 
 /**
- * Moves what lies on the near bank (the music's label) with it – a screen-sized box, the same
- * point of the screen at the middle of the camera's move.
- */
-fun Modifier.onNearBank(motion: () -> PaperMotion): Modifier = graphicsLayer {
-    val pose = motion().camera
-    val k = pose.scale(Depth.FRONT)
-    scaleX = k
-    scaleY = k
-    translationX = pose.dx(Depth.FRONT) * density
-    translationY = pose.dy(Depth.FRONT) * density
-    transformOrigin = TransformOrigin(VistaCamera.PIVOT_X / PaperMotif.WIDTH, VistaCamera.PIVOT_Y / PaperMotif.HEIGHT)
-}
-
-/**
  * The stars as a dozen batches of points – by size and by which of four slow flickers they
  * follow – made anew only when they have turned (every few seconds), drawn with a call each.
  * Behind the moon's disc there are none.

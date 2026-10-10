@@ -136,8 +136,8 @@ fun Fensterblick(
             shown?.let { s ->
                 PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
             }
-            // The label lies on the near bank: it moves with it as the camera drifts.
-            if (shown != null) Box(Modifier.fillMaxSize().onNearBank(motion)) { content(look) }
+            // The label stands still – it is no part of the scenery; the camera keeps its bank under it.
+            if (shown != null) Box(Modifier.fillMaxSize()) { content(look) }
         }
     }
 }
