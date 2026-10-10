@@ -45,7 +45,10 @@ import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
+import io.github.hazymorning.klangbild.ui.vista.FensterblickAhead
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
+import io.github.hazymorning.klangbild.ui.vista.labelSide
+import io.github.hazymorning.klangbild.ui.vista.rememberVistaFeed
 import io.github.hazymorning.klangbild.vista.VistaClock
 import kotlinx.coroutines.delay
 
@@ -101,6 +104,8 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 translationY = dy.toFloat()
             },
     ) {
+        // The Fensterblick's picture is baked while it is only on its way: it comes at once.
+        ui.vistaAhead?.let { FensterblickAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
         // Animate between *kinds* of screens only (stage/rest/setup). The latest content
         // per kind is kept, so a track change stays inside the stage (its own transition)
         // and an outgoing screen keeps showing what it showed.

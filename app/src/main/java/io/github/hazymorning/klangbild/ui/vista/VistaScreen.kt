@@ -29,22 +29,10 @@ import java.time.ZonedDateTime
  */
 @Composable
 fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () -> Long?, now: () -> Long, modifier: Modifier = Modifier) {
-    val latest by rememberUpdatedState(ui)
-    val feed = remember(clock) {
-        VistaFeed(
-            place = { latest.source.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(ZoneId.systemDefault()) },
-            cover = { WeatherMood.cover(latest.source.weather, latest.source.cloudCoverage) },
-            clock = clock,
-            wall = now,
-        )
-    }
+    val feed = rememberVistaFeed(ui, clock, now)
     val preview = vista.preview
     // The preview's caption needs a bank to lie on, even with the label switched off.
-    val side = when (vista.miniPlayer) {
-        MiniPlayer.LEFT -> LabelSide.LEFT
-        MiniPlayer.RIGHT -> LabelSide.RIGHT
-        MiniPlayer.OFF -> if (preview != null) LabelSide.LEFT else LabelSide.NONE
-    }
+    val side = labelSide(vista.miniPlayer, preview = preview != null)
     val caption = if (preview != null) rememberPreviewCaption(preview, clock) else null
     Fensterblick(feed, modifier, label = side) { look ->
         val text: LabelText? = when {
@@ -56,6 +44,27 @@ fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () 
         }
         if (text != null) VistaLabel(text, side, inks = { look().label }, coverLight = { look().labelCover })
     }
+}
+
+/** The Fensterblick's view of the world: Home Assistant's place (or one guessed from the time zone) and weather. */
+@Composable
+fun rememberVistaFeed(ui: UiState, clock: VistaClock, now: () -> Long): VistaFeed {
+    val latest by rememberUpdatedState(ui)
+    return remember(clock) {
+        VistaFeed(
+            place = { latest.source.place?.let { (lat, lon) -> Place(lat, lon) } ?: World.guessPlace(ZoneId.systemDefault()) },
+            cover = { WeatherMood.cover(latest.source.weather, latest.source.cloudCoverage) },
+            clock = clock,
+            wall = now,
+        )
+    }
+}
+
+/** The label's side for the mini-player setting (the preview's caption needs a bank even without it). */
+fun labelSide(miniPlayer: MiniPlayer, preview: Boolean = false): LabelSide = when (miniPlayer) {
+    MiniPlayer.LEFT -> LabelSide.LEFT
+    MiniPlayer.RIGHT -> LabelSide.RIGHT
+    MiniPlayer.OFF -> if (preview) LabelSide.LEFT else LabelSide.NONE
 }
 
 /** The scene with [pictureKey]'s cover, from the stage or the cover flow, once it is ready. */

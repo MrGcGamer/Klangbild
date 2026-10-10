@@ -115,6 +115,8 @@ data class UiState(
     val sleepAt: Long? = null,
     /** The Fensterblick, while it has the screen. */
     val vista: VistaUi? = null,
+    /** The Fensterblick is on and may come: its picture is baked ahead, for its label on this side. */
+    val vistaAhead: MiniPlayer? = null,
 )
 
 /**
@@ -817,6 +819,7 @@ class NowPlayingController(
             chapter = chapter,
             sleepAt = steadySleepAt(sleepTimer.pausesAt),
             vista = vista,
+            vistaAhead = s.miniPlayer.takeIf { s.vistaPauseSeconds > 0 || s.vistaPlayingSeconds > 0 },
         )
         // The colours move only while music plays – on the screen and in the light bars alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)

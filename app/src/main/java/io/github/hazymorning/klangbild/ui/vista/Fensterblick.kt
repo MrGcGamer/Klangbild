@@ -36,8 +36,11 @@ import io.github.hazymorning.klangbild.vista.SkyPlaces
 import io.github.hazymorning.klangbild.vista.SkyState
 import io.github.hazymorning.klangbild.vista.VistaClock
 import io.github.hazymorning.klangbild.vista.World
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.lang.ref.SoftReference
+import java.util.concurrent.Executors
 import java.time.ZoneId
 import kotlin.math.abs
 import kotlin.math.exp
@@ -135,6 +138,47 @@ fun Fensterblick(
         }
     }
 }
+
+/**
+ * Bakes the Fensterblick's picture ahead, while it is only on its way (the music paused, the
+ * delay running), so that it can come out of the dark at once: in the background, at low
+ * priority, a while after the app has settled – and again when the season has moved on.
+ */
+@Composable
+fun FensterblickAhead(feed: VistaFeed, label: LabelSide) {
+    if (LocalStill.current) return
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = constraints.maxWidth
+        val h = constraints.maxHeight
+        val density = LocalDensity.current.density
+        var shapes by remember { mutableStateOf<SeasonShapes?>(null) }
+        LaunchedEffect(feed) {
+            val state = VistaFrameState(feed)
+            while (true) {
+                shapes = state.shapesNow()
+                delay(AHEAD_RECHECK_MS)
+            }
+        }
+        val s = shapes ?: return@BoxWithConstraints
+        LaunchedEffect(w, h, density, s, label) {
+            if (w <= 0 || h <= 0) return@LaunchedEffect
+            delay(AHEAD_DELAY_MS)
+            withContext(BAKER) { PaperCache.get(w, h, density, s, label) }
+        }
+    }
+}
+
+/** One background thread of low priority for baking ahead: the stage keeps its frames. */
+private val BAKER = Executors.newSingleThreadExecutor { r ->
+    Thread({
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        r.run()
+    }, "vista-bake")
+}.asCoroutineDispatcher()
+
+/** Baking ahead waits this long after the app or the setting has settled, and looks at the season this often. */
+private const val AHEAD_DELAY_MS = 8_000L
+private const val AHEAD_RECHECK_MS = 3_600_000L
 
 /**
  * The last bake, kept for the next time the Fensterblick comes (the next pause, most often the
