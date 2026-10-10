@@ -3,12 +3,12 @@ package io.github.hazymorning.klangbild.vista
 import kotlin.math.roundToInt
 
 /**
- * A layer while it is being baked: per pixel the weights of the three inks (see [Inks]) in
- * red, green and blue and the coverage in alpha, packed like the bitmap the screen draws
- * (unpremultiplied ARGB, four bytes a pixel – a 4K layer stays affordable). Shapes are laid on
- * it like paper cut-outs: what comes later covers what is below, anti-aliased by its
- * coverage. Weights given with [dither] get a triangular dither of about one level, so slow
- * ramps do not band (fixed seed: the same picture every time).
+ * A sheet while it is being cut: per pixel the weights of its first and second ink (see
+ * [Inks]) in red and green, the paper's light in blue and the coverage in alpha, packed like
+ * the bitmap the screen draws (unpremultiplied ARGB, four bytes a pixel – a 4K sheet stays
+ * affordable). Pieces are laid on it like paper cut-outs: what comes later covers what is
+ * below, anti-aliased by its coverage. Values given with [dither] get a triangular dither of
+ * about one level, so slow ramps do not band (fixed seed: the same picture every time).
  */
 class InkRaster(val width: Int, val height: Int, seed: Int = 1) {
     val pixels = IntArray(width * height)
@@ -39,36 +39,5 @@ class InkRaster(val width: Int, val height: Int, seed: Int = 1) {
         }
         val alpha = (out * 255f).roundToInt().coerceIn(0, 255)
         pixels[i] = (alpha shl 24) or (mix(p shr 16 and 0xFF, wr) shl 16) or (mix(p shr 8 and 0xFF, wg) shl 8) or mix(p and 0xFF, wb)
-    }
-
-    /** Multiplies the coverage of every pixel by [mask] at it. */
-    fun cut(mask: (x: Int, y: Int) -> Float) {
-        for (y in 0 until height) for (x in 0 until width) {
-            val i = y * width + x
-            val p = pixels[i]
-            if (p ushr 24 == 0) continue
-            val m = mask(x, y).coerceIn(0f, 1f)
-            pixels[i] = (((p ushr 24) * m).roundToInt() shl 24) or (p and 0xFFFFFF)
-        }
-    }
-
-    /** The smallest rectangle (x, y, width, height) holding everything with coverage, or null when empty. */
-    fun bounds(): IntArray? {
-        var x0 = width
-        var y0 = height
-        var x1 = -1
-        var y1 = -1
-        for (y in 0 until height) {
-            val row = y * width
-            for (x in 0 until width) {
-                if (pixels[row + x] ushr 24 != 0) {
-                    if (x < x0) x0 = x
-                    if (x > x1) x1 = x
-                    if (y < y0) y0 = y
-                    y1 = y
-                }
-            }
-        }
-        return if (x1 < 0) null else intArrayOf(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
     }
 }

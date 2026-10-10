@@ -20,6 +20,14 @@ class PaperMotifTest {
     }
 
     @Test
+    fun `the fire burns on the other side of the clearing from the label`() {
+        val left = PaperMotif.foreground(LabelSide.LEFT)
+        val right = PaperMotif.foreground(LabelSide.RIGHT)
+        assertThat(left.fireX - 40f).isGreaterThan(PaperMotif.LABEL_LEFT_X + PaperMotif.LABEL_MAX_WIDTH)
+        assertThat(right.fireX + 40f).isLessThan(PaperMotif.LABEL_RIGHT_X)
+    }
+
+    @Test
     fun `the label keeps its margins from the screen's edges`() {
         assertThat(PaperMotif.LABEL_LEFT_X).isAtLeast(48f)
         assertThat(PaperMotif.LABEL_RIGHT_X + PaperMotif.LABEL_MAX_WIDTH).isAtMost(PaperMotif.WIDTH - 48f)
@@ -46,5 +54,19 @@ class PaperMotifTest {
             assertThat(fg.frontLeft.last().y).isGreaterThan(PaperMotif.HEIGHT + PaperMotif.OVERSCAN)
             assertThat(fg.frontRight.last().y).isGreaterThan(PaperMotif.HEIGHT + PaperMotif.OVERSCAN)
         }
+    }
+
+    @Test
+    fun `the far range's skyline is its mountains' upper edge`() {
+        // The highest summit is the skyline's highest point; between the mountains, the saddles.
+        val highest = PaperMotif.farRange.minOf { it.summitY }
+        var top = Float.MAX_VALUE
+        var x = -PaperMotif.OVERSCAN
+        while (x <= PaperMotif.WIDTH + PaperMotif.OVERSCAN) {
+            top = minOf(top, PaperMotif.skyline(x))
+            x += 0.5f
+        }
+        assertThat(top).isWithin(1f).of(highest)
+        assertThat(PaperMotif.skyline(352f)).isWithin(1f).of(134f)
     }
 }

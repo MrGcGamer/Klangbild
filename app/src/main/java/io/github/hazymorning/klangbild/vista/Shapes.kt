@@ -1,11 +1,9 @@
 package io.github.hazymorning.klangbild.vista
 
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -68,8 +66,8 @@ class Polyline(val xs: FloatArray, val ys: FloatArray) {
 }
 
 /**
- * The shapes the picture is cut from. Everything is drawn from deliberate control points –
- * no randomness, no noise: like a paper cut, every curve is placed by hand.
+ * The shapes the picture is cut from, drawn from deliberate control points: every curve is
+ * placed by hand (the bake adds the slight unevenness of the scissors).
  */
 object Shapes {
 
@@ -115,30 +113,6 @@ object Shapes {
         return lerp(b1x, b2x, t1, t2) to lerp(b1y, b2y, t1, t2)
     }
 
-    /**
-     * A closed smooth outline through [knots] (centripetal Catmull-Rom all the way round, no
-     * corners), sampled about every [step] dp.
-     */
-    fun loop(knots: List<Knot>, step: Float = 1f): Outline {
-        val xs = ArrayList<Float>()
-        val ys = ArrayList<Float>()
-        val n = knots.size
-        for (i in 0 until n) {
-            val p0 = knots[(i - 1 + n) % n]
-            val p1 = knots[i]
-            val p2 = knots[(i + 1) % n]
-            val p3 = knots[(i + 2) % n]
-            val len = hypot(p2.x - p1.x, p2.y - p1.y)
-            val m = max(2, (len / step).toInt())
-            for (k in 0 until m) {
-                val (x, y) = catmullRom(p0, p1, p2, p3, k / m.toFloat())
-                xs += x
-                ys += y
-            }
-        }
-        return Outline(xs.toFloatArray(), ys.toFloatArray())
-    }
-
     /** A circle (dp). */
     fun circle(cx: Float, cy: Float, r: Float, segments: Int = max(24, (r * 1.6f).toInt())): Outline =
         ellipse(cx, cy, r, r, segments)
@@ -153,35 +127,6 @@ object Shapes {
         }
         return Outline(xs, ys)
     }
-
-    /**
-     * A fir as it is cut from paper: a narrow spire of [tiers] stepped tiers, the lowest the
-     * widest, on a short trunk. [lean] tips the spire a little to one side (dp at the top).
-     */
-    fun fir(cx: Float, baseY: Float, height: Float, tiers: Int = 5, width: Float = height * 0.36f, lean: Float = 0f): Outline {
-        val trunk = height * 0.07f
-        val crownBottom = baseY - trunk
-        val crownH = height - trunk
-        val right = ArrayList<Pair<Float, Float>>()
-        val top = baseY - height
-        right += (cx + lean) to top
-        for (k in 1..tiers) {
-            val f = k / tiers.toFloat()
-            // Each tier flares out to its tip, then steps back in to start the next one.
-            val y = top + crownH * f
-            val half = width / 2f * (0.28f + 0.72f * f)
-            val leanHere = lean * (1f - f)
-            right += (cx + leanHere + half) to y
-            if (k < tiers) right += (cx + leanHere + half * 0.46f) to (y - crownH / tiers * 0.18f)
-        }
-        right += (cx + trunk * 0.45f) to crownBottom
-        right += (cx + trunk * 0.45f) to baseY + 2f
-        val left = right.reversed().map { (x, y) -> (2 * cx - x + 2 * leanAt(lean, y, top, crownH)) to y }
-        // The mirrored list ends at the tip again: dropped, the outline closes there by itself.
-        return Outline.of(right + left.dropLast(1))
-    }
-
-    private fun leanAt(lean: Float, y: Float, top: Float, crownH: Float): Float = lean * (1f - ((y - top) / crownH).coerceIn(0f, 1f))
 
     /**
      * A tapered stroke along the quadratic curve [x0],[y0] → ([cx],[cy]) → [x1],[y1], [w0] wide
@@ -212,74 +157,6 @@ object Shapes {
             xs[2 * samples + 1 - i] = rx[i]; ys[2 * samples + 1 - i] = ry[i]
         }
         return Outline(xs, ys)
-    }
-
-    /**
-     * A cloud as a strip of paper: long and low, its top a gentle arch, its bottom nearly
-     * straight, both ends rounded. [length] and [thickness] in dp, [peak] where along it the
-     * arch is highest (0..1).
-     */
-    fun sliver(x: Float, y: Float, length: Float, thickness: Float, peak: Float = 0.42f, segments: Int = 96): Outline {
-        val pts = ArrayList<Pair<Float, Float>>()
-        val r = thickness * 0.5f
-        // Top edge from left to right: an arch that tapers into the rounded ends.
-        for (i in 0..segments) {
-            val t = i / segments.toFloat()
-            val px = x + length * t
-            val rise = if (t < peak) sin((t / peak) * PI / 2).toFloat() else cos(((t - peak) / (1 - peak)) * PI / 2).toFloat()
-            val ends = min(1f, min(t, 1 - t) * length / r / 2f)
-            val h = thickness * (0.35f + 0.65f * rise) * sqrt(ends.coerceIn(0f, 1f))
-            pts += px to (y - h)
-        }
-        // Bottom edge back from right to left: nearly flat, rounding up into the ends.
-        for (i in segments downTo 0) {
-            val t = i / segments.toFloat()
-            val px = x + length * t
-            val ends = min(1f, min(t, 1 - t) * length / r / 2f)
-            pts += px to (y + thickness * 0.08f * sqrt(ends.coerceIn(0f, 1f)))
-        }
-        return Outline.of(pts)
-    }
-
-    /** A band with round ends, [length] long and [thickness] high, its left end at [x] and its middle at [y]. */
-    fun band(x: Float, y: Float, length: Float, thickness: Float): Outline {
-        val r = thickness / 2f
-        val pts = ArrayList<Pair<Float, Float>>()
-        val n = max(12, (r * 3).toInt())
-        for (i in 0..n) {
-            val a = PI / 2 + PI * i / n
-            pts += (x + r + (r * cos(a)).toFloat()) to (y - (r * sin(a)).toFloat())
-        }
-        for (i in 0..n) {
-            val a = -PI / 2 + PI * i / n
-            pts += (x + length - r + (r * cos(a)).toFloat()) to (y - (r * sin(a)).toFloat())
-        }
-        return Outline.of(pts)
-    }
-
-    /**
-     * A cloud cut as a band of paper: [length] long, a nearly flat underside at [y], its top
-     * rising to about [thickness] in [swells] long, low swells; both ends taper out slowly to a
-     * point, like a willow leaf – a band of mist, never a puff. [phase] shifts the swells.
-     */
-    fun cloudStrip(x: Float, y: Float, length: Float, thickness: Float, swells: Int, phase: Float, segments: Int = 160): Outline {
-        val pts = ArrayList<Pair<Float, Float>>()
-        fun envelope(t: Float): Float {
-            // Long tapers at both ends (the left one a little shorter: the wind comes from there).
-            val left = smoothstep(0f, 0.2f, t)
-            val right = 1f - smoothstep(0.74f, 1f, t)
-            return sqrt(left * right)
-        }
-        for (i in 0..segments) {
-            val t = i / segments.toFloat()
-            val swell = 0.84f + 0.16f * sin((t * swells + phase * 0.31f) * PI.toFloat()).let { it * it }
-            pts += (x + length * t) to (y - thickness * envelope(t) * swell)
-        }
-        for (i in segments downTo 0) {
-            val t = i / segments.toFloat()
-            pts += (x + length * t) to (y + thickness * 0.07f * envelope(t))
-        }
-        return Outline.of(pts)
     }
 
     fun smoothstep(e0: Float, e1: Float, x: Float): Float {

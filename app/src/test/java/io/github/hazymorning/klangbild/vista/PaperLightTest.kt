@@ -10,14 +10,14 @@ class PaperLightTest {
     private val seasons = listOf(SeasonMix.SPRING, SeasonMix.SUMMER, SeasonMix.AUTUMN, SeasonMix.WINTER)
 
     @Test
-    fun `the label keeps 4,5 to 1 on its bank in every light, sky and season`() {
+    fun `the label keeps 4,5 to 1 on its bank's lightest paper in every light, sky and season`() {
         var worst = Float.MAX_VALUE
         for (season in seasons) for (cover in listOf(0f, 0.45f, 1f)) for (az in listOf(100f, 180f, 260f)) {
             var el = -24f
             while (el <= 62f) {
                 for (moon in listOf(0f, 1f)) {
                     val look = PaperLight.look(SkyState(el, az, moonElevation = 30f, moonAzimuth = 170f, moonFraction = moon, cover = cover, season = season))
-                    val bank = look.inks(SheetId.FRONT_LEFT).base
+                    val bank = lighter(look.bank, PaperLight.GRAIN_LIGHTEST)
                     for (ink in look.label) worst = minOf(worst, PaperLight.contrast(ink, bank))
                 }
                 el += 0.5f
@@ -45,8 +45,9 @@ class PaperLightTest {
             var el = -23.95f
             while (el <= 62f) {
                 val next = PaperLight.look(SkyState(el, az))
-                for (id in listOf(SheetId.SKY, SheetId.RANGE_FAR, SheetId.WOOD_LEFT, SheetId.MEADOW, SheetId.FRONT_LEFT)) {
+                for (id in listOf(SheetId.SKY, SheetId.RANGE_FAR, SheetId.WOOD_NEAR, SheetId.MEADOW, SheetId.FRONT_LEFT)) {
                     assertWithMessage("$id at $el° (azimuth $az°)").that(step(prev.inks(id).base, next.inks(id).base)).isAtMost(2)
+                    assertWithMessage("$id at $el° (azimuth $az°)").that(step(prev.inks(id).first, next.inks(id).first)).isAtMost(2)
                 }
                 prev = next
                 el += 0.05f
@@ -55,19 +56,26 @@ class PaperLightTest {
     }
 
     @Test
-    fun `morning and evening pass into each other around noon without a jump`() {
+    fun `morning and evening pass into each other around noon without a jump, and the folds turn with the sun`() {
         var prev = PaperLight.look(SkyState(30f, 150f))
         var az = 150.5f
         while (az <= 210f) {
             val next = PaperLight.look(SkyState(30f, az))
-            assertThat(step(prev.inks(SheetId.SKY).third, next.inks(SheetId.SKY).third)).isAtMost(4)
+            assertThat(step(prev.inks(SheetId.SKY).second, next.inks(SheetId.SKY).second)).isAtMost(4)
+            assertThat(step(prev.inks(SheetId.RANGE_FAR).base, next.inks(SheetId.RANGE_FAR).base)).isAtMost(4)
             prev = next
             az += 0.5f
         }
+        // Morning sun from the east (left): the mountains' left faces are the lit ones; in the evening the right.
+        fun l(argb: Int) = Oklab.fromArgb(argb).l
+        val morning = PaperLight.look(SkyState(15f, 110f)).inks(SheetId.RANGE_FAR)
+        val evening = PaperLight.look(SkyState(15f, 250f)).inks(SheetId.RANGE_FAR)
+        assertThat(l(morning.base)).isGreaterThan(l(morning.first))
+        assertThat(l(evening.first)).isGreaterThan(l(evening.base))
     }
 
     @Test
-    fun `night stays night, and the moon lights it a little`() {
+    fun `night stays night, the moon lights it a little, the fire more`() {
         val dark = PaperLight.look(SkyState(-25f, 0f))
         val moonlit = PaperLight.look(SkyState(-25f, 0f, moonElevation = 35f, moonAzimuth = 180f, moonFraction = 1f))
         val l = Oklab.fromArgb(dark.inks(SheetId.MEADOW).base).l
@@ -76,6 +84,9 @@ class PaperLightTest {
         assertThat(lm).isGreaterThan(l)
         assertThat(lm).isLessThan(0.4f)
         assertThat(dark.stars).isGreaterThan(0.9f)
+        val noon = PaperLight.look(SkyState(50f, 180f))
+        assertThat(dark.fire).isGreaterThan(5f * noon.fire)
+        assertThat(dark.fireReach).isGreaterThan(noon.fireReach)
     }
 
     @Test
@@ -86,17 +97,24 @@ class PaperLightTest {
         val g = Oklab.fromArgb(grey.inks(SheetId.MEADOW).base)
         assertThat(g.chroma).isLessThan(c.chroma * 0.6f)
         assertThat(abs(g.l - c.l)).isLessThan(0.08f)
+        assertThat(grey.discAlpha).isLessThan(0.05f)
     }
 
     @Test
-    fun `autumn colours the broad-leaved trees and the meadow by day`() {
+    fun `autumn colours the broad-leaved crowns and the meadow by day, the firs stay`() {
         val summer = PaperLight.look(SkyState(25f, 200f, season = SeasonMix.SUMMER))
         val autumn = PaperLight.look(SkyState(25f, 200f, season = SeasonMix.AUTUMN))
         fun hue(argb: Int) = Oklab.fromArgb(argb).hue
-        // The crown turns from green to the warm side; the firs' evergreen stays.
-        assertThat(hue(autumn.crown.base)).isLessThan(80f)
-        assertThat(hue(summer.crown.base)).isGreaterThan(110f)
-        assertThat(step(summer.inks(SheetId.WOOD_LEFT).second, autumn.inks(SheetId.WOOD_LEFT).second)).isAtMost(3)
+        assertThat(hue(autumn.inks(SheetId.LEAVES).base)).isLessThan(85f)
+        assertThat(hue(summer.inks(SheetId.LEAVES).base)).isGreaterThan(110f)
+        assertThat(hue(autumn.inks(SheetId.MEADOW).base)).isLessThan(hue(summer.inks(SheetId.MEADOW).base))
+        assertThat(step(summer.inks(SheetId.STANDEES).base, autumn.inks(SheetId.STANDEES).base)).isAtMost(4)
+    }
+
+    private fun lighter(argb: Int, k: Float): Int {
+        var out = 0xFF shl 24
+        for (s in intArrayOf(16, 8, 0)) out = out or (((argb shr s and 0xFF) * k).toInt().coerceIn(0, 255) shl s)
+        return out
     }
 
     private fun step(a: Int, b: Int): Int =

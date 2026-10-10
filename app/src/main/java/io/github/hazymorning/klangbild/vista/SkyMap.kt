@@ -18,7 +18,7 @@ class SkyPlaces(
     val moonY: Float,
     val moonFraction: Float,
     val stars: List<StarPlace>,
-    /** Whether the sun (or else the moon) stands above the horizon – for the light on the water. */
+    /** Whether the sun and the moon stand above the horizon. */
     val sunUp: Boolean = true,
     val moonUp: Boolean = false,
 )
@@ -28,8 +28,8 @@ class SkyPlaces(
  * [DP_PER_DEGREE_X] dp for every degree of azimuth – a very wide view, so the sun's whole day
  * crosses the picture and even a summer evening's sun sets inside it.
  *
- * Elevation is measured from the mountains' skyline, not from the lake: the sun rises over the
- * ridge the moment the light turns to morning and sets behind it as the evening colours come –
+ * Elevation is measured from the mountains' skyline, not from the valley floor: the sun rises
+ * over the ridge the moment the light turns to morning and sets behind it as the evening colours come –
  * and even December's low noon sun clears the summits. Higher up the sky is drawn a little
  * tighter, so the whole dome fits above them.
  */
@@ -64,8 +64,8 @@ object SkyMap {
     }
 
     /**
-     * The skyline the sky's elevations start from: the far range's ridge, smoothed over
-     * [SKYLINE_SPAN] dp so a body's path never kinks over a summit, sampled every 4 dp.
+     * The skyline the sky's elevations start from: the far range's summits and saddles, smoothed
+     * over [SKYLINE_SPAN] dp so a body's path never kinks over a summit, sampled every 4 dp.
      */
     fun skyline(x: Float): Float {
         val t = ((x - SKYLINE_FROM) / SKYLINE_STEP).coerceIn(0f, (skylineSamples.size - 1).toFloat())
@@ -79,7 +79,6 @@ object SkyMap {
     private const val SKYLINE_SPAN = 140f
 
     private val skylineSamples: FloatArray = run {
-        val ridge = Shapes.line(PaperMotif.rangeFar)
         val n = ((PaperMotif.WIDTH + 400f) / SKYLINE_STEP).toInt() + 1
         FloatArray(n) { i ->
             val x = SKYLINE_FROM + i * SKYLINE_STEP
@@ -89,7 +88,7 @@ object SkyMap {
             var dx = -SKYLINE_SPAN / 2f
             while (dx <= SKYLINE_SPAN / 2f) {
                 val w = 0.5f + 0.5f * kotlin.math.cos(Math.PI.toFloat() * dx / (SKYLINE_SPAN / 2f))
-                sum += ridge.yAt(x + dx) * w
+                sum += PaperMotif.skyline(x + dx) * w
                 weight += w
                 dx += 2f
             }

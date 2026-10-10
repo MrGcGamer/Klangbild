@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,16 +51,16 @@ class VistaFeed(
     val cover: () -> Float?,
     val clock: VistaClock,
     val zone: () -> ZoneId = ZoneId::systemDefault,
-    /** The wall clock (ms) for what moves by itself: clouds, grass, the light on the water. */
+    /** The wall clock (ms) for what moves by itself: the clouds, the fire, the stars. */
     val wall: () -> Long = System::currentTimeMillis,
 )
 
 /**
- * The Fensterblick: the paper cut, its light following [feed]'s clock, its clouds and grass
- * moving with the wall clock. The picture is baked once for the screen, the season's shapes and
- * the bank cut wide for the [label]; when the season changes the shapes (snow, leaves, blossom –
- * every few days) a new bake fades in over [SEASON_FADE_MS]. [content] lies on top (the music's
- * label), reading the colours of the moment.
+ * The Fensterblick: the paper diorama, its light following [feed]'s clock, its clouds and its
+ * campfire moving with the wall clock. The picture is baked once for the screen, the season's
+ * shapes and the bank cut wide for the [label]; when the season changes the shapes (snow,
+ * leaves, blossom – every few days) a new bake fades in over [SEASON_FADE_MS]. [content] lies on
+ * top (the music's label), reading the colours of the moment.
  */
 @Composable
 fun Fensterblick(
@@ -75,12 +76,14 @@ fun Fensterblick(
         val still = LocalStill.current
         val state = remember(feed) { VistaFrameState(feed) }
         val frame = remember { mutableLongStateOf(0L) }
+        // The light moves on only every few seconds: what is drawn from it alone waits for that.
+        val light = remember { mutableIntStateOf(0) }
         var shapes by remember { mutableStateOf(state.shapesNow()) }
         if (!still) {
             LaunchedEffect(state) {
                 while (true) {
                     withFrameNanos { ns ->
-                        state.advance()
+                        if (state.advance()) light.intValue++
                         frame.longValue = ns
                     }
                     // The season's shapes are looked at now and then; they change over days.
@@ -120,9 +123,9 @@ fun Fensterblick(
             fade.animateTo(1f, tween(if (feed.clock.preview.active) PREVIEW_SEASON_FADE_MS else SEASON_FADE_MS, easing = Motion.Sine))
             leaving = null
         }
-        val look: () -> PaperLook = { frame.value; state.look }
-        val places: () -> SkyPlaces = { frame.value; state.places }
-        val motion: () -> PaperMotion = { frame.value; state.motion }
+        val look: () -> PaperLook = { light.intValue; state.look }
+        val places: () -> SkyPlaces = { light.intValue; state.places }
+        val motion: () -> PaperMotion = { frame.longValue; state.motion }
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear.value }) {
             leaving?.let { PaperView(it, look, places, motion, Modifier.fillMaxSize()) }
             shown?.let { s ->
@@ -195,7 +198,8 @@ private class VistaFrameState(private val feed: VistaFeed) {
         return quantised(shapes)
     }
 
-    fun advance() {
+    /** Moves on to this frame; true when the light (colours, sun, moon) was worked out anew. */
+    fun advance(): Boolean {
         frames++
         val wall = feed.wall()
         val sky = feed.clock.sky()
@@ -206,7 +210,8 @@ private class VistaFrameState(private val feed: VistaFeed) {
         val tau = if (feed.clock.preview.cover != null) PREVIEW_COVER_TAU_S else COVER_TAU_S
         cover = if (cover < 0f || dt == Double.MAX_VALUE) target else cover + (target - cover) * (1f - exp(-dt / tau).toFloat())
         val moving = feed.clock.preview.active
-        if (moving || abs(sky - lookSky) >= LOOK_EVERY_MS || abs(cover - lookCover) > 0.01f) {
+        val relit = moving || abs(sky - lookSky) >= LOOK_EVERY_MS || abs(cover - lookCover) > 0.01f
+        if (relit) {
             lookSky = sky
             lookCover = cover
             val place = feed.place()
@@ -222,6 +227,7 @@ private class VistaFrameState(private val feed: VistaFeed) {
         }
         val seconds = (wall - MOTION_EPOCH_MS) / 1000.0
         motion = PaperMotion(seconds, ArrayList(CloudField.places(seconds, CloudField.density(cover), clouds)))
+        return relit
     }
 
     private fun quantised(s: SeasonShapes) = SeasonShapes(q(s.snow), q(s.peaks), q(s.leaves), q(s.blossom))

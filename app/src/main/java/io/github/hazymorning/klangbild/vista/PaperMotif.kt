@@ -4,16 +4,28 @@ package io.github.hazymorning.klangbild.vista
 enum class LabelSide { LEFT, RIGHT, NONE }
 
 /**
- * The one picture, as a paper cut: every contour placed by hand on the 960 × 540 dp screen
- * (and [OVERSCAN] beyond, so the slow drift never shows an edge). The view faces south down a
- * valley to a lake: the sun rises behind the high wooded ridge on the left, crosses the sky
- * and sets on the right, where the land lies lower – over the far shore.
+ * A mountain cut from one piece of card and folded: its outline from foot to foot over the
+ * summit (dp), and the creases running from the summit down to points on its foot – one crease
+ * gives a face to the left and one to the right, two give a third face between them, turned
+ * towards the viewer.
+ */
+class Mountain(val knots: List<Knot>, val summitX: Float, val summitY: Float, val creases: FloatArray)
+
+/** A fir standing in the picture: its foot (dp) and its height. */
+class Fir(val x: Float, val footY: Float, val height: Float)
+
+/**
+ * The one picture, a diorama of paper on the 960 × 540 dp screen (and [OVERSCAN] beyond, so
+ * the slow drift never shows an edge): looking south across a clearing in the woods to the
+ * mountains. Every contour is placed by hand; the cutting itself – a slightly uneven hand, the
+ * fibres of the paper – is added when the picture is baked.
  *
- * From the back: sky; two ranges of mountains; the far shore, its tree line cut fine; the
- * lake; two wooded ridges, a high one from the left and a lower one from the right, their
- * firs close as a fringe; a meadow in the middle with one broad tree; and the near banks, dark,
- * with a tall fir on the right and grasses and reeds. The bank under the music's label is cut
- * wide and nearly level ([Foreground]), so the label lies on calm dark paper in every light.
+ * From the back: sky; the far range, folded card with snow caps of torn white paper; the near
+ * range, lower and darker; two strips of forest cut as one silhouette each, the nearer one dipping
+ * into the valley; the meadow of the clearing with a campfire, a few firs and bushes standing
+ * on it as cut-outs with a white margin; a strip of nearer meadow; and the near bank with the
+ * tall firs that frame the view. The bank under the music's label is cut wide and nearly level
+ * ([Foreground]): the label lies on calm, dark paper in every light.
  */
 object PaperMotif {
     const val WIDTH = 960f
@@ -27,116 +39,91 @@ object PaperMotif {
     /** Below the canvas: where outlines close. */
     const val BOTTOM = HEIGHT + OVERSCAN + 4f
 
-    /** The lake's far shore: where sky, mountains and water meet (dp from the top). */
-    const val HORIZON = 352f
+    /** Where the ranges' creases reach their foot (dp): hidden behind what stands in front. */
+    const val FAR_FOOT = 372f
+    const val NEAR_FOOT = 390f
 
-    /** The farther range: four summits, the highest left of the middle. */
-    val rangeFar = listOf(
-        Knot(L, 286f), Knot(40f, 278f), Knot(96f, 262f), Knot(140f, 246f, corner = true), Knot(176f, 256f),
-        Knot(214f, 250f), Knot(258f, 232f, corner = true), Knot(296f, 244f), Knot(330f, 224f), Knot(364f, 196f, corner = true),
-        Knot(398f, 216f), Knot(430f, 226f), Knot(470f, 212f, corner = true), Knot(512f, 232f), Knot(560f, 246f),
-        Knot(610f, 240f, corner = true), Knot(656f, 254f), Knot(720f, 262f), Knot(790f, 256f, corner = true),
-        Knot(840f, 266f), Knot(900f, 274f), Knot(R, 280f),
+    private fun k(x: Float, y: Float, corner: Boolean = false) = Knot(x, y, corner)
+
+    /** The far range, back to front: five summits, the highest left of the middle. */
+    val farRange = listOf(
+        Mountain(listOf(k(-80f, 372f), k(-20f, 300f), k(40f, 262f), k(84f, 236f), k(112f, 216f, true), k(150f, 240f), k(196f, 262f), k(250f, 300f), k(320f, 372f)), 112f, 216f, floatArrayOf(124f)),
+        Mountain(listOf(k(430f, 372f), k(480f, 290f), k(520f, 236f), k(548f, 200f), k(568f, 180f, true), k(598f, 202f), k(636f, 226f), k(690f, 268f), k(760f, 372f)), 568f, 180f, floatArrayOf(586f)),
+        Mountain(listOf(k(830f, 372f), k(880f, 280f), k(912f, 240f), k(934f, 216f, true), k(966f, 236f), k(1010f, 262f), k(1060f, 372f)), 934f, 216f, floatArrayOf(944f)),
+        Mountain(listOf(k(610f, 372f), k(660f, 290f), k(706f, 236f), k(732f, 206f), k(750f, 192f, true), k(782f, 210f), k(820f, 230f), k(870f, 262f), k(940f, 320f), k(990f, 372f)), 750f, 192f, floatArrayOf(742f, 822f)),
+        Mountain(
+            listOf(
+                k(150f, 372f), k(206f, 300f), k(256f, 240f), k(296f, 194f), k(328f, 160f), k(352f, 134f, true), k(376f, 150f), k(404f, 170f),
+                k(436f, 190f), k(470f, 212f), k(520f, 250f), k(590f, 314f), k(640f, 372f),
+            ),
+            352f, 134f, floatArrayOf(318f, 410f),
+        ),
     )
 
-    /** The nearer range: lower and rounder, in another rhythm. */
-    val rangeNear = listOf(
-        Knot(L, 302f), Knot(60f, 294f), Knot(130f, 286f), Knot(190f, 294f), Knot(250f, 284f), Knot(310f, 272f, corner = true),
-        Knot(356f, 284f), Knot(410f, 294f), Knot(470f, 288f), Knot(530f, 298f), Knot(600f, 292f), Knot(670f, 302f),
-        Knot(740f, 298f), Knot(810f, 306f), Knot(880f, 302f), Knot(R, 308f),
+    /** The near range, lower and darker, in front of the far one's feet. */
+    val nearRange = listOf(
+        Mountain(listOf(k(-70f, 390f), k(-10f, 318f), k(40f, 288f), k(74f, 266f, true), k(110f, 280f), k(160f, 300f), k(220f, 336f), k(270f, 390f)), 74f, 266f, floatArrayOf(88f)),
+        Mountain(listOf(k(500f, 390f), k(556f, 320f), k(596f, 292f), k(626f, 274f, true), k(664f, 290f), k(716f, 310f), k(780f, 350f), k(820f, 390f)), 626f, 274f, floatArrayOf(638f)),
+        Mountain(listOf(k(740f, 390f), k(792f, 318f), k(826f, 292f), k(852f, 270f, true), k(890f, 286f), k(934f, 302f), k(1000f, 340f), k(1040f, 390f)), 852f, 270f, floatArrayOf(860f)),
+        Mountain(listOf(k(170f, 390f), k(230f, 328f), k(270f, 302f), k(300f, 284f, true), k(340f, 298f), k(392f, 318f), k(450f, 352f), k(490f, 390f)), 300f, 284f, floatArrayOf(312f)),
     )
 
-    /** The far shore's rolling hills, lowest where the sun goes down; a tree line along all of it. */
-    val shore = listOf(
-        Knot(L, 334f), Knot(60f, 326f), Knot(140f, 322f), Knot(226f, 330f), Knot(310f, 334f), Knot(392f, 328f),
-        Knot(470f, 334f), Knot(552f, 339f), Knot(630f, 334f), Knot(710f, 340f), Knot(792f, 343f), Knot(870f, 339f),
-        Knot(R, 343f),
+    /** The far forest's ground: a gentle line all across, its firs small. */
+    val woodFar = listOf(k(L, 330f), k(110f, 322f), k(250f, 334f), k(400f, 328f), k(520f, 338f), k(690f, 330f), k(830f, 336f), k(R, 326f))
+
+    /** The near forest's ground: high at both sides, dipping into the valley in the middle. */
+    val woodNear = listOf(
+        k(L, 330f), k(90f, 344f), k(200f, 360f), k(320f, 378f), k(430f, 390f), k(520f, 394f), k(620f, 388f), k(730f, 372f), k(840f, 352f), k(R, 334f),
     )
 
-    /** The high wooded ridge from the left, down to the water … */
-    val woodLeft = listOf(
-        Knot(L, 246f), Knot(50f, 250f), Knot(118f, 262f), Knot(188f, 280f), Knot(256f, 302f), Knot(318f, 322f),
-        Knot(376f, 338f), Knot(428f, 348f), Knot(478f, 354f, corner = true),
+    /** The clearing's meadow, and a nearer strip of it. */
+    val meadow = listOf(k(L, 452f), k(140f, 440f), k(300f, 428f), k(440f, 420f), k(560f, 418f), k(700f, 424f), k(840f, 436f), k(R, 446f))
+    val meadowNear = listOf(
+        k(L, 494f), k(120f, 488f), k(260f, 480f), k(380f, 476f), k(470f, 478f), k(560f, 488f), k(660f, 496f), k(760f, 492f), k(880f, 484f), k(R, 488f),
     )
 
-    /** … where it reaches the water and runs along it towards the viewer. */
-    val woodLeftShore = listOf(
-        Knot(478f, 354f, corner = true), Knot(456f, 362f), Knot(420f, 374f), Knot(380f, 392f), Knot(344f, 420f),
-        Knot(318f, 460f), Knot(300f, BOTTOM),
-    )
-
-    /** The lower wooded ridge from the right, down to the water … */
-    val woodRight = listOf(
-        Knot(R, 300f), Knot(924f, 304f), Knot(866f, 314f), Knot(808f, 326f), Knot(752f, 340f), Knot(700f, 350f),
-        Knot(652f, 356f, corner = true),
-    )
-
-    /** … and its shore. */
-    val woodRightShore = listOf(
-        Knot(652f, 356f, corner = true), Knot(676f, 366f), Knot(712f, 380f), Knot(760f, 400f), Knot(820f, 430f),
-        Knot(880f, 470f), Knot(920f, BOTTOM),
-    )
-
-    /** The meadow in the middle, in front of the lake, rising gently to the right. */
-    val meadow = listOf(
-        Knot(L, 520f), Knot(260f, 498f), Knot(380f, 470f), Knot(470f, 448f), Knot(560f, 432f), Knot(650f, 422f),
-        Knot(740f, 418f), Knot(830f, 420f), Knot(R, 428f),
-    )
-
-    /**
-     * The near banks, the broad tree, the grasses and the reeds for a label on [side]: the bank
-     * under it reaches far in and stays nearly level, the other one falls away low.
-     */
-    fun foreground(side: LabelSide): Foreground = when (side) {
-        LabelSide.LEFT -> Foreground(
-            frontLeft = frontLeftWide, frontRight = frontRightLow,
-            tree = BroadTree(708f, 112f, 66f),
-            grassLeft = listOf(18f to 0.84f, 150f to 0.7f, 286f to 0.9f, 404f to 0.66f),
-            grassRight = listOf(784f to 0.8f, 856f to 0.95f),
-            reeds = listOf(Triple(452f, 470f, 0.9f)),
-        )
-        LabelSide.RIGHT -> Foreground(
-            frontLeft = frontLeftLow, frontRight = frontRightWide,
-            tree = BroadTree(480f, 104f, 62f),
-            grassLeft = listOf(14f to 0.9f, 120f to 1.0f, 236f to 0.9f),
-            grassRight = listOf(540f to 0.7f, 680f to 0.86f, 820f to 0.72f),
-            reeds = listOf(Triple(352f, 524f, 1.0f)),
-        )
-        LabelSide.NONE -> Foreground(
-            frontLeft = frontLeftLow, frontRight = frontRightLow,
-            tree = BroadTree(708f, 112f, 66f),
-            grassLeft = listOf(14f to 0.9f, 64f to 0.72f, 120f to 1.0f, 176f to 0.78f, 236f to 0.9f, 300f to 0.7f),
-            grassRight = listOf(784f to 0.8f, 856f to 0.95f),
-            reeds = listOf(Triple(352f, 524f, 1.0f)),
-        )
+    /** The far range's skyline at [x] (dp): the upper edge of all its mountains – where the sky's elevations start. */
+    fun skyline(x: Float): Float {
+        var y = FAR_FOOT
+        for (m in farLines) y = minOf(y, m.yAt(x))
+        return y
     }
 
-    /** The near bank on the left, low: rising to the corner. */
-    private val frontLeftLow = listOf(
-        Knot(L, 440f), Knot(60f, 446f), Knot(140f, 458f), Knot(214f, 474f), Knot(280f, 494f), Knot(330f, 514f),
-        Knot(372f, 534f), Knot(400f, BOTTOM),
-    )
+    private val farLines by lazy { farRange.map { Shapes.line(it.knots) } }
 
-    /** The near bank on the left, wide: a long, low swell, nearly level under the label, falling to the water late. */
+    /**
+     * The clearing's furniture and the near banks for a label on [side]: the bank under it is cut
+     * wide and stays nearly level; the fire burns on the other side of the clearing. On the
+     * right, the whole foreground is the left one mirrored.
+     */
+    fun foreground(side: LabelSide): Foreground = when (side) {
+        LabelSide.LEFT -> LEFT
+        LabelSide.NONE -> Foreground(frontLeftLow, LEFT.frontRight, LEFT.standees, LEFT.bushes, LEFT.frontFirs, LEFT.fireX, LEFT.fireY)
+        LabelSide.RIGHT -> LEFT.mirrored()
+    }
+
+    /** The near bank on the left, wide: a long, low swell, level under the label, falling away late. */
     private val frontLeftWide = listOf(
-        Knot(L, 428f), Knot(70f, 425f), Knot(170f, 425f), Knot(270f, 428f), Knot(350f, 432f), Knot(400f, 439f),
-        Knot(436f, 452f), Knot(460f, 476f), Knot(474f, 506f), Knot(480f, BOTTOM),
+        k(L, 432f), k(70f, 428f), k(170f, 427f), k(270f, 429f), k(350f, 433f), k(404f, 438f), k(438f, 452f), k(462f, 476f), k(476f, 506f), k(484f, 540f), k(486f, BOTTOM),
     )
 
-    /** The near bank on the right, low, under the tall fir. */
-    private val frontRightLow = listOf(
-        Knot(R, 470f), Knot(930f, 472f), Knot(872f, 480f), Knot(820f, 492f), Knot(776f, 508f), Knot(744f, 528f),
-        Knot(728f, BOTTOM),
+    /** The near bank on the left, low: rising only into the corner. */
+    private val frontLeftLow = listOf(
+        k(L, 448f), k(60f, 452f), k(140f, 464f), k(206f, 482f), k(254f, 506f), k(282f, 532f), k(292f, BOTTOM),
     )
 
-    /** The near bank on the right, wide: level under the label, the tall fir at its end. */
-    private val frontRightWide = listOf(
-        Knot(R, 430f), Knot(890f, 427f), Knot(800f, 428f), Knot(700f, 430f), Knot(620f, 433f), Knot(566f, 438f),
-        Knot(530f, 450f), Knot(506f, 472f), Knot(492f, 502f), Knot(486f, BOTTOM),
-    )
+    /** The near bank on the right, low, under the tall firs. */
+    private val frontRightLow = listOf(k(R, 470f), k(930f, 474f), k(880f, 484f), k(840f, 500f), k(812f, 522f), k(802f, 548f), k(800f, BOTTOM))
 
-    /** The tall fir on the right bank: x, height, tiers. */
-    val bigFir = Triple(936f, 224f, 9)
+    private val LEFT = Foreground(
+        frontLeft = frontLeftWide,
+        frontRight = frontRightLow,
+        standees = listOf(352f to 74f, 382f to 50f, 300f to 98f, 262f to 64f, 676f to 58f, 720f to 90f, 762f to 68f, 790f to 46f),
+        bushes = listOf(410f to 16f, 812f to 18f, 236f to 20f),
+        frontFirs = listOf(Fir(6f, 450f, 232f), Fir(982f, 482f, 382f), Fir(906f, 490f, 300f)),
+        fireX = 612f,
+        fireY = 458f,
+    )
 
     /**
      * Where the label lies (dp): its left edge on either side, its bottom, and the widest it
@@ -149,18 +136,27 @@ object PaperMotif {
     const val LABEL_MAX_WIDTH = 336f
     const val LABEL_CLEARANCE = 12f
 
-    /** The near banks and what stands on them. */
+    /** The near banks (contours from the screen's side down to the bottom) and what stands in the clearing. */
     class Foreground(
         val frontLeft: List<Knot>,
         val frontRight: List<Knot>,
-        val tree: BroadTree,
-        /** Grass clumps along the banks' tops: x (dp) and size. */
-        val grassLeft: List<Pair<Float, Float>>,
-        val grassRight: List<Pair<Float, Float>>,
-        /** Reeds by the water: x, foot y (dp) and size. */
-        val reeds: List<Triple<Float, Float, Float>>,
-    )
-
-    /** The broad tree on the meadow: foot x, its height and its crown's width (dp); it stands on the meadow's contour. */
-    data class BroadTree(val x: Float, val height: Float, val width: Float)
+        /** Firs standing on the meadow as cut-outs: x and height (dp); their feet on the meadow's contour. */
+        val standees: List<Pair<Float, Float>>,
+        /** Round bushes on the meadow: x and height (dp). */
+        val bushes: List<Pair<Float, Float>>,
+        /** The tall firs on the near banks. */
+        val frontFirs: List<Fir>,
+        /** The campfire's foot (dp). */
+        val fireX: Float,
+        val fireY: Float,
+    ) {
+        /** The same, mirrored about the screen's middle. */
+        fun mirrored(): Foreground {
+            fun m(knots: List<Knot>) = knots.map { Knot(WIDTH - it.x, it.y, it.corner) }
+            return Foreground(
+                m(frontRight), m(frontLeft), standees.map { (x, h) -> WIDTH - x to h }, bushes.map { (x, h) -> WIDTH - x to h },
+                frontFirs.map { Fir(WIDTH - it.x, it.footY, it.height) }, WIDTH - fireX, fireY,
+            )
+        }
+    }
 }

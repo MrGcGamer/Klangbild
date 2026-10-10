@@ -3,11 +3,11 @@ package io.github.hazymorning.klangbild.vista
 import kotlin.math.ceil
 import kotlin.math.floor
 
-/** A cloud strip in the sky right now: which design, its left end and its top (dp), its scale and how much of it is there. */
+/** A cloud in the sky right now: which design, its left end and its baseline (dp), its scale and how much of it is there. */
 class CloudPlace(val design: Int, val x: Float, val y: Float, val scale: Float, val alpha: Float)
 
 /**
- * The clouds: four lanes at different heights, each an endless procession of paper strips
+ * The clouds: four lanes at different heights, each an endless procession of torn tissue
  * drifting from west to east – right to left, as the weather comes in from the Atlantic –
  * the high lanes faster, the low ones (farther away) slower and smaller. Every strip's design,
  * place and the cover it needs come from its number, never from a random draw, and no two
@@ -17,11 +17,12 @@ class CloudPlace(val design: Int, val x: Float, val y: Float, val scale: Float, 
 object CloudField {
     private class Lane(val y: Float, val speed: Float, val spacing: Float, val scale: Float, val seed: Int)
 
+    // The lowest lane passes behind the summits, never just behind a saddle (a sliver of tissue there reads as a scratch).
     private val lanes = listOf(
-        Lane(y = 76f, speed = 1.25f, spacing = 430f, scale = 1f, seed = 11),
-        Lane(y = 124f, speed = 0.95f, spacing = 380f, scale = 0.86f, seed = 23),
-        Lane(y = 172f, speed = 0.72f, spacing = 340f, scale = 0.74f, seed = 37),
-        Lane(y = 216f, speed = 0.52f, spacing = 300f, scale = 0.62f, seed = 51),
+        Lane(y = 72f, speed = 1.25f, spacing = 430f, scale = 1f, seed = 11),
+        Lane(y = 112f, speed = 0.95f, spacing = 380f, scale = 0.86f, seed = 23),
+        Lane(y = 150f, speed = 0.72f, spacing = 340f, scale = 0.74f, seed = 37),
+        Lane(y = 184f, speed = 0.52f, spacing = 300f, scale = 0.62f, seed = 51),
     )
 
     /** How full the sky is for a [cover] (see [WeatherMood]): a clear day keeps a strip now and then, an overcast one is full. */
