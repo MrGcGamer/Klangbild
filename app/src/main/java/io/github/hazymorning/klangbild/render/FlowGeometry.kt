@@ -149,6 +149,50 @@ class FlowGeometry(val layout: HaloLayout) {
     /** How present a card at [position] is: the third card on each side is already gone. */
     fun presence(position: Float): Float = 1f - HaloLight.smoothstep(MAX_SIDE, EDGE, abs(position))
 
+    /**
+     * Where the composition stands when only some of the cards are there: [left] cards beside
+     * the middle one on the left (what played before), [right] on the right (what comes), at
+     * most [MAX_SIDE] each. What is there stands with the text column in the middle of the
+     * screen, as much room left of the outermost card as right of the column, measured on what
+     * is seen. The column keeps its width; it stands as far from the outermost card to come as
+     * in the full strip or, with none to come, as far from the middle card as in the single view.
+     * With two cards on each side nothing moves.
+     */
+    fun balance(left: Int, right: Int): Balance {
+        val full = reach(MAX_SIDE.toInt())
+        val l = reach(left)
+        val r = reach(right)
+        val gap = if (right > 0) stripGap else heroGap
+        // How much shorter than the full strip each part is, the gap to the column included.
+        val dl = full - l
+        val dr = full - r
+        val dg = stripGap - gap
+        return Balance(cards = (dr - dl + dg) / 2f, column = 0f - (dr + dl + dg) / 2f)
+    }
+
+    /** How far left of its place in the grid the text column can come to stand (dp, at most 0). */
+    val leftmostColumn: Float
+        get() {
+            val most = MAX_SIDE.toInt()
+            return (0..most).minOf { l -> (0..most).minOf { r -> balance(l, r).column } }
+        }
+
+    /** How far the strip reaches beside the middle card's center with [cards] on that side (dp). */
+    private fun reach(cards: Int): Float {
+        val n = cards.coerceIn(0, MAX_SIDE.toInt())
+        if (n == 0) return side / 2f
+        val half = side / 2f
+        val corners = FloatArray(8)
+        cornersOf(n.toFloat(), -half, -half, half, -half, corners)
+        return corners[2] - cx
+    }
+
+    /** From the outermost card to come to the text column (dp): as the grid has it. */
+    private val stripGap: Float get() = layout.columnLeft - cx - reach(MAX_SIDE.toInt())
+
+    /** From the middle card to the text column when nothing comes (dp): the single view's gap. */
+    private val heroGap: Float get() = HaloLayout.ART_TEXT_GAP * layout.screen.widthDp / HaloLayout.GRID_WIDTH
+
     companion object {
 
         /** The design's card size, to which the other measures belong (dp). */
@@ -178,5 +222,20 @@ class FlowGeometry(val layout: HaloLayout) {
         /** Darkening of the first side card, and more for the next (as in the design: 55 % and 40 %). */
         const val SIDE_DIM = 0.45f
         const val FAR_DIM = 0.15f
+    }
+}
+
+/**
+ * How far the cover flow's composition moves to stand in the middle when only some of its cards
+ * are there ([FlowGeometry.balance], dp): the cards with their light by [cards], the text column
+ * by [column].
+ */
+data class Balance(val cards: Float, val column: Float) {
+    /** On the way from here to [to], at [s] (0..1). */
+    fun towards(to: Balance, s: Float) = Balance(cards + (to.cards - cards) * s, column + (to.column - column) * s)
+
+    companion object {
+        /** The full strip: everything where the grid has it. */
+        val NONE = Balance(0f, 0f)
     }
 }

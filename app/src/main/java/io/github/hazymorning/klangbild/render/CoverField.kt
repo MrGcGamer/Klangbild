@@ -8,6 +8,7 @@ import io.github.hazymorning.klangbild.color.Lab
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
+import io.github.hazymorning.klangbild.domain.StageView
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -370,8 +371,9 @@ object CoverField {
         val w = screen.widthDp + 2 * over
         val h = screen.heightDp + 2 * over
         val px = IntArray(VEIL_W * VEIL_H)
-        // The text block's area: from the status line to "Up next", the column's width.
-        val tx0 = layout.columnLeft - 16f
+        // The text block's area: from the status line to "Up next", the column's width (in Cover
+        // Flow from the farthest left it can stand).
+        val tx0 = textLeft(layout) - 16f
         val tx1 = layout.columnLeft + layout.columnWidth + 8f
         val ty0 = layout.statusTop - 20f
         val ty1 = layout.footerBaseline + 16f
@@ -406,6 +408,13 @@ object CoverField {
         return Bitmap.createBitmap(px, VEIL_W, VEIL_H, Bitmap.Config.ARGB_8888)
     }
 
+    /**
+     * The farthest left the text column's edge can stand (dp): in Cover Flow it moves left when
+     * cards are missing ([FlowGeometry.balance]), and the shade under it reaches every place.
+     */
+    private fun textLeft(layout: HaloLayout): Float =
+        layout.columnLeft + if (layout.view == StageView.FLOW) FlowGeometry(layout).leftmostColumn else 0f
+
     /** How soft the text shade's edge is (σ, dp). */
     private const val TEXT_SCRIM_SIGMA = 40f
 
@@ -420,7 +429,7 @@ object CoverField {
         val screen = layout.screen
         val out = FloatArray(3)
         var worst = if (field.dark) 0f else 1f
-        val u0 = layout.columnLeft / screen.widthDp
+        val u0 = textLeft(layout) / screen.widthDp
         val u1 = (layout.columnLeft + layout.columnWidth) / screen.widthDp
         val v0 = layout.statusTop / screen.heightDp
         val v1 = layout.footerBaseline / screen.heightDp

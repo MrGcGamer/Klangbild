@@ -73,6 +73,8 @@ class CardMotion(
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
  * @param edges the cards dissolve into the plain wall before the screen's edges. On the
  *   cover's colors, which reach the edges, they pass the edges.
+ * @param shift how far the cards stand to the right of their place in the grid (dp), so that
+ *   a strip with cards missing stands in the middle ([FlowGeometry.balance]).
  */
 @Composable
 fun FlowStrip(
@@ -86,6 +88,7 @@ fun FlowStrip(
     dim: () -> Float = { 1f },
     alpha: () -> Float = { 1f },
     edges: Boolean = true,
+    shift: () -> Float = { 0f },
 ) {
     val n = cards.size
     val pos = remember(cards) { FloatArray(n) }
@@ -119,6 +122,7 @@ fun FlowStrip(
             }
             order[j + 1] = k
         }
+        val dx = shift()
         drawIntoCanvas { canvas ->
             val native = canvas.nativeCanvas
             for (o in 0 until n) {
@@ -127,7 +131,7 @@ fun FlowStrip(
                 if (a <= 0.004f) continue
                 val card = cards[i].card
                 geometry.corners(pos[i], tools.dp)
-                for (k in 0 until 8) tools.dst[k] = tools.dp[k] * density
+                for (k in 0 until 8) tools.dst[k] = (tools.dp[k] + if (k % 2 == 0) dx else 0f) * density
                 val light = geometry.light(pos[i]) * d * stepBack(card.lightness, middleLightness, pos[i], appearance)
                 val step = (light * STEPS).roundToInt()
                 val filter = filters.getOrPut(step) { ColorMatrixColorFilter(cardMatrix(lighting, step / STEPS.toFloat(), appearance, paper)) }
@@ -139,11 +143,12 @@ fun FlowStrip(
             }
         }
         // The cards dissolve into the wall before the screen's edges (on an OLED the band stays
-        // black; on paper the fade is short, so a card leaving does not look bleached).
+        // black; on paper the fade is short, so a card leaving does not look bleached). The fade
+        // ends before the middle card's place, which a first song brings near the left edge.
         if (!edges) return@Canvas
         val band = WallGlow.EDGE_BLACK_DP * density
         val fadeDp = (if (appearance == Appearance.LIGHT) PAPER_EDGE_FADE_DP else EDGE_FADE_DP) * density
-        val reach = band + fadeDp
+        val reach = min(band + fadeDp, (geometry.cx - geometry.side / 2f + dx) * density)
         drawRect(wall, Offset.Zero, Size(band, size.height))
         drawRect(Brush.horizontalGradient(listOf(wall, wall.copy(alpha = 0f)), startX = band, endX = reach), Offset(band, 0f), Size(reach - band, size.height))
         val bottom = size.height - band

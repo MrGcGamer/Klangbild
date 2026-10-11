@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
@@ -33,11 +35,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.render.FlowLight
 import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.SceneBuilder
@@ -81,7 +86,9 @@ const val BEYOND_EDGES_DP = 24f
  * the artwork's light ([io.github.hazymorning.klangbild.render.WallGlow]), and [level] is its
  * brightness in linear light (pause, the Intensity setting: 0 = off, 1 = as designed,
  * 1.45 = strong). In the light it is paper with the artwork's shadow. [alpha] fades the layer
- * during a change.
+ * during a change; [shift] moves the light with the cover flow's cards (dp), the cover's colors
+ * stay where they are. In Cover Flow's dark the light fades out before the text column, wherever
+ * it stands ([column]: its shift from the grid, dp).
  */
 @Composable
 fun WallLayer(
@@ -89,12 +96,17 @@ fun WallLayer(
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
     level: () -> Float = { 1f },
+    shift: () -> Float = { 0f },
+    column: () -> Float = { 0f },
 ) {
     // With the cover colors background, the cover's own colors are the wall.
     if (scene.coverField) return FieldLayer(scene, modifier, alpha, level)
     val image = remember(scene) { scene.wall.asImageBitmap() }
     val filters = remember { HashMap<Int, ColorFilter?>() }
     val lit = scene.appearance == Appearance.DARK
+    val beside = lit && scene.layout.view == StageView.FLOW
+    val density = LocalDensity.current.density
+    val shade = remember(density) { columnShade(density) }
     Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
         val l = if (lit) level().coerceIn(0f, 2f) else 1f
@@ -104,13 +116,34 @@ fun WallLayer(
         val filter = filters.getOrPut(step) { if (step == 40) null else scaleFilter(step / 40f) }
         drawImage(
             image,
+            dstOffset = IntOffset((shift() * density).roundToInt(), 0),
             dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
             alpha = a,
             colorFilter = filter,
             filterQuality = FilterQuality.Low,
         )
+        if (!beside) return@Canvas
+        // Black laid over the light from where it starts to fade before the column to beyond the edge.
+        val start = (scene.layout.columnLeft + column() - FlowLight.WHOLE_BEFORE_COLUMN) * density
+        val m = BEYOND_EDGES_DP * density
+        translate(left = start) {
+            drawRect(shade, topLeft = Offset(0f, -m), size = Size(size.width - start + m, size.height + 2 * m), alpha = a)
+        }
     }
 }
+
+/** The black over the cover flow's light toward the text column, from where it starts to fade ([FlowLight.shade]). */
+private fun columnShade(density: Float): Brush {
+    val ramp = (FlowLight.WHOLE_BEFORE_COLUMN - FlowLight.GONE_BEFORE_COLUMN) * density
+    val stops = Array(SHADE_STOPS + 1) { i ->
+        val t = i / SHADE_STOPS.toFloat()
+        t to Color.Black.copy(alpha = FlowLight.shade(t))
+    }
+    return Brush.horizontalGradient(*stops, startX = 0f, endX = ramp)
+}
+
+/** Steps of the shade's ramp: a smooth curve, closely enough. */
+private const val SHADE_STOPS = 24
 
 private fun scaleFilter(k: Float) = ColorFilter.colorMatrix(
     ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, 1f, 0f)),
@@ -172,7 +205,8 @@ private fun opticalIndent(size: Float): Float = -(0.065f * (size - 15f)).coerceA
  * The text block beside the artwork, centered on it from the first line's cap height to the
  * last baseline: (work), title, (version), artist, album · year, then the progress bar (or the
  * station, or a notice). What comes next sits apart on the artwork's bottom edge. [alpha] and
- * [rise] animate a change line by line; [dim] darkens the text while paused.
+ * [rise] animate a change line by line; [dim] darkens the text while paused; [shift] moves the
+ * column to the right of its place in the grid (dp: a cover flow with cards missing).
  */
 @Composable
 fun TextLayer(
@@ -182,6 +216,7 @@ fun TextLayer(
     alpha: (TextLine) -> Float = { 1f },
     rise: (TextLine) -> Float = { 0f },
     dim: () -> Float = { 1f },
+    shift: () -> Float = { 0f },
 ) {
     val layout = model.scene.layout
     val t = model.text
@@ -309,10 +344,11 @@ fun TextLayer(
             capY[i] = y
         }
         val blockH = parts.lastOrNull()?.let { capY.last() - it.capTop + it.baseline } ?: 0
-        val x = (layout.columnLeft * density).roundToInt()
         val top = (layout.textCenter * density).roundToInt() - blockH / 2
         val footer = (layout.footerBaseline * density).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
+            // Read while placing: a column that glides is only placed anew.
+            val x = ((layout.columnLeft + shift()) * density).roundToInt()
             parts.forEachIndexed { i, part -> part.p.place(x + part.dx, top + capY[i] - part.capTop) }
             if (nextLine.height > 0) {
                 val b = nextLine[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: nextLine.height
@@ -355,13 +391,15 @@ private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
  * The status line at the top of the column: the time, then where the music plays and what
  * it is doing ("Living room · Paused", or a passing volume). Its cap height is on the artwork's
  * top edge, and it starts on the column's left edge like everything else. The place cross-fades
- * when it changes; the clock just ticks, its figures in fixed cells.
+ * when it changes; the clock just ticks, its figures in fixed cells. [shift] moves it with the
+ * column (dp).
  */
 @Composable
 fun StatusLayer(
     model: StageModel,
     modifier: Modifier = Modifier,
     alpha: () -> Float = { 1f },
+    shift: () -> Float = { 0f },
 ) {
     val status = model.statusLine
     if (status == null || status.isEmpty) return
@@ -396,11 +434,11 @@ fun StatusLayer(
         val clock = measurables[0].measure(Constraints())
         val space = if (clock.width > 0) (styles.label.fontSize.toPx() * 0.26f).roundToInt() else 0
         val lead = measurables[1].measure(Constraints(maxWidth = ((layout.columnWidth * density).roundToInt() - clock.width - space).coerceAtLeast(0)))
-        val left = (layout.columnLeft * density).roundToInt()
         fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: height
         // Cap height on the artwork's top edge.
         val baseline = (layout.statusTop * density).roundToInt() + (styles.label.fontSize.toPx() * Fonts.CAP_HEIGHT).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
+            val left = ((layout.columnLeft + shift()) * density).roundToInt()
             if (clock.height > 0) clock.place(left, baseline - clock.first())
             if (lead.height > 0) lead.place(left + clock.width + space, baseline - lead.first())
         }
