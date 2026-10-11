@@ -9,14 +9,16 @@ views, leaving it on, setup, the remote and privacy. Leave a feature out rather 
 sentence. Its pictures are mockups in `docs/screenshots/`: the app's own screens
 (`ReadmeShotsTest`, with the colors the lights behind the TV would show) set in a room by
 `tools/make_readme_pictures.py`, made again when the look changes, and the download button under
-the first paragraph. The logo (seven rounded squares rounding into a circle toward the middle, blue
-on night blue) is drawn by `tools/make_launcher_assets.py` for the banner, the icons, the mockups
-and the button, never scaled from a bitmap. Release notes are easy to scan and in everyday words: a
-small heading for each kind of change there is (`### New`, `### Better`, `### Bug fixes`), under it
-a few short points a user understands at once, nothing technical. As short as the release allows;
-up to 300 words only when a release needs them and every one is well spent. `docs/` holds only the
-notes of the releases on GitHub and the README's pictures: effort goes into the app, not into
-documents.
+the first paragraph. The mockups stay calm and real, as a photograph of a room would be: the
+lights' colors soft on a matte wall, the window view by warm firelight, no colorful backgrounds.
+The logo is `tools/logo.svg` (four rounded squares, each turned a little further toward the middle,
+a ring and a light dot, blue on night blue), drawn from it by `tools/make_launcher_assets.py` for
+the banner, the icons, the mockups and the button, never scaled from a bitmap. Release notes are
+easy to scan and in everyday words: a small heading for each kind of change there is (`### New`,
+`### Better`, `### Bug fixes`), under it a few short points a user understands at once, nothing
+technical. As short as the release allows; up to 300 words only when a release needs them and every
+one is well spent. `docs/` holds only the notes of the releases on GitHub and the README's
+pictures: effort goes into the app, not into documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
 

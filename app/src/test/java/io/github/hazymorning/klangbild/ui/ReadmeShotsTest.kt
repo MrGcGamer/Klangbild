@@ -18,16 +18,11 @@ import io.github.hazymorning.klangbild.lights.CoverLightColors
 import io.github.hazymorning.klangbild.lights.LightColor
 import io.github.hazymorning.klangbild.lights.LightColors
 import io.github.hazymorning.klangbild.lights.LightSlot
-import io.github.hazymorning.klangbild.lights.VistaLightColors
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.text.TestTexts
 import io.github.hazymorning.klangbild.ui.stage.Stage
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
-import io.github.hazymorning.klangbild.vista.PaperLight
-import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
-import io.github.hazymorning.klangbild.vista.WeatherMood
-import io.github.hazymorning.klangbild.vista.World
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,9 +34,9 @@ import java.time.ZonedDateTime
 import java.util.TimeZone
 
 /**
- * The screens in the README's pictures, in English, with the colors the lights behind the TV
- * would show beside each (a JSON file). `tools/make_readme_pictures.py` sets them in a room and
- * saves the pictures to docs/screenshots/ when the look changes.
+ * The screens in the README's pictures, in English; beside each song the colors the lights
+ * behind the TV would show (a JSON file). `tools/make_readme_pictures.py` sets them in a room
+ * and saves the pictures to docs/screenshots/ when the look changes.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -103,10 +98,6 @@ class ReadmeShotsTest {
         shot("window-view") {
             VistaScreen(ui, ui.vista!!, vistaClock, positionNow = { 213_000L / 3 }, now = { at }, modifier = Modifier.fillMaxSize())
         }
-        val weather = WeatherMood.of("sunny", null, null)!!
-        val look = PaperLight.look(World.sky(at, Place(52.52, 13.40), Fixtures.zone, weather).first)
-        // The mini player stands left, so the fire burns on the right.
-        lights("window-view", VistaLightColors(look, fireOnRight = true), warmth = 1f)
     }
 
     /** One song twice: on the light wall by day and on the dark wall at night. */

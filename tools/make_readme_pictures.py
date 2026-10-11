@@ -57,6 +57,20 @@ def xy_to_rgb(x, y):
     return rgb / rgb.max()
 
 
+def kelvin(k):
+    """The color of warm light of [k] kelvin (Planckian locus, Kim et al.), linear sRGB, peak 1."""
+    t = float(k)
+    x = (-0.2661239e9 / t ** 3 - 0.2343589e6 / t ** 2 + 0.8776956e3 / t + 0.179910) if t <= 4000 else \
+        (-3.0258469e9 / t ** 3 + 2.1070379e6 / t ** 2 + 0.2226347e3 / t + 0.240390)
+    if t <= 2222:
+        y = -1.1063814 * x ** 3 - 1.34811020 * x ** 2 + 2.18555832 * x - 0.20219683
+    elif t <= 4000:
+        y = -0.9549476 * x ** 3 - 1.37418593 * x ** 2 + 2.09137015 * x - 0.16748867
+    else:
+        y = 3.0817580 * x ** 3 - 5.87338670 * x ** 2 + 3.75112997 * x - 0.37001483
+    return xy_to_rgb(x, y)
+
+
 def light_colors(name, vivid=1.0):
     """The lights' colors for a render: left, middle, right (linear sRGB) and how bright each may
     be. [vivid] above 1 takes each a little further from white along its own hue."""
@@ -242,15 +256,16 @@ def tv_frame(img, tv, screen, glow_lin, sheen=0.05, window=0.0):
 
 # The pictures --------------------------------------------------------------------------------
 
-def dark_room(W, H, tv, colors, strength, albedo=(118, 116, 114), ambient=0.006, cool=(0.92, 0.96, 1.0)):
-    """A wall at night: the lamps behind the TV and a breath of light from the room, darker toward
-    the picture's edges. Returns the image (sRGB floats) and the wall's light (linear)."""
+def dark_room(W, H, tv, colors, strength, albedo=(122, 118, 114), ambient=0.008, room=2700):
+    """A wall in the evening: the lamps behind the TV and a breath of warm light from the room,
+    darker toward the picture's edges. Returns the image (sRGB floats) and the wall's light
+    (linear)."""
     lights = lamps(tv, colors, strength)
     y, x = np.mgrid[0:H, 0:W] + 0.5
     r2 = ((x - tv.cx) / (W * 0.6)) ** 2 + ((y - tv.cy) / (H * 0.7)) ** 2
-    room = (ambient * np.exp(-r2 * 1.3))[..., None] * np.array(cool)
+    fill = (ambient * np.exp(-r2 * 1.3))[..., None] * kelvin(room)
     paint = to_linear(list(albedo))
-    lin = wall(H, W, paint, room, lights)
+    lin = wall(H, W, paint, fill, lights)
     return to_srgb(tonemap(lin)), lin / paint
 
 
@@ -272,25 +287,27 @@ def now_playing():
     """The first picture: the song at night, the wall lit in its colors, the name above."""
     W, H = 2400, 1500
     tv = Tv(W / 2, 872, 1480, 9)
-    img, light = dark_room(W, H, tv, light_colors("now-playing", vivid=1.5), 1.8)
+    img, light = dark_room(W, H, tv, light_colors("now-playing"), 1.15)
     tv_frame(img, tv, os.path.join(RENDERS, "now-playing.png"), light * 0.16)
     wordmark(img, W / 2, 196, 54)
     save(img, "mockup-now-playing.jpg")
 
 
 def window_view():
-    """The window view at dusk: the room in the blue hour from a window far to the left, the
-    lights in the view's own colors, dim as at night (its sky above, its fire on the right)."""
+    """The window view in the evening: the room lit only by warm light, like the campfire's,
+    strongest on the fire's side."""
     W, H = 2400, 1350
     tv = Tv(W / 2, H / 2, 1600, 10)
-    colors = light_colors("window-view")
-    # The meadow's green on the left stays low beside the blue of the hour.
-    colors[0] = (colors[0][0], colors[0][1] * 0.35)
-    lights = lamps(tv, colors, 0.75)
+    fire = kelvin(2150)
+    ember = kelvin(2450)
+    colors = [(ember, 0.55), (ember, 0.32), (fire, 1.0)]
+    lights = lamps(tv, colors, 0.62)
     y, x = np.mgrid[0:H, 0:W] + 0.5
-    dusk = 0.26 * (0.25 + 0.75 * np.clip(1.1 - x / W, 0, 1) ** 1.6) * (1.05 - 0.35 * y / H)
-    paint = to_linear([130, 132, 140])
-    lin = wall(H, W, paint, dusk[..., None] * np.array([0.42, 0.56, 1.0]), lights)
+    # The fire's light fills the room a little, more on its side and low down.
+    glow = 0.5 + 0.5 * np.clip(x / W, 0, 1) + 0.25 * np.clip(y / H, 0, 1)
+    room = (0.020 * glow * np.exp(-(((x - tv.cx) / W) ** 2 + ((y - tv.cy) / H) ** 2) * 1.6))[..., None] * kelvin(2300)
+    paint = to_linear([128, 123, 118])
+    lin = wall(H, W, paint, room, lights)
     img = to_srgb(tonemap(lin))
     tv_frame(img, tv, os.path.join(RENDERS, "window-view.png"), lin / paint * 0.16)
     save(img, "mockup-window-view.jpg")
@@ -325,7 +342,7 @@ def day_and_night():
     tv = Tv(W / 2, H / 2 + 8, 1010, 5)
     day, rim = daylight_room(W, H, tv)
     tv_frame(day, tv, os.path.join(RENDERS, "day.png"), rim, sheen=0.03, window=0.10)
-    night, light = dark_room(W, H, tv, light_colors("night"), 1.15)
+    night, light = dark_room(W, H, tv, light_colors("night"), 0.5)
     tv_frame(night, tv, os.path.join(RENDERS, "night.png"), light * 0.16)
     save(np.concatenate([day, night], axis=1), "day-and-night.jpg")
 
