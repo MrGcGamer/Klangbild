@@ -345,7 +345,8 @@ fun TextLayer(
         }
         val blockH = parts.lastOrNull()?.let { capY.last() - it.capTop + it.baseline } ?: 0
         val top = (layout.textCenter * density).roundToInt() - blockH / 2
-        val footer = (layout.footerBaseline * density).roundToInt()
+        // The last line's descenders end where the column ends.
+        val footer = (layout.footerBottom * density - styles.next.fontSize.toPx() * Fonts.DESCENT).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
             // Read while placing: a column that glides is only placed anew.
             val x = ((layout.columnLeft + shift()) * density).roundToInt()
@@ -464,7 +465,7 @@ fun StatusLayer(
         val used = before.sumOf { it.width + space }
         val lead = measurables.last().measure(Constraints(maxWidth = (column - used).coerceAtLeast(0)))
         fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: height
-        // Cap height on the artwork's top edge.
+        // Cap height where the column begins.
         val baseline = (layout.statusTop * density).roundToInt() + (styles.label.fontSize.toPx() * Fonts.CAP_HEIGHT).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
             var x = ((layout.columnLeft + shift()) * density).roundToInt()

@@ -56,6 +56,9 @@ object Fonts {
     /** Cap height of both faces as a share of the size (for aligning by cap height). */
     const val CAP_HEIGHT = 0.70f
 
+    /** How far DM Sans's descenders (p, q, y) reach below the baseline, as a share of the size. */
+    const val DESCENT = 0.22f
+
     private val families = HashMap<Long, FontFamily>()
 
     /** [face] for text at [size] sp. */

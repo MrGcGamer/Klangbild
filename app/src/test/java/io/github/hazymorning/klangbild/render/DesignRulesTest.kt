@@ -148,9 +148,9 @@ class DesignRulesTest {
         assertThat(layout.art).isWithin(0.01f).of(368f)
         // the text block takes clearly less height than the artwork
         assertThat(BLOCK_SHARE).isAtMost(0.65f)
-        // the quiet lines hang inside the artwork's height, never above or below it
-        assertThat(layout.statusTop).isAtLeast(layout.artRect.top)
-        assertThat(layout.footerBaseline).isAtMost(layout.artRect.bottom)
+        // the quiet lines frame the column within the artwork's straight edge, a corner radius in
+        assertThat(layout.statusTop).isWithin(0.01f).of(layout.artRect.top + layout.radius)
+        assertThat(layout.footerBottom).isWithin(0.01f).of(layout.artRect.bottom - layout.radius)
         // the group stands exactly in the screen's middle: as much room above as below …
         assertThat(layout.artRect.centerY).isWithin(0.01f).of(screen.heightDp / 2f)
         // … and as much left of the artwork as right of the column; 64 dp between
