@@ -96,8 +96,9 @@ data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client i
                 HaSource (NowPlayingSource + LightBridge: player + sun.sun + MA queue (one read
                 at a time, only for MA players with a queue) + "Everywhere" from the registry's
                 MA players + the optional MA queue window, commands only where supported, seek
-                in seconds, shuffle, the favorite button by its translation key, the lights'
-                states and calls)
+                in seconds, shuffle, the favorite button by its translation key, the own
+                buttons' entities followed and run, the lights' states and calls),
+                StationPictures (a station's song: the best picture on offer wins and holds)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
                 speed; books' authors, episodes' shows, chapters; pictures via imageproxy)
@@ -106,10 +107,11 @@ data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader (size limi
                 guessed from the address gets a short try and is not asked again for a while
                 when it fails; two loads at a time; covers cached on disk), Backoff,
                 Http (cancellable OkHttp fetch with a call timeout)
-domain/         TrackInfo (+ pictureKey, kind, chapters), PlayerSnapshot (+ SpeakerGroup, QueueInfo,
-                speed, PlayerAbilities), SpeakerLabel ("Living room + 5", "Everywhere", room names,
-                "35%"), TrackText (typographic cleanup), Progress (runs at the item's speed) +
-                SmoothedPosition, TimeLine (track times, separator, "Speed 1.5×"),
+domain/         TrackInfo (+ pictureKey and sceneKey: a station's song by its picture too, kind,
+                chapters), PlayerSnapshot (+ SpeakerGroup, QueueInfo, speed, PlayerAbilities),
+                SpeakerLabel ("Living room + 5", "Everywhere", room names, "35%"), TrackText
+                (typographic cleanup), Progress (runs at the item's speed) + SmoothedPosition,
+                TimeLine (track times, separator, "Speed 1.5×"),
                 ScreenStateMachine, StageView (SINGLE / FLOW), CoverStrip (the cover flow's cards:
                 one per picture, ids kept), Spoken (MediaKind, Chapter/Chapters/ChapterPlace:
                 chapters, labels, jumps), SleepTimer (minutes or an end reached by playing),
@@ -127,8 +129,8 @@ render/         HaloLayout (the grid, per view), CoverField (cover colors: groun
                 colors), WallGlow (the artwork's light on the dark wall), HaloLight (PrintShape;
                 lamp tint for rest and menu), SceneBuilder (per-track precompute: Lanczos cover at
                 exact px, wall, palette, flow card; relight), FlowGeometry (the shared
-                perspective), FlowCards (baked card textures), FlowLight (the pool of light above
-                the cards), ImageOps
+                perspective; the balance with cards missing), FlowCards (baked card textures),
+                FlowLight (the pool of light above the cards), ImageOps
 art/            ChladniArt (missing-cover art), StableHash
 vista/          The window view, a paper diorama: PaperMotif (folded mountains, forest lines, the
                 clearing, the near banks, standees, birches, tent, boulders and the fire per label
@@ -157,21 +159,22 @@ lights/         LightSync (any light behind the TV via Home Assistant: a color p
                 LightColor (xy of a color's hue at its purest, grays as white (neutral by day,
                 warmer at night), a color temperature for white-only lights, brightness floor)
 app/            NowPlayingController (single source of truth → StateFlow<UiState>, with the texts)
-                and its parts: MenuControl, QuickControl, Seeking (jumps with the remote),
-                SleepControl, LightTargets; ControllerHost (what the parts need), Scenes (scene
-                cache + builds off the main thread), KlangbildApp/AppGraph (http, tokenHttp
-                without redirects, localizer)
+                and its parts: MenuControl, QuickControl (+ the own buttons), Seeking (jumps
+                with the remote), SleepControl, LightTargets; ControllerHost (what the parts
+                need), Scenes (scene cache + builds off the main thread), KlangbildApp/AppGraph
+                (http, tokenHttp without redirects, localizer)
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, RoomLights, RoomLightLevel) + SettingsStore (DataStore; tokens sealed by
                 SecretBox: AES-GCM with a key in the Android keystore), SettingsMenu (entries, values,
                 explanations, steps), QuickMenu (the quick settings' entries and values),
+                QuickActions (the own buttons: a name, an entity, what its kind does),
                 LaunchExtras (am start extras and klangbild:// links: English names and values, the
                 German ones of earlier versions still taken)
 setup/          MiniHttp, SetupHandler (one-time code, the sign-in through Home Assistant's login
                 page: state, callback, code exchange, revocation of what is not kept; API, tokens
-                bound to their address), SetupPage (HTML in the language shown), SetupServer (+ QR,
-                discovery; Host, Origin and content type checked, a few connections at a time,
-                slow ones closed, only while the setup screen shows)
+                bound to their address, the own buttons), SetupPage (HTML in the language shown),
+                SetupServer (+ QR, discovery; Host, Origin and content type checked, a few
+                connections at a time, slow ones closed, only while the setup screen shows)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; provides LocalTexts),
                 stage/ (Stage layers, Typesetting, StageTheatre transitions, ProgressBar (a range:
                 the chapter), StageModel + StageTexts, FieldLayer: the pools as gradient quads,
@@ -179,10 +182,11 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; pr
                 OffMain (bitmaps off the main thread, at once in stills),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures, ink shift),
-                MenuScreen (+ MenuGrid), QuickBar (+ QuickGrid), RestScreen, SetupScreen, Changes
-                (`playChange`, `RisingText`: one change at a time, hurrying, held lines),
-                DebugOverlay, vista/ (Vista: bake off the main thread and ahead of time, 20 fps
-                tick, season cross-fade, the weather glided in over minutes; PaperView: sky, far
+                MenuScreen (+ MenuGrid), QuickBar (+ QuickGrid; a long row glides), RestScreen,
+                SetupScreen, Changes (`playChange`, `RisingText`: one change at a time, hurrying,
+                held lines), DebugOverlay, vista/ (Vista: bake off the main thread and ahead of
+                time, 20 fps tick, season cross-fade, the weather glided in over minutes;
+                VistaWaiting: a ring while the first bake keeps one waiting; PaperView: sky, far
                 range, clearing and near banks as layers redrawn only when the light moves on,
                 each only as tall as its paper, moved by the camera as a whole; stars, clouds,
                 mist, snow and rain, swaying cut-outs and firs, the fire, its smoke, sparks and
@@ -299,6 +303,16 @@ UI words are given in English with the German in parentheses where it matters.
   pace (`FlowGeometry.rolled`), never two covers on top of each other. Cards are pictures,
   not songs (`CoverStrip`, `TrackInfo.pictureKey`); ids are kept so every change animates
   card by card.
+- **Cover Flow with cards missing** (the first song, the last, no queue): what is there stands
+  with the text in the middle of the screen, as much room left of the outermost card as right
+  of the column, measured on what is seen (`FlowGeometry.balance`); the column keeps its 40 dp
+  to the cards to come, or the single view's 64 dp to the middle card when none come; the full
+  strip stays exactly on the grid. A new balance comes with the strip's turn, and the column
+  never passes over a card: it makes room first, or the cards leaving on the right go first.
+  Lines that leave go from where they stood, new ones rise at the new place. The dark wall's
+  light fades out before the column wherever it stands (`FlowLight.shade`, laid over as it is
+  drawn), the text shade on cover colors reaches every place the column can stand, and the
+  edge fade never reaches the middle card (`EdgeBandTest`, `NoFrameTest`).
 - **States say it in words**, in the status line, place first and state last: "Living room
   · Paused", "Kitchen · Muted", "Volume 35%" (3.5 s), "Everywhere"; "Reconnecting…" in the
   progress bar's place.
@@ -312,13 +326,23 @@ UI words are given in English with the German in parentheses where it matters.
   edge, rising 22 dp as it fades in, where the key points: View (Single cover / Cover Flow /
   Window view, taken 0.9 s after the last press so no view in between shows), Favorite (with
   Music Assistant), Lights On / Off (off remembers the level), Shuffle On / Off (only where
-  the player can shuffle; the sleep timer lives in the menu). Left and right choose, OK
-  changes, down, up or back close, 20 s alone close them. Each entry is its name (15 sp,
-  quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as wide as its
-  widest value (only the last is as wide as what it says), so nothing moves when a value
-  changes; the chosen one lit from below like the menu's line. The row fits the screen in
-  both languages (`LanguageTest`). An opaque veil (black, paper) from 448 dp down, softened
-  above: nothing behind shows through. They leave the window view as it was.
+  the player can shuffle; the sleep timer lives in the menu), then the own buttons. Left and
+  right choose, OK changes, down, up or back close, 20 s alone close them. Each entry is its
+  name (15 sp, quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as
+  wide as its widest value (only the last is as wide as what it says), so nothing moves when a
+  value changes; the chosen one lit from below like the menu's line. The built-in entries fit
+  the screen in both languages (`LanguageTest`); a row longer than the room (own buttons)
+  glides to show the chosen entry whole, entries beyond its ends faded out. An opaque veil
+  (black, paper) from 448 dp down, softened above: nothing behind shows through. They leave
+  the window view as it was.
+- **Own buttons** (`QuickActions`, the setup page's section 7, at most 6): a name of one's own
+  (at most 32 characters; without one, the entity's own words) and a Home Assistant entity,
+  whose kind says what OK does: a script runs (`script.turn_on` with the speaker followed as
+  the variable `player`, so one script can ungroup whatever plays), an automation runs its
+  actions (`automation.trigger`), a scene is activated, a button is pressed, a switch, input
+  boolean or light is toggled and shows On / Off. The value is the verb ("Run"), then "Done"
+  or "Failed" for 4 s; a call still running after 4 s (a long automation) counts as taken. An
+  entity Home Assistant does not know or has as unavailable is left out of the row.
 - **Settings menu** (OK long-press or Menu): the stage's grid, heading and the chosen line's
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
   a soft, low band of light (σ 120 × 12 dp, ≈ L* 10) that lights it alone; the list glides
@@ -396,6 +420,14 @@ UI words are given in English with the German in parentheses where it matters.
   for that light only.
 - **Skip flicker** (`FlipGuard`): a return to an item left within 5 s is held 2 s and shown
   only if it is still what plays; new items pass at once, and so does the remote's "previous".
+- **A station's pictures** (`StationPictures`): Music Assistant shows the station's picture
+  first and the song's once it has looked it up, and may fall back for a while. The song's own
+  picture (named by the queue window, or one with an address of its own) ranks above any
+  other, the station's (named by the queue, or seen with another song) lowest; while a song
+  plays its picture never steps down and never returns to one it has left. Home Assistant's
+  proxy renews its token every few minutes: a picture's identity leaves the token out
+  (`pictureId`), and a station's song gets a new scene when its picture changes
+  (`TrackInfo.sceneKey`).
 - **Audiobooks and podcasts** are told by Music Assistant's URI (`…://audiobook/…`,
   `…://podcast_episode/…`): a book's description (where an album would be) never shows, an
   episode's show stands where an artist would. With Music Assistant: the chapter in the album's
@@ -471,8 +503,11 @@ UI words are given in English with the German in parentheses where it matters.
   back, or another view there). Every key starts the delays again; one that came by itself
   goes with any key, which still does its work. Baked ahead only while it shows or is on its
   way (`VistaPolicy.onItsWay`); the bake is let go 10 s after it stopped coming and when the app
-  goes to the background (tens of megabytes at 4K). The label (cover 56 dp, Jost 24 / DM Sans
-  17, bar) lies on the dark near bank (snow only along its edge), the fire on the other side;
+  goes to the background (tens of megabytes at 4K). While a first bake keeps one waiting
+  (after 1 s), a thin ring turns in the screen's middle, drawn like the progress bar in the
+  rest screen's quiet ink and gone before the picture is up (`VistaWaiting`). The label
+  (cover 56 dp, Jost 24 / DM Sans 17, bar) lies on the dark near bank (snow only along its
+  edge), the fire on the other side;
   beside the cover one block exactly centered on it: the title's cap height to the bar's lower
   edge (filling the cover's height), or without a bar (a station) to the last baseline
   (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1 on its lightest grain
