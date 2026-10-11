@@ -1,7 +1,12 @@
 package io.github.hazymorning.klangbild.ui.vista
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,10 +23,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
+import io.github.hazymorning.klangbild.ui.QuietColors
 import io.github.hazymorning.klangbild.ui.StageTick
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.TICK_MS
@@ -147,6 +159,48 @@ fun Vista(
                 }
             }
         }
+        if (!still) VistaWaiting(ready = current != null)
+    }
+}
+
+/**
+ * A quiet sign that the window view is on its way while its first picture is baked (a few
+ * seconds, more at 4K): a thin ring in the screen's middle with an arc turning on it at an even
+ * pace, drawn like the progress bar (round ends, the track at 16 %) in the rest screen's quiet
+ * ink. It comes only when the picture keeps one waiting, so a picture baked ahead comes up
+ * without it, and it is gone before the picture is up ([ready]).
+ */
+@Composable
+internal fun VistaWaiting(ready: Boolean) {
+    val still = LocalStill.current
+    val alpha = remember { Animatable(if (still) 1f else 0f) }
+    var gone by remember { mutableStateOf(ready) }
+    if (!still) {
+        LaunchedEffect(ready) {
+            if (ready) {
+                alpha.animateTo(0f, tween(WAIT_OUT_MS, easing = Motion.Sine))
+                gone = true
+            } else {
+                gone = false
+                delay(WAIT_AFTER_MS)
+                alpha.animateTo(1f, tween(WAIT_IN_MS, easing = Motion.Sine))
+            }
+        }
+    }
+    if (gone) return
+    val ink = remember { QuietColors.of(Lighting.DAY).secondary }
+    val turn: () -> Float = if (still) {
+        { 0f }
+    } else {
+        val angle = rememberInfiniteTransition(label = "waiting")
+            .animateFloat(0f, 360f, infiniteRepeatable(tween(WAIT_TURN_MS, easing = LinearEasing)), label = "turn")
+        ({ angle.value })
+    }
+    Canvas(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }) {
+        val r = WAIT_RADIUS_DP.dp.toPx()
+        val line = Stroke(WAIT_LINE_DP.dp.toPx(), cap = StrokeCap.Round)
+        drawCircle(ink.copy(alpha = 0.16f), r, center, style = line)
+        drawArc(ink, turn() - 90f, WAIT_ARC, useCenter = false, topLeft = Offset(center.x - r, center.y - r), size = Size(2 * r, 2 * r), style = line)
     }
 }
 
@@ -235,6 +289,21 @@ const val VISTA_TICK_MS = 50L
 
 /** The first picture fades in this long once it is baked. */
 private const val FIRST_FADE_MS = 1_200
+
+/**
+ * The sign that the picture is on its way comes after this long (the screen switch keeps the
+ * window view dark for its first 900 ms anyway), fades in and out this long, and turns once in
+ * [WAIT_TURN_MS].
+ */
+private const val WAIT_AFTER_MS = 1_000L
+private const val WAIT_IN_MS = 600
+private const val WAIT_OUT_MS = 300
+private const val WAIT_TURN_MS = 1_400
+
+/** The ring: its radius and line (dp), and the arc turning on it (degrees). */
+private const val WAIT_RADIUS_DP = 16f
+private const val WAIT_LINE_DP = 3f
+private const val WAIT_ARC = 90f
 
 /** A new season's shapes fade in this slowly (a day's change, seen by nobody), and quicker in the time-lapse. */
 private const val SEASON_FADE_MS = 20_000

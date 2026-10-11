@@ -1,7 +1,10 @@
 package io.github.hazymorning.klangbild.ui.vista
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -18,8 +21,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The window view in motion, as sequences of stills: a few seconds frame by frame (the grass
- * and the crown sway, the clouds drift, nothing jumps), a minute in steps of ten seconds, and
- * the time-lapse (a day in two minutes) in steps of five seconds.
+ * and the crown sway, the clouds drift, nothing jumps), a minute in steps of ten seconds, the
+ * time-lapse (a day in two minutes) in steps of five seconds, and the first picture arriving.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -65,6 +68,26 @@ class VistaMotionTest {
 
     @Test
     fun breeze() = run("breeze", 15, 30, frames = 12, stepMs = 250)
+
+    @Test
+    fun arrival() {
+        // The first picture keeps one waiting: the ring turns in the dark, then goes as the picture comes up.
+        val wall = java.time.ZonedDateTime.of(2026, 10, 10, 15, 30, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
+        val feed = VistaFeed(place = { berlin }, weather = { Weather(cover = 0.6f) }, clock = VistaClock(now = { wall }), zone = { Fixtures.zone }, wall = { wall })
+        compose.mainClock.autoAdvance = false
+        // On the app's black ground.
+        compose.setContent { Box(Modifier.fillMaxSize().background(Color.Black)) { Vista(feed, Modifier.fillMaxSize()) } }
+        compose.mainClock.advanceTimeBy(1_700)
+        compose.onRoot().captureRoboImage("build/screenshots/vista/motion/arrival_00.png")
+        repeat(8) {
+            Thread.sleep(400)
+            compose.mainClock.advanceTimeBy(16)
+        }
+        for (i in 1..10) {
+            compose.mainClock.advanceTimeBy(150)
+            compose.onRoot().captureRoboImage("build/screenshots/vista/motion/arrival_%02d.png".format(i))
+        }
+    }
 
     @Test
     fun minute() = run("minute", 17, 40, frames = 6, stepMs = 10_000)
