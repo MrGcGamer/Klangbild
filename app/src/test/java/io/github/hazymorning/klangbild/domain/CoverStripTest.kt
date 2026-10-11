@@ -88,4 +88,33 @@ class CoverStripTest {
         val s2 = strip.update(TrackInfo("Song 2", listOf("Y"), artworkUrl = "http://ha/logo.png", source = "Radio"))
         assertThat(s2.middle.id).isEqualTo(s1.middle.id)
     }
+
+    @Test
+    fun `a song keeps its card when its own picture takes the station's place, and the next song gets a new one`() {
+        val strip = CoverStrip()
+        val logo = TrackInfo("Song 1", listOf("X"), artworkUrl = "http://ha/api/media_player_proxy/m?token=a&cache=logo", source = "Radio", kind = MediaKind.RADIO)
+        val first = strip.update(logo)
+        val own = strip.update(logo.copy(artworkUrl = "https://img.example/song1.jpg", album = "Album 1"))
+        assertThat(own.middle.id).isEqualTo(first.middle.id)
+        assertThat(own.cards).hasSize(1)
+        // A new token for the same picture is no new picture either.
+        val next = TrackInfo("Song 2", listOf("Y"), artworkUrl = "http://ha/api/media_player_proxy/m?token=b&cache=logo", source = "Radio", kind = MediaKind.RADIO)
+        val second = strip.update(next)
+        assertThat(second.middle.id).isNotEqualTo(first.middle.id)
+        assertThat(second.cards.map { it.id }).containsExactly(first.middle.id, second.middle.id).inOrder()
+        assertThat(strip.update(next.copy(artworkUrl = "http://ha/api/media_player_proxy/m?token=c&cache=logo")).middle.id).isEqualTo(second.middle.id)
+    }
+
+    @Test
+    fun `a picture is the same picture whatever token its address carries`() {
+        val a = TrackInfo("S", artworkUrl = "http://ha:8123/api/media_player_proxy/media_player.x?token=1&cache=abc")
+        val b = a.copy(artworkUrl = "http://ha:8123/api/media_player_proxy/media_player.x?token=2&cache=abc")
+        assertThat(a.artworkId).isEqualTo("http://ha:8123/api/media_player_proxy/media_player.x?cache=abc")
+        assertThat(b.pictureKey).isEqualTo(a.pictureKey)
+        assertThat(TrackInfo("S", artworkUrl = "https://cdn.example/a.jpg?size=512").artworkId).isEqualTo("https://cdn.example/a.jpg?size=512")
+        // A station's scene goes with its picture; a song's with the song alone.
+        assertThat(a.copy(kind = MediaKind.RADIO).sceneKey).isNotEqualTo(a.copy(kind = MediaKind.RADIO, artworkUrl = "https://img.example/b.jpg").sceneKey)
+        assertThat(a.copy(kind = MediaKind.RADIO).sceneKey).isEqualTo(b.copy(kind = MediaKind.RADIO).sceneKey)
+        assertThat(a.sceneKey).isEqualTo(a.copy(artworkUrl = "https://img.example/b.jpg").sceneKey)
+    }
 }

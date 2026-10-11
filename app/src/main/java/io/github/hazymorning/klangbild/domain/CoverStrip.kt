@@ -15,7 +15,8 @@ data class Strip(val cards: List<StripCard>, val current: Int) {
  * playing, and those to come. The pictures are distinct, so the songs of one album are one card.
  * A card keeps its id from the moment it appears until it leaves the strip, so the UI can
  * animate between two strips card by card: the next picture arriving is the card that stood to
- * the right, a step back brings back the card from the left, anything else is a new card.
+ * the right, a step back brings back the card from the left, anything else is a new card. A
+ * song whose picture changes while it plays (a station's song getting its own) keeps its card.
  */
 class CoverStrip(private val side: Int = SIDE) {
     private var lastId = 0L
@@ -35,7 +36,7 @@ class CoverStrip(private val side: Int = SIDE) {
         var stays: List<StripCard> = emptyList()
         current = when {
             cur == null -> card(track)
-            cur.picture == picture -> {
+            cur.picture == picture || cur.track.key == track.key -> {
                 stays = upcoming
                 cur.copy(track = track)
             }

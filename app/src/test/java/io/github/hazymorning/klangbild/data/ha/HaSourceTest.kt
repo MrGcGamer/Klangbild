@@ -113,8 +113,11 @@ class HaSourceTest {
     }
 
     /** Home Assistant reports a new title. */
-    private fun play(title: String) {
-        val attributes = JsonObject(Json.parseToJsonElement(player).jsonObject + ("media_title" to JsonPrimitive(title)))
+    private fun play(title: String) = report("media_title" to title)
+
+    /** Home Assistant reports the player with these attributes changed. */
+    private fun report(vararg changes: Pair<String, String>) {
+        val attributes = JsonObject(Json.parseToJsonElement(player).jsonObject + changes.map { (k, v) -> k to JsonPrimitive(v) })
         sockets.last().send(
             """{"id":$subscription,"type":"event","event":{"variables":{"trigger":{"platform":"state","entity_id":"media_player.wz",
                 "from_state":null,"to_state":${playerState(attributes)}}},"context":null}}""",
@@ -309,6 +312,37 @@ class HaSourceTest {
         } finally {
             ma.close()
         }
+    }
+
+    @Test
+    fun `a station's song keeps its own picture while Home Assistant falls back to the station's`() = runBlocking {
+        val stationPicture = "/api/media_player_proxy/media_player.wz?token=t&cache=station"
+        player = """{"media_title":"Cold Little Heart","media_artist":"Michael Kiwanuka","media_content_id":"library://radio/7",
+            "media_album_name":"Radio Paradise","entity_picture":"$stationPicture",
+            "app_id":"music_assistant","mass_player_type":"player","active_queue":"q1"}"""
+        queueAnswer = {
+            """{"media_player.wz":{"queue_id":"q1","current_index":0,
+               "current_item":{"name":"Radio Paradise","stream_title":"Michael Kiwanuka - Cold Little Heart",
+                 "media_item":{"media_type":"radio","name":"Radio Paradise","image":"https://cdn.example/station.png"}},
+               "next_item":null}}"""
+        }
+        val s = source()
+        s.start()
+        fun picture() = s.state.value.player!!.track!!.artworkUrl
+        withTimeout(5_000) { s.state.first { it.queueKnown } }
+        assertThat(picture()).endsWith("cache=station")
+        // Music Assistant has found the song's picture.
+        report("entity_picture" to "https://img.example/love-and-hate.jpg")
+        withTimeout(5_000) { s.state.first { it.player?.track?.artworkUrl?.contains("love-and-hate") == true } }
+        // For a while it shows the station's again (with a new token): the song's stays.
+        report("entity_picture" to stationPicture.replace("token=t", "token=u"))
+        delay(400)
+        assertThat(picture()).contains("love-and-hate")
+        // The next song starts with the station's picture.
+        report("media_title" to "Spinning", "media_artist" to "Other", "entity_picture" to stationPicture)
+        withTimeout(5_000) { s.state.first { it.player?.track?.title == "Spinning" } }
+        assertThat(picture()).endsWith("cache=station")
+        s.stop()
     }
 
     @Test

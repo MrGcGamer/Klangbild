@@ -9,6 +9,7 @@ import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.config.MiniPlayer
 import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.vista.LabelSide
 import io.github.hazymorning.klangbild.vista.Place
@@ -28,7 +29,7 @@ fun VistaScreen(ui: UiState, vista: VistaUi, clock: VistaClock, positionNow: () 
     val side = labelSide(vista.miniPlayer)
     Vista(feed, modifier, label = side) { look ->
         val text = vista.track?.takeIf { side != LabelSide.NONE }?.let { track ->
-            LabelText.Music(track, artworkFor(ui, track.pictureKey), vista.status == PlayerStatus.PLAYING, positionNow)
+            LabelText.Music(track, artworkFor(ui, track), vista.status == PlayerStatus.PLAYING, positionNow)
         }
         if (text != null) VistaLabel(text, side, inks = { look().label }, coverLight = { look().labelCover })
     }
@@ -55,7 +56,14 @@ fun labelSide(miniPlayer: MiniPlayer): LabelSide = when (miniPlayer) {
     MiniPlayer.OFF -> LabelSide.NONE
 }
 
-/** The scene with [pictureKey]'s cover, from the stage or the cover flow, once it is ready. */
-private fun artworkFor(ui: UiState, pictureKey: String): ArtworkScene? =
-    ui.stage?.takeIf { it.track.pictureKey == pictureKey }?.scene
-        ?: ui.flow?.cards?.firstOrNull { it.track.pictureKey == pictureKey }?.scene
+/**
+ * The scene with [track]'s cover, from the stage or the cover flow, once it is ready. Until a
+ * new picture of the same song is ready (a station's song getting its own), the one shown stays.
+ */
+private fun artworkFor(ui: UiState, track: TrackInfo): ArtworkScene? {
+    val picture = track.pictureKey
+    return ui.stage?.takeIf { it.track.pictureKey == picture }?.scene
+        ?: ui.flow?.cards?.firstOrNull { it.track.pictureKey == picture }?.scene
+        ?: ui.stage?.takeIf { it.track.key == track.key }?.scene
+        ?: ui.flow?.middle?.takeIf { it.track.key == track.key }?.scene
+}

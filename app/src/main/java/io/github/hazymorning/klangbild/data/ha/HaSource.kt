@@ -71,6 +71,9 @@ class HaSource(
     /** Home Assistant answered the last `get_queue`. A player without a queue is not asked again until its track changes. */
     @Volatile private var queueWorks = false
 
+    /** A station's pictures, ranked and steady while a song plays (only touched in [publish]). */
+    private val stationPictures = StationPictures()
+
     /** Music Assistant's queue was last read at this time, for what it was then (id, place, next). */
     private var windowReadAt = 0L
     private var windowFor: Triple<String?, Int?, String?>? = null
@@ -301,25 +304,30 @@ class HaSource(
     }
 
     /**
-     * A station: the song it plays keeps Home Assistant's picture (the song's own when Music
-     * Assistant knows it) unless Music Assistant's queue brings the song's picture itself. The
-     * station's picture only ever stands behind. The queue names the station; a name in the
-     * album's place that is not the station's is the song's album.
+     * A station: the queue names the station, and a name in the album's place that is not the
+     * station's is the song's album. The picture is [StationPictures]' choice from what is
+     * offered: the song's picture from Music Assistant's own queue, Home Assistant's picture
+     * (Music Assistant's choice of the moment) and the station's from the queue.
      */
     private fun enrichStation(p: PlayerSnapshot, track: TrackInfo): PlayerSnapshot {
-        if (queueForKey != trackKey(track)) return p
-        val mine = window?.current?.takeIf { it.kind == MediaKind.RADIO && sameTitle(it.title, track.title) }
-        val station = queue?.current?.takeIf { it.kind == MediaKind.RADIO }?.source ?: mine?.source ?: track.source
-        val album = track.album ?: mine?.album ?: track.source?.takeIf { station != null && !it.equals(station, ignoreCase = true) }
-        val song = mine?.takeIf { it.songPicture }
-        return p.copy(
-            track = track.copy(
-                album = album,
-                artworkUrl = song?.artworkUrl ?: track.artworkUrl ?: queue?.current?.artworkUrl,
-                artworkFallbackUrl = if (song != null) track.artworkUrl ?: song.artworkFallbackUrl else track.artworkFallbackUrl ?: queue?.current?.artworkUrl,
-                source = station,
+        val known = queueForKey == trackKey(track)
+        val mine = window?.current?.takeIf { known && it.kind == MediaKind.RADIO && sameTitle(it.title, track.title) }
+        val item = queue?.current?.takeIf { known && it.kind == MediaKind.RADIO }
+        val station = item?.source ?: mine?.source ?: track.source
+        val album = track.album ?: mine?.album ?: track.source?.takeIf { known && station != null && !it.equals(station, ignoreCase = true) }
+        val picture = stationPictures.choose(
+            trackKey(track),
+            listOfNotNull(
+                mine?.takeIf { it.songPicture }?.artworkUrl?.let { StationPictures.Offer(it, mine.artworkFallbackUrl, StationPictures.Rank.SONG, certain = true) },
+                track.artworkUrl?.let { url ->
+                    // Home Assistant serves the station's picture through its own proxy; an address of its own is the song's.
+                    val rank = if (HaUrls.isPlayerProxy(url)) StationPictures.Rank.UNKNOWN else StationPictures.Rank.SONG
+                    StationPictures.Offer(url, track.artworkFallbackUrl, rank)
+                },
+                item?.artworkUrl?.let { StationPictures.Offer(it, item.artworkFallbackUrl, StationPictures.Rank.STATION, certain = true) },
             ),
         )
+        return p.copy(track = track.copy(album = album, artworkUrl = picture?.url, artworkFallbackUrl = picture?.fallback, source = station))
     }
 
     /** Starts reading the queue anew; a read under way for an older track is canceled, a periodic one waits its turn. */

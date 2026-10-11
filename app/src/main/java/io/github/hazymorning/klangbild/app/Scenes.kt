@@ -38,7 +38,8 @@ data class Frame(val screen: ScreenSpec, val view: StageView)
  * Prepares the stage's scenes (cover, palette, light; see [SceneBuilder]) off the main thread,
  * one at a time, and keeps the most recent ones: a scene for a track that comes back (the next
  * song, a step back, the cards of the cover flow) is there at once. A scene whose light no
- * longer fits is re-lit from what it has, without loading the cover again.
+ * longer fits is re-lit from what it has, without loading the cover again. Scenes are kept by
+ * [TrackInfo.sceneKey]: a station's song gets a new scene when its own picture arrives.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class Scenes(
@@ -60,17 +61,17 @@ class Scenes(
 
     /** The scene for [track] if it is ready and lit as [look]. */
     fun ready(track: TrackInfo, look: Look): ArtworkScene? =
-        synchronized(cache) { cache[track.key] }?.takeIf { look.fits(it) }
+        synchronized(cache) { cache[track.sceneKey] }?.takeIf { look.fits(it) }
 
     /** Whether [track]'s scene is on its way. */
-    fun pending(track: TrackInfo): Boolean = synchronized(cache) { track.key in building }
+    fun pending(track: TrackInfo): Boolean = synchronized(cache) { track.sceneKey in building }
 
     /**
      * Starts making [track]'s scene for [look] unless it is ready or on its way: re-lit if an
      * older one exists, otherwise built from the cover. [done] runs with the result.
      */
     fun prepare(track: TrackInfo, look: Look, done: (ArtworkScene) -> Unit = {}) {
-        val key = track.key
+        val key = track.sceneKey
         val forFrame = frame
         synchronized(cache) {
             if (cache[key]?.let(look::fits) == true || key in building) return
@@ -88,7 +89,7 @@ class Scenes(
         }
     }
 
-    /** Stops building scenes for tracks that are no longer wanted (skipped past quickly). */
+    /** Stops building scenes that are no longer wanted (skipped past quickly), by [TrackInfo.sceneKey]. */
     fun retain(keys: Set<String>) {
         synchronized(cache) {
             val stale = building.filterKeys { it !in keys }

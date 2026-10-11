@@ -718,7 +718,7 @@ class NowPlayingController(
 
     /** The stage shows [stage]'s track as soon as its scene is ready (the next track's is made ahead). */
     private fun showStage(stage: Screen.Stage, look: Look) {
-        scenes.retain(setOfNotNull(stage.track.key, stage.next?.key))
+        scenes.retain(setOfNotNull(stage.track.sceneKey, stage.next?.sceneKey))
         val scene = scenes.ready(stage.track, look)
         if (scene == null) {
             scenes.prepare(stage.track, look) { recompute() }
@@ -741,7 +741,7 @@ class NowPlayingController(
         // Music Assistant's whole queue if it is set up, else Home Assistant's next track.
         val coming = if (src.queueKnown) src.coming.ifEmpty { listOfNotNull(stage.next) } else null
         val s = strip.update(stage.track, coming, before = src.played)
-        scenes.retain(s.cards.map { it.track.key }.toSet())
+        scenes.retain(s.cards.map { it.track.sceneKey }.toSet())
         val order = listOf(s.current) + (s.current + 1 until s.cards.size) + (s.current - 1 downTo 0)
         for (i in order) {
             val track = s.cards[i].track
