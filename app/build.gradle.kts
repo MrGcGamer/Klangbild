@@ -127,7 +127,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.profileinstaller)
 
@@ -137,8 +136,6 @@ dependencies {
     implementation(libs.compose.ui.text)
     implementation(libs.compose.foundation)
     implementation(libs.compose.animation)
-    implementation(libs.compose.ui.tooling.preview)
-    debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -148,7 +145,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
-    testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
