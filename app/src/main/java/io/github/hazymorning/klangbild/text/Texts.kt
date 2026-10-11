@@ -50,6 +50,19 @@ class Texts(
     fun decimal(value: Double, maxFractionDigits: Int): String =
         fontSafe(NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = maxFractionDigits }.format(value))
 
+    /**
+     * [value] with exactly [fractionDigits] decimals, grouped as the language groups and rounded
+     * half away from zero, as Home Assistant shows it: "1,234.50", "1.234,50".
+     */
+    fun number(value: Double, fractionDigits: Int): String =
+        fontSafe(
+            NumberFormat.getNumberInstance(locale).apply {
+                minimumFractionDigits = fractionDigits
+                maximumFractionDigits = fractionDigits
+                roundingMode = java.math.RoundingMode.HALF_UP
+            }.format(value),
+        )
+
     /** The time of day at [epochMs]: "21:47", or "9:47 PM" in 12 hours. No leading zero, as a clock on a wall shows it. */
     fun clock(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         fontSafe((if (clock24) clock24Format else clock12Format).format(Instant.ofEpochMilli(epochMs).atZone(zone)))

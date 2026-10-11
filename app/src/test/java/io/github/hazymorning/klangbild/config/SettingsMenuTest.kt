@@ -65,6 +65,7 @@ class SettingsMenuTest {
     fun `every line has a value and an explanation, actions have no step`() {
         val withMa = configured.copy(maUrl = "http://192.168.1.5:8095", maToken = "t")
         val withLights = configured.copy(roomLights = RoomLights(left = "light.links", right = "light.rechts"))
+        val withValues = configured.copy(ownValues = listOf(OwnValue("Außen", "sensor.outside")))
         val contexts = listOf(
             MenuContext(),
             MenuContext(LinkState.CONNECTED, ma = MaLink.CONNECTED),
@@ -72,12 +73,13 @@ class SettingsMenuTest {
             MenuContext(sleep = SleepChoice.MIN_30, sleepAt = 1_791_483_667_000L),
             MenuContext(sleep = SleepChoice.ITEM_END, kind = MediaKind.PODCAST),
         )
-        for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa, withLights)) {
+        for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa, withLights, withValues)) {
             // The lines that are no stored setting: the connections, the sleep timer, the language
-            // (the system keeps it) and the lights until they are set up.
+            // (the system keeps it), and the lights and the values until they are set up.
             val actions = setOfNotNull(
                 MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.LANGUAGE,
                 MenuEntry.LIGHTS.takeIf { !s.roomLights.isSet },
+                MenuEntry.VALUES.takeIf { s.ownValues.isEmpty() },
             )
             for (ctx in contexts) {
                 for (row in SettingsMenu.rows(s, ctx, de)) {
@@ -94,6 +96,10 @@ class SettingsMenuTest {
         assertThat(SettingsMenu.value(MenuEntry.CONNECTION, configured, MenuContext(LinkState.AUTH_FAILED), de)).isEqualTo("Zugang abgelehnt")
         assertThat(SettingsMenu.value(MenuEntry.MUSIC_ASSISTANT, configured, MenuContext(ma = MaLink.CONNECTED), de)).isEqualTo("Nicht eingerichtet")
         assertThat(SettingsMenu.value(MenuEntry.MUSIC_ASSISTANT, withMa, MenuContext(ma = MaLink.UNREACHABLE), de)).isEqualTo("Nicht erreichbar")
+        // The values: set up on the phone first, then shown or hidden.
+        assertThat(SettingsMenu.value(MenuEntry.VALUES, configured, MenuContext(), de)).isEqualTo("Einrichten")
+        assertThat(SettingsMenu.value(MenuEntry.VALUES, withValues, MenuContext(), de)).isEqualTo("An")
+        assertThat(SettingsMenu.step(MenuEntry.VALUES, withValues, +1)!!.showValues).isFalse()
     }
 
     @Test

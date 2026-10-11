@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.setup
 
 import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.config.OwnValues
 import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.serialization.json.JsonPrimitive
@@ -23,6 +24,8 @@ object SetupPage {
             .replace("__CODE_HIDDEN__", if (code.isNotEmpty()) "hidden" else "")
             .replace("__MAX_ACTIONS__", QuickActions.MAX.toString())
             .replace("__MAX_NAME__", QuickActions.MAX_NAME.toString())
+            .replace("__MAX_VALUES__", OwnValues.MAX.toString())
+            .replace("__MAX_VALUE_NAME__", OwnValues.MAX_NAME.toString())
             .replace("__SCRIPT_TEXTS__", script)
         for ((key, value) in words) page = page.replace("{{$key}}", escape(value))
         return page
@@ -83,6 +86,10 @@ object SetupPage {
         "actionsHint" to R.string.page_actions_hint,
         "actionsEmpty" to R.string.page_actions_empty,
         "actionAdd" to R.string.page_action_add,
+        "valuesHeading" to R.string.page_values_heading,
+        "valuesHint" to R.string.page_values_hint,
+        "valuesEmpty" to R.string.page_values_empty,
+        "valueAdd" to R.string.page_value_add,
         "save" to R.string.page_save,
     )
 
@@ -116,6 +123,28 @@ object SetupPage {
         "groupButtons" to R.string.page_group_buttons,
         "groupSwitches" to R.string.page_group_switches,
         "groupLights" to R.string.page_group_lights,
+        "search" to R.string.page_search,
+        "searchNone" to R.string.page_search_none,
+        "searchMore" to R.string.page_search_more,
+        "variables" to R.string.page_variables,
+        "variablesHint" to R.string.page_variables_hint,
+        "variablesExample" to R.string.page_variables_example,
+        "moreVariables" to R.string.page_more_variables,
+        "show" to R.string.page_show,
+        "showAlways" to R.string.page_show_always,
+        "showWhen" to R.string.page_show_when,
+        "entity" to R.string.page_entity,
+        "state" to R.string.page_state,
+        "testIs" to R.string.page_test_is,
+        "testIsNot" to R.string.page_test_is_not,
+        "testAbove" to R.string.page_test_above,
+        "testBelow" to R.string.page_test_below,
+        "conditionHint" to R.string.page_condition_hint,
+        "conditionNumber" to R.string.page_condition_number,
+        "now" to R.string.page_now,
+        "noEntities" to R.string.page_no_entities,
+        "valueName" to R.string.page_value_name,
+        "valueWhat" to R.string.page_value_what,
     )
 
     private val TEMPLATE = """
@@ -177,6 +206,17 @@ object SetupPage {
   .action:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
   button.quiet { border: 0; padding: 10px 0 0; margin-top: 6px; color: var(--muted); font-weight: 500; text-decoration: underline;
     text-underline-offset: 3px; text-decoration-color: var(--line); }
+  .chosen { color: var(--faint); font-size: 14px; margin: 6px 0 0; overflow-wrap: anywhere; }
+  .chosen:empty { display: none; }
+  .results { margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .results button { display: block; width: 100%; margin: 0; padding: 10px 14px; border: 0; border-top: 1px solid var(--line);
+    border-radius: 0; background: var(--card); color: var(--ink); font: 400 16px/1.35 system-ui, sans-serif; text-align: left; }
+  .results button:first-child { border-top: 0; }
+  .results .meta { display: block; color: var(--faint); font-size: 14px; overflow-wrap: anywhere; }
+  .results p { margin: 0; padding: 10px 14px; color: var(--faint); font-size: 15px; }
+  .compare { margin-top: 10px; }
+  .pair { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin-top: 8px; }
+  textarea.vars { min-height: 64px; font-size: 15px; }
   .hidden { display: none; }
 </style>
 </head>
@@ -253,6 +293,13 @@ object SetupPage {
   </section>
 
   <section>
+    <h2>{{valuesHeading}}</h2>
+    <p class="hint">{{valuesHint}}</p>
+    <div id="values"><p class="hint">{{valuesEmpty}}</p></div>
+    <button id="addValue" class="hidden">{{valueAdd}}</button>
+  </section>
+
+  <section>
     <button class="primary" id="save">{{save}}</button>
     <p class="status" id="status"></p>
   </section>
@@ -266,13 +313,18 @@ object SetupPage {
   let lightsShown = false;
   let weather = '';
   let weatherShown = false;
-  // The quick settings' own buttons: as stored, what Home Assistant offers for them, and whether the page has shown them.
+  // The quick settings' own buttons and the values in the status line: as stored, what Home
+  // Assistant offers for them, and whether the page has shown them.
   let actions = [];
   let actionOptions = [];
   let actionsShown = false;
+  let values = [];
+  let entityOptions = [];
+  let valuesShown = false;
   const MAX_ACTIONS = __MAX_ACTIONS__;
-  const ACTION_GROUPS = [[['script'], T.groupScripts], [['scene'], T.groupScenes], [['automation'], T.groupAutomations],
-    [['button', 'input_button'], T.groupButtons], [['switch', 'input_boolean'], T.groupSwitches], [['light'], T.groupLights]];
+  const MAX_VALUES = __MAX_VALUES__;
+  const MAX_RESULTS = 30;
+  const TESTS = [['is', T.testIs], ['is_not', T.testIsNot], ['above', T.testAbove], ['below', T.testBelow]];
   // The code survives the trip to Home Assistant's sign-in page and back in this tab.
   if (!${'$'}('code').value) ${'$'}('code').value = sessionStorage.getItem('klangbild-code') || '';
   function code() { return ${'$'}('code').value.trim(); }
@@ -328,52 +380,204 @@ object SetupPage {
     weatherShown = true;
   }
   function optionName(id) { const o = actionOptions.find((a) => a.id === id); return o ? o.name : ''; }
-  function actionSelect(selected) {
-    const sel = document.createElement('select');
-    const none = document.createElement('option'); none.value = ''; none.textContent = T.none; sel.append(none);
-    ACTION_GROUPS.forEach(([domains, label]) => {
-      const items = actionOptions.filter((o) => domains.includes(o.id.split('.')[0]));
-      if (!items.length) return;
-      const group = document.createElement('optgroup'); group.label = label;
-      items.forEach((o) => {
-        const opt = document.createElement('option'); opt.value = o.id; opt.textContent = o.name; opt.selected = o.id === selected; group.append(opt);
+  function entityOf(id) { return entityOptions.find((e) => e.id === id); }
+  // Lower case without accents, for searching.
+  function fold(s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function label(forId, text) { const l = document.createElement('label'); l.htmlFor = forId; l.textContent = text; return l; }
+  function hint(text) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = text; return p; }
+  function choice(id, pairs, value) {
+    const sel = document.createElement('select'); sel.id = id;
+    pairs.forEach(([v, text]) => { const o = document.createElement('option'); o.value = v; o.textContent = text; sel.append(o); });
+    sel.value = value; return sel;
+  }
+  // A search field over [options] ({id, name, meta}): typing narrows the list, a tap chooses.
+  function picker(id, options, selected, onPick) {
+    const box = document.createElement('div');
+    const input = document.createElement('input'); input.type = 'text'; input.id = id; input.placeholder = T.search;
+    input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('autocapitalize', 'off'); input.setAttribute('autocorrect', 'off');
+    const chosen = document.createElement('p'); chosen.className = 'chosen';
+    const list = document.createElement('div'); list.className = 'results hidden';
+    let current = selected || '';
+    const nameOf = (v) => { const o = options.find((x) => x.id === v); return o ? o.name : v; };
+    function settle() { input.value = current ? nameOf(current) : ''; chosen.textContent = current; list.classList.add('hidden'); }
+    function render() {
+      list.textContent = '';
+      const query = input.value === nameOf(current) ? '' : input.value;
+      const words = fold(query).split(/\s+/).filter(Boolean);
+      const found = options.filter((o) => { o.key = o.key || fold(o.name + ' ' + o.id); return words.every((w) => o.key.includes(w)); });
+      found.slice(0, MAX_RESULTS).forEach((o) => {
+        const b = document.createElement('button'); b.type = 'button';
+        const name = document.createElement('span'); name.textContent = o.name;
+        const meta = document.createElement('span'); meta.className = 'meta'; meta.textContent = o.meta || o.id;
+        b.append(name, meta);
+        // The field keeps the focus until the choice is made.
+        b.onmousedown = (e) => e.preventDefault();
+        b.onclick = () => { current = o.id; settle(); input.blur(); onPick(o.id); };
+        list.append(b);
       });
-      sel.append(group);
-    });
-    // One stored that Home Assistant no longer lists stays chosen.
-    if (selected && sel.value !== selected) {
-      const opt = document.createElement('option'); opt.value = selected; opt.textContent = selected; opt.selected = true; sel.append(opt);
+      if (!found.length) list.append(hint(T.searchNone));
+      else if (found.length > MAX_RESULTS) list.append(hint(T.searchMore));
+      list.classList.remove('hidden');
     }
-    return sel;
+    input.onfocus = () => { input.select(); render(); };
+    input.oninput = render;
+    input.onblur = () => setTimeout(settle, 200);
+    settle();
+    box.append(input, chosen, list);
+    return box;
+  }
+  function entityChoices(domains) {
+    return entityOptions
+      .filter((e) => !domains || !domains.length || domains.includes(e.id.split('.')[0]))
+      .map((e) => ({ id: e.id, name: e.name, meta: e.id + ' · ' + e.state + (e.unit ? ' ' + e.unit : '') }));
+  }
+  // What an entity shows now: its state, or one of its attributes (a list by its count).
+  function nowOf(e, attribute) {
+    if (!e) return '';
+    if (!attribute) return e.state + (e.unit ? ' ' + e.unit : '');
+    if (e.attrs && attribute in e.attrs) return e.attrs[attribute];
+    if (e.lists && attribute in e.lists) return String(e.lists[attribute]);
+    return '';
+  }
+  function attributeChoices(e, lists) {
+    const out = [['', T.state]];
+    if (e && e.attrs) Object.keys(e.attrs).forEach((k) => out.push([k, k]));
+    if (e && e.lists && lists) Object.keys(e.lists).forEach((k) => out.push([k, k + ' (' + e.lists[k] + ')']));
+    return out;
+  }
+  // A value written on the page: a number, true or false, a list or an object as JSON, else text.
+  function valueOf(text) { try { return JSON.parse(text); } catch (e) { return text; } }
+  function textOf(v) { return typeof v === 'string' ? v : JSON.stringify(v); }
+  // A script's variables: the fields it declares, then any others, one per line as name: value.
+  function variablesBox(a, i) {
+    const box = document.createElement('div');
+    if (!a.entity.startsWith('script.')) return box;
+    const opt = actionOptions.find((o) => o.id === a.entity);
+    const fields = ((opt && opt.fields) || []).filter((f) => f.key !== 'player');
+    fields.forEach((f, j) => {
+      const id = 'field' + i + '_' + j;
+      if (!(f.key in a.variables) && f.default !== undefined) a.variables[f.key] = f.default;
+      const set = (v) => { if (v === '' || v === undefined) delete a.variables[f.key]; else a.variables[f.key] = v; };
+      const v = a.variables[f.key];
+      if (f.type === 'boolean') {
+        const row = document.createElement('label'); row.className = 'row';
+        const c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.checked = v === true;
+        c.onchange = () => { a.variables[f.key] = c.checked; };
+        row.append(c, document.createTextNode(f.name)); box.append(row);
+      } else if (f.type === 'select') {
+        const pairs = (f.required ? [] : [['', T.none]]).concat(f.options.map((o) => [o.value, o.label]));
+        const sel = choice(id, pairs, v === undefined ? '' : textOf(v)); sel.onchange = () => set(sel.value);
+        box.append(label(id, f.name), sel);
+      } else if (f.type === 'entity') {
+        box.append(label(id, f.name), picker(id, entityChoices(f.domains), typeof v === 'string' ? v : '', (picked) => set(picked)));
+      } else {
+        const input = document.createElement('input'); input.id = id;
+        input.type = f.type === 'number' ? 'number' : 'text'; if (f.type === 'number') input.step = 'any';
+        input.value = v === undefined ? '' : textOf(v); input.placeholder = f.example || '';
+        input.oninput = () => set(f.type === 'number' ? (input.value === '' ? '' : Number(input.value)) : input.value);
+        box.append(label(id, f.name), input);
+      }
+      if (f.description) box.append(hint(f.description));
+    });
+    const declared = new Set(fields.map((f) => f.key));
+    const area = document.createElement('textarea'); area.id = 'variables' + i; area.className = 'vars'; area.placeholder = T.variablesExample;
+    area.setAttribute('autocapitalize', 'off'); area.setAttribute('autocorrect', 'off'); area.spellcheck = false;
+    area.value = Object.keys(a.variables).filter((k) => !declared.has(k)).map((k) => k + ': ' + textOf(a.variables[k])).join('\n');
+    area.oninput = () => {
+      Object.keys(a.variables).forEach((k) => { if (!declared.has(k)) delete a.variables[k]; });
+      area.value.split('\n').forEach((line) => {
+        const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?)\s*${'$'}/);
+        if (m && !declared.has(m[1])) a.variables[m[1]] = valueOf(m[2]);
+      });
+    };
+    box.append(label(area.id, fields.length ? T.moreVariables : T.variables), area, hint(T.variablesHint));
+    return box;
+  }
+  // When a button shows: always, or only while an entity's state or attribute is, is not, is above or below a value.
+  function conditionBox(a, i) {
+    const box = document.createElement('div');
+    const show = choice('show' + i, [['', T.showAlways], ['when', T.showWhen]], a.when ? 'when' : '');
+    const detail = document.createElement('div');
+    show.onchange = () => { a.when = show.value ? (a.when || { entity: '', attribute: '', test: 'is', value: '' }) : null; draw(); };
+    function draw() {
+      detail.textContent = '';
+      const w = a.when;
+      if (!w) return;
+      const e = entityOf(w.entity);
+      const pick = picker('whenEntity' + i, entityChoices(), w.entity, (id) => { w.entity = id; w.attribute = ''; draw(); });
+      const row = document.createElement('div'); row.className = 'pair';
+      const what = choice('whenWhat' + i, attributeChoices(e, true), w.attribute || ''); what.className = 'compare';
+      what.onchange = () => { w.attribute = what.value; draw(); };
+      const test = choice('whenTest' + i, TESTS, w.test); test.onchange = () => { w.test = test.value; };
+      const value = document.createElement('input'); value.type = 'text'; value.id = 'whenValue' + i; value.value = w.value;
+      value.placeholder = nowOf(e, w.attribute); value.setAttribute('aria-label', T.showWhen);
+      value.oninput = () => { w.value = value.value; };
+      row.append(test, value);
+      detail.append(label('whenEntity' + i, T.entity), pick, what, row);
+      if (e && w.attribute && e.lists && w.attribute in e.lists) detail.append(hint(T.conditionHint));
+    }
+    draw();
+    box.append(label('show' + i, T.show), show, detail);
+    return box;
   }
   function renderActions() {
     const box = ${'$'}('actions'); box.textContent = '';
     actionsShown = true;
     if (!actionOptions.length && !actions.length) {
-      const p = document.createElement('p'); p.className = 'hint'; p.textContent = T.noActions; box.append(p);
+      box.append(hint(T.noActions));
       ${'$'}('addAction').classList.add('hidden');
       return;
     }
+    const choices = actionOptions.map((o) => ({ id: o.id, name: o.name, meta: o.id }));
     actions.forEach((a, i) => {
       const row = document.createElement('div'); row.className = 'action';
-      const nameLabel = document.createElement('label'); nameLabel.htmlFor = 'actionName' + i; nameLabel.textContent = T.actionName;
       const name = document.createElement('input'); name.type = 'text'; name.id = 'actionName' + i; name.maxLength = __MAX_NAME__;
       name.value = a.name || ''; name.placeholder = optionName(a.entity);
       name.oninput = () => { a.name = name.value; };
-      const whatLabel = document.createElement('label'); whatLabel.htmlFor = 'actionWhat' + i; whatLabel.textContent = T.actionWhat;
-      const what = actionSelect(a.entity); what.id = 'actionWhat' + i;
-      what.onchange = () => { a.entity = what.value; name.placeholder = optionName(what.value); };
+      const what = picker('actionWhat' + i, choices, a.entity, (id) => { a.entity = id; renderActions(); });
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet'; remove.textContent = T.actionRemove;
       remove.onclick = () => { actions.splice(i, 1); renderActions(); };
-      row.append(nameLabel, name, whatLabel, what, remove); box.append(row);
+      row.append(label(name.id, T.actionName), name, label('actionWhat' + i, T.actionWhat), what, variablesBox(a, i), conditionBox(a, i), remove);
+      box.append(row);
     });
     ${'$'}('addAction').classList.toggle('hidden', actions.length >= MAX_ACTIONS);
   }
   function addAction() {
     if (actions.length >= MAX_ACTIONS) return;
-    actions.push({ name: '', entity: '' });
+    actions.push({ name: '', entity: '', variables: {}, when: null });
     renderActions();
     const last = ${'$'}('actionWhat' + (actions.length - 1)); if (last) last.focus();
+  }
+  function renderValues() {
+    const box = ${'$'}('values'); box.textContent = '';
+    valuesShown = true;
+    if (!entityOptions.length && !values.length) {
+      box.append(hint(T.noEntities));
+      ${'$'}('addValue').classList.add('hidden');
+      return;
+    }
+    const choices = entityChoices();
+    values.forEach((v, i) => {
+      const row = document.createElement('div'); row.className = 'action';
+      const name = document.createElement('input'); name.type = 'text'; name.id = 'valueName' + i; name.maxLength = __MAX_VALUE_NAME__;
+      name.value = v.name || ''; name.oninput = () => { v.name = name.value; };
+      const e = entityOf(v.entity);
+      const pick = picker('valueEntity' + i, choices, v.entity, (id) => { v.entity = id; v.attribute = ''; renderValues(); });
+      const what = choice('valueWhat' + i, attributeChoices(e, false), v.attribute || '');
+      const now = hint(e ? T.now.replace('%s', nowOf(e, v.attribute)) : '');
+      what.onchange = () => { v.attribute = what.value; now.textContent = e ? T.now.replace('%s', nowOf(e, v.attribute)) : ''; };
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet'; remove.textContent = T.actionRemove;
+      remove.onclick = () => { values.splice(i, 1); renderValues(); };
+      row.append(label(name.id, T.valueName), name, label('valueEntity' + i, T.entity), pick, label(what.id, T.valueWhat), what, now, remove);
+      box.append(row);
+    });
+    ${'$'}('addValue').classList.toggle('hidden', values.length >= MAX_VALUES);
+  }
+  function addValue() {
+    if (values.length >= MAX_VALUES) return;
+    values.push({ name: '', entity: '', attribute: '' });
+    renderValues();
+    const last = ${'$'}('valueEntity' + (values.length - 1)); if (last) last.focus();
   }
   async function load() {
     if (code().length !== 6) return;
@@ -390,7 +594,8 @@ object SetupPage {
     ${'$'}('maUrl').value = s.maUrl || '';
     lights = { lightsLeft: s.lightsLeft || '', lightsCenter: s.lightsCenter || '', lightsRight: s.lightsRight || '' };
     weather = s.weather || ''; ${'$'}('weather').value = weather;
-    actions = (s.actions || []).map((a) => ({ name: a.name || '', entity: a.entity || '' }));
+    actions = (s.actions || []).map((a) => ({ name: a.name || '', entity: a.entity || '', variables: a.variables || {}, when: a.when || null }));
+    values = (s.values || []).map((v) => ({ name: v.name || '', entity: v.entity || '', attribute: v.attribute || '' }));
     if (s.hasMaToken) ${'$'}('maToken').placeholder = T.tokenKept;
     if (params.get('signin') === 'failed') show('haStatus', T.signInFailed, 'bad');
     else if (s.auth === 'signin') show('haStatus', T.signedIn, 'good');
@@ -418,7 +623,9 @@ object SetupPage {
       renderLights(r.lights || []);
       renderWeather(r.weather || []);
       actionOptions = r.actions || [];
+      entityOptions = r.entities || [];
       renderActions();
+      renderValues();
       status(T.connected, 'good');
     } catch (e) { status(T.tvUnreachable, 'bad'); }
     finally { ${'$'}('find').disabled = false; }
@@ -438,7 +645,17 @@ object SetupPage {
       // The lights only once the page has shown them; otherwise they stay as they are.
       if (lightsShown) ['lightsLeft', 'lightsCenter', 'lightsRight'].forEach((k) => body[k] = ${'$'}(k).value);
       // The buttons too, in their order; one without an entity is left out, one without a name takes the entity's.
-      if (actionsShown) body.actions = actions.filter((a) => a.entity).map((a) => ({ name: a.name.trim() || optionName(a.entity), entity: a.entity }));
+      if (actionsShown) {
+        const ready = actions.filter((a) => a.entity);
+        const loose = ready.find((a) => a.when && a.when.entity && (a.when.test === 'above' || a.when.test === 'below') && isNaN(parseFloat(String(a.when.value).replace(',', '.'))));
+        if (loose) { status(T.conditionNumber, 'bad'); return; }
+        body.actions = ready.map((a) => ({
+          name: a.name.trim() || optionName(a.entity), entity: a.entity,
+          variables: a.entity.startsWith('script.') && Object.keys(a.variables).length ? a.variables : undefined,
+          when: a.when && a.when.entity ? { entity: a.when.entity, attribute: a.when.attribute || undefined, test: a.when.test, value: String(a.when.value) } : undefined }));
+      }
+      // The values in the status line, likewise.
+      if (valuesShown) body.values = values.filter((v) => v.entity).map((v) => ({ name: v.name.trim(), entity: v.entity, attribute: v.attribute || undefined }));
       const r = await api('/api/save', body);
       status(r.message || (r.ok ? T.saved : T.failed), r.ok ? 'good' : 'bad');
       if (r.ok) sessionStorage.removeItem('klangbild-code');
@@ -449,6 +666,7 @@ object SetupPage {
   ${'$'}('find').onclick = find;
   ${'$'}('save').onclick = save;
   ${'$'}('addAction').onclick = addAction;
+  ${'$'}('addValue').onclick = addValue;
   ${'$'}('code').oninput = () => { if (code().length === 6) load(); };
   if (params.has('signin')) history.replaceState(null, '', '/');
   load();

@@ -114,6 +114,8 @@ data class DisplayOptions(
     /** "Living room + 5" while other speakers play along. */
     val group: Boolean = true,
     val volume: VolumeDisplay = VolumeDisplay.ON_CHANGE,
+    /** The values of one's own from Home Assistant, after the clock. */
+    val values: Boolean = true,
     val light: LightLevel = LightLevel.NORMAL,
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
@@ -141,6 +143,8 @@ data class Settings(
     val showAlbum: Boolean = true,
     val showGroup: Boolean = true,
     val volumeDisplay: VolumeDisplay = VolumeDisplay.ON_CHANGE,
+    /** The values of one's own show in the status line. */
+    val showValues: Boolean = true,
     val light: LightLevel = LightLevel.NORMAL,
     /** Up and down on the remote change the speaker's volume (instead of the window view and the quick settings). */
     val volumeKeys: Boolean = false,
@@ -166,6 +170,8 @@ data class Settings(
     val weatherEntity: String? = null,
     /** Buttons of one's own in the quick settings, set up on the phone. */
     val quickActions: List<QuickAction> = emptyList(),
+    /** Values of one's own from Home Assistant in the status line, set up on the phone. */
+    val ownValues: List<OwnValue> = emptyList(),
 ) {
     /** The weather entities to follow: the one chosen, else Home Assistant's usual forecast entities. */
     val weatherEntities: List<String>
@@ -221,6 +227,7 @@ data class Settings(
             album = showAlbum,
             group = showGroup,
             volume = volumeDisplay,
+            values = showValues,
             light = light,
             background = background,
             motion = motion,
@@ -275,6 +282,8 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
         val miniPlayer = stringPreferencesKey("mini_player")
         val weather = stringPreferencesKey("weather_entity")
         val quickActions = stringPreferencesKey("quick_actions")
+        val ownValues = stringPreferencesKey("own_values")
+        val showValues = booleanPreferencesKey("show_values")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -310,6 +319,8 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             miniPlayer = p[Keys.miniPlayer]?.let { runCatching { MiniPlayer.valueOf(it) }.getOrNull() } ?: MiniPlayer.LEFT,
             weatherEntity = p[Keys.weather],
             quickActions = QuickActions.decode(p[Keys.quickActions]),
+            ownValues = OwnValues.decode(p[Keys.ownValues]),
+            showValues = p[Keys.showValues] ?: true,
         )
     }
 
@@ -353,6 +364,8 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             p[Keys.miniPlayer] = s.miniPlayer.name
             putOrRemove(Keys.weather, s.weatherEntity)
             putOrRemove(Keys.quickActions, s.quickActions.takeIf { it.isNotEmpty() }?.let(QuickActions::encode))
+            putOrRemove(Keys.ownValues, s.ownValues.takeIf { it.isNotEmpty() }?.let(OwnValues::encode))
+            p[Keys.showValues] = s.showValues
         }
     }
 
@@ -391,6 +404,7 @@ object LaunchExtras {
     const val ALBUM = "album"
     const val GROUP = "group"
     const val VOLUME = "volume"
+    const val VALUES = "values"
     const val LIGHT = "light"
     const val VOLUME_KEYS = "volume_keys"
     const val REMOTE = "remote"
@@ -423,7 +437,7 @@ object LaunchExtras {
     )
 
     private val stored = listOf(
-        HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT,
+        HA_URL, TOKEN, MA_URL, MA_TOKEN, ENTITY, SLEEP_MINUTES, SLEEP_ACTION, CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, VALUES, LIGHT,
         VOLUME_KEYS, REMOTE, APPEARANCE, VIEW, BACKGROUND, MOTION, LIGHTS_LEFT, LIGHTS_CENTER, LIGHTS_RIGHT, LIGHTS_LEVEL,
         SPOKEN_SKIP, WINDOW_VIEW_PAUSE, WINDOW_VIEW_PLAYING, MINI_PLAYER, WEATHER,
     )
@@ -464,6 +478,7 @@ object LaunchExtras {
         boolOf(extras[NEXT])?.let { out = out.copy(showNext = it) }
         boolOf(extras[ALBUM])?.let { out = out.copy(showAlbum = it) }
         boolOf(extras[GROUP])?.let { out = out.copy(showGroup = it) }
+        boolOf(extras[VALUES])?.let { out = out.copy(showValues = it) }
         boolOf(extras[VOLUME_KEYS])?.let { out = out.copy(volumeKeys = it) }
         boolOf(extras[REMOTE])?.let { out = out.copy(remoteControl = it) }
         (extras[VOLUME] as? String)?.let { v ->
@@ -600,7 +615,7 @@ object LaunchExtras {
      * speaker or the lights to control. Any page in a browser on the TV could open such a link.
      */
     private val linkKeys = setOf(
-        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, LIGHT, VOLUME_KEYS, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
+        CLOCK, TIME_LINE, NEXT, ALBUM, GROUP, VOLUME, VALUES, LIGHT, VOLUME_KEYS, REMOTE, SLEEP_MINUTES, SLEEP_ACTION,
         APPEARANCE, VIEW, BACKGROUND, MOTION, LIGHTS_LEVEL, SPOKEN_SKIP, WINDOW_VIEW_PAUSE, WINDOW_VIEW_PLAYING, MINI_PLAYER,
         WINDOW_VIEW,
     )

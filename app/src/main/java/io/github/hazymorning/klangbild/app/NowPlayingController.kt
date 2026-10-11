@@ -9,6 +9,7 @@ import io.github.hazymorning.klangbild.config.DisplayOptions
 import io.github.hazymorning.klangbild.config.LaunchExtras
 import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.MiniPlayer
+import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.config.QuickRow
 import io.github.hazymorning.klangbild.config.SessionOptions
 import io.github.hazymorning.klangbild.config.Settings
@@ -40,6 +41,7 @@ import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.SunClock
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.domain.ValueText
 import io.github.hazymorning.klangbild.domain.VistaPolicy
 import io.github.hazymorning.klangbild.lights.LightBridge
 import io.github.hazymorning.klangbild.lights.LightSync
@@ -126,6 +128,8 @@ data class UiState(
     val vistaAhead: MiniPlayer? = null,
     /** The words in the language shown; null leaves them to the screen's own context. */
     val texts: Texts? = null,
+    /** The values of one's own in words, as far as Home Assistant can tell them ("Outside 12 °C"). */
+    val values: List<String> = emptyList(),
 )
 
 /** The window view while it shows: what plays (for the mini player) and where the label sits. */
@@ -530,8 +534,9 @@ class NowPlayingController(
             machine = ScreenStateMachine(timing).also { it.requestSetup(setup) }
         }
         reconcileSource()
-        // The quick settings' own buttons show only while their entities are there.
-        source?.followActions(s.quickActions.map { it.entity }.toSet())
+        // The quick settings' own buttons show only while their entities are there (and their
+        // conditions hold); the values in the status line follow their entities.
+        source?.followEntities(QuickActions.entities(s.quickActions) + s.ownValues.map { it.entity })
         recompute()
     }
 
@@ -686,6 +691,10 @@ class NowPlayingController(
             vista = vista,
             vistaAhead = s.miniPlayer.takeIf { vistaPolicy.onItsWay },
             texts = texts,
+            values = s.ownValues.mapNotNull { v ->
+                val e = src.entities[v.entity]
+                ValueText.of(v, e?.state, e?.attributes, src.precision[v.entity], src.temperatureUnit, texts, t)
+            },
         )
         // The colors move only while music plays, on the screen and in the lights alike.
         fieldClock.run(if (playing) s.motion.speed else 0f)

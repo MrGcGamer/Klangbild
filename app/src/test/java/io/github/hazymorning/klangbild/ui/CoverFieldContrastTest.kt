@@ -82,7 +82,7 @@ class CoverFieldContrastTest {
         val x0 = (l.columnLeft + reach).toInt()
         val x1 = (l.columnLeft + l.columnWidth).toInt()
         val y0 = l.statusTop.toInt() - 4
-        val y1 = l.footerBaseline.toInt() + 4
+        val y1 = l.footerBottom.toInt() + 4
         var worst = if (darkText) -1 else 0xFF000000.toInt()
         var worstY = if (darkText) 2f else -1f
         for (y in y0 until y1) for (x in x0 until x1) {

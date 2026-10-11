@@ -40,7 +40,10 @@ class SetupHandlerTest {
 
     private val clientId = "http://192.168.1.23:8765/"
 
-    private val handler = SetupHandler(
+    /** What saving also does: on the TV it ends the setup. */
+    private var afterSave: suspend () -> Unit = {}
+
+    private val handler: SetupHandler = SetupHandler(
         settings = { stored },
         texts = { texts },
         discover = { url, credentials ->
@@ -52,7 +55,10 @@ class SetupHandlerTest {
                 listOf(ActionOption("script.ungroup_speakers", "Lautsprecher trennen"), ActionOption("scene.movie", "Kino")),
             )
         },
-        save = { stored = it },
+        save = {
+            stored = it
+            afterSave()
+        },
         clientId = { clientId },
         exchange = { url, code, client ->
             exchanged += Triple(url, code, client)
@@ -285,6 +291,99 @@ class SetupHandlerTest {
     }
 
     @Test
+    fun `a button keeps its script's variables and its condition, and the page gets them back`() {
+        val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
+        val button = """{"name":"Trennen","entity":"script.ungroup_speakers","variables":{"mode":"all","volume":0.4},
+            "when":{"entity":"media_player.wz","attribute":"group_members","test":"above","value":"1"}}"""
+        assertThat(post("/api/save", """{$base,"actions":[$button]}""").status).isEqualTo(200)
+        val a = stored.quickActions.single()
+        assertThat(a.variables.toString()).isEqualTo("""{"mode":"all","volume":0.4}""")
+        assertThat(a.condition).isEqualTo(io.github.hazymorning.klangbild.config.Condition("media_player.wz", "group_members", io.github.hazymorning.klangbild.config.Condition.Test.ABOVE, "1"))
+        val state = json(post("/api/state", """{"code":"${handler.code}"}"""))
+        assertThat(state["actions"].toString()).contains(""""variables":{"mode":"all","volume":0.4}""")
+        assertThat(state["actions"].toString()).contains(""""when":{"entity":"media_player.wz","attribute":"group_members","test":"above","value":"1"}""")
+        // Above and below need a number.
+        val loose = """{"name":"x","entity":"script.ungroup_speakers","when":{"entity":"sensor.t","test":"above","value":"warm"}}"""
+        assertThat(post("/api/save", """{$base,"actions":[$loose]}""").status).isEqualTo(400)
+    }
+
+    @Test
+    fun `values for the status line are stored when the page showed them and kept when it did not`() {
+        val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
+        val two = """[{"name":"Außen","entity":"sensor.outside"},{"name":"","entity":"weather.home","attribute":"temperature"}]"""
+        assertThat(post("/api/save", """{$base,"values":$two}""").status).isEqualTo(200)
+        assertThat(stored.ownValues).containsExactly(
+            io.github.hazymorning.klangbild.config.OwnValue("Außen", "sensor.outside"),
+            io.github.hazymorning.klangbild.config.OwnValue("", "weather.home", "temperature"),
+        ).inOrder()
+        assertThat(json(post("/api/state", """{"code":"${handler.code}"}"""))["values"].toString())
+            .isEqualTo("""[{"name":"Außen","entity":"sensor.outside"},{"name":"","entity":"weather.home","attribute":"temperature"}]""")
+        assertThat(post("/api/save", """{$base}""").status).isEqualTo(200)
+        assertThat(stored.ownValues).hasSize(2)
+        assertThat(post("/api/save", """{$base,"values":[{"name":"x","entity":"not an entity"}]}""").status).isEqualTo(400)
+        val many = (1..5).joinToString(",", "[", "]") { """{"name":"$it","entity":"sensor.s$it"}""" }
+        assertThat(post("/api/save", """{$base,"values":$many}""").status).isEqualTo(200)
+        assertThat(stored.ownValues).hasSize(io.github.hazymorning.klangbild.config.OwnValues.MAX)
+        assertThat(post("/api/save", """{$base,"values":[]}""").status).isEqualTo(200)
+        assertThat(stored.ownValues).isEmpty()
+    }
+
+    @Test
+    fun `every entity is offered for values and conditions, without what only describes it`() {
+        val r = SetupServer.parseSpeakers(
+            """[{"entity_id":"sensor.outside","state":"12.345","attributes":{"friendly_name":"Outside","unit_of_measurement":"°C","device_class":"temperature"}},
+               {"entity_id":"media_player.wz","state":"playing","attributes":{"friendly_name":"Wohnzimmer","group_members":["media_player.wz","media_player.k"],
+                 "source_list":["a","b"],"volume_level":0.35,"media_title":"${"x".repeat(80)}","entity_picture":"/api/x","nested":{"a":1}}}]""",
+            texts,
+        ) as DiscoverResult.Ok
+        val outside = r.entities.first { it.entityId == "sensor.outside" }
+        assertThat(outside.unit).isEqualTo("°C")
+        assertThat(outside.attributes).isEmpty()
+        val wz = r.entities.first { it.entityId == "media_player.wz" }
+        assertThat(wz.lists).containsExactly("group_members", 2)
+        assertThat(wz.attributes.keys).containsExactly("volume_level", "media_title")
+        assertThat(wz.attributes.getValue("media_title")).hasLength(40)
+        // Sent to the page with the rest.
+        val found = json(post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}"""))
+        assertThat(found["entities"].toString()).isEqualTo("[]")
+    }
+
+    @Test
+    fun `a script's fields are read from Home Assistant's actions`() {
+        val services = """[{"domain":"light","services":{"turn_on":{"fields":{"brightness":{}}}}},
+            {"domain":"script","services":{
+              "group":{"name":"Group","fields":{
+                "player":{"selector":{"entity":{"filter":[{"domain":"media_player"}]}}},
+                "mode":{"name":"Mode","required":true,"default":"join","selector":{"select":{"options":["join",{"value":"leave","label":"Leave"}]}}},
+                "volume":{"name":"Volume","example":"0.3","selector":{"number":{"min":0,"max":1}}},
+                "announce":{"selector":{"boolean":{}}},
+                "rooms":{"selector":{"entity":{"multiple":true}}},
+                "advanced":{"collapsed":true,"fields":{"delay":{"selector":{"text":{}}}}},
+                "bad key":{}
+              }},
+              "plain":{"name":"Plain"}}}]"""
+        val fields = SetupServer.scriptFields(services)
+        val group = fields.getValue("group")
+        assertThat(group.map { it.key }).containsExactly("player", "mode", "volume", "announce", "rooms", "delay").inOrder()
+        assertThat(group[0].type).isEqualTo(ScriptField.ENTITY)
+        assertThat(group[0].domains).containsExactly("media_player")
+        assertThat(group[1].type).isEqualTo(ScriptField.SELECT)
+        assertThat(group[1].options).containsExactly("join" to "join", "leave" to "Leave").inOrder()
+        assertThat(group[1].required).isTrue()
+        assertThat(group[1].default.toString()).isEqualTo("\"join\"")
+        assertThat(group[2].type).isEqualTo(ScriptField.NUMBER)
+        assertThat(group[2].example).isEqualTo("0.3")
+        assertThat(group[3].type).isEqualTo(ScriptField.BOOLEAN)
+        // Several entities at once: written as a list.
+        assertThat(group[4].type).isEqualTo(ScriptField.TEXT)
+        assertThat(fields.getValue("plain")).isEmpty()
+        // The page gets them with the script.
+        val r = SetupServer.parseSpeakers("""[{"entity_id":"script.group","state":"off","attributes":{"friendly_name":"Group"}}]""", texts, services) as DiscoverResult.Ok
+        assertThat(r.actions.single().fields.map { it.key }).contains("mode")
+        assertThat(SetupServer.scriptFields("not json")).isEmpty()
+    }
+
+    @Test
     fun `every light is offered, whatever it can show`() {
         val r = SetupServer.parseSpeakers(
             """[
@@ -333,6 +432,18 @@ class SetupHandlerTest {
         assertThat(saved.status).isEqualTo(200)
         assertThat(stored.haCredentials).isEqualTo(HaCredentials.SignedIn("refresh-abc", clientId))
         assertThat(stored.haToken).isNull()
+        assertThat(revoked).isEmpty()
+    }
+
+    @Test
+    fun `the sign-in just saved is never revoked by the end of the setup that saving brings`() {
+        val state = startSignIn().queryParameter("state")!!
+        get("/auth/callback", mapOf("code" to "abc", "state" to state))
+        // On the TV, saving closes the setup screen, and its reset runs before the answer is written.
+        afterSave = { handler.reset() }
+        val saved = post("/api/save", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":"","entity":"media_player.wz"}""")
+        assertThat(saved.status).isEqualTo(200)
+        assertThat(stored.haCredentials).isEqualTo(HaCredentials.SignedIn("refresh-abc", clientId))
         assertThat(revoked).isEmpty()
     }
 

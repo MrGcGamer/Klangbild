@@ -375,7 +375,7 @@ object CoverField {
         val tx0 = textLeft(layout) - 16f
         val tx1 = layout.columnLeft + layout.columnWidth + 8f
         val ty0 = layout.statusTop - 20f
-        val ty1 = layout.footerBaseline + 16f
+        val ty1 = layout.footerBottom + 13f
         val pr = Oklab.srgbToLinear(field.base shr 16)
         val pg = Oklab.srgbToLinear(field.base shr 8)
         val pb = Oklab.srgbToLinear(field.base)
@@ -431,7 +431,7 @@ object CoverField {
         val u0 = textLeft(layout) / screen.widthDp
         val u1 = (layout.columnLeft + layout.columnWidth) / screen.widthDp
         val v0 = layout.statusTop / screen.heightDp
-        val v1 = layout.footerBaseline / screen.heightDp
+        val v1 = layout.footerBottom / screen.heightDp
         val places = FloatArray(field.blobs.size * FieldModel.STRIDE)
         var t = 0.0
         while (t < SCRIM_HORIZON_S) {

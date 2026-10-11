@@ -104,7 +104,7 @@ class QuickBarTest {
             ),
         )
         val ctx = playing.copy(
-            actions = mapOf("script.ungroup_speakers" to ActionState.READY, "scene.kino" to ActionState.DONE, "input_boolean.party" to ActionState.ON),
+            actions = mapOf(0 to ActionState.READY, 1 to ActionState.DONE, 2 to ActionState.ON),
         )
         val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
         fun shot(name: String, focus: QuickKey, t: io.github.hazymorning.klangbild.text.Texts = Fixtures.texts) {

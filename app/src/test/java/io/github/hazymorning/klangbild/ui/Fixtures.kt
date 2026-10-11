@@ -86,6 +86,7 @@ object Fixtures {
         album: Boolean = true,
         progress: Boolean = true,
         linkDown: Boolean = false,
+        values: List<String> = emptyList(),
     ): StageModel {
         val text = TrackText.from(track, t[io.github.hazymorning.klangbild.R.string.artists_others])
         return StageModel(
@@ -99,7 +100,7 @@ object Fixtures {
             line = StageTexts.line(linkDown, track, t),
             next = StageTexts.next(next, t),
             nextTitle = StageTexts.nextTitle(next, t),
-            statusLine = StatusLine(lead, clock),
+            statusLine = StatusLine(lead, clock, values),
         )
     }
 

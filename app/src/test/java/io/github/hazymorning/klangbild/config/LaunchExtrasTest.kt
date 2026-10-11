@@ -58,6 +58,7 @@ class LaunchExtrasTest {
                 "light" to "dezent",
                 "volume_keys" to "ja",
                 "remote" to "off",
+                "values" to "off",
             ),
         )
         assertThat(s.showTimeLine).isFalse()
@@ -68,6 +69,7 @@ class LaunchExtrasTest {
         assertThat(s.light).isEqualTo(LightLevel.SUBTLE)
         assertThat(s.volumeKeys).isTrue()
         assertThat(s.remoteControl).isFalse()
+        assertThat(s.showValues).isFalse()
         assertThat(LaunchExtras.applyTo(s, mapOf("light" to "kräftig", "volume" to "bei_änderung")).let { it.light to it.volumeDisplay })
             .isEqualTo(LightLevel.STRONG to VolumeDisplay.ON_CHANGE)
         assertThat(LaunchExtras.applyTo(s, mapOf("light" to "grell", "volume" to "laut"))).isEqualTo(s)

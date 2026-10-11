@@ -345,7 +345,8 @@ fun TextLayer(
         }
         val blockH = parts.lastOrNull()?.let { capY.last() - it.capTop + it.baseline } ?: 0
         val top = (layout.textCenter * density).roundToInt() - blockH / 2
-        val footer = (layout.footerBaseline * density).roundToInt()
+        // The last line's descenders end where the column ends.
+        val footer = (layout.footerBottom * density - styles.next.fontSize.toPx() * Fonts.DESCENT).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
             // Read while placing: a column that glides is only placed anew.
             val x = ((layout.columnLeft + shift()) * density).roundToInt()
@@ -388,11 +389,12 @@ private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
 }
 
 /**
- * The status line at the top of the column: the time, then where the music plays and what
- * it is doing ("Living room · Paused", or a passing volume). Its cap height is on the artwork's
- * top edge, and it starts on the column's left edge like everything else. The place cross-fades
- * when it changes; the clock just ticks, its figures in fixed cells. [shift] moves it with the
- * column (dp).
+ * The status line at the top of the column: the time, the values of one's own, then where the
+ * music plays and what it is doing ("Living room · Paused", or a passing volume). Its cap
+ * height is on the artwork's top edge, and it starts on the column's left edge like everything
+ * else. The place has its room first; values that do not fit beside it are left out, from the
+ * last, never cut. The place cross-fades when it changes; the clock and the values just tick,
+ * the clock's figures in fixed cells. [shift] moves it with the column (dp).
  */
 @Composable
 fun StatusLayer(
@@ -407,12 +409,35 @@ fun StatusLayer(
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }
     val figures = rememberFigures(styles.time, Face.TITLE)
     val clockText = status.clock
+    val measurer = rememberTextMeasurer()
+    val local = LocalDensity.current
+    val separator = TimeLine.SEPARATOR.trimStart()
+    // Which values fit beside the clock and the place, worked out on their measured widths.
+    val values = remember(status, styles, layout, local) {
+        fun width(text: AnnotatedString, style: TextStyle) = measurer.measure(text, style, maxLines = 1, softWrap = false).size.width
+        val space = with(local) { styles.label.fontSize.toPx() } * STATUS_SPACE_EM
+        var room = layout.columnWidth * local.density
+        if (clockText != null) room -= width(figures.of(clockText), styles.time) + space
+        status.lead?.let { room -= width(AnnotatedString(separator + it), styles.label) }
+        val fit = ArrayList<String>()
+        for ((i, v) in status.values.withIndex()) {
+            val need = width(AnnotatedString(if (clockText == null && i == 0) v else separator + v), styles.label) + space
+            if (need > room) break
+            fit += v
+            room -= need
+        }
+        fit
+    }
+    val leadAfter = clockText != null || values.isNotEmpty()
     Layout(
         modifier = modifier
             .fillMaxSize()
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) },
         content = {
             if (clockText != null) BasicText(figures.of(clockText), style = styles.time.copy(color = styles.muted), maxLines = 1) else Box(Modifier)
+            values.forEachIndexed { i, v ->
+                BasicText(if (clockText == null && i == 0) v else separator + v, style = styles.label, maxLines = 1)
+            }
             Crossfade(
                 targetState = status.lead,
                 animationSpec = tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer),
@@ -420,7 +445,7 @@ fun StatusLayer(
             ) { lead ->
                 if (lead != null) {
                     BasicText(
-                        if (clockText != null) TimeLine.SEPARATOR.trimStart() + lead else lead,
+                        if (leadAfter) separator + lead else lead,
                         style = styles.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -431,16 +456,27 @@ fun StatusLayer(
             }
         },
     ) { measurables, constraints ->
-        val clock = measurables[0].measure(Constraints())
-        val space = if (clock.width > 0) (styles.label.fontSize.toPx() * 0.26f).roundToInt() else 0
-        val lead = measurables[1].measure(Constraints(maxWidth = ((layout.columnWidth * density).roundToInt() - clock.width - space).coerceAtLeast(0)))
+        val space = (styles.label.fontSize.toPx() * STATUS_SPACE_EM).roundToInt()
+        val column = (layout.columnWidth * density).roundToInt()
+        val clock = measurables.first().measure(Constraints())
+        val parts = measurables.subList(1, measurables.size - 1).map { it.measure(Constraints()) }
+        // Everything before the place, with the space after each part.
+        val before = listOf(clock).filter { it.width > 0 } + parts
+        val used = before.sumOf { it.width + space }
+        val lead = measurables.last().measure(Constraints(maxWidth = (column - used).coerceAtLeast(0)))
         fun Placeable.first(): Int = this[FirstBaseline].takeIf { it != AlignmentLine.Unspecified } ?: height
-        // Cap height on the artwork's top edge.
+        // Cap height where the column begins.
         val baseline = (layout.statusTop * density).roundToInt() + (styles.label.fontSize.toPx() * Fonts.CAP_HEIGHT).roundToInt()
         layout(constraints.maxWidth, constraints.maxHeight) {
-            val left = ((layout.columnLeft + shift()) * density).roundToInt()
-            if (clock.height > 0) clock.place(left, baseline - clock.first())
-            if (lead.height > 0) lead.place(left + clock.width + space, baseline - lead.first())
+            var x = ((layout.columnLeft + shift()) * density).roundToInt()
+            for (p in before) {
+                p.place(x, baseline - p.first())
+                x += p.width + space
+            }
+            if (lead.height > 0) lead.place(x, baseline - lead.first())
         }
     }
 }
+
+/** The space between the parts of the status line: a word space of its labels. */
+private const val STATUS_SPACE_EM = 0.26f

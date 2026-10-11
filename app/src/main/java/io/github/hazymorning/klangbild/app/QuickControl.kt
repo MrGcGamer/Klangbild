@@ -44,11 +44,11 @@ internal class QuickControl(private val host: ControllerHost) {
     /** Shuffle just asked for, and until when it is shown before the player has reported it. */
     @Volatile private var shuffleWanted: Pair<Boolean, Long>? = null
 
-    /** The buttons whose call is out, by entity: OK waits for the answer. */
-    private val running = HashSet<String>()
+    /** The buttons whose call is out, by their place among the buttons: OK waits for the answer. */
+    private val running = HashSet<Int>()
 
-    /** How each button's last call went, by entity, and until when it says so. */
-    private val outcome = HashMap<String, Pair<ActionState, Long>>()
+    /** How each button's last call went, by its place, and until when it says so. */
+    private val outcome = HashMap<Int, Pair<ActionState, Long>>()
 
     /** A switch just turned from the quick settings: shown as asked until Home Assistant reports it, or a while. */
     private val switchWanted = HashMap<String, Pair<Boolean, Long>>()
@@ -120,7 +120,7 @@ internal class QuickControl(private val host: ControllerHost) {
                 host.applySettings(s.copy(roomLightLevel = level))
             }
             QuickItem.SHUFFLE -> toggleShuffle()
-            QuickItem.ACTION -> host.settings.quickActions.getOrNull(row.key.action)?.let(::runAction)
+            QuickItem.ACTION -> host.settings.quickActions.getOrNull(row.key.action)?.let { runAction(row.key.action, it) }
         }
     }
 
@@ -185,30 +185,30 @@ internal class QuickControl(private val host: ControllerHost) {
     }
 
     /**
-     * Does what a button of one's own says, once at a time. A switch shows its new state at once
+     * Does what the button at [index] says, once at a time. A switch shows its new state at once
      * (Home Assistant reports it a moment later); the others say how it went for [RESULT_MS].
      */
-    private fun runAction(action: QuickAction) {
+    private fun runAction(index: Int, action: QuickAction) {
         val src = host.source ?: return
         val kind = action.kind ?: return
         val entity = action.entity
         synchronized(host.lock) {
-            if (entity in running) return
+            if (index in running) return
             if (kind == ActionKind.TOGGLE) {
                 val on = switchShown(entity) ?: return
                 switchWanted[entity] = !on to host.now() + SWITCH_TRUST_MS
             }
-            running += entity
-            outcome.remove(entity)
+            running += index
+            outcome.remove(index)
         }
         host.recompute()
         host.scope.launch {
             val ok = src.run(action)
             synchronized(host.lock) {
-                running -= entity
+                running -= index
                 if (!ok) switchWanted.remove(entity)
                 // A switch tells by its state; only a failure is said in words.
-                if (kind != ActionKind.TOGGLE || !ok) outcome[entity] = (if (ok) ActionState.DONE else ActionState.FAILED) to host.now() + RESULT_MS
+                if (kind != ActionKind.TOGGLE || !ok) outcome[index] = (if (ok) ActionState.DONE else ActionState.FAILED) to host.now() + RESULT_MS
             }
             host.recompute()
             // Back to what the button does once the word has been read.
@@ -248,7 +248,7 @@ internal class QuickControl(private val host: ControllerHost) {
 
     /** Whether the switch [entity] shows as on: what was just asked for, else what Home Assistant says; null without a state. */
     private fun switchShown(entity: String): Boolean? {
-        val reported = when (host.ui.source.actions[entity]) {
+        val reported = when (host.ui.source.entities[entity]?.state) {
             "on" -> true
             "off" -> false
             else -> null
@@ -262,19 +262,23 @@ internal class QuickControl(private val host: ControllerHost) {
     }
 
     /**
-     * How each button stands now, by entity. A button whose entity Home Assistant does not know
-     * (yet), or has as unavailable, is left out; so is a switch that is neither on nor off.
+     * How each button stands now, by its place among the buttons. A button whose entity Home
+     * Assistant does not know (yet), or has as unavailable, is left out; so is a switch that is
+     * neither on nor off, and a button whose condition does not hold (unless it is just saying
+     * how its call went: what it did may have ended the condition).
      */
-    private fun actionStates(): Map<String, ActionState> {
-        val states = host.ui.source.actions
+    private fun actionStates(): Map<Int, ActionState> {
+        val entities = host.ui.source.entities
         val t = host.now()
-        val out = HashMap<String, ActionState>()
-        for (a in host.settings.quickActions) {
+        val out = HashMap<Int, ActionState>()
+        for ((i, a) in host.settings.quickActions.withIndex()) {
             val kind = a.kind ?: continue
-            val state = states[a.entity] ?: continue
+            val state = entities[a.entity]?.state ?: continue
             if (state == UNAVAILABLE) continue
-            val said = outcome[a.entity]?.takeIf { t < it.second }?.first
-            out[a.entity] = when {
+            val said = outcome[i]?.takeIf { t < it.second }?.first
+            val c = a.condition
+            if (c != null && i !in running && said == null && !entities[c.entity].let { e -> c.holds(e?.state, e?.attributes) }) continue
+            out[i] = when {
                 said != null -> said
                 kind == ActionKind.TOGGLE -> when (switchShown(a.entity)) {
                     true -> ActionState.ON

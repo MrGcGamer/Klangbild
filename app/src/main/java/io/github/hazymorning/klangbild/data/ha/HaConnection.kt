@@ -64,8 +64,17 @@ class HaCommandException(val code: String, message: String) : Exception(message)
  */
 class HaNoAnswerException(timeoutMs: Long) : IOException("no answer within $timeoutMs ms")
 
-/** An entity as the entity registry lists it for display (`config/entity_registry/list_for_display`). */
-data class RegistryEntry(val entityId: String, val platform: String, val deviceId: String?, val translationKey: String?)
+/**
+ * An entity as the entity registry lists it for display (`config/entity_registry/list_for_display`);
+ * a sensor with the number of decimals Home Assistant shows it with ([displayPrecision]).
+ */
+data class RegistryEntry(
+    val entityId: String,
+    val platform: String,
+    val deviceId: String?,
+    val translationKey: String?,
+    val displayPrecision: Int? = null,
+)
 
 /**
  * The WebSocket connection to Home Assistant, using only its documented commands
@@ -554,6 +563,8 @@ class HaConnection(
                 platform = o.str("pl") ?: return@mapNotNull null,
                 deviceId = o.str("di"),
                 translationKey = o.str("tk"),
+                // Home Assistant offers up to six decimals.
+                displayPrecision = (o["dp"] as? JsonPrimitive)?.intOrNull?.takeIf { it in 0..6 },
             )
         }
     }

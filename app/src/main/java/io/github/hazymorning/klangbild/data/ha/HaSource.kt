@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
@@ -109,20 +110,21 @@ class HaSource(
         publish(connection.status.value, connection.entities.value)
     }
 
-    /** The entities the quick settings' own buttons work, followed for whether they are there and on. */
-    @Volatile private var actionIds: Set<String> = emptySet()
+    /** The entities of one's own: what the quick settings' buttons work and look at, and the values in the status line. */
+    @Volatile private var ownIds: Set<String> = emptySet()
 
-    override fun followActions(ids: Set<String>) {
-        if (ids == actionIds) return
-        actionIds = ids
+    override fun followEntities(ids: Set<String>) {
+        if (ids == ownIds) return
+        ownIds = ids
         publish(connection.status.value, connection.entities.value)
     }
 
     /**
-     * Does what [action] says: a script runs (with the speaker as its variable `player`), a scene
-     * is activated, an automation runs its actions, a button is pressed, a switch is turned the
-     * other way. Home Assistant answers a call once it is done: one still running after
-     * [actionAnswerMs] (a long automation) has been taken.
+     * Does what [action] says: a script runs (with its variables, and the speaker as the
+     * variable `player` unless the button names one itself), a scene is activated, an
+     * automation runs its actions, a button is pressed, a switch is turned the other way. Home
+     * Assistant answers a call once it is done: one still running after [actionAnswerMs] (a long
+     * automation) has been taken.
      */
     override suspend fun run(action: QuickAction): Boolean {
         val kind = action.kind ?: return false
@@ -133,7 +135,11 @@ class HaSource(
             ActionKind.PRESS -> "press"
             ActionKind.TOGGLE -> "toggle"
         }
-        val data = if (domain == "script") buildJsonObject { put("variables", buildJsonObject { put("player", playerEntity) }) } else null
+        val data = if (domain == "script") {
+            buildJsonObject { put("variables", JsonObject(mapOf("player" to JsonPrimitive(playerEntity)) + action.variables)) }
+        } else {
+            null
+        }
         return try {
             connection.callService(domain, service, action.entity, data = data, timeoutMs = actionAnswerMs)
             true
@@ -275,7 +281,7 @@ class HaSource(
         // The other speakers of a group are followed too, for their names, and so are the
         // lights; in a larger group also every Music Assistant speaker, to tell "everywhere".
         val others = player?.groupMembers.orEmpty()
-        val follow = others.toSet() + lightIds + actionIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
+        val follow = others.toSet() + lightIds + ownIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
         if (follow != watched) {
             watched = follow
             connection.watch(watched)
@@ -306,7 +312,9 @@ class HaSource(
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
             windKmh = weather?.let { w -> w.number("wind_speed")?.let { speed -> WeatherMood.kmh(speed, w.string("wind_speed_unit")) } }
                 ?: _state.value.windKmh.takeIf { weather == null },
-            actions = actionIds.mapNotNull { id -> entities[id]?.let { id to it.state } }.toMap(),
+            entities = ownIds.mapNotNull { id -> entities[id]?.let { id to it } }.toMap(),
+            precision = connection.registry.value?.mapNotNull { e -> e.displayPrecision?.takeIf { e.entityId in ownIds }?.let { e.entityId to it } }?.toMap().orEmpty(),
+            temperatureUnit = temperatureUnitOf(connection.config.value) ?: _state.value.temperatureUnit,
         )
         // Until the new song is described, what was shown stays: the song before it, all of it.
         _state.value = if (player != null && key != null && awaitsDetails(player, key, t)) fresh.showing(_state.value) else fresh
@@ -357,10 +365,14 @@ class HaSource(
 
     /** Home Assistant's latitude and longitude from its configuration. */
     private fun placeOf(cfg: JsonObject?): Pair<Double, Double>? {
-        val lat = (cfg?.get("latitude") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
-        val lon = (cfg["longitude"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
+        val lat = (cfg?.get("latitude") as? JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
+        val lon = (cfg["longitude"] as? JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
         return if (lat == 0.0 && lon == 0.0) null else lat to lon
     }
+
+    /** Home Assistant's unit for temperatures ("°C", "°F") from its configuration. */
+    private fun temperatureUnitOf(cfg: JsonObject?): String? =
+        ((cfg?.get("unit_system") as? JsonObject)?.get("temperature") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
 
     /**
      * Who plays along: a sync group lists its members in `group_members` (on the leader and

@@ -11,8 +11,8 @@ import java.io.IOException
 
 /**
  * The parts of Home Assistant's REST API Klangbild uses
- * (https://developers.home-assistant.io/docs/api/rest): one entity's state, and all of them for
- * the setup page. Requests carry the access token and go only to [HaAuth.baseUrl].
+ * (https://developers.home-assistant.io/docs/api/rest): one entity's state, and all of them and
+ * every action for the setup page. Requests carry the access token and go only to [HaAuth.baseUrl].
  */
 class HaRest(private val http: OkHttpClient, private val auth: HaAuth) {
     /** What `GET /api/states/<entity_id>` found. */
@@ -41,7 +41,12 @@ class HaRest(private val http: OkHttpClient, private val auth: HaAuth) {
     }
 
     /** Every state (`GET /api/states`) as raw JSON text, for the setup page's lists. */
-    suspend fun allStates(): String = get("/api/states") { code, text ->
+    suspend fun allStates(): String = all("/api/states")
+
+    /** Every action Home Assistant offers (`GET /api/services`) as raw JSON text: a script's own fields for the setup page. */
+    suspend fun services(): String = all("/api/services")
+
+    private suspend fun all(path: String): String = get(path) { code, text ->
         if (code == 401 || code == 403) throw HaAuthRejectedException("HTTP $code")
         if (code != 200) throw IOException("Home Assistant answered $code")
         text

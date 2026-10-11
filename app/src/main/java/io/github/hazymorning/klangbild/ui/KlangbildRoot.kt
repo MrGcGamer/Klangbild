@@ -272,7 +272,8 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     val spoken = stageScreen?.track?.kind?.spoken == true
     val pace = ui.sleepAt?.let { StageTexts.sleep(it, t) } ?: TimeLine.speed(player?.speed ?: 1f, t)?.takeIf { spoken }
     val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, t = t, pace = pace)
-    val statusLine = StatusLine(lead, clock)
+    // The values of one's own, after the time (hidden by setting, back for a moment on a key).
+    val statusLine = StatusLine(lead, clock, ui.values.takeIf { display.values || peek }.orEmpty())
     // A station has no next song to tell (what its queue holds next is another station).
     val nextTrack = stageScreen?.next?.takeIf { display.next && stageScreen.track.kind != MediaKind.RADIO }
     val chapter = ui.chapter

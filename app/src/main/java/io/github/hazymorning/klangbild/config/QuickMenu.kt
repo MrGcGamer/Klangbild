@@ -78,10 +78,11 @@ data class QuickContext(
     /** Shuffle on or off as far as known; null when the player cannot shuffle. */
     val shuffle: Boolean? = null,
     /**
-     * The buttons that can be used now, by their entity, and how each stands. A button whose
-     * entity Home Assistant does not know or has as unavailable is not here.
+     * The buttons that can be used now, by their place among the buttons, and how each stands.
+     * A button whose entity Home Assistant does not know or has as unavailable, or whose
+     * condition does not hold, is not here.
      */
-    val actions: Map<String, ActionState> = emptyMap(),
+    val actions: Map<Int, ActionState> = emptyMap(),
 )
 
 /**
@@ -90,8 +91,8 @@ data class QuickContext(
  * (those stay on OK held). Left and right choose an entry, OK changes it (or does what it
  * says), up leaves the row. Entries that cannot do anything now are left out (no favorite
  * without music, no lights before they are set up, no shuffle on a player that cannot, no
- * button whose entity is unavailable). The buttons set up on the phone come last. The sleep
- * timer lives in the settings.
+ * button whose entity is unavailable or whose condition does not hold). The buttons set up on
+ * the phone come last. The sleep timer lives in the settings.
  */
 object QuickMenu {
     fun rows(s: Settings, ctx: QuickContext, t: Texts): List<QuickRow> = buildList {
@@ -102,7 +103,7 @@ object QuickMenu {
         if (ctx.music && ctx.shuffle != null) row(QuickItem.SHUFFLE, t[if (ctx.shuffle) R.string.on else R.string.off])
         s.quickActions.forEachIndexed { i, a ->
             val kind = a.kind ?: return@forEachIndexed
-            val state = ctx.actions[a.entity] ?: return@forEachIndexed
+            val state = ctx.actions[i] ?: return@forEachIndexed
             add(QuickRow(QuickKey(QuickItem.ACTION, i), a.name, actionValue(kind, state, t), actionValues(kind, t)))
         }
     }
