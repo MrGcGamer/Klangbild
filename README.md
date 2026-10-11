@@ -1,17 +1,18 @@
 # Klangbild
 
-Klangbild is a now-playing screen for Home Assistant and Music Assistant on Android TV: the cover large, the type set with care.
+Klangbild is a now playing screen for Home Assistant and Music Assistant on Android TV.
 
-- Backdrop and Hue lights in the cover's colours
+- The cover large, in English or German
 - Cover Flow through the queue
-- Fensterblick: a paper diorama in the light and weather outside
+- A paper landscape in the light and weather outside
+- Lights behind the TV in the cover's colors
 - Audiobooks and podcasts with chapters
-- Made for OLED, set up from the phone
+- Set up and signed in from your phone
 
-German interface. APK under [Releases](https://github.com/hazymorning/Klangbild/releases/latest).
+Get the APK from [Releases](https://github.com/hazymorning/Klangbild/releases/latest).
 
 ![Now playing](docs/screenshots/now-playing.jpg)
 
 ![Cover Flow](docs/screenshots/cover-flow.jpg)
 
-![Fensterblick](docs/screenshots/fensterblick.jpg)
+![Window view](docs/screenshots/window-view.jpg)
