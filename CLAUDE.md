@@ -8,8 +8,10 @@ in plain, complete sentences that a reader understands at once: what Klangbild i
 with any Home Assistant media player but is built for Music Assistant, and a feature or two.
 Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
 `docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
-notes are 100 to 200 characters. `docs/` holds only the notes of the releases on GitHub and the
-README's screenshots: effort goes into the app, not into documents.
+notes are 100 to 200 characters, headings included, easy to scan and in everyday words: a small
+heading for each kind of change there is (`### New`, `### Better`, `### Bug fixes`), under it a
+few short points a user understands at once, nothing technical. `docs/` holds only the notes of
+the releases on GitHub and the README's screenshots: effort goes into the app, not into documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
 
