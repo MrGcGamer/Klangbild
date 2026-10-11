@@ -1,0 +1,80 @@
+name: Finish setup
+
+# Run once, by hand, from the Actions tab: moves releases to a new signing key
+# (tools/rotate-signing-key.sh), keeps only version releases with their notes from docs/releases,
+# and sets the repository's description and topics. Writing secrets and the description needs a
+# token of the repository's owner: a classic token with the scope "repo", stored as the
+# repository secret SETUP_TOKEN. A run that succeeds deletes that secret again.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finish-setup
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: New signing key, tidy releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the token
+        env:
+          SETUP_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          if [ -z "$SETUP_TOKEN" ]; then
+            echo "::error::Add the repository secret SETUP_TOKEN first (a classic token with the scope repo)."
+            exit 1
+          fi
+
+      - name: Releases only for versions, each with its notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list -R "$REPO" --limit 200 --json tagName --jq '.[].tagName' | { grep -v '^v' || true; } |
+            while read -r tag; do
+              gh release delete "$tag" -R "$REPO" --cleanup-tag --yes
+              echo "Deleted the release $tag" >> "$GITHUB_STEP_SUMMARY"
+            done
+          for notes in docs/releases/v*.md; do
+            tag="$(basename "$notes" .md)"
+            if gh release view "$tag" -R "$REPO" > /dev/null 2>&1; then
+              gh release edit "$tag" -R "$REPO" --notes-file "$notes" > /dev/null
+            fi
+          done
+          echo "Every release has its notes from docs/releases." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Description and topics
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          gh repo edit "$REPO" \
+            --description "A now playing screen for Home Assistant on Android TV, built for Music Assistant." \
+            --add-topic android-tv --add-topic home-assistant --add-topic music-assistant \
+            --add-topic now-playing --add-topic kotlin --add-topic jetpack-compose
+          echo "The description and topics are set." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: New signing key
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          if gh secret list -R "$REPO" | cut -f1 | grep -x RELEASE_KEYSTORE > /dev/null; then
+            echo "The new signing key was already set." >> "$GITHUB_STEP_SUMMARY"
+          else
+            bash tools/rotate-signing-key.sh
+            echo "The new signing key is stored. The next release is signed with it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Delete the token
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_TOKEN }}
+        run: |
+          gh secret delete SETUP_TOKEN -R "$REPO"
+          echo "SETUP_TOKEN is deleted from the repository's secrets." >> "$GITHUB_STEP_SUMMARY"
