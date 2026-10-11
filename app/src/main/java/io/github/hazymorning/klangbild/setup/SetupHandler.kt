@@ -10,6 +10,7 @@ import io.github.hazymorning.klangbild.data.ha.HaTokens
 import io.github.hazymorning.klangbild.data.ha.HaUrls
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.text.Texts
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -48,8 +49,9 @@ sealed interface DiscoverResult {
  *
  * Security model (home network, plain HTTP):
  *  - The server only runs while the setup screen is visible on the TV.
- *  - Every API call needs the six-digit code shown on the TV (also in the QR code). Wrong codes
- *    are counted; after [MAX_FAILURES] a new code is drawn.
+ *  - Every API call needs the six-digit code shown on the TV (also in the QR code). A wrong
+ *    code is answered only after [WRONG_CODE_DELAY_MS], and after [MAX_FAILURES] a new code is
+ *    drawn.
  *  - The sign-in uses Home Assistant's own login page (authorization code grant). The page
  *    asks for it with the code; the callback must bring back the random state of that one
  *    request, within [SIGN_IN_MS]. Its tokens never reach the browser.
@@ -76,6 +78,8 @@ class SetupHandler(
     private val maGuess: () -> String? = { null },
     private val random: SecureRandom = SecureRandom(),
     private val now: () -> Long = System::currentTimeMillis,
+    /** A wrong code is answered only after this long: guessing a code takes days, not minutes. */
+    private val wrongCodeDelayMs: Long = WRONG_CODE_DELAY_MS,
 ) {
     @Volatile var code: String = newCode()
         private set
@@ -146,7 +150,10 @@ class SetupHandler(
         } catch (_: Exception) {
             return MiniHttp.Response.json(400, error(t[R.string.setup_error_request]))
         }
-        if (!codeMatches(body.str("code"))) return MiniHttp.Response.json(403, error(t[R.string.setup_error_code]))
+        if (!codeMatches(body.str("code"))) {
+            delay(wrongCodeDelayMs)
+            return MiniHttp.Response.json(403, error(t[R.string.setup_error_code]))
+        }
         return block(body)
     }
 
@@ -359,6 +366,9 @@ class SetupHandler(
 
     companion object {
         const val MAX_FAILURES = 8
+
+        /** How long a wrong code waits for its answer (ms). */
+        const val WRONG_CODE_DELAY_MS = 1_000L
 
         /** Where Home Assistant's login page sends the phone back to. */
         const val CALLBACK_PATH = "/auth/callback"

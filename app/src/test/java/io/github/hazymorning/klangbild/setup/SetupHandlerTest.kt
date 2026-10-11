@@ -64,6 +64,7 @@ class SetupHandlerTest {
         maGuess = { "http://192.168.1.5:8095" },
         random = SecureRandom(),
         now = { now },
+        wrongCodeDelayMs = 0L,
     )
 
     private fun post(path: String, body: String) = runBlocking {
