@@ -181,6 +181,12 @@
     <string name="favorite_adding">Adding…</string>
     <string name="favorite_added">Added</string>
     <string name="favorite_failed">Not found</string>
+    <!-- The quick settings' own buttons (set up on the phone): what OK does, and how it went -->
+    <string name="action_run">Run</string>
+    <string name="action_activate">Activate</string>
+    <string name="action_press">Press</string>
+    <string name="action_done">Done</string>
+    <string name="action_failed">Failed</string>
 
     <!-- Status line and stage -->
     <string name="status_paused">Paused</string>
@@ -278,6 +284,20 @@
     <string name="page_weather">Weather</string>
     <string name="page_weather_auto">Automatic</string>
     <string name="page_weather_none">None: always a clear sky</string>
+    <string name="page_actions_heading">7 · Buttons (optional)</string>
+    <string name="page_actions_hint">Your own buttons in the quick settings (arrow down on the remote). Each one runs a script or an automation, activates a scene, presses a button or switches something on and off. A script gets the speaker as the variable player.</string>
+    <string name="page_actions_empty">Connect Home Assistant first, then your scripts and scenes show here.</string>
+    <string name="page_no_actions">No scripts, scenes, buttons or switches found.</string>
+    <string name="page_action_name">Name</string>
+    <string name="page_action_what">What it does</string>
+    <string name="page_action_add">Add a button</string>
+    <string name="page_action_remove">Remove</string>
+    <string name="page_group_scripts">Scripts</string>
+    <string name="page_group_scenes">Scenes</string>
+    <string name="page_group_automations">Automations</string>
+    <string name="page_group_buttons">Buttons</string>
+    <string name="page_group_switches">Switches</string>
+    <string name="page_group_lights">Lights</string>
     <string name="page_save">Save</string>
     <string name="page_connecting">Connecting to Home Assistant…</string>
     <string name="page_failed">That didn’t work.</string>
@@ -306,6 +326,7 @@
     <string name="setup_error_sleep">The time must be between 1 and 720 minutes.</string>
     <string name="setup_error_lights">Please pick only lights.</string>
     <string name="setup_error_weather">Please choose a weather entity.</string>
+    <string name="setup_error_actions">Each button needs a script, a scene, an automation, a button or a switch.</string>
     <string name="setup_saved">Saved. The TV connects to Home Assistant now.</string>
     <string name="discover_rejected">Home Assistant rejected the access.</string>
     <string name="discover_unexpected">Home Assistant doesn’t answer as expected (HTTP %d).</string>

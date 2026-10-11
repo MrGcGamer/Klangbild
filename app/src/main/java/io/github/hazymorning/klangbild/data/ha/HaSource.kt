@@ -1,5 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
+import io.github.hazymorning.klangbild.config.ActionKind
+import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
@@ -51,6 +53,8 @@ class HaSource(
     private val weatherEntities: List<String> = emptyList(),
     /** How often the queue is read again while music plays (shorter in tests). */
     private val queueRefreshMs: Long = QUEUE_REFRESH_MS,
+    /** How long a button's call may go unanswered before it counts as still running (shorter in tests). */
+    private val actionAnswerMs: Long = ACTION_ANSWER_MS,
 ) : NowPlayingSource, LightBridge {
 
     private val connection = HaConnection(http, scope)
@@ -91,6 +95,43 @@ class HaSource(
         if (ids == lightIds) return
         lightIds = ids
         publish(connection.status.value, connection.entities.value)
+    }
+
+    /** The entities the quick settings' own buttons work, followed for whether they are there and on. */
+    @Volatile private var actionIds: Set<String> = emptySet()
+
+    override fun followActions(ids: Set<String>) {
+        if (ids == actionIds) return
+        actionIds = ids
+        publish(connection.status.value, connection.entities.value)
+    }
+
+    /**
+     * Does what [action] says: a script runs (with the speaker as its variable `player`), a scene
+     * is activated, an automation runs its actions, a button is pressed, a switch is turned the
+     * other way. Home Assistant answers a call once it is done: one still running after
+     * [actionAnswerMs] (a long automation) has been taken.
+     */
+    override suspend fun run(action: QuickAction): Boolean {
+        val kind = action.kind ?: return false
+        val domain = action.entity.substringBefore('.')
+        val service = when (kind) {
+            ActionKind.RUN -> if (domain == "script") "turn_on" else "trigger"
+            ActionKind.ACTIVATE -> "turn_on"
+            ActionKind.PRESS -> "press"
+            ActionKind.TOGGLE -> "toggle"
+        }
+        val data = if (domain == "script") buildJsonObject { put("variables", buildJsonObject { put("player", playerEntity) }) } else null
+        return try {
+            connection.callService(domain, service, action.entity, data = data, timeoutMs = actionAnswerMs)
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: HaNoAnswerException) {
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override suspend fun call(domain: String, service: String, entityId: String?, data: JsonObject?): String? = try {
@@ -221,7 +262,7 @@ class HaSource(
         // The other speakers of a group are followed too, for their names, and so are the
         // lights; in a larger group also every Music Assistant speaker, to tell "everywhere".
         val others = player?.groupMembers.orEmpty()
-        val follow = others.toSet() + lightIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
+        val follow = others.toSet() + lightIds + actionIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
         if (follow != watched) {
             watched = follow
             connection.watch(watched)
@@ -252,6 +293,7 @@ class HaSource(
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
             windKmh = weather?.let { w -> w.number("wind_speed")?.let { speed -> WeatherMood.kmh(speed, w.string("wind_speed_unit")) } }
                 ?: _state.value.windKmh.takeIf { weather == null },
+            actions = actionIds.mapNotNull { id -> entities[id]?.let { id to it.state } }.toMap(),
         )
     }
 
@@ -444,6 +486,9 @@ class HaSource(
 
         /** "Everywhere" needs at least this many speakers playing together. */
         const val EVERYWHERE_MIN = 3
+
+        /** A button's call that Home Assistant has not answered after this long is still running, and counts as taken. */
+        const val ACTION_ANSWER_MS = 4_000L
 
         /**
          * The service for [command] on player [p], or null when the player does not support it

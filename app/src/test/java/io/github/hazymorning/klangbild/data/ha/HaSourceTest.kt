@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.domain.MediaKind
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +60,10 @@ class HaSourceTest {
                 return when {
                     path == "/api/websocket" -> MockResponse.Builder().webSocketUpgrade(FakeHa()).build()
                     path == "/api/states/media_player.wz" -> MockResponse.Builder().body(playerState(Json.parseToJsonElement(player).jsonObject)).build()
+                    path == "/api/states/input_boolean.party" -> MockResponse.Builder().body(
+                        """{"entity_id":"input_boolean.party","state":"on","attributes":{},"last_changed":"2026-10-10T18:00:00+00:00",
+                            "last_updated":"2026-10-10T18:00:00+00:00","context":{"id":"y","parent_id":null,"user_id":null}}""",
+                    ).build()
                     else -> MockResponse.Builder().code(404).body("""{"message":"Entity not found."}""").build()
                 }
             }
@@ -100,7 +105,14 @@ class HaSourceTest {
                 "unsubscribe_events" -> ok()
                 "call_service" -> {
                     calls += msg
-                    val answer = if (msg["service"]?.jsonPrimitive?.content == "get_queue") queueAnswer?.invoke() else "null"
+                    val target = (msg["target"] as? JsonObject)?.get("entity_id")?.jsonPrimitive?.content
+                    // A long automation: Home Assistant answers once its actions are done.
+                    if (target == "automation.slow") return
+                    val answer = when {
+                        target == "script.broken" -> null
+                        msg["service"]?.jsonPrimitive?.content == "get_queue" -> queueAnswer?.invoke()
+                        else -> "null"
+                    }
                     if (answer == null) {
                         webSocket.send("""{"id":$id,"type":"result","success":false,"error":{"code":"home_assistant_error","message":"no queue"}}""")
                     } else {
@@ -133,6 +145,7 @@ class HaSourceTest {
         "media_player.wz",
         ma = ma,
         queueRefreshMs = refreshMs,
+        actionAnswerMs = 500L,
     )
 
     @Test
@@ -342,6 +355,40 @@ class HaSourceTest {
         report("media_title" to "Spinning", "media_artist" to "Other", "entity_picture" to stationPicture)
         withTimeout(5_000) { s.state.first { it.player?.track?.title == "Spinning" } }
         assertThat(picture()).endsWith("cache=station")
+        s.stop()
+    }
+
+    @Test
+    fun `the quick settings' own buttons go to Home Assistant as their kind wants, a script with the speaker`() = runBlocking {
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player != null } }
+        for (entity in listOf("script.ungroup_speakers", "scene.movie", "automation.night", "input_button.bell", "input_boolean.party")) {
+            assertThat(s.run(QuickAction("x", entity))).isTrue()
+        }
+        val sent = calls.filter { it["domain"]?.jsonPrimitive?.content != "music_assistant" }
+        assertThat(sent.map { it["domain"]!!.jsonPrimitive.content + "." + it["service"]!!.jsonPrimitive.content })
+            .containsExactly("script.turn_on", "scene.turn_on", "automation.trigger", "input_button.press", "input_boolean.toggle").inOrder()
+        assertThat(sent[0]["target"].toString()).isEqualTo("""{"entity_id":"script.ungroup_speakers"}""")
+        assertThat(sent[0]["service_data"].toString()).isEqualTo("""{"variables":{"player":"media_player.wz"}}""")
+        assertThat(sent.drop(1).none { "service_data" in it }).isTrue()
+        // Home Assistant says no: it failed. A long automation is still running: it was taken.
+        assertThat(s.run(QuickAction("x", "script.broken"))).isFalse()
+        assertThat(s.run(QuickAction("x", "automation.slow"))).isTrue()
+        // What no button can work is never sent.
+        assertThat(s.run(QuickAction("x", "lock.front_door"))).isFalse()
+        assertThat(calls.none { it["domain"]?.jsonPrimitive?.content == "lock" }).isTrue()
+        s.stop()
+    }
+
+    @Test
+    fun `the buttons' entities are followed, and one Home Assistant does not know is missing`() = runBlocking {
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player != null } }
+        s.followActions(setOf("input_boolean.party", "script.gone"))
+        val state = withTimeout(5_000) { s.state.first { it.actions["input_boolean.party"] == "on" } }
+        assertThat(state.actions).doesNotContainKey("script.gone")
         s.stop()
     }
 

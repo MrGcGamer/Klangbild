@@ -2,6 +2,8 @@ package io.github.hazymorning.klangbild.setup
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.config.QuickAction
+import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
 import io.github.hazymorning.klangbild.data.ha.HaAuthRejectedException
@@ -47,6 +49,7 @@ class SetupHandlerTest {
                 listOf(SpeakerOption("media_player.wz", "Wohnzimmer", "spielt", true)),
                 listOf(LightOption("light.tv_left", "TV links", "an"), LightOption("light.tv_right", "TV rechts", "aus")),
                 listOf(WeatherOption("weather.forecast_home", "Forecast Home", "teils bewölkt")),
+                listOf(ActionOption("script.ungroup_speakers", "Lautsprecher trennen"), ActionOption("scene.movie", "Kino")),
             )
         },
         save = { stored = it },
@@ -244,6 +247,41 @@ class SetupHandlerTest {
         assertThat(post("/api/save", """{$base,"weather":"sensor.temperatur"}""").status).isEqualTo(400)
         val r = SetupServer.parseSpeakers("""[{"entity_id":"weather.home","state":"partlycloudy","attributes":{"friendly_name":"Zuhause"}}]""", texts) as DiscoverResult.Ok
         assertThat(r.weather).containsExactly(WeatherOption("weather.home", "Zuhause", "teils bewölkt"))
+    }
+
+    @Test
+    fun `the quick settings' own buttons are offered, stored when the page showed them and kept when it did not`() {
+        val found = json(post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}"""))
+        assertThat(found["actions"].toString()).contains("script.ungroup_speakers")
+        val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
+        val two = """[{"name":"Trennen","entity":"script.ungroup_speakers"},{"name":"","entity":"scene.movie"}]"""
+        assertThat(post("/api/save", """{$base,"actions":$two}""").status).isEqualTo(200)
+        assertThat(stored.quickActions).containsExactly(QuickAction("Trennen", "script.ungroup_speakers"), QuickAction("Movie", "scene.movie")).inOrder()
+        val state = json(post("/api/state", """{"code":"${handler.code}"}"""))
+        assertThat(state["actions"].toString()).isEqualTo("""[{"name":"Trennen","entity":"script.ungroup_speakers"},{"name":"Movie","entity":"scene.movie"}]""")
+        // Saved without the section (nothing found yet): the buttons stay.
+        assertThat(post("/api/save", """{$base}""").status).isEqualTo(200)
+        assertThat(stored.quickActions).hasSize(2)
+        // Nothing that is no button: a lock, a media player, an odd list.
+        assertThat(post("/api/save", """{$base,"actions":[{"name":"Tür","entity":"lock.front_door"}]}""").status).isEqualTo(400)
+        assertThat(post("/api/save", """{$base,"actions":"script.x"}""").status).isEqualTo(400)
+        assertThat(stored.quickActions).hasSize(2)
+        // At most six; an empty list removes them.
+        val many = (1..9).joinToString(",", "[", "]") { """{"name":"$it","entity":"script.s$it"}""" }
+        assertThat(post("/api/save", """{$base,"actions":$many}""").status).isEqualTo(200)
+        assertThat(stored.quickActions).hasSize(QuickActions.MAX)
+        assertThat(post("/api/save", """{$base,"actions":[]}""").status).isEqualTo(200)
+        assertThat(stored.quickActions).isEmpty()
+        // The list from Home Assistant: what a button can work, scripts first, by name.
+        val r = SetupServer.parseSpeakers(
+            """[{"entity_id":"switch.socket","state":"on","attributes":{"friendly_name":"Steckdose"}},
+               {"entity_id":"lock.door","state":"locked","attributes":{}},
+               {"entity_id":"script.b","state":"off","attributes":{"friendly_name":"Beta"}},
+               {"entity_id":"script.a","state":"off","attributes":{"friendly_name":"Alpha"}},
+               {"entity_id":"scene.kino","state":"2026-10-10T20:00:00+00:00","attributes":{"friendly_name":"Kino"}}]""",
+            texts,
+        ) as DiscoverResult.Ok
+        assertThat(r.actions.map { it.entityId }).containsExactly("script.a", "script.b", "scene.kino", "switch.socket").inOrder()
     }
 
     @Test

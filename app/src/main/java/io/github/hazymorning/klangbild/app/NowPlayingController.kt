@@ -531,6 +531,8 @@ class NowPlayingController(
             machine = ScreenStateMachine(timing).also { it.requestSetup(setup) }
         }
         reconcileSource()
+        // The quick settings' own buttons show only while their entities are there.
+        source?.followActions(s.quickActions.map { it.entity }.toSet())
         recompute()
     }
 

@@ -23,16 +23,44 @@ enum class FavoriteState {
     FAILED,
 }
 
-/** One entry of the quick settings, in their order along the bottom edge. */
-enum class QuickItem(@StringRes val label: Int) {
+/**
+ * One entry of the quick settings, in their order along the bottom edge: the built-in ones,
+ * then the buttons set up on the phone ([ACTION], whose names are their own).
+ */
+enum class QuickItem(@StringRes val label: Int?) {
     PICTURE(R.string.quick_view),
     FAVORITE(R.string.quick_favorite),
     LIGHTS(R.string.quick_lights),
     SHUFFLE(R.string.quick_shuffle),
+    ACTION(null),
 }
 
-/** An entry as the quick settings show it: its name and its value in words. */
-data class QuickRow(val item: QuickItem, val label: String, val value: String)
+/** Which entry: a built-in one, or the button at [action] (its place among the buttons set up). */
+data class QuickKey(val item: QuickItem, val action: Int = -1)
+
+/**
+ * An entry as the quick settings show it: which it is, its name, its value in words, and every
+ * value it can show (its place is as wide as the widest of them, so nothing moves when it changes).
+ */
+data class QuickRow(val key: QuickKey, val label: String, val value: String, val values: List<String> = listOf(value)) {
+    val item: QuickItem get() = key.item
+}
+
+/** How a button of one's own stands. */
+enum class ActionState {
+    /** Ready: a script, a scene, an automation or a button. */
+    READY,
+
+    /** It ran just now. */
+    DONE,
+
+    /** Home Assistant could not run it. */
+    FAILED,
+
+    /** A switch that is on, or off. */
+    ON,
+    OFF,
+}
 
 /** What the quick settings need to know besides the settings. */
 data class QuickContext(
@@ -49,6 +77,11 @@ data class QuickContext(
     val favorite: FavoriteState? = null,
     /** Shuffle on or off as far as known; null when the player cannot shuffle. */
     val shuffle: Boolean? = null,
+    /**
+     * The buttons that can be used now, by their entity, and how each stands. A button whose
+     * entity Home Assistant does not know or has as unavailable is not here.
+     */
+    val actions: Map<String, ActionState> = emptyMap(),
 )
 
 /**
@@ -56,16 +89,22 @@ data class QuickContext(
  * pressed, for what is wanted now and then while watching and should not hide in the settings
  * (those stay on OK held). Left and right choose an entry, OK changes it (or does what it
  * says), up leaves the row. Entries that cannot do anything now are left out (no favorite
- * without music, no lights before they are set up, no shuffle on a player that cannot). The
- * sleep timer lives in the settings.
+ * without music, no lights before they are set up, no shuffle on a player that cannot, no
+ * button whose entity is unavailable). The buttons set up on the phone come last. The sleep
+ * timer lives in the settings.
  */
 object QuickMenu {
     fun rows(s: Settings, ctx: QuickContext, t: Texts): List<QuickRow> = buildList {
-        fun row(item: QuickItem, value: String) = add(QuickRow(item, t[item.label], value))
+        fun row(item: QuickItem, value: String) = add(QuickRow(QuickKey(item), t[item.label!!], value, values(item, t)))
         row(QuickItem.PICTURE, pictureValue(ctx.pending ?: picture(s, ctx), t))
         if (ctx.music && ctx.favorite != null) row(QuickItem.FAVORITE, favoriteValue(ctx.favorite, t))
         if (s.roomLights.isSet) row(QuickItem.LIGHTS, t[if (s.roomLightLevel == RoomLightLevel.OFF) R.string.off else R.string.on])
         if (ctx.music && ctx.shuffle != null) row(QuickItem.SHUFFLE, t[if (ctx.shuffle) R.string.on else R.string.off])
+        s.quickActions.forEachIndexed { i, a ->
+            val kind = a.kind ?: return@forEachIndexed
+            val state = ctx.actions[a.entity] ?: return@forEachIndexed
+            add(QuickRow(QuickKey(QuickItem.ACTION, i), a.name, actionValue(kind, state, t), actionValues(kind, t)))
+        }
     }
 
     /** What the screen shows now. */
@@ -92,14 +131,36 @@ object QuickMenu {
         },
     ]
 
+    /** A button's value: what it does, how it went, or (a switch) whether it is on. */
+    fun actionValue(kind: ActionKind, state: ActionState, t: Texts): String = t[
+        when (state) {
+            ActionState.DONE -> R.string.action_done
+            ActionState.FAILED -> R.string.action_failed
+            ActionState.ON -> R.string.on
+            ActionState.OFF -> R.string.off
+            ActionState.READY -> when (kind) {
+                ActionKind.RUN -> R.string.action_run
+                ActionKind.ACTIVATE -> R.string.action_activate
+                ActionKind.PRESS -> R.string.action_press
+                ActionKind.TOGGLE -> R.string.off
+            }
+        },
+    ]
+
+    /** Every value a button of [kind] can show. */
+    fun actionValues(kind: ActionKind, t: Texts): List<String> =
+        (if (kind == ActionKind.TOGGLE) listOf(ActionState.ON, ActionState.OFF, ActionState.FAILED) else listOf(ActionState.READY, ActionState.DONE, ActionState.FAILED))
+            .map { actionValue(kind, it, t) }
+
     /**
      * Every value [item] can show, so that its place is as wide as the widest of them and
-     * nothing moves when a value changes.
+     * nothing moves when a value changes (for the buttons: what any of them can show).
      */
     fun values(item: QuickItem, t: Texts): List<String> = when (item) {
         QuickItem.PICTURE -> PICTURES.map { pictureValue(it, t) }
         QuickItem.FAVORITE -> FavoriteState.entries.map { favoriteValue(it, t) }
         QuickItem.LIGHTS, QuickItem.SHUFFLE -> listOf(t[R.string.on], t[R.string.off])
+        QuickItem.ACTION -> ActionKind.entries.flatMap { actionValues(it, t) }.distinct()
     }
 
     /** From the music's own picture outward: the cover, the strip of covers, the landscape. */
