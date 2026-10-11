@@ -54,13 +54,14 @@ class CoverFieldContrastTest {
     @Test
     fun theQuietestTextKeepsItsContrastOnThePaleField() = check(Appearance.LIGHT)
 
+    // The app lights the stage as by day at every hour; the other hours are checked in the single view.
     @Test
-    fun inCoverFlowTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.DARK, StageView.FLOW)
+    fun inCoverFlowTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.DARK, StageView.FLOW, listOf(Lighting.DAY))
 
     @Test
-    fun inCoverFlowOnPaleColorsTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.LIGHT, StageView.FLOW)
+    fun inCoverFlowOnPaleColorsTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.LIGHT, StageView.FLOW, listOf(Lighting.DAY))
 
-    private fun check(appearance: Appearance, view: StageView = StageView.SINGLE) {
+    private fun check(appearance: Appearance, view: StageView = StageView.SINGLE, lightings: List<Lighting> = hours) {
         val first = Fixtures.scene(Fixtures.tracks.first(), mdpi, appearance = appearance, view = view, coverField = true)
         var scene by mutableStateOf(first)
         var at by mutableStateOf(0.0)
@@ -69,7 +70,7 @@ class CoverFieldContrastTest {
                 CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) { FieldLayer(scene) }
             }
         }
-        for (track in Fixtures.tracks) for (lighting in hours) {
+        for (track in Fixtures.tracks) for (lighting in lightings) {
             scene = Fixtures.scene(track, mdpi, lighting, appearance, view = view, coverField = true)
             for (t in listOf(0.0, 47.0, 133.0, 260.0)) {
                 at = t
