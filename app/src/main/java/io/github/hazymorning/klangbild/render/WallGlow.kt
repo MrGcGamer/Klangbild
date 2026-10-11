@@ -9,22 +9,22 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * The light around the artwork: a tight halo in the colours of the artwork's own edges, like
- * a picture lit from behind – warm paper light around a pale print, pink below a synthwave
- * horizon, teal beside the sea. The colour at each point of the wall is the colour of the
- * nearest stretch of the artwork's edge, mixed more with distance (as diffuse light is); its
- * brightness falls off as a Gaussian, the same on every side, and is gone before the text
- * column begins. A picture lights the wall at most as much as it is bright itself: a dark
- * edge gives little light, a black one none.
+ * The light around the artwork: a tight halo in the colors of the artwork's own edges, like
+ * a picture lit from behind. A pale print gets warm paper light around it, a synthwave horizon
+ * gives pink light below, the sea gives teal light beside it. The color at each point of the
+ * wall is the color of the nearest stretch of the artwork's edge, mixed more with distance (as
+ * diffuse light is). Its brightness falls off as a Gaussian, the same on every side, and is gone
+ * before the text column begins. A picture lights the wall at most as much as it is bright
+ * itself: a dark edge gives little light, a black one none.
  *
- * Computed once per scene as a dithered bitmap; drawing it is one textured rectangle that
- * never moves – nothing per frame, nothing that could step.
+ * Computed once per scene as a dithered bitmap. Drawing it is one textured rectangle that
+ * never moves, so there is no work per frame and nothing that could step.
  */
 object WallGlow {
     /** Glow brightness (relative luminance, ≈ L* 17) right at the edge of a bright print, by day. */
     const val EDGE_LUMINANCE = 0.022f
 
-    /** …but never more than this share of the edge's own luminance. */
+    /** The glow is never more than this share of the edge's own luminance. */
     const val SHARE_OF_EDGE = 0.4f
 
     /** Width of the halo as a share of the print's size: σ of exp(−(d/σ)²), 26 dp at 368 dp. */
@@ -40,11 +40,11 @@ object WallGlow {
     /** The light also fills this far under the artwork's edge (dp), so its anti-aliased rim never shows black. */
     private const val UNDER_EDGE_DP = 2f
 
-    /** Colourfulness of the glow is capped (Oklab chroma): a backlight, not a neon sign. */
+    /** Colorfulness of the glow is capped (Oklab chroma): a backlight, not a neon sign. */
     const val MAX_CHROMA = 0.13f
 
     /**
-     * The glow for a print of [shape] whose edge colours come from [thumb] (a small square
+     * The glow for a print of [shape] whose edge colors come from [thumb] (a small square
      * thumbnail of the artwork, sRGB ARGB, [thumbSize]²), on [screen], at time of day
      * [lighting]. Returns ARGB pixels of [MAP_W] × [MAP_H] covering the whole screen.
      */
@@ -52,7 +52,7 @@ object WallGlow {
         val edge = edgeColours(thumb, thumbSize, lighting)
         val n = edge.size
         // Light is diffuse: a point of the wall further from the print sees a longer stretch
-        // of its edge, so the colours mix more with distance – no streaks.
+        // of its edge, so the colors mix more with distance and there are no streaks.
         val levels = BLUR_LEVELS.map { r -> circularBlur(edge, r * n / 192f) }
         val img = LinearImage(MAP_W, MAP_H)
         val sx = screen.widthDp / MAP_W
@@ -69,8 +69,8 @@ object WallGlow {
                 if (signed <= -UNDER_EDGE_DP) continue // behind the print: dark
                 val d = max(signed, 0f)
                 val under = if (signed >= 0f) 1f else smoothstep(-UNDER_EDGE_DP, 0f, signed)
-                // Horizontal and vertical fades multiplied: smooth everywhere. (The minimum of
-                // the four edge distances would crease along the diagonals, like a mitre.)
+                // The horizontal and vertical fades are multiplied, which is smooth everywhere. (The
+                // minimum of the four edge distances would crease along the diagonals, like a miter.)
                 val fade = smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(px, screen.widthDp - px)) *
                     smoothstep(EDGE_BLACK_DP, EDGE_BLACK_DP + EDGE_FADE_DP, min(py, screen.heightDp - py))
                 if (fade <= 0f) continue
@@ -93,10 +93,10 @@ object WallGlow {
         return ImageOps.toArgbDithered(img, seed = 13, ditherLsb = 1.1f, blackBelow = 0.0004f)
     }
 
-    /** Blur radii (in samples of a 192-sample outline) of the precomputed edge-colour levels. */
+    /** Blur radii (in samples of a 192-sample outline) of the precomputed edge-color levels. */
     private val BLUR_LEVELS = floatArrayOf(1f, 2f, 4f, 8f, 16f, 32f)
 
-    /** The colour at outline position [pos] blurred by about [radius] samples (interpolated between the levels). */
+    /** The color at outline position [pos] blurred by about [radius] samples (interpolated between the levels). */
     private fun colourAt(levels: List<Array<FloatArray>>, pos: Float, radius: Float, out: FloatArray) {
         val n = levels[0].size
         val scaled = radius * 192f / n
@@ -139,13 +139,13 @@ object WallGlow {
     const val MAP_H = 540
 
     /**
-     * The colours along the print's outline, clockwise from the top-left corner, as linear
-     * RGB light at the glow's edge brightness: each sample is the blurred edge region of the
-     * artwork at [EDGE_LUMINANCE] – or [SHARE_OF_EDGE] of its own luminance, if that is less –
-     * its colourfulness capped, then dimmed and warmed for the time of day.
+     * The colors along the print's outline, clockwise from the top-left corner, as linear
+     * RGB light at the glow's edge brightness. Each sample is the blurred edge region of the
+     * artwork at [EDGE_LUMINANCE] (or at [SHARE_OF_EDGE] of its own luminance, if that is less),
+     * with its colorfulness capped, then dimmed and warmed for the time of day.
      */
     fun edgeColours(thumb: IntArray, size: Int, lighting: Lighting): Array<FloatArray> {
-        // A blurred copy: the glow takes the colour of a region, not of single pixels.
+        // A blurred copy: the glow takes the color of a region, not of single pixels.
         val lin = LinearImage.fromArgb(thumb, size, size)
         ImageOps.blur(lin, radius = max(1, size / 16))
         val perSide = size
@@ -170,12 +170,12 @@ object WallGlow {
         return out
     }
 
-    /** One edge colour as glow light (linear RGB). */
+    /** One edge color as glow light (linear RGB). */
     private fun light(r: Float, g: Float, b: Float, night: Float, warm: Float): FloatArray {
         val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
         var lab = Oklab.fromLinear(r, g, b)
-        // Cap the colour, then let the evening pull it a little towards warm lamp light and
-        // the night take most of its colour away – dim light is never vivid.
+        // Cap the color, then let the evening pull it a little toward warm lamp light and let
+        // the night take most of its color away. Dim light is never vivid.
         val maxC = MAX_CHROMA * (1f - 1.1f * night).coerceAtLeast(0.25f)
         if (lab.chroma > maxC) lab = Lab(lab.l, lab.a * maxC / lab.chroma, lab.b * maxC / lab.chroma)
         lab = lab.lerp(Lab(lab.l, 0.012f, 0.045f), 0.3f * warm)

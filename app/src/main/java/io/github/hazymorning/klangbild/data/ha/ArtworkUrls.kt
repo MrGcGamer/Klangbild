@@ -14,7 +14,7 @@ object ArtworkUrls {
     private val qobuz = Regex("""(static\.qobuz\.com/images/covers/.+_)(\d+|small|large|thumbnail)(\.jpg)""")
     private val google = Regex("""(googleusercontent\.com/[^=]+|ggpht\.com/[^=]+)=w\d+-h\d+([^\s]*)""")
 
-    /** Music Assistant's imageproxy offers 0 (original) and 80…1024; 1024 is plenty for TV. */
+    /** Music Assistant's imageproxy offers 0 (original) and 80 to 1024; 1024 is plenty for TV. */
     const val MA_SIZE = 1024
 
     fun upgrade(url: String): String {

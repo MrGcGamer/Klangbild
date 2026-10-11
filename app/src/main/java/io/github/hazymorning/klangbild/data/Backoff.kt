@@ -5,8 +5,8 @@ import kotlin.math.pow
 import kotlin.random.Random
 
 /**
- * Exponential backoff with "full jitter" for reconnects: 1 s, 2 s, 4 s … capped at
- * [maxMs], each delay randomised between 50 % and 100 % so that a whole household of
+ * Exponential backoff with "full jitter" for reconnects: 1 s, 2 s, 4 s and so on, capped at
+ * [maxMs]. Each delay is randomized between 50 % and 100 % so that a whole household of
  * devices does not hammer a restarting Home Assistant in lockstep.
  */
 class Backoff(

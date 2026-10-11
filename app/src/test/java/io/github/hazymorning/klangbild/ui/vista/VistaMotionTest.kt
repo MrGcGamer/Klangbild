@@ -2,11 +2,11 @@ package io.github.hazymorning.klangbild.ui.vista
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.ui.Fixtures
+import io.github.hazymorning.klangbild.ui.composeRule
 import io.github.hazymorning.klangbild.vista.Place
 import io.github.hazymorning.klangbild.vista.VistaClock
 import io.github.hazymorning.klangbild.vista.Weather
@@ -17,16 +17,16 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The Fensterblick in motion, as sequences of stills: a few seconds frame by frame (the grass
+ * The window view in motion, as sequences of stills: a few seconds frame by frame (the grass
  * and the crown sway, the clouds drift, nothing jumps), a minute in steps of ten seconds, and
- * the time-lapse – a day in two minutes – in steps of five seconds.
+ * the time-lapse (a day in two minutes) in steps of five seconds.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class VistaMotionTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val berlin = Place(52.52, 13.40)
 
@@ -48,7 +48,7 @@ class VistaMotionTest {
         if (timelapse) clock.timelapse(true)
         val feed = VistaFeed(place = { berlin }, weather = { weather }, clock = clock, zone = { Fixtures.zone }, wall = { wall })
         compose.mainClock.autoAdvance = false
-        compose.setContent { Fensterblick(feed, Modifier.fillMaxSize()) }
+        compose.setContent { Vista(feed, Modifier.fillMaxSize()) }
         // The picture is baked off the main thread: give it the time it takes, then let it fade in.
         repeat(8) {
             Thread.sleep(400)

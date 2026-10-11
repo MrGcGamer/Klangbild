@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,7 +31,7 @@ import kotlin.math.abs
 
 /**
  * Only another song hurries a running change: a card that joins the strip or a better cover
- * waits until the change has landed. Two theatres side by side play the same change; one of
+ * waits until the change has landed. Two theaters side by side play the same change; one of
  * them gets something more 300 ms into it, and 800 ms in they are compared.
  */
 @RunWith(AndroidJUnit4::class)
@@ -40,17 +39,17 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w1920dp-h540dp-land-mdpi")
 class HurryTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 
-    private val covers = listOf(SyntheticCover.TERRAKOTTA, SyntheticCover.MOOS, SyntheticCover.NACHTFAHRT, SyntheticCover.LEERRAUM, SyntheticCover.BAUHAUS)
+    private val covers = listOf(SyntheticCover.TERRACOTTA, SyntheticCover.MOSS, SyntheticCover.NIGHT_DRIVE, SyntheticCover.WHITE_SPACE, SyntheticCover.BAUHAUS)
 
     private val strip by lazy {
         covers.mapIndexed { i, c -> i.toLong() to Fixtures.scene(Fixtures.track(c), mdpi, appearance = Appearance.DARK, view = StageView.FLOW) }.toMap()
     }
 
-    /** Both theatres go from [first] to [change]; the second one gets [more] 300 ms later. Returns both, 800 ms into the change. */
+    /** Both theaters go from [first] to [change]; the second gets [more] 300 ms later. Returns both, 800 ms into the change. */
     private fun <T> sideBySide(first: T, change: T, more: T, theatre: @Composable (T) -> Unit): Pair<Bitmap, Bitmap> {
         var a by mutableStateOf(first)
         var b by mutableStateOf(first)
@@ -73,7 +72,7 @@ class HurryTest {
     private fun capture(tag: String) = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
 
     /**
-     * How many pixels of [a] and [b] differ by more than a level or two – the same picture drawn
+     * How many pixels of [a] and [b] differ by more than a level or two. The same picture drawn
      * at another place on the screen rounds a few edge pixels differently.
      */
     private fun differing(a: Bitmap, b: Bitmap): Int {
@@ -109,9 +108,9 @@ class HurryTest {
 
     @Test
     fun aBetterCoverWaitsForTheTrackChange() {
-        val song = Fixtures.track(SyntheticCover.NEBELLAND)
+        val song = Fixtures.track(SyntheticCover.MIST)
         val pair = sideBySide(
-            Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), mdpi),
             Fixtures.stage(song, mdpi),
             Fixtures.stage(song, mdpi, lighting = Lighting.EVENING),
         ) { Fixtures.Theatre(it, PlayerStatus.PLAYING) }
@@ -121,9 +120,9 @@ class HurryTest {
     @Test
     fun anotherSongHurriesTheTrackChange() {
         val pair = sideBySide(
-            Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), mdpi),
-            Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), mdpi),
-            Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.MIST), mdpi),
+            Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), mdpi),
         ) { Fixtures.Theatre(it, PlayerStatus.PLAYING) }
         assertApart(pair)
     }

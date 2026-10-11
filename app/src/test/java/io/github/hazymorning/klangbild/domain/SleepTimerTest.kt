@@ -3,7 +3,7 @@ package io.github.hazymorning.klangbild.domain
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
-/** "Einschlafen": the music pauses once – after minutes, or when playing reaches an end. */
+/** Sleep timer: the music pauses once, after some minutes or when playing reaches an end. */
 class SleepTimerTest {
     private val book = TrackInfo(
         title = "Der Process",
@@ -35,7 +35,7 @@ class SleepTimerTest {
         val timer = SleepTimer()
         timer.set(SleepChoice.CHAPTER_END, nowMs = 0)
         assertThat(timer.evaluate(0, book, 1_990_000, 1f, playing = true)).isFalse()
-        // It expects the end in ten seconds – at 2× in five.
+        // It expects the end in ten seconds, or in five at 2×.
         assertThat(timer.wakeAt).isEqualTo(10_000L)
         assertThat(timer.evaluate(1_000, book, 1_992_000, 2f, playing = true)).isFalse()
         assertThat(timer.wakeAt).isEqualTo(1_000L + 4_000L)
@@ -48,7 +48,7 @@ class SleepTimerTest {
         val timer = SleepTimer()
         timer.set(SleepChoice.CHAPTER_END, nowMs = 0)
         timer.evaluate(0, book, 1_990_000, 1f, playing = true)
-        // Thirty seconds ahead: past the end of B, into C – no pause, it now waits for C's end.
+        // Thirty seconds ahead: past the end of B and into C. No pause; it now waits for C's end.
         assertThat(timer.evaluate(500, book, 2_020_500, 1f, playing = true)).isFalse()
         assertThat(timer.choice).isEqualTo(SleepChoice.CHAPTER_END)
         // C is the last chapter: it ends with the book, a moment before the very end.
@@ -70,7 +70,7 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `the end of a song, before the queue moves on – or right after, if it was missed`() {
+    fun `the end of a song, before the queue moves on, or right after if it was missed`() {
         val timer = SleepTimer()
         timer.set(SleepChoice.ITEM_END, nowMs = 0)
         timer.evaluate(0, song, 190_000, 1f, playing = true)

@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -27,15 +26,15 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class TransitionTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     /** Frames are rendered at 960 × 540 (mdpi) to keep the image sequences light. */
     private val MDPI = ScreenSpec(960, 540, 1f)
 
     @Test
     fun trackChange() {
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), MDPI)
-        val b = Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), MDPI)
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), MDPI)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.MIST), MDPI)
         var stage by mutableStateOf(a)
         compose.mainClock.autoAdvance = false
         compose.setContent { Fixtures.Theatre(stage, PlayerStatus.PLAYING) }
@@ -50,14 +49,14 @@ class TransitionTest {
 
     @Test
     fun sameAlbum() {
-        val first = Fixtures.track(SyntheticCover.SALZWASSER)
+        val first = Fixtures.track(SyntheticCover.SALT_WATER)
         val a = Fixtures.stage(first, MDPI)
         val nextSong = first.copy(title = "Ebbe", durationMs = 201_000, key = "Ebbe|" + first.artists.joinToString() + "|" + first.album)
         // Same picture, new track: the scene is rebuilt from the same image.
         val b = io.github.hazymorning.klangbild.app.StageData(
             nextSong,
             io.github.hazymorning.klangbild.render.SceneBuilder.build(
-                nextSong.key, io.github.hazymorning.klangbild.art.SyntheticCovers.render(SyntheticCover.SALZWASSER),
+                nextSong.key, io.github.hazymorning.klangbild.art.SyntheticCovers.render(SyntheticCover.SALT_WATER),
                 nextSong.artSeed, MDPI, io.github.hazymorning.klangbild.color.Lighting.DAY,
             ),
         )
@@ -75,18 +74,18 @@ class TransitionTest {
     @Test
     fun quickSkips() {
         // A song skipped past: its change hurries, its lines never come up, the next one follows.
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), MDPI)
-        val b = Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), MDPI)
-        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), MDPI)
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), MDPI)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.MIST), MDPI)
+        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), MDPI)
         skips("skips", a, mapOf(1 to b, 4 to c))
     }
 
     @Test
     fun skipUndone() {
         // On and straight back: the change hurries, then the lines of the song that stays rise.
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NACHTFAHRT), MDPI)
-        val b = Fixtures.stage(Fixtures.track(SyntheticCover.NEBELLAND), MDPI)
-        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), MDPI)
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), MDPI)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.MIST), MDPI)
+        val c = Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), MDPI)
         skips("undone", a, mapOf(1 to b, 4 to c, 6 to b))
     }
 
@@ -119,8 +118,8 @@ class TransitionTest {
 
     @Test
     fun buffering() {
-        // The light breathes while buffering (an infinite animation: only a controlled clock can capture it).
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.SALZWASSER), MDPI)
+        // The light pulses while buffering (an infinite animation: only a controlled clock can capture it).
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.SALT_WATER), MDPI)
         compose.mainClock.autoAdvance = false
         compose.setContent { Fixtures.Theatre(a, PlayerStatus.BUFFERING) }
         for (i in 0..4) {

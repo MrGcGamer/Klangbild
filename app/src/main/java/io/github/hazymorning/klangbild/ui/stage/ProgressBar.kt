@@ -35,17 +35,17 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Colours of the progress bar. */
+/** Colors of the progress bar. */
 class ProgressColors(val track: Color, val fill: Color, val label: Color)
 
 /**
- * A classic progress bar: a thin track with round ends, the played part filled (no knob –
+ * A classic progress bar: a thin track with round ends, the played part filled (no knob, since
  * nothing here is touched), the elapsed time under its left end and the track's length under
- * its right end ("1:35" … "4:11") – only one number ticks, and its figures sit in fixed
+ * its right end ("1:35" and "4:11"). Only one number ticks, and its figures sit in fixed
  * cells, so nothing jitters.
  *
- * It glides: while playing only the bar's own drawing is refreshed, about 30 times a second
- * and aligned to the display's frames – the fill grows by a fraction of a pixel each time,
+ * It glides. While playing, only the bar's own drawing is refreshed, about 30 times a second
+ * and aligned to the display's frames. The fill grows by a fraction of a pixel each time,
  * anti-aliased, so it never steps. A seek glides to the new place in 350 ms instead of
  * jumping. The labels recompose once a second. Paused, the fill dims and the bar is redrawn
  * only twice a second (a seek while paused still shows).
@@ -68,7 +68,7 @@ fun ProgressBar(
     thickness: Dp = 4.dp,
     labelGap: Dp = 10.dp,
 ) {
-    // The stage's one tick, shared with the colour field; alone (in a test) a loop of its own.
+    // The stage's one tick, shared with the color field. Alone (in a test), a loop of its own.
     val shared = LocalStageTick.current
     val own = remember { mutableLongStateOf(0L) }
     if (shared == null && !LocalStill.current) {
@@ -96,6 +96,7 @@ fun ProgressBar(
     }
     val label = labelStyle.copy(color = colors.label)
     val figures = rememberFigures(labelStyle, Face.TITLE)
+    val length = remember(figures, durationMs) { figures.of(TimeLine.formatClock(durationMs)) }
     Layout(
         modifier = modifier.fillMaxWidth(),
         content = {
@@ -113,7 +114,7 @@ fun ProgressBar(
                 }
             }
             BasicText(figures.of(TimeLine.formatClock(second * 1000L)), style = label, maxLines = 1)
-            BasicText(figures.of(TimeLine.formatClock(durationMs)), style = label, maxLines = 1)
+            BasicText(length, style = label, maxLines = 1)
         },
     ) { measurables, constraints ->
         val bar = measurables[0].measure(constraints)

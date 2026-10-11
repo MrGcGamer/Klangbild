@@ -1,8 +1,8 @@
 package io.github.hazymorning.klangbild.domain
 
 /**
- * The colour field's own time in seconds. It runs at the motion setting's speed while music
- * plays and stands still otherwise. The screen and the light bars read the same clock, so
+ * The color field's own time in seconds. It runs at the motion setting's speed while music
+ * plays and stands still otherwise. The screen and the lights read the same clock, so
  * both move together, and neither a pause nor a new speed ever makes anything jump.
  *
  * Kept in double precision: after days of running a float would no longer resolve the

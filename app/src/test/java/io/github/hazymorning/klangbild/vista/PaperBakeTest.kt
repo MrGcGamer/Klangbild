@@ -23,7 +23,7 @@ class PaperBakeTest {
     }
 
     @Test
-    fun `firs and birches stand on the meadow as sprites of their own - the birches bare in winter`() {
+    fun `firs and birches stand on the meadow as sprites of their own, the birches bare in winter`() {
         val fg = PaperMotif.foreground(LabelSide.LEFT)
         assertThat(summer.standees).hasSize(fg.standees.size + fg.birches.size)
         assertThat(summer.standees.count { st -> st.parts.any { it.first == SheetId.CROWNS } }).isEqualTo(fg.birches.size)
@@ -58,7 +58,7 @@ class PaperBakeTest {
                     val py = baked.px(y).toInt() - s.top
                     val p = s.pixels[py * s.width + px]
                     assertWithMessage("$side at $x, $y").that(p ushr 24).isEqualTo(255)
-                    // No snow (the second ink) under the label: the bank keeps its own colour.
+                    // No snow (the second ink) under the label: the bank keeps its own color.
                     assertWithMessage("$side at $x, $y").that(p shr 8 and 0xFF).isLessThan(8)
                     x += 8f
                 }

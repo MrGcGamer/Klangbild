@@ -1,29 +1,38 @@
 package io.github.hazymorning.klangbild.domain
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.text.TestTexts
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class SpeakerLabelTest {
+    private val de = TestTexts.german
+    private val en = TestTexts.english()
+
     @Test
-    fun `a group is this speaker plus the others, like Sonos`() {
+    fun `a group is this speaker plus the others`() {
         val all = SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad", "Büro", "Flur", "Terrasse"))
-        assertThat(SpeakerLabel.group(all)).isEqualTo("Wohnzimmer + 5")
+        assertThat(SpeakerLabel.group(all, de)).isEqualTo("Wohnzimmer + 5")
         // Just one more: both names.
-        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche")))).isEqualTo("Wohnzimmer + Küche")
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche")), de)).isEqualTo("Wohnzimmer + Küche")
         // Its name not known yet: counted.
-        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf(null)))).isEqualTo("Wohnzimmer + 1")
-        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad")))).isEqualTo("Drei Lautsprecher")
-        // Alone: nothing to say – the screen hangs in that room.
-        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList()))).isNull()
-        assertThat(SpeakerLabel.group(null)).isNull()
-        // Every speaker of the house: Sonos' "Überall".
-        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad"), everywhere = true))).isEqualTo("Überall")
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf(null)), de)).isEqualTo("Wohnzimmer + 1")
+        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad")), de)).isEqualTo("Drei Lautsprecher")
+        // Alone: nothing to say, since the screen hangs in that room.
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList()), de)).isNull()
+        assertThat(SpeakerLabel.group(null, de)).isNull()
+        // Every speaker of the house.
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", listOf("Küche", "Bad"), everywhere = true), de)).isEqualTo("Überall")
     }
 
     @Test
     fun `a group with a name of its own is called by it`() {
-        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList(), name = "Alle Lautsprecher"))).isEqualTo("Alle Lautsprecher")
-        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad"), name = "Erdgeschoss"))).isEqualTo("Erdgeschoss")
+        assertThat(SpeakerLabel.group(SpeakerGroup("Wohnzimmer", emptyList(), name = "Alle Lautsprecher"), de)).isEqualTo("Alle Lautsprecher")
+        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Küche", "Bad"), name = "Erdgeschoss"), de)).isEqualTo("Erdgeschoss")
         // The queue of a speaker playing alone carries its own name, in whatever spelling.
         assertThat(SpeakerLabel.isOtherName("Wohnzimmer", "Wohnzimmer Lautsprecher")).isFalse()
         assertThat(SpeakerLabel.isOtherName("Sonos Wohnzimmer", "Wohnzimmer")).isFalse()
@@ -49,10 +58,21 @@ class SpeakerLabelTest {
     }
 
     @Test
+    fun `in English`() {
+        assertThat(SpeakerLabel.group(SpeakerGroup("Living room", listOf("Kitchen", "Bath")), en)).isEqualTo("Living room\u00A0+\u00A02")
+        assertThat(SpeakerLabel.group(SpeakerGroup("Living room", listOf("Kitchen")), en)).isEqualTo("Living room\u00A0+ Kitchen")
+        assertThat(SpeakerLabel.group(SpeakerGroup(null, listOf("Kitchen", "Bath")), en)).isEqualTo("Three speakers")
+        assertThat(SpeakerLabel.group(SpeakerGroup(null, (1..12).map { "Room $it" }), en)).isEqualTo("13 speakers")
+        assertThat(SpeakerLabel.group(SpeakerGroup("Living room", listOf("Kitchen"), everywhere = true), en)).isEqualTo("Everywhere")
+        assertThat(SpeakerLabel.volume(0.35f, muted = false, en)).isEqualTo("35%")
+        assertThat(SpeakerLabel.volume(0.35f, muted = true, en)).isEqualTo("muted")
+    }
+
+    @Test
     fun `volume in figures with a no-break space`() {
-        assertThat(SpeakerLabel.volume(0.35f, muted = false)).isEqualTo("35 %")
-        assertThat(SpeakerLabel.volume(1.2f, muted = false)).isEqualTo("100 %")
-        assertThat(SpeakerLabel.volume(0.35f, muted = true)).isEqualTo("stumm")
-        assertThat(SpeakerLabel.volume(null, muted = false)).isNull()
+        assertThat(SpeakerLabel.volume(0.35f, muted = false, de)).isEqualTo("35 %")
+        assertThat(SpeakerLabel.volume(1.2f, muted = false, de)).isEqualTo("100 %")
+        assertThat(SpeakerLabel.volume(0.35f, muted = true, de)).isEqualTo("stumm")
+        assertThat(SpeakerLabel.volume(null, muted = false, de)).isNull()
     }
 }

@@ -45,7 +45,7 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.random.Random
 
-/** The colour field's clock as the stage reads it: its time ([now], seconds) and whether it runs. */
+/** The color field's clock as the stage reads it: its time ([now], seconds) and whether it runs. */
 @Stable
 class FieldTime(val now: () -> Double, val moving: Boolean) {
     companion object {
@@ -57,14 +57,14 @@ class FieldTime(val now: () -> Double, val moving: Boolean) {
 val LocalFieldTime = staticCompositionLocalOf { FieldTime.STILL }
 
 /**
- * The cover's colours as the wall ([CoverField], [FieldMotion]), edge to edge and
+ * The cover's colors as the wall ([CoverField], [FieldMotion]), edge to edge and
  * [CoverField.OVERSCAN_DP] beyond, so the stage's drift never shows a border. The ground and
- * the soft pools are drawn into a layer a quarter of the screen's size and scaled up – they
- * are nothing but soft shapes –, each pool one quad with its own radial gradient, turned and
- * stretched where [FieldMotion] puts it: a frame costs a dozen small quads and one scaled
- * copy. Over it, at full resolution, a grain of a level or two (soft dark ramps would
+ * the soft pools are drawn into a layer a quarter of the screen's size and scaled up, since
+ * they are nothing but soft shapes. Each pool is one quad with its own radial gradient, turned
+ * and stretched where [FieldMotion] puts it, so a frame costs a dozen small quads and one scaled
+ * copy. Over it, at full resolution, come a grain of a level or two (soft dark ramps would
  * otherwise show bands) and the veil: the shade under the text and the artwork's shadow.
- * While the field moves it is redrawn with the stage's tick (~30 times a second), nothing else.
+ * While the field moves, it is redrawn with the stage's tick (~30 times a second), nothing else.
  *
  * [alpha] fades it during a change, [level] dims it (pause, a lost link).
  */
@@ -82,7 +82,7 @@ fun FieldLayer(
     val places = remember(field) { FloatArray(field.blobs.size * FieldMotion.STRIDE) }
     val dark = field.dark
     val time = LocalFieldTime.current
-    // The stage's one tick, shared with the progress bar; alone (in a test) a loop of its own.
+    // The stage's one tick, shared with the progress bar. Alone (in a test), a loop of its own.
     val shared = LocalStageTick.current
     val own = remember { mutableLongStateOf(0L) }
     if (time.moving && shared == null && !LocalStill.current) {
@@ -118,7 +118,7 @@ fun FieldLayer(
                     // Drawn small, then scaled: the pools never touch the full resolution.
                     compositingStrategy = CompositingStrategy.Offscreen
                     this.alpha = alpha().coerceIn(0f, 1f)
-                    // A little more vivid once mixed: where opposite colours meet they stay colour, not grey.
+                    // A little more vivid once mixed: where opposite colors meet, they stay colored, not gray.
                     colorFilter = VIVID
                 },
         ) {
@@ -153,7 +153,7 @@ fun FieldLayer(
             val all = Size(fw.toFloat(), fh.toFloat())
             drawRect(grain, topLeft, all, alpha = a, blendMode = BlendMode.Plus)
             veil?.let { drawImage(it, dstOffset = IntOffset(-m, -m), dstSize = IntSize(fw, fh), alpha = a, filterQuality = FilterQuality.Low) }
-            // In the dark a pause (or a lost link) dims the colours; paper stays paper, like the plain wall.
+            // In the dark, a pause (or a lost link) dims the colors; paper stays paper, like the plain wall.
             val dim = if (dark) 1f - level().coerceIn(0f, 1f) else 0f
             if (dim > 0.002f) drawRect(Color.Black, topLeft, all, alpha = a * dim)
         }
@@ -166,7 +166,7 @@ private const val DOWN = 4
 private val UNIT_TOP_LEFT = Offset(-1f, -1f)
 private val UNIT_SIZE = Size(2f, 2f)
 
-/** A pool as a radial gradient on the unit circle: its colour, its strength falling off at its [FieldBlob.stops]. */
+/** A pool as a radial gradient on the unit circle: its color, its strength falling off at its [FieldBlob.stops]. */
 private fun brush(b: FieldBlob): Brush {
     val colour = Color(b.colour)
     val stops = Array(FieldBlob.STOPS + 1) { i -> i / FieldBlob.STOPS.toFloat() to colour.copy(alpha = b.alpha * b.stops[i]) }
@@ -176,7 +176,7 @@ private fun brush(b: FieldBlob): Brush {
 /** Saturation after the pools have mixed ([CoverField.SATURATION]). */
 private val VIVID = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(CoverField.SATURATION) })
 
-/** A tile of fine noise (0–2 levels): added to the field, it breaks up the bands of dark ramps. */
+/** A tile of fine noise (0 to 2 levels). Added to the field, it breaks up the bands of dark ramps. */
 private object Grain {
     private const val SIDE = 64
 

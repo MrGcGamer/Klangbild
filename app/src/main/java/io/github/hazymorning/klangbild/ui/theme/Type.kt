@@ -23,21 +23,21 @@ import io.github.hazymorning.klangbild.R
 import kotlin.math.roundToInt
 
 /**
- * The two typefaces (both SIL Open Font License, shipped unmodified, licences in
+ * The two typefaces (both SIL Open Font License, shipped unmodified, licenses in
  * assets/licenses):
  *
  * - [TITLE]: Jost (Owen Earl), a geometric sans in the line of Paul Renner's Futura, for the
- *   titles, the large clock and the headings. Round, even forms and a small x-height carry
- *   large sizes with calm.
- * - [TEXT]: DM Sans (Colophon Foundry), a geometric grotesk with optical sizes and a larger
- *   x-height, for everything read at 15–21 sp from the sofa: artists, albums, times, status,
+ *   titles, the large clock and the headings. Its round, even forms and small x-height keep
+ *   large sizes calm.
+ * - [TEXT]: DM Sans (Colophon Foundry), a geometric grotesque with optical sizes and a larger
+ *   x-height, for everything read at 15 to 21 sp from the sofa: artists, albums, times, status,
  *   menus. Its optical-size axis is set to the size in sp, so small lines get the looser,
  *   sturdier cut.
  *
  * Both have a cap height of 0.70 em, so lines aligned by cap height or baseline agree across
- * the two. Hierarchy comes from size, weight and three ink levels – never from capitals,
+ * the two. Hierarchy comes from size, weight and three ink levels, never from capitals,
  * letter-spacing, italics or a third family. Scripts the faces do not cover (Japanese,
- * Arabic …) fall back to the system's fonts.
+ * Arabic and others) fall back to the system's fonts.
  */
 enum class Face(
     internal val font: Int,
@@ -110,9 +110,9 @@ fun textType(size: Float, weight: Int, color: Color = Color.Unspecified, lineHei
 
 /**
  * Times set like a clock face. Every digit stands in a cell as wide as the widest digit and
- * centred in it (letter-spacing is split evenly on both sides of a glyph), so a ticking time
+ * centered in it (letter-spacing is split evenly on both sides of a glyph), so a ticking time
  * never shifts the line. The colon is raised to the middle of the figures; set on the
- * baseline it sags below them.
+ * baseline, it sags below them.
  */
 class Figures internal constructor(
     private val cell: Float,
@@ -144,8 +144,8 @@ fun rememberFigures(style: TextStyle, face: Face): Figures {
 }
 
 /**
- * How far [text] in [style] has to move right so that what is seen – its ink, not its
- * advance box – stands centred where the box would be (px). A large "10:12" leans left by its
+ * How far [text] in [style] has to move right so that what is seen (its ink, not its
+ * advance box) stands centered where the box would be (px). A large "10:12" leans left by its
  * first figure's side bearing; a clock in the middle of the screen must not.
  */
 @Composable
@@ -160,8 +160,11 @@ fun rememberInkShift(text: String, style: TextStyle): Float {
             textSize = with(density) { style.fontSize.toPx() }
             if (style.letterSpacing.isEm) letterSpacing = style.letterSpacing.value
         }
-        val ink = android.graphics.Rect()
-        paint.getTextBounds(text, 0, text.length, ink)
+        // The outlines' exact bounds: whole pixels would leave the clock up to a pixel off.
+        val outline = android.graphics.Path()
+        paint.getTextPath(text, 0, text.length, 0f, 0f, outline)
+        val ink = android.graphics.RectF()
+        outline.computeBounds(ink, true)
         paint.measureText(text) / 2f - (ink.left + ink.right) / 2f
     }
 }

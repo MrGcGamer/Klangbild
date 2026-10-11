@@ -8,9 +8,9 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
-// versionCode counts up automatically: minutes between 2026-01-01 and the HEAD commit.
-// Deterministic per commit, monotonic for a linear history, works locally and in CI
-// (a shallow clone still has HEAD). See docs/DECISIONS.md.
+// versionCode counts up by itself: the minutes from 2026-01-01 to the HEAD commit. It is the
+// same for every build of a commit, grows with a linear history and needs no more history than
+// a shallow clone has.
 val headCommitEpochSeconds: Long = providers.exec {
     commandLine("git", "log", "-1", "--format=%ct")
     isIgnoreExitValue = true
@@ -44,23 +44,13 @@ android {
         // native code pulled in by libraries keeps all ABIs including armeabi-v7a.
     }
 
-    signingConfigs {
-        create("release") {
-            // A dedicated, project-only key that is committed on purpose so that every
-            // build (local or CI) is signed identically and `adb install -r` always works.
-            // See docs/DECISIONS.md – this key protects nothing but this sideloaded app.
-            storeFile = rootProject.file("keystore/klangbild-release.jks")
-            storePassword = "klangbild-sideload"
-            keyAlias = "klangbild"
-            keyPassword = "klangbild-sideload"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // Signed with the debug key so that any build installs for testing. Published
+            // releases are signed again in CI with the release key (ci/sign-release.sh).
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -101,6 +91,14 @@ android {
         }
     }
 
+    lint {
+        // Every warning fails the build; app/lint.xml turns off the few checks that do not apply.
+        warningsAsErrors = true
+        abortOnError = true
+        checkDependencies = false
+        lintConfig = file("lint.xml")
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -114,6 +112,13 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        // A compiler warning fails the build like a lint warning does.
+        allWarningsAsErrors.set(true)
+    }
+}
+
 roborazzi {
     outputDir.set(layout.buildDirectory.dir("screenshots"))
 }
@@ -122,7 +127,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.profileinstaller)
 
@@ -132,8 +136,6 @@ dependencies {
     implementation(libs.compose.ui.text)
     implementation(libs.compose.foundation)
     implementation(libs.compose.animation)
-    implementation(libs.compose.ui.tooling.preview)
-    debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -143,7 +145,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
-    testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)

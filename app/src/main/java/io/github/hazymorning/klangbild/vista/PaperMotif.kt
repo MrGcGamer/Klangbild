@@ -5,30 +5,30 @@ enum class LabelSide { LEFT, RIGHT, NONE }
 
 /**
  * A mountain cut from one piece of card and folded: its outline from foot to foot over the
- * summit (dp), and the creases running from the summit down to points on its foot – one crease
- * gives a face to the left and one to the right, two give a third face between them, turned
- * towards the viewer.
+ * summit (dp), and the creases running from the summit down to points on its foot. One crease
+ * gives a face to the left and one to the right; two give a third face between them, turned
+ * toward the viewer.
  */
 class Mountain(val knots: List<Knot>, val summitX: Float, val summitY: Float, val creases: FloatArray)
 
 /** A fir standing in the picture: its foot (dp) and its height. */
 class Fir(val x: Float, val footY: Float, val height: Float)
 
-/** A boulder of folded grey card: its middle on the ground (dp), its width and height. */
+/** A boulder of folded gray card: its middle on the ground (dp), its width and height. */
 class Rock(val x: Float, val y: Float, val w: Float, val h: Float)
 
 /**
- * The one picture, a diorama of paper on the 960 × 540 dp screen (and [OVERSCAN] beyond, so
- * the slow drift never shows an edge): looking south across a clearing in the woods to the
- * mountains. Every contour is placed by hand; the cutting itself – a slightly uneven hand, the
- * fibres of the paper – is added when the picture is baked.
+ * The one picture: a diorama of paper on the 960 × 540 dp screen (and [OVERSCAN] beyond, so
+ * the slow drift never shows an edge), looking south across a clearing in the woods to the
+ * mountains. Every contour is placed by hand; the cutting itself (a slightly uneven hand, the
+ * fibers of the paper) is added when the picture is baked.
  *
  * From the back: sky; the far range, folded card with snow caps of torn white paper; the near
  * range, lower and darker; two strips of forest cut as one silhouette each, the nearer one dipping
  * into the valley; the meadow of the clearing with a campfire and a few firs standing
  * on it as cut-outs with a white margin; a strip of nearer meadow; and the near bank with the
  * tall firs that frame the view. The bank under the music's label is cut wide and nearly level
- * ([Foreground]): the label lies on calm, dark paper in every light.
+ * ([Foreground]), so the label lies on calm, dark paper in every light.
  */
 object PaperMotif {
     const val WIDTH = 960f
@@ -85,7 +85,7 @@ object PaperMotif {
         k(L, 494f), k(120f, 488f), k(260f, 480f), k(380f, 476f), k(470f, 478f), k(560f, 488f), k(660f, 496f), k(760f, 492f), k(880f, 484f), k(R, 488f),
     )
 
-    /** The far range's skyline at [x] (dp): the upper edge of all its mountains – where the sky's elevations start. */
+    /** The far range's skyline at [x] (dp): the upper edge of all its mountains, where the sky's elevations start. */
     fun skyline(x: Float): Float {
         var y = FAR_FOOT
         for (m in farLines) y = minOf(y, m.yAt(x))
@@ -95,7 +95,7 @@ object PaperMotif {
     private val farLines by lazy { farRange.map { Shapes.line(it.knots) } }
 
     /**
-     * The clearing's furniture and the near banks for a label on [side]: the bank under it is cut
+     * What stands in the clearing and the near banks for a label on [side]: the bank under it is cut
      * wide and stays nearly level; the fire burns on the other side of the clearing. On the
      * right, the whole foreground is the left one mirrored.
      */
@@ -131,8 +131,8 @@ object PaperMotif {
     )
 
     /**
-     * Where the label lies (dp): its left edge on either side, its bottom, and the widest it
-     * may be – the wide bank's top keeps clear of it by at least [LABEL_CLEARANCE].
+     * Where the label lies (dp): its left edge on either side, its bottom, its height and the
+     * widest it may be. The wide bank's top keeps clear of it by at least [LABEL_CLEARANCE].
      */
     const val LABEL_LEFT_X = 64f
     const val LABEL_RIGHT_X = 560f

@@ -38,7 +38,10 @@ import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackText
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.text.LocalTexts
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.flow.FlowTheatre
 import io.github.hazymorning.klangbild.ui.stage.FieldTime
 import io.github.hazymorning.klangbild.ui.stage.LocalFieldTime
@@ -46,7 +49,8 @@ import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
-import io.github.hazymorning.klangbild.ui.vista.FensterblickAhead
+import io.github.hazymorning.klangbild.ui.vista.VistaAhead
+import io.github.hazymorning.klangbild.ui.vista.releaseBakedVista
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
 import io.github.hazymorning.klangbild.ui.vista.labelSide
 import io.github.hazymorning.klangbild.ui.vista.rememberVistaFeed
@@ -69,9 +73,9 @@ class RootHooks(
     /** Local time until which hidden parts (time, place, progress) show again after a key press. */
     val peekUntil: State<Long> = mutableLongStateOf(0L),
     val now: () -> Long = System::currentTimeMillis,
-    /** The colour field's time (seconds): it runs while music plays, at the motion setting's speed. */
+    /** The color field's time (seconds): it runs while music plays, at the motion setting's speed. */
     val fieldTime: () -> Double = { 0.0 },
-    /** The moment the Fensterblick's sky shows. */
+    /** The moment the window view's sky shows. */
     val vistaClock: VistaClock = VistaClock(now),
 )
 
@@ -83,17 +87,25 @@ class RootHooks(
 @Composable
 fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: Modifier = Modifier) {
     val wall = rememberWallClock(now = hooks.now)
-    val density = LocalDensity.current.density
     val entrance = remember { Animatable(0f) }
     LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1_800, easing = Motion.Dimmer)) }
 
-    // The first seconds after a start stay dark instead of flashing "connecting …":
+    // The first seconds after a start stay dark instead of flashing "Connecting":
     // usually the music is there before anyone could read that line.
     val quiet by produceState(initialValue = true) {
         delay(QUIET_START_MS)
         value = false
     }
     val content = contentKey(ui, quiet)
+    CompositionLocalProvider(LocalTexts provides (ui.texts ?: texts())) {
+        Root(ui, screen, hooks, wall, entrance, content, modifier)
+    }
+}
+
+@Composable
+private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<Long>, entrance: Animatable<Float, *>, content: Content, modifier: Modifier) {
+    val density = LocalDensity.current.density
+    val t = texts()
     Box(
         modifier
             .fillMaxSize()
@@ -105,9 +117,16 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 translationY = dy.toFloat()
             },
     ) {
-        // The Fensterblick's picture is baked while it is only on its way: it comes at once.
-        ui.vistaAhead?.let { FensterblickAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
-        // Animate between *kinds* of screens only (stage/rest/setup). The latest content
+        // The window view's picture is baked while it is only on its way, so it comes at once.
+        ui.vistaAhead?.let { VistaAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
+        // No longer coming: its picture is let go after a while, and baked anew the next time.
+        if (ui.vistaAhead == null && ui.vista == null && !LocalStill.current) {
+            LaunchedEffect(Unit) {
+                delay(VISTA_RELEASE_MS)
+                releaseBakedVista()
+            }
+        }
+        // Animate between kinds of screens only (stage/rest/setup). The latest content
         // per kind is kept, so a track change stays inside the stage (its own transition)
         // and an outgoing screen keeps showing what it showed.
         val latest = remember { HashMap<String, Content>() }
@@ -134,8 +153,8 @@ fun KlangbildRoot(ui: UiState, screen: ScreenSpec, hooks: RootHooks, modifier: M
                 }
                 is Content.RestContent -> RestScreen(
                     reason = c.reason,
-                    // A group is named here too: "Wohnzimmer + 5 · Pausiert".
-                    speaker = c.speaker?.let { name -> SpeakerLabel.group(ui.source.group).takeIf { ui.display.group } ?: name },
+                    // A group is named here too: "Living room + 5 · Paused".
+                    speaker = c.speaker?.let { name -> SpeakerLabel.group(ui.source.group, t).takeIf { ui.display.group } ?: name },
                     entityId = ui.entityId,
                     lighting = ui.lighting,
                     nowMs = wall.value,
@@ -161,7 +180,7 @@ private sealed interface Content {
     val key: String
 
     data class StageContent(val stage: StageData) : Content {
-        // One stage view for all tracks: track changes are animated inside the theatre.
+        // One stage view for all tracks: track changes are animated inside the theater.
         override val key = "stage"
     }
 
@@ -180,7 +199,7 @@ private sealed interface Content {
     }
 
     data class VistaContent(val vista: VistaUi) : Content {
-        // The Fensterblick changes its label and its light inside; it comes and goes through the dark.
+        // The window view changes its label and its light inside; it comes and goes through the dark.
         override val key = "vista"
     }
 
@@ -190,6 +209,9 @@ private sealed interface Content {
 }
 
 private const val QUIET_START_MS = 4_000L
+
+/** The window view's picture is kept this long after it stopped coming (a pause cut short, say). */
+private const val VISTA_RELEASE_MS = 10_000L
 
 /**
  * How far the whole screen drifts against burn-in (dp): enough to soften every edge on an
@@ -210,7 +232,7 @@ private fun contentKey(ui: UiState, quietStart: Boolean): Content = if (ui.vista
     is Screen.Setup -> Content.SetupContent(s.reason, ui.appearance)
 }
 
-/** A view's theatre, given the player's status, how to build a model, the light setting and a lost link. */
+/** A view's theater, given the player's status, how to build a model, the light setting and a lost link. */
 private typealias Theatre = @Composable (
     status: PlayerStatus,
     modelFor: (StageData) -> StageModel,
@@ -220,7 +242,7 @@ private typealias Theatre = @Composable (
 
 /**
  * What both views share for the [stage] that plays: the status line's words, the models, the
- * light setting – then [theatre] draws.
+ * light setting. Then [theatre] draws.
  */
 @Composable
 private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wall: State<Long>, theatre: Theatre) {
@@ -243,20 +265,21 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
         }
         peek = false
     }
-    val clock = if (display.clock || peek) RestTexts.time(wall.value) else null
-    val group = SpeakerLabel.group(ui.source.group).takeIf { display.group || peek }
-    val volume = SpeakerLabel.volume(player?.volume, muted)
+    val t = texts()
+    val clock = if (display.clock || peek) t.clock(wall.value) else null
+    val group = SpeakerLabel.group(ui.source.group, t).takeIf { display.group || peek }
+    val volume = SpeakerLabel.volume(player?.volume, muted, t)
     // How it plays: when the sleep timer pauses it, else a book's or an episode's speed.
     val spoken = stageScreen?.track?.kind?.spoken == true
-    val pace = ui.sleepAt?.let { StageTexts.sleep(it) } ?: TimeLine.speed(player?.speed ?: 1f)?.takeIf { spoken }
-    val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, pace = pace)
+    val pace = ui.sleepAt?.let { StageTexts.sleep(it, t) } ?: TimeLine.speed(player?.speed ?: 1f, t)?.takeIf { spoken }
+    val lead = StageTexts.lead(status, muted, ui.volumeFlash, volume, group, volumeAlways = display.volume == VolumeDisplay.ALWAYS, t = t, pace = pace)
     val statusLine = StatusLine(lead, clock)
     // A station has no next song to tell (what its queue holds next is another station).
     val nextTrack = stageScreen?.next?.takeIf { display.next && stageScreen.track.kind != MediaKind.RADIO }
     val chapter = ui.chapter
-    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek, chapter) {
+    val modelFor: (StageData) -> StageModel = remember(stage, status, nextTrack, statusLine, linkDown, display, peek, chapter, t) {
         { s: StageData ->
-            val text = TrackText.from(s.track)
+            val text = TrackText.from(s.track, t[R.string.artists_others])
             // A book or an episode with chapters: the chapter in the album's place, the bar over
             // the chapter, the next chapter after it.
             val ch = chapter?.takeIf { s.track.key == stage.track.key }
@@ -269,9 +292,9 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
                 positionMs = { if (s.track.key == stage.track.key) hooks.positionNow() else null },
                 year = s.track.year.takeIf { display.album },
                 progress = display.timeLine || peek,
-                line = StageTexts.line(linkDown, s.track),
-                next = nextChapter ?: StageTexts.next(nextTrack),
-                nextTitle = if (nextChapter != null) null else StageTexts.nextTitle(nextTrack),
+                line = StageTexts.line(linkDown, s.track, t),
+                next = nextChapter ?: StageTexts.next(nextTrack, t),
+                nextTitle = if (nextChapter != null) null else StageTexts.nextTitle(nextTrack, t),
                 statusLine = statusLine,
                 chapter = ch?.label,
                 rangeStartMs = ch?.startMs ?: 0L,
@@ -284,11 +307,17 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
         animationSpec = tween(1_200, easing = Motion.Dimmer),
         label = "light-setting",
     )
-    // The cover's colours move only while music plays (a pause holds them, like everything else).
+    // The cover's colors move only while music plays (a pause holds them, like everything else).
     val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
     val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
-    // One tick for the bar and the colours: they are redrawn in the same frames.
-    val tick = rememberStageTick(fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING)
+    // The bar shows when its length is known and nothing stands in its place, by setting or for a moment.
+    val barShown = (display.timeLine || peek) && !linkDown && (chapter != null || stage.track.durationMs != null)
+    // One tick for the bar and the colors, so they are redrawn in the same frames. With nothing
+    // to redraw, or with the settings covering the stage, it stops.
+    val tick = rememberStageTick(
+        fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING,
+        running = (moving || barShown) && ui.menu == null,
+    )
     CompositionLocalProvider(LocalFieldTime provides fieldTime, LocalStageTick provides tick) {
         theatre(status, modelFor, { lightFactor }, linkDown)
     }

@@ -54,7 +54,7 @@ class PlayerParserTest {
         assertThat(leader.volume).isWithin(1e-6f).of(0.35f)
         assertThat(leader.muted).isFalse()
 
-        // A member lists the leader first – it is one of the others, too.
+        // A member lists the leader first. It is one of the others, too.
         val member = PlayerParser.player(
             entity("playing", """{"media_title":"X","group_members":["media_player.kueche","media_player.wz"],"is_volume_muted":true}"""),
             base,
@@ -114,17 +114,17 @@ class PlayerParserTest {
         )
         val q = PlayerParser.queue(response, "media_player.wz", base)!!
         assertThat(q.current!!.title).isEqualTo("Bohemian Rhapsody (Remastered 2011)")
-        assertThat(q.current!!.artists).containsExactly("Queen")
-        assertThat(q.current!!.artworkUrl).isEqualTo("https://i.scdn.co/image/ab67616d0000b273cafe")
+        assertThat(q.current.artists).containsExactly("Queen")
+        assertThat(q.current.artworkUrl).isEqualTo("https://i.scdn.co/image/ab67616d0000b273cafe")
         assertThat(q.next!!.title).isEqualTo("Mozart – Klaviersonate Nr. 11")
-        assertThat(q.next!!.source).isEqualTo("SWR2")
-        assertThat(q.next!!.artworkUrl).isEqualTo("http://192.168.1.5:8123/api/x.png")
+        assertThat(q.next.source).isEqualTo("SWR2")
+        assertThat(q.next.artworkUrl).isEqualTo("http://192.168.1.5:8123/api/x.png")
         // The active queue's name: the group player the speaker plays in.
         assertThat(q.name).isEqualTo("Erdgeschoss")
     }
 
     @Test
-    fun `a music assistant group player is recognised`() {
+    fun `a music assistant group player is recognized`() {
         val group = PlayerParser.player(
             entity("playing", """{"media_title":"X","mass_player_type":"group","group_members":["media_player.kueche","media_player.bad"]}"""),
             base,
@@ -209,7 +209,7 @@ class PlayerParserTest {
         )
         val q = PlayerParser.queue(response, "media_player.wz", base)!!
         assertThat(q.current!!.kind).isEqualTo(MediaKind.AUDIOBOOK)
-        assertThat(q.current!!.title).isEqualTo("Der Process")
+        assertThat(q.current.title).isEqualTo("Der Process")
         assertThat(q.next!!.kind).isEqualTo(MediaKind.PODCAST)
     }
 }

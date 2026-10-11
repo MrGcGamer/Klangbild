@@ -24,8 +24,8 @@ import java.time.ZonedDateTime
 import java.util.TimeZone
 
 /**
- * The Fensterblick through the year, as the app shows it in Berlin: for each season a day –
- * sunrise, noon, golden hour, dusk, blue hour, night – and the weather's moods. The pictures
+ * The window view through the year, as the app shows it in Berlin: for each season a day
+ * (sunrise, noon, golden hour, dusk, blue hour, night) and the weather's moods. The pictures
  * go to build/screenshots/vista/gallery/, to be looked at side by side.
  */
 @RunWith(AndroidJUnit4::class)
@@ -37,7 +37,7 @@ class VistaGalleryTest {
         TimeZone.setDefault(TimeZone.getTimeZone(Fixtures.zone))
     }
 
-    private fun shot(name: String, at: ZonedDateTime, weather: String? = "partlycloudy", cover: SyntheticCover = SyntheticCover.NEBELLAND, side: MiniPlayer = MiniPlayer.LEFT) {
+    private fun shot(name: String, at: ZonedDateTime, weather: String? = "partlycloudy", cover: SyntheticCover = SyntheticCover.MIST, side: MiniPlayer = MiniPlayer.LEFT) {
         val t = at.toInstant().toEpochMilli()
         val track = Fixtures.track(cover)
         val ui = UiState(
@@ -70,16 +70,16 @@ class VistaGalleryTest {
     }
 
     @Test
-    fun spring() = day("1_spring", 4, 26, "sunny", SyntheticCover.MOOS)
+    fun spring() = day("1_spring", 4, 26, "sunny", SyntheticCover.MOSS)
 
     @Test
-    fun summer() = day("2_summer", 7, 16, "partlycloudy", SyntheticCover.SALZWASSER)
+    fun summer() = day("2_summer", 7, 16, "partlycloudy", SyntheticCover.SALT_WATER)
 
     @Test
-    fun autumn() = day("3_autumn", 10, 10, "partlycloudy", SyntheticCover.NEBELLAND)
+    fun autumn() = day("3_autumn", 10, 10, "partlycloudy", SyntheticCover.MIST)
 
     @Test
-    fun winter() = day("4_winter", 1, 22, "sunny", SyntheticCover.NACHTFAHRT)
+    fun winter() = day("4_winter", 1, 22, "sunny", SyntheticCover.NIGHT_DRIVE)
 
     @Test
     fun weather() {

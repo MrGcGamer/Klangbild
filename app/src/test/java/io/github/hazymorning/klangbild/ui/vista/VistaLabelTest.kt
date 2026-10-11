@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
@@ -20,6 +19,7 @@ import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.ui.Catalogue
 import io.github.hazymorning.klangbild.ui.Fixtures
+import io.github.hazymorning.klangbild.ui.composeRule
 import io.github.hazymorning.klangbild.vista.LabelSide
 import io.github.hazymorning.klangbild.vista.PaperMotif
 import org.junit.Rule
@@ -30,17 +30,17 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * What stands beside the mini-player's cover is one block, exactly in the middle of the cover –
- * measured on the rendered pixels (1080p, 2 px = 1 dp), on what is seen: from the title's cap
- * height to the bar's lower edge, or – a station without length, so without bar – to the last
- * baseline (a title alone: its cap height to its baseline).
+ * What stands beside the mini-player's cover is one block, exactly in the middle of the cover,
+ * measured on the rendered pixels (1080p, 2 px = 1 dp) and on what is seen: from the title's cap
+ * height to the bar's lower edge, or, for a station without length and so without a bar, to the
+ * last baseline (a title alone: its cap height to its baseline).
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class VistaLabelTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     // Capitals with flat tops and feet: the ink's top is the cap height, its bottom the baseline.
     private val art = Catalogue.SCHEME + SyntheticCover.BAUHAUS.name

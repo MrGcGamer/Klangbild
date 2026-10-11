@@ -1,42 +1,70 @@
 package io.github.hazymorning.klangbild.setup
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
+import io.github.hazymorning.klangbild.data.ha.HaAuthRejectedException
+import io.github.hazymorning.klangbild.data.ha.HaCredentials
+import io.github.hazymorning.klangbild.data.ha.HaTokens
 import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.text.TestTexts
+import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.security.SecureRandom
 
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class SetupHandlerTest {
     private var stored = Settings(haUrl = "http://192.168.1.5:8123", haToken = "secret-token", entityId = "media_player.alt")
-    private val discovered = mutableListOf<Pair<String, String>>()
+    private val discovered = mutableListOf<Pair<String, HaCredentials>>()
     private val maChecked = mutableListOf<Pair<String, String>>()
+    private val exchanged = mutableListOf<Triple<String, String, String>>()
+    private val revoked = mutableListOf<Pair<String, String>>()
     private var maAnswer = MaLink.CONNECTED
+    private var texts: Texts = TestTexts.german
+    private var now = 1_000_000L
+    private var exchangeFails = false
+
+    private val clientId = "http://192.168.1.23:8765/"
 
     private val handler = SetupHandler(
         settings = { stored },
-        discover = { url, token ->
-            discovered += url to token
+        texts = { texts },
+        discover = { url, credentials ->
+            discovered += url to credentials
             DiscoverResult.Ok(
                 listOf(SpeakerOption("media_player.wz", "Wohnzimmer", "spielt", true)),
-                listOf(LightOption("light.play_links", "Play links", "an"), LightOption("light.play_rechts", "Play rechts", "aus")),
+                listOf(LightOption("light.tv_left", "TV links", "an"), LightOption("light.tv_right", "TV rechts", "aus")),
                 listOf(WeatherOption("weather.forecast_home", "Forecast Home", "teils bewölkt")),
             )
         },
         save = { stored = it },
+        clientId = { clientId },
+        exchange = { url, code, client ->
+            exchanged += Triple(url, code, client)
+            if (exchangeFails) throw HaAuthRejectedException("invalid_request")
+            HaTokens("access-$code", "refresh-$code", 1800)
+        },
+        revoke = { url, token -> revoked += url to token },
         checkMa = { url, token ->
             maChecked += url to token
             maAnswer
         },
         maGuess = { "http://192.168.1.5:8095" },
         random = SecureRandom(),
+        now = { now },
+        wrongCodeDelayMs = 0L,
     )
 
     private fun post(path: String, body: String) = runBlocking {
@@ -52,6 +80,7 @@ class SetupHandlerTest {
         val html = String(r.body)
         assertThat(html).contains("value=\"123456\"")
         assertThat(html).contains("Langlebiges Zugangstoken")
+        assertThat(html).contains("<html lang=\"de\">")
         val bad = handler.handle(MiniHttp.Request("GET", "/", mapOf("code" to "<script>"), emptyMap(), ByteArray(0)))
         assertThat(String(bad.body)).doesNotContain("<script>\"")
     }
@@ -63,7 +92,7 @@ class SetupHandlerTest {
         assertThat(r.status).isEqualTo(200)
         val body = String(r.body)
         assertThat(body).doesNotContain("secret-token")
-        assertThat(json(r)["hasToken"]!!.jsonPrimitive.content).isEqualTo("true")
+        assertThat(json(r)["auth"]!!.jsonPrimitive.content).isEqualTo("token")
     }
 
     @Test
@@ -78,7 +107,7 @@ class SetupHandlerTest {
     fun `discover reuses the stored token for the same server`() {
         val r = post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}""")
         assertThat(json(r)["ok"]!!.jsonPrimitive.content).isEqualTo("true")
-        assertThat(discovered.single()).isEqualTo("http://192.168.1.5:8123" to "secret-token")
+        assertThat(discovered.single()).isEqualTo("http://192.168.1.5:8123" to HaCredentials.LongLived("secret-token"))
         val other = post("/api/discover", """{"code":"${handler.code}","url":"10.0.0.9:8123","token":""}""")
         assertThat(other.status).isEqualTo(400)
     }
@@ -173,31 +202,32 @@ class SetupHandlerTest {
               {"entity_id":"media_player.wz","state":"playing","attributes":{"friendly_name":"Wohnzimmer","mass_player_type":"player"}},
               {"entity_id":"media_player.tv_display","state":"idle","attributes":{"friendly_name":"TV","mass_player_type":"display","device_class":"tv"}}
             ]""",
+            texts,
         ) as DiscoverResult.Ok
         assertThat(r.speakers.map { it.entityId }).containsExactly("media_player.wz", "media_player.kueche").inOrder()
         assertThat(r.speakers.first().state).isEqualTo("spielt")
     }
 
     @Test
-    fun `the light bars are offered, stored when the page showed them and kept when it did not`() {
+    fun `the lights are offered, stored when the page showed them and kept when it did not`() {
         val found = json(post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}"""))
-        assertThat(found["lights"].toString()).contains("light.play_links")
+        assertThat(found["lights"].toString()).contains("light.tv_left")
         val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
-        assertThat(post("/api/save", """{$base,"barsLeft":"light.play_links","barsCenter":"","barsRight":"light.play_rechts"}""").status).isEqualTo(200)
-        assertThat(stored.bars).isEqualTo(io.github.hazymorning.klangbild.config.LightBars("light.play_links", null, "light.play_rechts"))
+        assertThat(post("/api/save", """{$base,"lightsLeft":"light.tv_left","lightsCenter":"","lightsRight":"light.tv_right"}""").status).isEqualTo(200)
+        assertThat(stored.roomLights).isEqualTo(io.github.hazymorning.klangbild.config.RoomLights("light.tv_left", null, "light.tv_right"))
         val state = json(post("/api/state", """{"code":"${handler.code}"}"""))
-        assertThat(state["barsRight"]!!.jsonPrimitive.content).isEqualTo("light.play_rechts")
-        // Saved without the lights section (nothing found yet): the bars stay.
+        assertThat(state["lightsRight"]!!.jsonPrimitive.content).isEqualTo("light.tv_right")
+        // Saved without the lights section (nothing found yet): the lights stay.
         assertThat(post("/api/save", """{$base}""").status).isEqualTo(200)
-        assertThat(stored.bars.ids).containsExactly("light.play_links", "light.play_rechts")
+        assertThat(stored.roomLights.ids).containsExactly("light.tv_left", "light.tv_right")
         // Only lights.
-        assertThat(post("/api/save", """{$base,"barsLeft":"switch.steckdose"}""").status).isEqualTo(400)
-        assertThat(post("/api/save", """{$base,"barsLeft":"","barsCenter":"","barsRight":""}""").status).isEqualTo(200)
-        assertThat(stored.bars.isSet).isFalse()
+        assertThat(post("/api/save", """{$base,"lightsLeft":"switch.socket"}""").status).isEqualTo(400)
+        assertThat(post("/api/save", """{$base,"lightsLeft":"","lightsCenter":"","lightsRight":""}""").status).isEqualTo(200)
+        assertThat(stored.roomLights.isSet).isFalse()
     }
 
     @Test
-    fun `the Fensterblick's weather is offered and stored, automatic by default`() {
+    fun `the window view's weather is offered and stored, automatic by default`() {
         val found = json(post("/api/discover", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":""}"""))
         assertThat(found["weather"].toString()).contains("weather.forecast_home")
         val base = """"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz""""
@@ -212,22 +242,118 @@ class SetupHandlerTest {
         assertThat(post("/api/save", """{$base,"weather":""}""").status).isEqualTo(200)
         assertThat(stored.weatherEntities).isEqualTo(Settings.DEFAULT_WEATHER)
         assertThat(post("/api/save", """{$base,"weather":"sensor.temperatur"}""").status).isEqualTo(400)
-        val r = SetupServer.parseSpeakers("""[{"entity_id":"weather.home","state":"partlycloudy","attributes":{"friendly_name":"Zuhause"}}]""") as DiscoverResult.Ok
+        val r = SetupServer.parseSpeakers("""[{"entity_id":"weather.home","state":"partlycloudy","attributes":{"friendly_name":"Zuhause"}}]""", texts) as DiscoverResult.Ok
         assertThat(r.weather).containsExactly(WeatherOption("weather.home", "Zuhause", "teils bewölkt"))
     }
 
     @Test
-    fun `only lights that show colours are offered for the bars`() {
+    fun `every light is offered, whatever it can show`() {
         val r = SetupServer.parseSpeakers(
             """[
-              {"entity_id":"light.play_links","state":"off","attributes":{"friendly_name":"Play links","supported_color_modes":["color_temp","xy"]}},
+              {"entity_id":"light.tv_left","state":"off","attributes":{"friendly_name":"TV links","supported_color_modes":["color_temp","xy"]}},
               {"entity_id":"light.flur","state":"on","attributes":{"friendly_name":"Flur","supported_color_modes":["brightness"]}},
               {"entity_id":"light.band","state":"on","attributes":{"friendly_name":"Band","supported_color_modes":["rgbww"]}},
               {"entity_id":"switch.x","state":"on","attributes":{"supported_color_modes":["xy"]}}
             ]""",
+            texts,
         ) as DiscoverResult.Ok
-        assertThat(r.lights.map { it.entityId }).containsExactly("light.band", "light.play_links").inOrder()
+        assertThat(r.lights.map { it.entityId }).containsExactly("light.band", "light.flur", "light.tv_left").inOrder()
         assertThat(r.lights.last().state).isEqualTo("aus")
+        // In English the states are English words.
+        val en = SetupServer.parseSpeakers("""[{"entity_id":"light.flur","state":"on","attributes":{}}]""", TestTexts.english()) as DiscoverResult.Ok
+        assertThat(en.lights.single().state).isEqualTo("on")
+    }
+
+    private fun get(path: String, query: Map<String, String> = emptyMap()) = runBlocking {
+        handler.handle(MiniHttp.Request("GET", path, query, emptyMap(), ByteArray(0)))
+    }
+
+    /** Starts a sign-in on the page; the address of Home Assistant's login page it gets back. */
+    private fun startSignIn(url: String = "192.168.1.5:8123") =
+        json(post("/api/signin", """{"code":"${handler.code}","url":"$url"}"""))["authorize"]!!.jsonPrimitive.content.toHttpUrl()
+
+    @Test
+    fun `signing in goes through Home Assistant's own login page and back`() {
+        val authorize = startSignIn()
+        assertThat(authorize.encodedPath).isEqualTo("/auth/authorize")
+        assertThat(authorize.host).isEqualTo("192.168.1.5")
+        assertThat(authorize.queryParameter("client_id")).isEqualTo(clientId)
+        assertThat(authorize.queryParameter("redirect_uri")).isEqualTo("http://192.168.1.23:8765/auth/callback")
+        val state = authorize.queryParameter("state")!!
+        assertThat(state.length).isAtLeast(40)
+        // Home Assistant sends the phone back with a code; the TV swaps it for tokens and the phone goes on.
+        val back = get("/auth/callback", mapOf("code" to "abc", "state" to state))
+        assertThat(back.status).isEqualTo(303)
+        assertThat(back.headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_OK)
+        assertThat(exchanged.single()).isEqualTo(Triple("http://192.168.1.5:8123", "abc", clientId))
+        // The page learns it is signed in, never the tokens.
+        val st = post("/api/state", """{"code":"${handler.code}"}""")
+        assertThat(json(st)["auth"]!!.jsonPrimitive.content).isEqualTo("signin")
+        assertThat(String(st.body)).doesNotContain("refresh-abc")
+        // Saved with the form, the sign-in replaces the long-lived token.
+        val saved = post("/api/save", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":"","entity":"media_player.wz"}""")
+        assertThat(saved.status).isEqualTo(200)
+        assertThat(stored.haCredentials).isEqualTo(HaCredentials.SignedIn("refresh-abc", clientId))
+        assertThat(stored.haToken).isNull()
+        assertThat(revoked).isEmpty()
+    }
+
+    @Test
+    fun `a callback without the right state, used twice or too late is refused`() {
+        startSignIn()
+        assertThat(get("/auth/callback", mapOf("code" to "abc", "state" to "guessed")).headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_FAILED)
+        // The state of the one sign-in under way, once.
+        val state = startSignIn().queryParameter("state")!!
+        assertThat(get("/auth/callback", mapOf("code" to "abc", "state" to state)).headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_OK)
+        assertThat(get("/auth/callback", mapOf("code" to "abc", "state" to state)).headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_FAILED)
+        // Ten minutes and more: Home Assistant's code has expired anyway.
+        val late = startSignIn().queryParameter("state")!!
+        now += SetupHandler.SIGN_IN_MS + 1
+        assertThat(get("/auth/callback", mapOf("code" to "def", "state" to late)).headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_FAILED)
+        assertThat(exchanged.map { it.second }).containsExactly("abc")
+        // A code Home Assistant refuses is a failed sign-in.
+        exchangeFails = true
+        val refused = startSignIn().queryParameter("state")!!
+        assertThat(get("/auth/callback", mapOf("code" to "ghi", "state" to refused)).headers["Location"]).isEqualTo(SetupHandler.SIGN_IN_FAILED)
+        // Starting a sign-in needs the code shown on the TV.
+        assertThat(post("/api/signin", """{"code":"000000x","url":"192.168.1.5:8123"}""").status).isEqualTo(403)
+    }
+
+    @Test
+    fun `a sign-in never saved is revoked, and so is one a new sign-in replaces`() = runBlocking {
+        val first = startSignIn().queryParameter("state")!!
+        get("/auth/callback", mapOf("code" to "one", "state" to first))
+        val second = startSignIn().queryParameter("state")!!
+        get("/auth/callback", mapOf("code" to "two", "state" to second))
+        assertThat(revoked).containsExactly("http://192.168.1.5:8123" to "refresh-one")
+        // The setup screen closes without saving.
+        handler.reset()
+        assertThat(revoked).containsExactly("http://192.168.1.5:8123" to "refresh-one", "http://192.168.1.5:8123" to "refresh-two").inOrder()
+    }
+
+    @Test
+    fun `an earlier sign-in is revoked when the TV goes over to another one`() {
+        stored = Settings(haUrl = "http://192.168.1.5:8123", haRefreshToken = "old-refresh", haClientId = clientId, entityId = "media_player.wz")
+        assertThat(json(post("/api/state", """{"code":"${handler.code}"}"""))["auth"]!!.jsonPrimitive.content).isEqualTo("signin")
+        // Saved again unchanged: the sign-in stays.
+        assertThat(post("/api/save", """{"code":"${handler.code}","url":"192.168.1.5:8123","entity":"media_player.wz"}""").status).isEqualTo(200)
+        assertThat(revoked).isEmpty()
+        assertThat(stored.haCredentials).isEqualTo(HaCredentials.SignedIn("old-refresh", clientId))
+        // A long-lived token instead: the sign-in is revoked.
+        assertThat(post("/api/save", """{"code":"${handler.code}","url":"192.168.1.5:8123","token":"long","entity":"media_player.wz"}""").status).isEqualTo(200)
+        assertThat(revoked).containsExactly("http://192.168.1.5:8123" to "old-refresh")
+        assertThat(stored.haCredentials).isEqualTo(HaCredentials.LongLived("long"))
+    }
+
+    @Test
+    fun `the page speaks the language the TV shows`() {
+        texts = TestTexts.english()
+        val html = String(get("/").body)
+        assertThat(html).contains("<html lang=\"en\">")
+        assertThat(html).contains("Long-lived access token")
+        assertThat(html).doesNotContain("Zugangstoken")
+        val r = post("/api/save", """{"code":"${handler.code}","url":"","entity":"x"}""")
+        assertThat(json(r)["message"]!!.jsonPrimitive.content).doesNotContain("Adresse")
     }
 
     @Test

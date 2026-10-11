@@ -7,9 +7,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Exact anti-aliased coverage of a polygon, the way font rasterisers do it: every edge adds
- * the signed area it encloses to an accumulation row, a running sum along the row turns that
- * into coverage. The edge of a paper cut-out comes out as sharp as the pixel grid allows,
+ * Exact anti-aliased coverage of a polygon, the way font rasterizers do it: every edge adds
+ * the signed area it encloses to an accumulation row, and a running sum along the row turns
+ * that into coverage. The edge of a paper cut-out comes out as sharp as the pixel grid allows,
  * with no supersampling and no blur.
  */
 class Coverage(val width: Int, val height: Int) {
@@ -102,7 +102,7 @@ class Coverage(val width: Int, val height: Int) {
         }
     }
 
-    /** The coverage (0..1) of every pixel, row by row; the raster is spent afterwards. */
+    /** The coverage (0..1) of every pixel, row by row; the raster is spent afterward. */
     fun resolve(): FloatArray {
         val out = FloatArray(width * height)
         for (y in 0 until height) {

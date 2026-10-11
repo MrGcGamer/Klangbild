@@ -73,12 +73,12 @@ private class Timeline(val clearMs: Int, val turnMs: Int, val totalMs: Int) {
 private class Plan(val motions: List<CardMotion>, val timeline: Timeline)
 
 /**
- * Cover Flow with its transitions. When another picture comes to the middle the strip turns
- * over – the leaving cover swings away to the side as the next one turns to face the room –
- * in one unhurried, eased movement; the old text leaves first, the new lines rise as the new
- * cover arrives, and the light above the cards takes its colour. New cards roll in opaque from
- * beyond the end of the strip; cards that are no longer wanted dissolve first, before anything
- * moves behind them ([plan]) – never two covers on top of each other. A pause dims the light,
+ * Cover Flow with its transitions. When another picture comes to the middle, the strip turns
+ * over in one unhurried, eased movement: the leaving cover swings away to the side as the next
+ * one turns to face the room. The old text leaves first, the new lines rise as the new cover
+ * arrives, and the light above the cards takes its color. New cards roll in opaque from beyond
+ * the end of the strip. Cards that are no longer wanted dissolve first, before anything moves
+ * behind them ([plan]), so two covers are never on top of each other. A pause dims the light,
  * the cards and the text; nothing moves.
  *
  * One change at a time: what arrives meanwhile waits until the running change has landed. If
@@ -262,17 +262,17 @@ private fun resting(flow: FlowData): List<CardMotion> = flow.cards.mapIndexed { 
 
 /**
  * Each card's way from [old] to [new]. The strip moves away from the side new pictures come
- * from – the right going forward, the left going back – and on that side:
+ * from (the right going forward, the left going back), and on that side:
  *
  * - cards that arrive roll in opaque from beyond the end of the strip, in formation, the first
  *   one from [FlowGeometry.EDGE];
- * - cards that leave dissolve first, before anything moves behind them – never two covers on
- *   top of each other;
+ * - cards that leave dissolve first, before anything moves behind them, so two covers are never
+ *   on top of each other;
  * - if the order there does not simply continue (a song put in between, the queue rearranged),
  *   the whole side is replaced: what stood there dissolves, and all of its cards roll in.
  *
- * Cards in both strips move from their old place to their new one. On the other side cards
- * that leave step one place further out as they fade, cards that appear fade in where they
+ * Cards in both strips move from their old place to their new one. On the other side, cards
+ * that leave step one place farther out as they fade, and cards that appear fade in where they
  * stand.
  */
 private fun plan(old: FlowData, new: FlowData, kind: FlowChange): Plan {
@@ -328,8 +328,8 @@ private fun plan(old: FlowData, new: FlowData, kind: FlowChange): Plan {
         val card = e.scene.card!!
         val from = was(e.id)!!
         out += if (from > 0f) {
-            // Makes way where it stands – first, if something rolls in behind it; the farther
-            // cards a little sooner, so two leaving cards do not show through each other.
+            // Makes way where it stands, first if something rolls in behind it. The farther
+            // cards go a little sooner, so two leaving cards do not show through each other.
             val clear = timeline.clear
             val fade = if (clearMs > 0) Window(0f, clear.end * (1f - 0.35f * (from - 1f).coerceIn(0f, 1f))) else turn
             CardMotion(e.id, card, dir * from, dir * from, toAlpha = 0f, fade = fade)

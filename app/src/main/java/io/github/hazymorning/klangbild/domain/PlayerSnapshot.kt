@@ -21,15 +21,32 @@ data class PlayerSnapshot(
     /** Volume 0..1, null when the player does not report one (a group: the members' average). */
     val volume: Float? = null,
     val muted: Boolean = false,
-    /** The entity is a Music Assistant group player ("Erdgeschoss"), not a speaker. */
+    /** The entity is a Music Assistant group player ("Ground floor"), not a speaker. */
     val isGroupPlayer: Boolean = false,
     /**
-     * How fast the item plays (a book at 1.5×) – only Music Assistant itself knows; the position
-     * runs at this pace.
+     * How fast the item plays (a book at 1.5×). Only Music Assistant itself knows this; the
+     * position runs at this pace.
      */
     val speed: Float = 1f,
-    /** Shuffle on or off – null when the player cannot shuffle. */
+    /** Shuffle on or off; null when the player cannot shuffle. */
     val shuffle: Boolean? = null,
+    /** What the player lets the remote do. */
+    val abilities: PlayerAbilities = PlayerAbilities(),
+)
+
+/**
+ * What a player lets the remote do, from Home Assistant's supported features: only what it
+ * supports is offered and called. A player that does not say is taken to support everything.
+ */
+data class PlayerAbilities(
+    val play: Boolean = true,
+    val pause: Boolean = true,
+    val seek: Boolean = true,
+    val next: Boolean = true,
+    val previous: Boolean = true,
+    /** Volume up and down (by steps, or by setting the level). */
+    val volume: Boolean = true,
+    val shuffle: Boolean = true,
 )
 
 /** The speakers playing together with the configured one. */
@@ -51,7 +68,7 @@ data class QueueInfo(
     val current: TrackInfo?,
     val next: TrackInfo?,
     /**
-     * Name of the queue the speaker plays from: its own – or that of a group player it
+     * Name of the queue the speaker plays from: its own, or that of a group player it
      * plays in, whose members do not list each other in `group_members`.
      */
     val name: String? = null,

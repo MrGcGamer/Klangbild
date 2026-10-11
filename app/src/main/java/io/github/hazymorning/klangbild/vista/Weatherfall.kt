@@ -5,13 +5,13 @@ import kotlin.math.floor
 import kotlin.math.sin
 
 /**
- * What falls from the sky, in three depths – in front of the far range, of the clearing and of
- * the near banks, each moving with its layer: snowflakes of white paper, sailing down and
- * swaying, and rain as fine threads, slanting with the wind. Every flake and every drop is a
+ * What falls from the sky, at three depths (in front of the far range, of the clearing and of
+ * the near banks), each moving with its layer: snowflakes of white paper that sail down and
+ * sway, and rain as fine threads that slant with the wind. Every flake and every drop is a
  * number: where it is, how fast it falls and when it shows come from a hash of that number and
- * the clocks, never from a random draw – so nothing jumps, and as the snow or the rain gets
+ * the clocks, never from a random draw. So nothing jumps, and as the snow or the rain gets
  * heavier, more of them simply fade in where they are. Near their ground they fade out: they
- * land on the meadow, they never vanish in the air.
+ * land on the meadow and never vanish in the air.
  */
 object Weatherfall {
     /**
@@ -48,7 +48,7 @@ object Weatherfall {
     const val STRIDE = 5
 
     /**
-     * Writes the items of [band] at the moment [t] (s) into [out] – [STRIDE] floats each – for
+     * Writes the items of [band] at the moment [t] (s) into [out], [STRIDE] floats each, for
      * a fall of [strength] (0..1); [drift] is how far the wind has blown so far (the integral of
      * the wind over time, so a gust never makes anything jump) and [wind] the wind now (for the
      * rain's slant). [snow]: flakes sway as they sail; drops fall straight along their slant.
@@ -108,9 +108,9 @@ object Weatherfall {
 
 /**
  * Mist lying in the valley: long bands of thin tissue drifting slowly in front of the far
- * range's feet and through the forest behind the clearing – never over the clearing itself,
- * where the fire and the tent stand. More of them and denser in fog, a few in rain, a breath of
- * it on still mornings.
+ * range's feet and through the forest behind the clearing, never over the clearing itself,
+ * where the fire and the tent stand. There are more of them, and denser, in fog, a few in rain,
+ * and a breath of it on still mornings.
  */
 object MistField {
     private class Lane(val depth: Depth, val y: Float, val speed: Float, val spacing: Float, val scale: Float, val stretch: Float, val seed: Int)

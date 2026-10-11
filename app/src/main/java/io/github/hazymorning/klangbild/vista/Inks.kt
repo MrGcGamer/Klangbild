@@ -1,17 +1,17 @@
 package io.github.hazymorning.klangbild.vista
 
 /**
- * The colours of one baked sheet of paper. A sheet stores, per pixel, how much of its [first]
+ * The colors of one baked sheet of paper. A sheet stores, per pixel, how much of its [first]
  * and [second] ink lies over its [base] (weights w1 and w2, 0..1) and the light of the paper
- * itself – its grain, the shade it lies in, its lit edge – as a factor t around 1: red is
- * w1·t, green w2·t, blue t, all divided by [T_SCALE]; alpha is coverage. One colour matrix
- * turns that into colour every frame, so the light can change without the sheet being drawn
- * anew: out = t·(base + w1·(first − base) + w2·(second − base)). Colours are sRGB ARGB ints;
+ * itself (its grain, the shade it lies in, its lit edge) as a factor t around 1: red is
+ * w1·t, green w2·t, blue t, all divided by [T_SCALE]; alpha is coverage. One color matrix
+ * turns that into color every frame, so the light can change without the sheet being drawn
+ * again: out = t·(base + w1·(first − base) + w2·(second − base)). Colors are sRGB ARGB ints;
  * the mix happens in sRGB, like ink.
  */
 data class Inks(val base: Int, val first: Int, val second: Int) {
 
-    /** The 4 × 5 colour matrix (Android layout) with the sheet's alpha scaled by [alpha]. */
+    /** The 4 × 5 color matrix (Android layout) with the sheet's alpha scaled by [alpha]. */
     fun matrix(alpha: Float = 1f, out: FloatArray = FloatArray(20)): FloatArray {
         for (c in 0 until 3) {
             val shift = 16 - 8 * c
@@ -33,7 +33,7 @@ data class Inks(val base: Int, val first: Int, val second: Int) {
         return out
     }
 
-    /** The colour a pixel with weights [w1], [w2] and paper light [t] gets – what the matrix computes. */
+    /** The color a pixel with weights [w1], [w2] and paper light [t] gets; the matrix computes the same. */
     fun mix(w1: Float, w2: Float, t: Float = 1f): Int {
         var out = 0xFF shl 24
         for (c in 0 until 3) {
@@ -49,7 +49,7 @@ data class Inks(val base: Int, val first: Int, val second: Int) {
         /** The paper's light is stored up to this factor (blue = t / T_SCALE). */
         const val T_SCALE = 1.25f
 
-        /** All three the same: a flat colour (still with the paper's grain). */
+        /** All three the same: a flat color (still with the paper's grain). */
         fun flat(argb: Int) = Inks(argb, argb, argb)
     }
 }

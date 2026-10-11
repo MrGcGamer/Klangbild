@@ -29,7 +29,7 @@ sealed interface Screen {
         val next: TrackInfo?,
         /**
          * The connection has been gone for longer than the grace period: the stage stays,
-         * dimmed like a pause, and the stage says so – until [Timing.linkGiveUpMs].
+         * dimmed like a pause, and says so until [Timing.linkGiveUpMs].
          */
         val linkDown: Boolean = false,
     ) : Screen
@@ -51,7 +51,7 @@ data class Timing(
     val linkGiveUpMs: Long = 120_000L,
     /**
      * Between two songs a player may say for a moment that nothing plays (or play without a
-     * title): the stage stays this long before it makes way for the rest screen – a skip never
+     * title). The stage stays this long before it makes way for the rest screen, so a skip never
      * passes through it.
      */
     val betweenSongsMs: Long = 4_000L,

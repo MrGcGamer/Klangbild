@@ -2,8 +2,8 @@ package io.github.hazymorning.klangbild.color
 
 /**
  * The wall the stage is drawn on: warm paper by day, black at night. Automatic follows the
- * sun – light from sunrise to sunset, the rule Android and Apple TV use for their own dark
- * themes.
+ * sun: light from sunrise to sunset, the same rule Android and other TV systems use for their
+ * own dark themes.
  */
 enum class Appearance {
     LIGHT,

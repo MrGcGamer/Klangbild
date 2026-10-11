@@ -18,6 +18,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.text.texts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,8 +27,8 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Frame timing for checking smoothness on the real device (`--ez debug true`). Uses the
  * platform's FrameMetrics: per second, how many frames were drawn, how long the slowest
- * took and how many missed a 60 Hz deadline. Nothing is drawn when nothing changes – a
- * quiet screen shows "0 Bilder", which is the point.
+ * took and how many missed a 60 Hz deadline. Nothing is drawn when nothing changes, so a
+ * quiet screen shows 0 frames, as intended.
  */
 object FrameStats {
     data class Second(val frames: Int, val worstMs: Float, val janky: Int)
@@ -58,7 +60,7 @@ object FrameStats {
         }
     }
 
-    /** Counts [window]'s frames until [detach] – only while the overlay is asked for. */
+    /** Counts [window]'s frames until [detach], only while the overlay is asked for. */
     fun attach(window: Window) {
         window.addOnFrameMetricsAvailableListener(listener, handler)
     }
@@ -72,9 +74,10 @@ object FrameStats {
 @Composable
 fun DebugOverlay() {
     val s by FrameStats.stats.collectAsStateWithLifecycle()
+    val t = texts()
     Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.TopStart) {
         BasicText(
-            "${s.frames} Bilder/s · langsamstes ${"%.1f".format(s.worstMs)} ms · ${s.janky} zu spät",
+            t.format(R.string.debug_frames, s.frames, t.decimal(s.worstMs.toDouble(), 1), s.janky),
             style = TextStyle(color = Color(0xFFB0A090), fontSize = 12.sp),
             modifier = Modifier.background(Color(0x99000000)).padding(horizontal = 8.dp, vertical = 4.dp),
         )

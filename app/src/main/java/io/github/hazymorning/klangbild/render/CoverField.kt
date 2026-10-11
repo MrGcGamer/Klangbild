@@ -19,15 +19,15 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * One soft shape of the colour field: an elliptical pool of one colour whose strength falls off
- * from its middle – softly for the shapes far back, with a clearer shoulder for the ones in
- * front (they are "in focus"). Its place, turn and size move with the field's time
+ * One soft shape of the color field: an elliptical pool of one color whose strength falls off
+ * from its middle. Shapes far back fall off softly, shapes in front have a clearer shoulder
+ * (they are "in focus"). Its place, turn and size move with the field's time
  * ([FieldMotion]).
  */
 class FieldBlob(
-    /** The colour as the wall shows it (opaque ARGB). */
+    /** The color as the wall shows it (opaque ARGB). */
     val colour: Int,
-    /** The cover's own colour it stands for, linear sRGB – what the light bars show. */
+    /** The cover's own color it stands for, in linear sRGB. This is what the lights show. */
     val light: FloatArray,
     /** How strongly it covers what lies behind (0..1). */
     val alpha: Float,
@@ -35,9 +35,9 @@ class FieldBlob(
     val radius: Float,
     /** Shorter axis over longer axis. */
     val aspect: Float,
-    /** 0: very soft (far back) … 1: a clear shoulder (in front). */
+    /** 0 is very soft (far back), 1 has a clear shoulder (in front). */
     val focus: Float,
-    /** Adds light (screen) instead of covering (over): the bright shapes in front. */
+    /** Adds light (screen blend) instead of covering (over). Used for the bright shapes in front. */
     val glow: Boolean,
     /** 0 far, 1 middle, 2 near: the nearer, the quicker it drifts (parallax). */
     val depth: Int,
@@ -55,13 +55,13 @@ class FieldBlob(
     val breathPeriod: Float,
 ) {
     /**
-     * The falloff ([CoverField.falloff]) at [STOPS] + 1 even steps from the middle to the rim:
-     * the screen's gradient has exactly these stops (linear between them), and the field
-     * computed on the CPU reads the same table – as cheap as it is faithful.
+     * The falloff ([CoverField.falloff]) at [STOPS] + 1 even steps from the middle to the rim.
+     * The screen's gradient has exactly these stops (linear between them), and the field
+     * computed on the CPU reads the same table. This is cheap and matches the screen exactly.
      */
     val stops: FloatArray = FloatArray(STOPS + 1) { CoverField.falloff(it / STOPS.toFloat(), focus) }
 
-    /** The falloff at [rho] (0 middle … 1 rim), as the screen draws it. */
+    /** The falloff at [rho] (0 at the middle, 1 at the rim), as the screen draws it. */
     fun strengthAt(rho: Float): Float {
         if (rho >= 1f) return 0f
         val x = rho * STOPS
@@ -75,30 +75,30 @@ class FieldBlob(
 }
 
 /**
- * "Coverfarben": the cover's colours as a field that fills the whole screen, edge to edge – a
- * deep ground and a mass of colour for each of the cover's colours, placed where it sits in the
- * cover and kept apart (the field carries the picture's colours across the wall), with lit cores
- * and light in front. Far shapes are large and very soft, near ones smaller, lighter and a
- * little firmer: depth like an out-of-focus background behind a lens. Over it a shade under the
- * text and the picture's shadow ([veil]).
+ * Cover colors: the cover's colors as a field that fills the whole screen, edge to edge. It has
+ * a deep ground and a mass of color for each of the cover's colors, placed where that color sits
+ * in the cover and kept apart (the field carries the picture's colors across the wall), with lit
+ * cores and light in front. Far shapes are large and very soft, near ones smaller, lighter and a
+ * little firmer. This gives depth like an out-of-focus background behind a lens. Over it lies a
+ * shade under the text ([veil]).
  */
 class FieldScene(
     /** The ground the shapes lie on (opaque ARGB). */
     val base: Int,
-    /** The ground's cover colour, linear sRGB (for the light bars). */
+    /** The ground's cover color, linear sRGB (for the lights). */
     val baseLight: FloatArray,
     /** Back to front. */
     val blobs: List<FieldBlob>,
     /**
-     * Over the shapes: the text shade – for the screen and
-     * [CoverField.OVERSCAN_DP] around it; null where only the light bars need the field.
+     * Over the shapes: the text shade, for the screen and [CoverField.OVERSCAN_DP] around it.
+     * Null where only the lights need the field.
      */
     val veil: Bitmap?,
     val dark: Boolean,
 )
 
 object CoverField {
-    /** The field reaches this far beyond each screen edge: the stage's drift (±12 dp) never shows a border. */
+    /** The field reaches this far beyond each screen edge, so the screen's drift (±6 dp) never shows a border. */
     const val OVERSCAN_DP = 18f
 
     /** The veil's resolution: it only holds soft ramps. */
@@ -109,7 +109,7 @@ object CoverField {
     const val TEXT_SCRIM_MIN = 0.06f
     const val TEXT_SCRIM_MAX = 0.7f
 
-    /** The colours are made a little more vivid once mixed: where opposite colours meet they stay colour, not grey. */
+    /** The colors are made a little more vivid once mixed, so where opposite colors meet they stay colorful, not gray. */
     const val SATURATION = 1.2f
 
     /** The screen's aspect the field is laid out for (the TV's). */
@@ -117,9 +117,9 @@ object CoverField {
 
     /**
      * The field for a cover ([thumb], [size]² pixels, and its [analysis]). [strength] is the
-     * light level (1 = as designed): how colourful the field is. Without a [layout] only the
-     * shapes are made (what the light bars need); with it the veil too: [quietInk] – the
-     * quietest text – sets the shade under the text so it keeps 4.5:1 wherever the shapes drift.
+     * light level (1 = as designed): how colorful the field is. Without a [layout] only the
+     * shapes are made (what the lights need). With it the veil is made too: [quietInk], the
+     * quietest text, sets the shade under the text so it keeps 4.5:1 wherever the shapes drift.
      * The picture casts no shadow on the field: nothing frames it.
      */
     fun build(
@@ -139,15 +139,15 @@ object CoverField {
         val rnd = kotlin.random.Random(seed)
         val dominant = sources.maxBy { it.weight }
         val base = tone(dominant.lab, Tier.GROUND, s, lighting, dark)
-        // Each colour a mass of its own: a large deep pool where the colour sits in the cover,
+        // Each color gets a mass of its own: a large deep pool where the color sits in the cover,
         // spread over the whole screen and kept apart from the others, so the screen shows the
-        // cover's colours side by side instead of one mixed tone. The dominant colour lies
+        // cover's colors side by side instead of one mixed tone. The dominant color lies
         // furthest back, the rarer ones over it.
         val masses = sources.take(5)
         val homes = spread(masses.map { home(it, rnd) }, MIN_APART)
         val blobs = ArrayList<FieldBlob>()
         for ((i, src) in masses.withIndex()) blobs += blob(src, Tier.FAR, homes[i], s, lighting, dark, rnd)
-        // Inside the most characteristic masses a lighter core, off its middle: the mass has
+        // Inside the most characteristic masses a lighter core sits off the middle. The mass gets
         // depth (a deep rim, a lit core) and changes shape as the two drift apart and together.
         val characteristic = masses.indices.sortedByDescending { masses[it].score }.take(3)
         for (i in characteristic) {
@@ -155,8 +155,8 @@ object CoverField {
             val core = floatArrayOf(h[0] + rnd.r(-0.1f, 0.1f), h[1] + rnd.r(-0.1f, 0.1f))
             blobs += blob(masses[i], Tier.MIDDLE, core, s, lighting, dark, rnd)
         }
-        // In front: one or two pools of light in the cover's brightest colourful tones, on the
-        // picture's side of the screen – around and behind it, never under the text.
+        // In front: one or two pools of light in the cover's brightest colorful tones, on the
+        // picture's side of the screen (around and behind it, never under the text).
         val bright = sources.sortedByDescending { it.score * (0.5f + it.lab.l) }.take(if (sources.size >= 3) 2 else 1)
         for ((k, src) in bright.withIndex()) {
             val near = floatArrayOf(if (k == 0) rnd.r(0.04f, 0.2f) else rnd.r(0.2f, 0.34f), if (k == 0) rnd.r(0.08f, 0.35f) else rnd.r(0.65f, 0.92f))
@@ -167,12 +167,12 @@ object CoverField {
         return FieldScene(base, field.baseLight, blobs, veil(field, layout, quietInk), dark)
     }
 
-    /** How far apart (shares of the screen's width) the colour masses' homes are pushed. */
+    /** How far apart (shares of the screen's width) the color masses' homes are pushed. */
     private const val MIN_APART = 0.42f
 
     private fun kotlin.random.Random.r(a: Float, b: Float) = a + (b - a) * nextFloat()
 
-    /** Where [src] sits in the cover, on the screen: the cover's left on the screen's left, spread a little wider. */
+    /** Where [src] sits in the cover, mapped to the screen: the cover's left on the screen's left, spread a little wider. */
     private fun home(src: Source, rnd: kotlin.random.Random) = floatArrayOf(
         0.5f + (src.x - 0.5f) * 1.8f + rnd.r(-0.15f, 0.15f),
         0.5f + (src.y - 0.5f) * 1.8f + rnd.r(-0.15f, 0.15f),
@@ -189,7 +189,7 @@ object CoverField {
                 val dy = (homes[j][1] - homes[i][1]) / ASPECT
                 val d = hypot(dx, dy).coerceAtLeast(1e-3f)
                 if (d >= apart) continue
-                // Apart along their line; two in the same place go sideways.
+                // Push them apart along their line. Two in the same place go sideways.
                 val ux = if (d > 1e-3f) dx / d else 1f
                 val uy = if (d > 1e-3f) dy / d else 0f
                 val push = (apart - d) / 2f
@@ -206,13 +206,13 @@ object CoverField {
         return homes
     }
 
-    // --- the cover's colours ------------------------------------------------------------------
+    // --- the cover's colors -------------------------------------------------------------------
 
-    /** A colour of the cover, how much of it there is, where it sits (0..1) and how characteristic it is. */
+    /** A color of the cover, how much of it there is, where it sits (0..1) and how characteristic it is. */
     private class Source(val lab: Lab, val weight: Float, val x: Float, val y: Float, val score: Float)
 
     /**
-     * The cover's colour clusters with their place in the picture: each thumbnail pixel goes to
+     * The cover's color clusters with their place in the picture: each thumbnail pixel goes to
      * the nearest cluster; the cluster sits where its pixels are on average.
      */
     private fun sources(thumb: IntArray, size: Int, analysis: CoverAnalysis): List<Source> {
@@ -241,7 +241,7 @@ object CoverField {
         return clusters.mapIndexed { i, c ->
             val cx = if (n[i] > 0) sx[i] / n[i] else 0.5f
             val cy = if (n[i] > 0) sy[i] / n[i] else 0.5f
-            // A small vivid area characterises a cover more than a large grey one.
+            // A small vivid area characterizes a cover more than a large gray one.
             val score = sqrt(c.weight) * (c.lab.chroma + 0.02f) * (1f - (2f * c.lab.l - 1.1f).pow(2)).coerceAtLeast(0.2f)
             Source(c.lab, c.weight, cx, cy, score)
         }
@@ -252,14 +252,14 @@ object CoverField {
     private enum class Tier { GROUND, FAR, MIDDLE, NEAR }
 
     /**
-     * A colour of the cover as one of the field's tones. On the dark wall: a deep ground, deep
-     * pools, lit cores, light in front – each keeping its hue and carrying more of its colour
-     * than the cover's average does (rich like velvet, never neon). On paper the same steps as
-     * pale washes, the pools a shade deeper than the paper, the light in front whiter.
+     * A color of the cover as one of the field's tones. On the dark wall these are a deep ground,
+     * deep pools, lit cores and light in front. Each keeps its hue and carries more of its color
+     * than the cover's average does (rich, but never neon). On paper the same steps are pale
+     * washes, the pools a shade deeper than the paper, the light in front whiter.
      */
     private fun tone(lab: Lab, tier: Tier, s: Float, lighting: Lighting, dark: Boolean): Int {
         val lch = lab.toLch()
-        // A neutral colour takes the lamp's warm hue, barely.
+        // A neutral color takes on a slight trace of the lamp's warm hue.
         val neutral = lch.c < 0.025f
         val hue = if (neutral) CoverPalette.WARM_HUE else lch.h
         val c0 = if (neutral) 0.014f else lch.c
@@ -311,8 +311,8 @@ object CoverField {
     private fun linear(lab: Lab): FloatArray = Oklab.toLinear(Oklab.gamutMap(lab)).also { for (i in 0..2) it[i] = it[i].coerceIn(0f, 1f) }
 
     /**
-     * One pool of [src]'s colour at [tier] around [home]: far ones large, very soft and slow;
-     * near ones small, a little firmer and quicker (parallax).
+     * One pool of [src]'s color at [tier] around [home]. Far ones are large, very soft and slow;
+     * near ones are small, a little firmer and quicker (parallax).
      */
     private fun blob(src: Source, tier: Tier, home: FloatArray, s: Float, lighting: Lighting, dark: Boolean, rnd: kotlin.random.Random): FieldBlob {
         fun r(a: Float, b: Float) = rnd.r(a, b)
@@ -359,7 +359,7 @@ object CoverField {
 
     /**
      * Over the shapes (ARGB, [VEIL_W] × [VEIL_H] for the screen and the overscan around it): the
-     * shade under the text (on paper a brightening), as one colour and opacity per point.
+     * shade under the text (on paper a brightening), as one color and opacity per point.
      * Nothing darkens the screen's edges: there the field meets the light behind the TV.
      */
     private fun veil(field: FieldScene, layout: HaloLayout, quietInk: Int?): Bitmap {
@@ -370,7 +370,7 @@ object CoverField {
         val w = screen.widthDp + 2 * over
         val h = screen.heightDp + 2 * over
         val px = IntArray(VEIL_W * VEIL_H)
-        // The text block's area: from the status line to "Als Nächstes", the column's width.
+        // The text block's area: from the status line to "Up next", the column's width.
         val tx0 = layout.columnLeft - 16f
         val tx1 = layout.columnLeft + layout.columnWidth + 8f
         val ty0 = layout.statusTop - 20f
@@ -386,8 +386,8 @@ object CoverField {
                 val dx = max(max(tx0 - ppx, ppx - tx1), 0f)
                 val dy = max(max(ty0 - py, py - ty1), 0f)
                 val text = scrim * exp(-(dx * dx + dy * dy) / (2f * TEXT_SCRIM_SIGMA * TEXT_SCRIM_SIGMA))
-                // field × keep + colour × alpha: in the dark the shade takes light away; on paper it
-                // brightens towards the ground.
+                // field × keep + color × alpha. In the dark the shade takes light away; on paper it
+                // brightens toward the ground.
                 val darken = if (dark) text else 0f
                 val lighten = if (dark) 0f else text
                 val keep = (1f - darken) * (1f - lighten)
@@ -396,7 +396,7 @@ object CoverField {
                 val argb = if (a == 0 || lighten <= 0f) {
                     a shl 24
                 } else {
-                    // The colour that, laid over at [alpha], adds the ground's light: ground × lighten × (1 − darken).
+                    // The color that, laid over at [alpha], adds the ground's light: ground × lighten × (1 − darken).
                     fun ch(lin: Float) = (Oklab.linearToSrgb(lin * lighten * (1f - darken) / alpha) * 255f + 0.5f).toInt().coerceIn(0, 255)
                     (a shl 24) or (ch(pr) shl 16) or (ch(pg) shl 8) or ch(pb)
                 }
@@ -410,9 +410,9 @@ object CoverField {
     private const val TEXT_SCRIM_SIGMA = 40f
 
     /**
-     * How strong the shade under the text must be: the field is sampled over the text block
+     * How strong the shade under the text must be. The field is sampled over the text block
      * through time (its shapes drift), and the quietest text has to keep 4.5:1 (with a margin)
-     * against the lightest – on paper the darkest – colour it ever stands on.
+     * against the lightest color it ever stands on (on paper, the darkest).
      */
     fun textScrim(field: FieldScene, layout: HaloLayout, quietInk: Int?): Float {
         val ink = quietInk ?: return TEXT_SCRIM_MIN
@@ -442,7 +442,7 @@ object CoverField {
             val allowed = (inkY + 0.05f) / TARGET - 0.05f
             if (worst <= allowed) 0f else 1f - (allowed / worst).coerceIn(0f, 1f).pow(1f / 2.2f)
         } else {
-            // The ground over the field: towards the ground's luminance.
+            // The ground over the field: toward the ground's luminance.
             val groundY = relativeLuminance(field.base)
             val needY = TARGET * (inkY + 0.05f) - 0.05f
             if (worst >= needY) 0f else ((needY - worst) / (groundY - worst).coerceAtLeast(1e-3f)).coerceIn(0f, 1f)
@@ -451,9 +451,9 @@ object CoverField {
     }
 
     /**
-     * How far through time the text shade looks (s of the field's time), how often, and on how
-     * fine a grid over the text: the pools may only pass between the samples by a little, and
-     * the ratio aimed at leaves room for that.
+     * How far through time the text shade looks (seconds of the field's time), how often, and on
+     * how fine a grid over the text. The pools can only move a little between samples, and the
+     * target ratio leaves room for that.
      */
     private const val SCRIM_HORIZON_S = 1200.0
     private const val SCRIM_STEP_S = 4.0
@@ -461,7 +461,7 @@ object CoverField {
     private const val GRID_V = 12
     private const val TARGET = 4.8f
 
-    /** sRGB (0..1) to linear by table: the screen has 256 levels, the sampling many thousand. */
+    /** sRGB (0..1) to linear via a table: the screen has only 256 levels, and the sampling reads many thousands. */
     private val linearTable = FloatArray(256) { Oklab.srgbToLinear(it / 255f) }
 
     private fun toLinear(v: Float): Float = linearTable[(v * 255f + 0.5f).toInt().coerceIn(0, 255)]
@@ -472,12 +472,15 @@ object CoverField {
 
 /**
  * Where the field's shapes stand at a moment of the field's own time [t] (seconds; it only
- * advances while music plays, scaled by the motion setting): each drifts around its home on a
+ * advances while music plays, scaled by the motion setting). Each drifts around its home on a
  * path of two slow waves per axis (never visibly repeating), turns slowly and breathes a
- * little; the nearer, the quicker.
+ * little. The nearer a shape is, the quicker it moves.
  */
 object FieldMotion {
-    /** Floats per shape in [place]'s output: centre x, centre y (shares of the screen), turn (degrees), radius (share of the width). */
+    /**
+     * Floats per shape in [place]'s output: center x, center y (shares of the screen), turn
+     * (degrees), radius (share of the width).
+     */
     const val STRIDE = 4
 
     fun place(b: FieldBlob, t: Double, out: FloatArray, o: Int = 0) {
@@ -494,9 +497,9 @@ object FieldMotion {
 
 /**
  * The field computed point by point, the way the screen composes it: the ground, each shape
- * over it (painted, or added as light) with its falloff, then a little more vivid. For the light
- * bars (the colour at the screen's edges) and for the text's contrast; the screen draws the
- * shapes on the GPU ([io.github.hazymorning.klangbild.ui.stage.FieldLayer]).
+ * over it (painted, or added as light) with its falloff, then a little more vivid. It is used
+ * for the lights (the color at the screen's edges) and for the text's contrast. The screen draws
+ * the shapes on the GPU ([io.github.hazymorning.klangbild.ui.stage.FieldLayer]).
  */
 object FieldModel {
     /** Floats per shape in [places]: [FieldMotion.place]'s four, then the turn's cosine and sine. */
@@ -504,7 +507,8 @@ object FieldModel {
 
     /** Where every shape of [field] stands at time [t]: worked out once, then read for many points. */
     fun places(field: FieldScene, t: Double, out: FloatArray = FloatArray(field.blobs.size * STRIDE)): FloatArray {
-        for ((i, b) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val b = field.blobs[i]
             val o = i * STRIDE
             FieldMotion.place(b, t, out, o)
             val a = Math.toRadians(out[o + 2].toDouble())
@@ -514,7 +518,7 @@ object FieldModel {
         return out
     }
 
-    /** The wall's colour (sRGB 0..1, before the veil) at ([u], [v]) – shares of the screen – at time [t]. */
+    /** The wall's color (sRGB 0..1, before the veil) at ([u], [v]), in shares of the screen, at time [t]. */
     fun colour(field: FieldScene, u: Float, v: Float, t: Double, out: FloatArray) = colour(field, u, v, places(field, t), out)
 
     /** The same with the shapes' [places] at hand. */
@@ -522,7 +526,8 @@ object FieldModel {
         var r = ((field.base shr 16) and 0xFF) / 255f
         var g = ((field.base shr 8) and 0xFF) / 255f
         var b = (field.base and 0xFF) / 255f
-        for ((i, blob) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val blob = field.blobs[i]
             val a = blob.alpha * strength(blob, u, v, places, i * STRIDE)
             if (a <= 0f) continue
             val sr = ((blob.colour shr 16) and 0xFF) / 255f
@@ -541,13 +546,17 @@ object FieldModel {
         saturate(r, g, b, CoverField.SATURATION, out)
     }
 
-    /** The cover's colours at ([u], [v]) at time [t], blended as the screen blends its shapes (linear sRGB): what a light there shows. */
+    /**
+     * The cover's colors at ([u], [v]) at time [t], blended as the screen blends its shapes
+     * (linear sRGB). This is what a light there shows.
+     */
     fun light(field: FieldScene, u: Float, v: Float, t: Double, out: FloatArray) {
         val places = places(field, t)
         out[0] = field.baseLight[0]
         out[1] = field.baseLight[1]
         out[2] = field.baseLight[2]
-        for ((i, blob) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val blob = field.blobs[i]
             val a = blob.alpha * strength(blob, u, v, places, i * STRIDE)
             if (a <= 0f) continue
             for (k in 0..2) out[k] += (blob.light[k] - out[k]) * a

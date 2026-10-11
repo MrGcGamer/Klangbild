@@ -7,24 +7,24 @@ import kotlin.math.sin
 import kotlin.math.sign
 
 /**
- * Where the cards of the cover flow stand: the current cover faces the room in the middle,
- * the ones played before stand turned to the left of it, the ones to come to the right –
- * turned 60° towards the middle, their outer edges nearer, set back in depth, every card in
+ * Where the cards of the cover flow stand. The current cover faces the room in the middle,
+ * the ones played before stand to the left of it and the ones to come to the right. Those are
+ * turned 60° toward the middle, their outer edges nearer, set back in depth, every card in
  * one shared perspective. Each card stands on a glossy floor and is mirrored in it.
  *
  * A card's place is a single number, its position: 0 in the middle, −1 and −2 to the left,
  * 1 and 2 to the right, anything in between while the strip moves. Everything here is plain
- * arithmetic on that number – the UI asks for a card's four corners every frame and draws one
+ * arithmetic on that number. The UI asks for a card's four corners every frame and draws one
  * textured quad; nothing is laid out, measured or allocated.
  *
- * Measured from the design (at 960 × 540 dp): the middle cover 300 dp, the outer edges of
- * the side cards 222.5 and 255 dp beside its centre, standing at 92 % of its height.
+ * Measured from the design (at 960 × 540 dp): the middle cover is 300 dp, and the outer edges
+ * of the side cards stand 222.5 and 255 dp beside its center, at 92 % of its height.
  */
 class FlowGeometry(val layout: HaloLayout) {
     /** Side of a card (dp). */
     val side: Float get() = layout.art
 
-    /** Centre of the middle card: the perspective's vanishing point (dp). */
+    /** Center of the middle card: the perspective's vanishing point (dp). */
     val cx: Float get() = layout.artRect.centerX
     val cy: Float get() = layout.artRect.centerY
 
@@ -33,11 +33,11 @@ class FlowGeometry(val layout: HaloLayout) {
     /** The camera's distance from the screen plane (dp). */
     private val camera get() = CAMERA * s
 
-    /** Centre of the first side card and the step to the next (dp, in the card's own plane). */
+    /** Center of the first side card and the step to the next (dp, in the card's own plane). */
     private val firstX get() = FIRST_X * s
     private val stepX get() = STEP_X * s
 
-    /** Depth of the side cards' centres behind the screen plane (dp). */
+    /** Depth of the side cards' centers behind the screen plane (dp). */
     private val sideZ get() = SIDE_Z * s
 
     /** The mirror image starts this far below a card and is this tall (dp). */
@@ -49,7 +49,7 @@ class FlowGeometry(val layout: HaloLayout) {
 
     /**
      * The four corners (dp, clockwise from the top-left of the card, the bottom ones at the
-     * end of its reflection) of the card at [position], written into [out] as x0, y0 … x3, y3.
+     * end of its reflection) of the card at [position], written into [out] as x0, y0 to x3, y3.
      */
     fun corners(position: Float, out: FloatArray) {
         val half = side / 2f
@@ -57,15 +57,15 @@ class FlowGeometry(val layout: HaloLayout) {
     }
 
     /**
-     * The corners of the rectangle ([left], [top]) – ([right], [bottom]) in the plane of the card
-     * at [position] (dp from the card's centre, y downwards), as for [corners].
+     * The corners of the rectangle from ([left], [top]) to ([right], [bottom]) in the plane of the
+     * card at [position] (dp from the card's center, y pointing down), as for [corners].
      */
     fun cornersOf(position: Float, left: Float, top: Float, right: Float, bottom: Float, out: FloatArray) {
         val t = abs(position)
         val dir = sign(position)
         val near = min(t, 1f)
-        // Leaving the middle the card swings aside early and quickly – turning and stepping
-        // out together – then glides on to its place. Two cards crossing the middle (one
+        // Leaving the middle, the card swings aside early and quickly (turning and stepping
+        // out together), then glides on to its place. Two cards crossing the middle (one
         // leaving, one arriving) are already clear of each other when they pass, so they never
         // cut through one another and the order in which they are drawn may simply flip.
         val turn = 1f - (1f - near) * (1f - near)
@@ -80,7 +80,7 @@ class FlowGeometry(val layout: HaloLayout) {
         project(left, bottom, xc, zc, c, sn, dir, out, 6)
     }
 
-    /** A point (x along the card, y down from its centre) of a card at ([xc], [zc]) turned by acos([c]). */
+    /** A point (x along the card, y down from its center) of a card at ([xc], [zc]) turned by acos([c]). */
     private fun project(x: Float, y: Float, xc: Float, zc: Float, c: Float, sn: Float, dir: Float, out: FloatArray, i: Int) {
         val wx = xc + x * c
         // The outer edge comes forward: to the right of the middle that is the card's right edge.
@@ -91,24 +91,25 @@ class FlowGeometry(val layout: HaloLayout) {
     }
 
     /**
-     * Where the centre of the card at [position] stands on screen, beside the middle (dp, from
-     * [cx]; the upper corners' mean).
+     * Where the center of the card at [position] stands on screen, beside the middle (dp, from
+     * [cx]; the mean of the upper corners).
      */
     fun centre(position: Float): Float {
         cornersOf(position, -side / 2f, -side / 2f, side / 2f, -side / 2f, probe)
         return (probe[0] + probe[2]) / 2f - cx
     }
 
-    /** Card centres beside the middle for positions 0, 1/[TABLE_STEPS], … up to [TABLE_END]. */
+    /** Card centers beside the middle for positions 0, 1/[TABLE_STEPS] and so on, up to [TABLE_END]. */
     private val centres: FloatArray by lazy { FloatArray(TABLE_SIZE) { centre(it / TABLE_STEPS.toFloat()) } }
 
     private val probe = FloatArray(8)
 
     /**
      * The position of a card on its way from [from] to [to] at eased progress [s] when it rolls
-     * in from beyond the strip's end: its centre crosses the screen at an even pace (the far
+     * in from beyond the strip's end. Its center crosses the screen at an even pace (the far
      * positions stand close together, so moving evenly in position would crawl there and then
-     * rush the last step). On the same side throughout; positions beyond [TABLE_END] count as it.
+     * rush the last step). The card stays on the same side throughout; positions beyond
+     * [TABLE_END] count as [TABLE_END].
      */
     fun rolled(from: Float, to: Float, s: Float): Float {
         val dir = if (from != 0f) sign(from) else sign(to)
@@ -122,7 +123,7 @@ class FlowGeometry(val layout: HaloLayout) {
         return centres[k] + (centres[k + 1] - centres[k]) * (i - k)
     }
 
-    /** The position whose card centre stands [x] dp beside the middle (the inverse of [centre]). */
+    /** The position whose card center stands [x] dp beside the middle (the inverse of [centre]). */
     private fun positionAt(x: Float): Float {
         val c = centres
         if (x <= c[0]) return 0f
@@ -137,8 +138,8 @@ class FlowGeometry(val layout: HaloLayout) {
     }
 
     /**
-     * How brightly a card at [position] is lit: the middle one fully, the side cards a little
-     * less with distance – the light falls on the middle.
+     * How brightly a card at [position] is lit. The middle one is lit fully and the side cards a
+     * little less with distance, because the light falls on the middle.
      */
     fun light(position: Float): Float {
         val t = abs(position)

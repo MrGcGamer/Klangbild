@@ -24,9 +24,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Klangbild as the system screensaver: when the TV would otherwise show its ambient mode,
- * it shows what is playing – or the quiet clock. Any key ends the dream (non-interactive).
- * Once nothing has played for the "Ausschalten nach" time it ends itself and the TV may sleep:
- * a clock that stays for hours would mark an OLED. On Google TV it can only be chosen via
+ * it shows what is playing, or the quiet clock. Any key ends the dream (non-interactive).
+ * Once nothing has played for the "turn off after" time it ends itself and the TV may sleep:
+ * a clock that stays for hours would mark an OLED. On the TV device it can only be chosen via
  * ADB: `adb shell settings put secure screensaver_components
  * io.github.hazymorning.klangbild/.dream.KlangbildDream`.
  */

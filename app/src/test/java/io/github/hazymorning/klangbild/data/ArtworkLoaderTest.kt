@@ -38,7 +38,7 @@ class ArtworkLoaderTest {
             server.start()
             server.enqueue(MockResponse.Builder().body(Buffer().write(ByteArray((ArtworkLoader.MAX_BYTES + 1).toInt()))).build())
             server.enqueue(MockResponse.Builder().body(Buffer().write(png(64, 64))).build())
-            val loader = ArtworkLoader(OkHttpClient(), { null }, { null })
+            val loader = OkHttpClient().let { http -> ArtworkLoader(http, http, { null }) }
             assertThat(loader.load(TrackInfo("x", artworkUrl = server.url("/huge.png").toString()))).isNull()
             assertThat(loader.load(TrackInfo("y", artworkUrl = server.url("/cover.png").toString()))!!.width).isEqualTo(64)
         }

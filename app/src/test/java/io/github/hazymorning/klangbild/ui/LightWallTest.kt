@@ -34,18 +34,18 @@ class LightWallTest {
         captureRoboImage("build/screenshots/light/$name.png") { Fixtures.Still(content) }
 
     private fun stage(name: String, cover: SyntheticCover) = shot(name) {
-        Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.pärt, group = "Wohnzimmer + 5", appearance = light))
+        Stage(Fixtures.model(Fixtures.track(cover), next = Fixtures.spiegel, group = "Wohnzimmer + 5", appearance = light))
     }
 
-    @Test fun neon() = stage("stage_neon", SyntheticCover.NACHTFAHRT)
-    @Test fun white() = stage("stage_white", SyntheticCover.LEERRAUM)
+    @Test fun neon() = stage("stage_neon", SyntheticCover.NIGHT_DRIVE)
+    @Test fun white() = stage("stage_white", SyntheticCover.WHITE_SPACE)
     @Test fun dark() = stage("stage_dark", SyntheticCover.NOCTURNE)
     @Test fun bauhaus() = stage("stage_bauhaus", SyntheticCover.BAUHAUS)
-    @Test fun lowRes() = stage("stage_lowres", SyntheticCover.PASTELL)
+    @Test fun lowRes() = stage("stage_lowres", SyntheticCover.PASTEL)
     @Test fun radio() = shot("stage_radio") { Stage(Fixtures.model(Fixtures.radio, group = "Küche", appearance = light)) }
 
     @Test fun paused() {
-        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.TERRAKOTTA), appearance = light)
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.TERRACOTTA), appearance = light)
         shot("stage_paused") { Fixtures.Theatre(stage, PlayerStatus.PAUSED, group = "Wohnzimmer") }
     }
 
@@ -55,8 +55,8 @@ class LightWallTest {
 
     @Test fun menu() = shot("menu") {
         val s = Settings(haUrl = "http://ha.local:8123", haToken = "x", entityId = "media_player.wohnzimmer")
-        val rows = SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED, light))
-        MenuScreen(MenuState(rows, SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE)), Lighting.DAY, light)
+        val rows = SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED, light), Fixtures.texts)
+        MenuScreen(MenuState(rows, SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE)), Lighting.DAY, appearance = light)
     }
 
     @Test fun setup() = shot("setup") {

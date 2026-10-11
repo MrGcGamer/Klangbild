@@ -1,20 +1,20 @@
 package io.github.hazymorning.klangbild.domain
 
 /**
- * When the Fensterblick takes the screen – and when the quiet clock keeps it:
+ * When the window view takes the screen, and when the quiet clock keeps it:
  *
- * - **Something is wrong** (connecting, Home Assistant away, the speaker unavailable or
- *   unknown) or setup is open: never – those screens have something to say.
- * - **Chosen** (down on the remote, the quick menu, a link, Home Assistant): at once, whatever
- *   plays, until it is left again ([leave]: up, back, the quick menu) – the other keys go on
+ * - Something is wrong (connecting, Home Assistant away, the speaker unavailable or
+ *   unknown) or setup is open: never. Those screens have something to say.
+ * - Chosen (up on the remote, the quick menu, a link, Home Assistant): at once, whatever
+ *   plays, until it is left again ([leave]: up, back, the quick menu). The other keys go on
  *   doing what they always do.
- * - **Paused, or nothing playing:** after [pauseMs] without music and without a key pressed
- *   (0: never – then the paused cover gives way to the clock after three minutes, as before).
- * - **Playing:** after [playingMs] of music without a key pressed (0: never).
+ * - Paused, or nothing playing: after [pauseMs] without music and without a key pressed
+ *   (0: never; then the paused cover gives way to the clock after three minutes, as before).
+ * - Playing: after [playingMs] of music without a key pressed (0: never).
  *
- * Every key press starts the delays again – so a Fensterblick that came by itself goes with any
- * key (which still does its work), a chosen one stays. The rest clock is left for the moments
- * with nothing to show but the time: nothing plays and the Fensterblick is off, or the delay has
+ * Every key press starts the delays again. So a window view that came by itself goes with any
+ * key (which still does its work), and a chosen one stays. The rest clock is left for the moments
+ * with nothing to show but the time: nothing plays and the window view is off, or the delay has
  * not passed yet.
  */
 class VistaPolicy {
@@ -26,7 +26,14 @@ class VistaPolicy {
     var requested = false
         private set
 
-    /** A key was pressed: the delays start again (a chosen Fensterblick stays). */
+    /**
+     * As of the last [shows]: the window view shows, or comes if nothing changes (its delay
+     * runs). Its picture is baked ahead only then.
+     */
+    var onItsWay = false
+        private set
+
+    /** A key was pressed: the delays start again (a chosen window view stays). */
     fun interaction(now: Long) {
         lastKey = now
     }
@@ -42,7 +49,7 @@ class VistaPolicy {
         lastKey = now
     }
 
-    /** Whether the Fensterblick shows instead of [screen] now. */
+    /** Whether the window view shows instead of [screen] now. */
     fun shows(screen: Screen, now: Long, pauseMs: Long, playingMs: Long): Boolean {
         val playing = screen is Screen.Stage && !screen.linkDown &&
             (screen.status == PlayerStatus.PLAYING || screen.status == PlayerStatus.BUFFERING)
@@ -54,6 +61,7 @@ class VistaPolicy {
         }
         quietSince = if (quiet) quietSince ?: now else null
         val trouble = screen is Screen.Setup || (screen is Screen.Rest && !quiet)
+        onItsWay = !trouble && (requested || (playing && playingMs > 0) || (quiet && pauseMs > 0))
         if (trouble) return false
         if (requested) return true
         val since = when {

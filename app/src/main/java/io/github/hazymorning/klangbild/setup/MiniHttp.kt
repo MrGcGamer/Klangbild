@@ -101,11 +101,13 @@ object MiniHttp {
         val reason = when (response.status) {
             200 -> "OK"
             204 -> "No Content"
+            303 -> "See Other"
             400 -> "Bad Request"
             403 -> "Forbidden"
             404 -> "Not Found"
             405 -> "Method Not Allowed"
             429 -> "Too Many Requests"
+            500 -> "Internal Server Error"
             else -> "Error"
         }
         val sb = StringBuilder()

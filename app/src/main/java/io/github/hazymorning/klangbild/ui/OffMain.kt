@@ -7,9 +7,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * [compute] – a light map, a scene: bitmaps worth tens of milliseconds – made off the main
- * thread, so no fade stutters while it is made; until it is done the last result stays (null at
- * first). In a still (a test's capture) it is made right away, so the picture has it.
+ * Runs [compute] off the main thread. It makes bitmaps that take tens of milliseconds (a light
+ * map, a scene), and doing that elsewhere keeps fades from stuttering. Until it is done, the last
+ * result stays (null at first). In a still (a test's capture) it runs right away, so the picture
+ * has it.
  */
 @Composable
 fun <T : Any> rememberOffMain(vararg keys: Any?, compute: () -> T?): T? {

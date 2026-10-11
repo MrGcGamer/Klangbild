@@ -52,13 +52,13 @@ enum class Change {
 
 /**
  * The stage with its transitions. On a track change the new artwork comes up over the old one
- * – a plain cross-fade, the screen never goes dark – while the light on the wall turns from
- * the old colours to the new. The old text leaves first; the new lines rise into place one
+ * in a plain cross-fade (the screen never goes dark), while the light on the wall turns from
+ * the old colors to the new. The old text leaves first; the new lines rise into place one
  * after another. A pause dims light, artwork and text; nothing moves.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
- * @param modelFor builds the model for a stage (title, progress, status …).
+ * @param modelFor builds the model for a stage (title, progress, status and so on).
  * @param lightFactor the light's strength from the settings (1 = as designed, 0 = off).
  */
 @Composable
@@ -78,8 +78,8 @@ fun StageTheatre(
     val text = remember { RisingText(t) }
     val latest by rememberUpdatedState(stage)
 
-    // One change at a time: what arrives meanwhile waits until the running change has landed –
-    // another song makes the running one hurry ([playChange]) – and only the newest follows.
+    // One change at a time: what arrives meanwhile waits until the running change has landed
+    // (another song makes the running one hurry, see [playChange]), and only the newest follows.
     LaunchedEffect(Unit) {
         snapshotFlow { latest }.conflate().collect { target ->
             val old = current
@@ -156,7 +156,7 @@ fun StageTheatre(
     val level: () -> Float = { pausedLevel * breathing.value * lightFactor() }
     val pictureChanges = prev != null && kind != Change.TEXT
     // A new picture comes up over the old one; the old goes once it is covered (a picture of
-    // another shape – a round plate – lets the old one's corners fade with it).
+    // another shape, such as a round plate, lets the old one's corners fade with it).
     val oldPicture: () -> Float = {
         if (kind == Change.FULL) 1f - p(Motion.ART_OUT_START_MS, Motion.ART_OUT_END_MS, Motion.Sine) else 1f
     }
@@ -167,7 +167,7 @@ fun StageTheatre(
             else -> p(0, total, Motion.Sine)
         }
     }
-    // The light on the wall turns from the old colours to the new over the whole change.
+    // The light on the wall turns from the old colors to the new over the whole change.
     val newGlow: () -> Float = {
         when {
             !pictureChanges -> 1f
@@ -182,8 +182,8 @@ fun StageTheatre(
     val stood: (TextLine) -> Float = { line -> if (kind.isSoft) text.level(line) else text.leaving(line) }
 
     Box(modifier.fillMaxSize()) {
-        // The old wall stays whole until the new one – its light and its colour beyond the screen's
-        // edges – has come up over it: a new wall never shows the old one in a strip at the side.
+        // The old wall stays whole until the new one (its light and its color beyond the screen's
+        // edges) has come up over it, so a new wall never shows the old one in a strip at the side.
         val oldWall = prev?.scene?.takeIf { pictureChanges }
         BaseWall((oldWall ?: cur.scene).palette.wall.asColor())
         if (oldWall != null) {
@@ -203,7 +203,7 @@ fun StageTheatre(
             )
         }
         TextLayer(curModel, plan = curPlan, alpha = textIn, rise = textRise, dim = { textDim })
-        // The status line belongs to the room, not to the track: it simply stays.
+        // The status line belongs to the room, not to the track, so it stays.
         StatusLayer(curModel)
     }
 }

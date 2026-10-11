@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.Dispatcher
@@ -30,7 +31,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The source against a stand-in Home Assistant (and Music Assistant): what it asks, and how
- * often – quick skips, players without a queue, jumps, a book's chapters and speed.
+ * often. Quick skips, players without a queue, jumps, a book's chapters and speed.
  */
 class HaSourceTest {
     private lateinit var ha: MockWebServer
@@ -40,25 +41,42 @@ class HaSourceTest {
     private val calls = CopyOnWriteArrayList<JsonObject>()
     private val maCommands = CopyOnWriteArrayList<String>()
 
-    /** The player as Home Assistant first reports it, and how it answers `get_queue`. */
+    /** The player's attributes as Home Assistant first reports them, and how it answers `get_queue`. */
     private var player = """{"media_title":"Erstes Lied","media_artist":"A","app_id":"music_assistant","mass_player_type":"player"}"""
     private var queueAnswer: (() -> String)? = { """{"media_player.wz":{"queue_id":"q1","current_index":0,"current_item":{"name":"Erstes Lied","media_item":{"media_type":"track","name":"Erstes Lied"}},"next_item":null}}""" }
     private var subscription: String? = null
+    private var changes = 0
 
-    /** How Home Assistant renders the speaker template: the count, and after a "|" the favourite button. */
-    private var templateAnswer = "3"
+    /** The entity registry as listed for display. */
+    private var registry = """[{"ei":"media_player.wz","pl":"music_assistant","di":"d1"}]"""
 
     @Before
     fun setUp() {
         ha = MockWebServer()
+        ha.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                return when {
+                    path == "/api/websocket" -> MockResponse.Builder().webSocketUpgrade(FakeHa()).build()
+                    path == "/api/states/media_player.wz" -> MockResponse.Builder().body(playerState(Json.parseToJsonElement(player).jsonObject)).build()
+                    else -> MockResponse.Builder().code(404).body("""{"message":"Entity not found."}""").build()
+                }
+            }
+        }
         ha.start()
-        ha.enqueue(MockResponse.Builder().webSocketUpgrade(FakeHa()).build())
     }
 
     @After
     fun tearDown() {
         scope.cancel()
         ha.close()
+    }
+
+    @Synchronized
+    private fun playerState(attributes: JsonObject): String {
+        val time = "2026-10-10T18:00:%02d+00:00".format(changes++ % 60)
+        return """{"entity_id":"media_player.wz","state":"playing","attributes":$attributes,
+            "last_changed":"$time","last_updated":"$time","context":{"id":"x","parent_id":null,"user_id":null}}"""
     }
 
     private inner class FakeHa : WebSocketListener() {
@@ -70,27 +88,23 @@ class HaSourceTest {
         override fun onMessage(webSocket: WebSocket, text: String) {
             val msg = Json.parseToJsonElement(text).jsonObject
             val id = msg["id"]?.jsonPrimitive?.content
+            fun ok(result: String = "null") = webSocket.send("""{"id":$id,"type":"result","success":true,"result":$result}""")
             when (msg["type"]?.jsonPrimitive?.content) {
                 "auth" -> webSocket.send("""{"type":"auth_ok","ha_version":"2026.10.0"}""")
-                "subscribe_entities" -> {
-                    subscription = id
-                    webSocket.send(
-                        """[{"id":$id,"type":"result","success":true,"result":null},
-                           {"id":$id,"type":"event","event":{"a":{"media_player.wz":{"s":"playing","a":$player,"c":"x","lc":1.0}}}}]""",
-                    )
+                "subscribe_trigger" -> {
+                    if (subscription == null) subscription = id
+                    ok()
                 }
-                "render_template" -> webSocket.send(
-                    """[{"id":$id,"type":"result","success":true,"result":null},
-                       {"id":$id,"type":"event","event":{"result":"$templateAnswer","listeners":{"all":false,"domains":[],"entities":[],"time":false}}}]""",
-                )
-                "unsubscribe_events" -> webSocket.send("""{"id":$id,"type":"result","success":true,"result":null}""")
+                "config/entity_registry/list_for_display" -> ok("""{"entity_categories":{},"entities":$registry}""")
+                "get_config" -> ok("""{"latitude":52.52,"longitude":13.4}""")
+                "unsubscribe_events" -> ok()
                 "call_service" -> {
                     calls += msg
                     val answer = if (msg["service"]?.jsonPrimitive?.content == "get_queue") queueAnswer?.invoke() else "null"
                     if (answer == null) {
                         webSocket.send("""{"id":$id,"type":"result","success":false,"error":{"code":"home_assistant_error","message":"no queue"}}""")
                     } else {
-                        webSocket.send("""{"id":$id,"type":"result","success":true,"result":{"context":{"id":"c"},"response":$answer}}""")
+                        ok("""{"context":{"id":"c"},"response":$answer}""")
                     }
                 }
                 "ping" -> webSocket.send("""{"id":$id,"type":"pong"}""")
@@ -100,13 +114,23 @@ class HaSourceTest {
 
     /** Home Assistant reports a new title. */
     private fun play(title: String) {
-        sockets.last().send("""{"id":$subscription,"type":"event","event":{"c":{"media_player.wz":{"+":{"a":{"media_title":"$title"}}}}}}""")
+        val attributes = JsonObject(Json.parseToJsonElement(player).jsonObject + ("media_title" to JsonPrimitive(title)))
+        sockets.last().send(
+            """{"id":$subscription,"type":"event","event":{"variables":{"trigger":{"platform":"state","entity_id":"media_player.wz",
+                "from_state":null,"to_state":${playerState(attributes)}}},"context":null}}""",
+        )
     }
 
     private fun queueCalls() = calls.count { it["service"]?.jsonPrimitive?.content == "get_queue" }
 
-    private fun source(ma: MaClient? = null, refreshMs: Long = 60_000L) =
-        HaSource(http, scope, HaConfig(ha.url("/").toString().trimEnd('/'), "good"), "media_player.wz", ma = ma, queueRefreshMs = refreshMs)
+    private fun source(ma: MaClient? = null, refreshMs: Long = 60_000L) = HaSource(
+        http,
+        scope,
+        HaConfig(HaAuth(http, ha.url("/").toString().trimEnd('/'), HaCredentials.LongLived("good"))),
+        "media_player.wz",
+        ma = ma,
+        queueRefreshMs = refreshMs,
+    )
 
     @Test
     fun `quick skips ask for the queue once, for where they end`() = runBlocking {
@@ -146,15 +170,34 @@ class HaSourceTest {
     }
 
     @Test
-    fun `a jump goes to Home Assistant in whole seconds`() = runBlocking {
+    fun `a jump goes to Home Assistant in seconds`() = runBlocking {
         val s = source()
         s.start()
         withTimeout(5_000) { s.state.first { it.player != null } }
         s.seek(61_700)
         withTimeout(5_000) { while (calls.none { it["service"]?.jsonPrimitive?.content == "media_seek" }) delay(20) }
         val seek = calls.first { it["service"]?.jsonPrimitive?.content == "media_seek" }
-        assertThat(seek["service_data"].toString()).isEqualTo("""{"seek_position":61}""")
+        assertThat(seek["service_data"].toString()).isEqualTo("""{"seek_position":61.7}""")
         assertThat(seek["target"].toString()).isEqualTo("""{"entity_id":"media_player.wz"}""")
+        s.stop()
+    }
+
+    @Test
+    fun `only what the player supports is sent`() = runBlocking {
+        // Play, pause and next only (supported_features 1 + 32 + 16384): no seek, no shuffle, no volume.
+        player = """{"media_title":"Erstes Lied","media_artist":"A","supported_features":16417}"""
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player != null } }
+        s.seek(10_000)
+        assertThat(s.shuffle(true)).isFalse()
+        s.send(io.github.hazymorning.klangbild.data.RemoteCommand.VOLUME_UP)
+        s.send(io.github.hazymorning.klangbild.data.RemoteCommand.PREVIOUS)
+        s.send(io.github.hazymorning.klangbild.data.RemoteCommand.PLAY_PAUSE)
+        s.send(io.github.hazymorning.klangbild.data.RemoteCommand.NEXT)
+        withTimeout(5_000) { while (calls.size < 2) delay(20) }
+        delay(200)
+        assertThat(calls.map { it["service"]!!.jsonPrimitive.content }).containsExactly("media_play_pause", "media_next_track").inOrder()
         s.stop()
     }
 
@@ -190,10 +233,11 @@ class HaSourceTest {
             s.start()
             val state = withTimeout(5_000) { s.state.first { it.player?.track?.chapters?.isNotEmpty() == true } }
             val p = state.player!!
-            assertThat(p.track!!.kind).isEqualTo(MediaKind.AUDIOBOOK)
-            assertThat(p.track!!.album).isNull()
-            assertThat(p.track!!.artists).containsExactly("Franz Kafka")
-            assertThat(p.track!!.chapters.map { it.name }).containsExactly("Verhaftung", "Gespräch mit Frau Grubach").inOrder()
+            val track = p.track!!
+            assertThat(track.kind).isEqualTo(MediaKind.AUDIOBOOK)
+            assertThat(track.album).isNull()
+            assertThat(track.artists).containsExactly("Franz Kafka")
+            assertThat(track.chapters.map { it.name }).containsExactly("Verhaftung", "Gespräch mit Frau Grubach").inOrder()
             assertThat(p.speed).isWithin(1e-6f).of(1.25f)
             assertThat(maCommands).contains("player_queues/items")
             s.stop()
@@ -268,8 +312,11 @@ class HaSourceTest {
     }
 
     @Test
-    fun `the favourite goes through the speaker's own button`() = runBlocking {
-        templateAnswer = "3|button.wz_favorite_current_song"
+    fun `the favorite goes through the speaker's own button`() = runBlocking {
+        // Found by its translation key on the speaker's device, whatever its entity id.
+        registry = """[{"ei":"media_player.wz","pl":"music_assistant","di":"d1"},
+            {"ei":"button.wz_favorite_current_song","pl":"music_assistant","di":"d1","tk":"favorite_now_playing"},
+            {"ei":"button.kueche_favorite_current_song","pl":"music_assistant","di":"d2","tk":"favorite_now_playing"}]"""
         val s = source()
         s.start()
         withTimeout(5_000) { s.state.first { it.favorites } }
@@ -281,7 +328,7 @@ class HaSourceTest {
     }
 
     @Test
-    fun `without a button and without Music Assistant there are no favourites`() = runBlocking {
+    fun `without a button and without Music Assistant there are no favorites`() = runBlocking {
         val s = source()
         s.start()
         withTimeout(5_000) { s.state.first { it.player != null } }

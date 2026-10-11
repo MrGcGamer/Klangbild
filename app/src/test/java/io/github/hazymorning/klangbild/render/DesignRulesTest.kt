@@ -79,7 +79,7 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `the glow takes the colour of the nearest edge`() {
+    fun `the glow takes the color of the nearest edge`() {
         // violet above, teal below
         val field = glow(thumb(0xFF6A2BC2.toInt(), 0xFF0E8A86.toInt()))
         val above = Oklab.fromArgb(field.at(layout.artRect.centerX, layout.artRect.top - 6f))
@@ -102,7 +102,7 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `night turns the glow down to about half, never off, and takes its colour`() {
+    fun `night turns the glow down to about half, never off, and takes its color`() {
         val c = thumb(0xFFE0457B.toInt())
         val day = glow(c, Lighting.DAY).at(layout.artRect.right + 2f, layout.artRect.centerY)
         val night = glow(c, Lighting.NIGHT).at(layout.artRect.right + 2f, layout.artRect.centerY)
@@ -116,14 +116,14 @@ class DesignRulesTest {
         for (c in covers) {
             val field = glow(thumb(c))
             val palette = CoverPalette.derive(CoverPalette.analyze(thumb(c)), Lighting.DAY)
-            // the brightest wall under the text column: its left edge, level with the artwork's centre
+            // the brightest wall under the text column: its left edge, level with the artwork's center
             val wall = field.at(layout.columnLeft + 1f, layout.textCenter)
             assertWithMessage("cover " + Integer.toHexString(c)).that(contrast(palette.inkQuiet, wall)).isAtLeast(4.5f)
             assertWithMessage("cover " + Integer.toHexString(c)).that(contrast(palette.ink, wall)).isAtLeast(10f)
         }
     }
 
-    // --- Colour of the text -------------------------------------------------------------
+    // --- Color of the text --------------------------------------------------------------
 
     @Test
     fun `text is near-neutral, never pure white, never ivory`() {
@@ -140,7 +140,7 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `three clear text levels on both walls, day and night, every one at least 4,5 to 1`() {
+    fun `three clear text levels on both walls, day and night, every one at least four and a half to one`() {
         for (appearance in Appearance.entries) for (lighting in listOf(Lighting.DAY, Lighting.EVENING, Lighting.NIGHT)) {
             val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), lighting, appearance)
             val tiers = listOf(p.ink, p.inkMuted, p.inkQuiet)
@@ -153,7 +153,7 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `night turns the lamp down to about half, never off, and takes its colour`() {
+    fun `night turns the lamp down to about half, never off, and takes its color`() {
         val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
         val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
         assertThat(luminance(night)).isAtMost(luminance(day) * 0.62f)
@@ -212,7 +212,7 @@ class DesignRulesTest {
         val seen = HashSet<Pair<Int, Int>>()
         for (i in 0 until 300) {
             val spec = ChladniArt.specFor("Sender $i")
-            // no nodal diameters: through the centre they make crosses, wheels and petals
+            // no nodal diameters: through the center they make crosses, wheels and petals
             assertThat(spec.n1).isEqualTo(0)
             assertThat(spec.n2).isIn(setOf(2, 3, 4, 5, 6, 8))
             // the second mode only bends the circles

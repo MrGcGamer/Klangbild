@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.util.TimeZone
 
-/** The Fensterblick on a 4K panel with the UI at 4K: every edge cut for the panel's pixels. */
+/** The window view on a 4K panel with the UI at 4K: every edge cut for the panel's pixels. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xxxhdpi")
@@ -34,7 +34,7 @@ class Vista4kTest {
     @Test
     fun autumnAfternoon() {
         val t = java.time.ZonedDateTime.of(2026, 10, 10, 16, 20, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
-        val track = Fixtures.track(SyntheticCover.KAMMERMUSIK)
+        val track = Fixtures.track(SyntheticCover.CHAMBER_MUSIC)
         val ui = UiState(
             screen = Screen.Stage(track, PlayerStatus.PLAYING, null),
             stage = Fixtures.stage(track, Fixtures.TV_4K),

@@ -9,27 +9,28 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** What a sheet is made of: how strong its clouds of pulp, its tooth and its fibres show. */
+/** What a sheet is made of: how strongly its clouds of pulp, its tooth and its fibers show. */
 enum class PaperKind(val clouds: Float, val tooth: Float, val fibres: Float) {
-    /** The sky: watercolour paper under a soft wash. */
+    /** The sky: watercolor paper under a soft wash. */
     WASH(0.035f, 0.004f, 0.04f),
 
     /** White paper: snow caps, tissue clouds, the sun and the moon. */
     WHITE(0.02f, 0.004f, 0.05f),
 
-    /** Coloured card: mountains, woods, meadows, banks. */
+    /** Colored card: mountains, woods, meadows, banks. */
     CARD(0.045f, 0.005f, 0.06f),
 }
 
 /**
  * The paper itself. Every sheet has its grain: clouds of pulp from a fingertip to a hand wide,
- * a slow swell where it does not lie quite flat, short fibres a little lighter or darker than
- * the sheet, a fine tooth – together a factor of light around 1. Each sheet reads it with its
- * own seed, so where one piece of paper ends and the next begins, the grain breaks off.
+ * a slow swell where it does not lie quite flat, short fibers a little lighter or darker than
+ * the sheet, and a fine tooth. Together they make a factor of light around 1. Each sheet reads
+ * it with its own seed, so the grain breaks off where one piece of paper ends and the next
+ * begins.
  *
- * Fibres and tooth come from one tile ([TILE_DP] square, wrapping) made once per screen
- * density, each sheet reading it from its own offset; the clouds and the swell are smooth
- * noise on a grid of [CELL_DP], per sheet – the grain never repeats in a way the eye finds.
+ * Fibers and tooth come from one tile ([TILE_DP] square, wrapping) made once per screen
+ * density, and each sheet reads it from its own offset. The clouds and the swell are smooth
+ * noise on a grid of [CELL_DP], per sheet, so the grain never repeats in a way the eye notices.
  */
 class PaperGrain(private val density: Float) {
     private val size = ceil(TILE_DP * density).toInt()
@@ -38,7 +39,7 @@ class PaperGrain(private val density: Float) {
 
     init {
         val rnd = Rnd(0x5EED)
-        // Fibres: thin curved strokes, a little more of them lighter than the sheet.
+        // Fibers: thin curved strokes, slightly more of them lighter than the sheet than darker.
         val count = (TILE_DP * TILE_DP / FIBRE_AREA_DP).toInt()
         repeat(count) {
             val cx = rnd.next() * TILE_DP
@@ -65,7 +66,7 @@ class PaperGrain(private val density: Float) {
         for (i in tooth.indices) tooth[i] *= norm
     }
 
-    /** Adds a fibre's coverage (dp outline) to the tile, wrapping round its edges. */
+    /** Adds a fiber's coverage (dp outline) to the tile, wrapping around its edges. */
     private fun stamp(o: Outline, value: Float) {
         val x0 = floor(o.minX() * density).toInt() - 1
         val y0 = floor(o.minY() * density).toInt() - 1
@@ -83,7 +84,7 @@ class PaperGrain(private val density: Float) {
         }
     }
 
-    /** A box blur (three passes) that wraps round the tile's edges. */
+    /** A box blur (three passes) that wraps around the tile's edges. */
     private fun blurWrap(p: FloatArray, r: Int) {
         val tmp = FloatArray(size)
         val norm = 1f / (2 * r + 1)
@@ -162,13 +163,13 @@ class PaperGrain(private val density: Float) {
     }
 
     companion object {
-        /** The fibre and tooth tile's side (dp). */
+        /** The side of the fiber and tooth tile (dp). */
         const val TILE_DP = 320f
 
         /** The clouds' grid (dp). */
         const val CELL_DP = 3f
 
-        /** One fibre per this many dp² of paper, each this long (dp). */
+        /** One fiber per this many dp² of paper, each this long (dp). */
         private const val FIBRE_AREA_DP = 20f
         private const val FIBRE_MIN_DP = 4f
         private const val FIBRE_MAX_DP = 14f
@@ -184,7 +185,7 @@ class PaperGrain(private val density: Float) {
 class Rnd(seed: Int) {
     private var s = seed * -0x61c88647 or 1
 
-    /** 0 until 1. */
+    /** A number from 0 until 1. */
     fun next(): Float {
         s = s xor (s shl 13)
         s = s xor (s ushr 17)
@@ -192,9 +193,9 @@ class Rnd(seed: Int) {
         return (s ushr 8) / 16777216f
     }
 
-    /** Roughly normal, mean 0, deviation 1 (a sum of uniforms). */
+    /** Roughly normal, mean 0, standard deviation 1 (a sum of uniforms). */
     fun normal(): Float = (next() + next() + next() + next() - 2f) * 1.732f
 
-    /** A whole number 0 until [n]. */
+    /** A whole number from 0 until [n]. */
     fun int(n: Int): Int = min(n - 1, (next() * n).toInt())
 }

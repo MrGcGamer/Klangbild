@@ -16,12 +16,12 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** "Coverfarben": the cover's colours as the wall – dark and light, single view and Cover Flow, and moving. */
+/** Cover colors: the cover's colors as the wall, dark and light, in the single view and the cover flow, and moving. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class CoverFieldTest {
-    private val pärt = Fixtures.pärt
+    private val spiegel = Fixtures.spiegel
 
     private fun stage(name: String, cover: SyntheticCover, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, at: Double = 0.0) {
         val track = Fixtures.track(cover)
@@ -29,21 +29,21 @@ class CoverFieldTest {
         captureRoboImage("build/screenshots/cover_field/$name.png") {
             Fixtures.Still {
                 CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) {
-                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
+                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
                 }
             }
         }
     }
 
-    @Test fun synthwave() = stage("field_nachtfahrt", SyntheticCover.NACHTFAHRT)
-    @Test fun sea() = stage("field_salzwasser", SyntheticCover.SALZWASSER)
-    @Test fun terracotta() = stage("field_terrakotta", SyntheticCover.TERRAKOTTA)
-    @Test fun moss() = stage("field_moos", SyntheticCover.MOOS)
+    @Test fun synthwave() = stage("field_nachtfahrt", SyntheticCover.NIGHT_DRIVE)
+    @Test fun sea() = stage("field_salzwasser", SyntheticCover.SALT_WATER)
+    @Test fun terracotta() = stage("field_terrakotta", SyntheticCover.TERRACOTTA)
+    @Test fun moss() = stage("field_moos", SyntheticCover.MOSS)
     @Test fun bauhaus() = stage("field_bauhaus", SyntheticCover.BAUHAUS)
-    @Test fun pale() = stage("field_leerraum", SyntheticCover.LEERRAUM)
-    @Test fun night() = stage("field_night", SyntheticCover.NACHTFAHRT, lighting = Lighting.NIGHT)
-    @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALZWASSER, Appearance.LIGHT)
-    @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRAKOTTA, Appearance.LIGHT)
+    @Test fun pale() = stage("field_leerraum", SyntheticCover.WHITE_SPACE)
+    @Test fun night() = stage("field_night", SyntheticCover.NIGHT_DRIVE, lighting = Lighting.NIGHT)
+    @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALT_WATER, Appearance.LIGHT)
+    @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRACOTTA, Appearance.LIGHT)
 
     /** Every test cover once, on both walls: the field's range at a glance. */
     @Test
@@ -53,7 +53,7 @@ class CoverFieldTest {
             val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
             captureRoboImage("build/screenshots/cover_field/gallery/${appearance.name.lowercase()}_%02d.png".format(i)) {
                 Fixtures.Still {
-                    Stage(Fixtures.model(track, next = pärt, group = "Wohnzimmer", scene = scene, appearance = appearance))
+                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, appearance = appearance))
                 }
             }
         }
@@ -61,16 +61,16 @@ class CoverFieldTest {
 
     @Test
     fun moving() {
-        for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NACHTFAHRT, at = i * 12.0)
+        for (i in 0..7) stage("motion_%02d".format(i), SyntheticCover.NIGHT_DRIVE, at = i * 12.0)
     }
 
     @Test
     fun flow() {
         val strip: List<TrackInfo> = listOf(
-            Fixtures.track(SyntheticCover.TERRAKOTTA),
+            Fixtures.track(SyntheticCover.TERRACOTTA),
             Fixtures.radio,
-            Fixtures.track(SyntheticCover.NACHTFAHRT),
-            Fixtures.track(SyntheticCover.LEERRAUM),
+            Fixtures.track(SyntheticCover.NIGHT_DRIVE),
+            Fixtures.track(SyntheticCover.WHITE_SPACE),
             Fixtures.track(SyntheticCover.BAUHAUS),
         )
         for (appearance in Appearance.entries) {

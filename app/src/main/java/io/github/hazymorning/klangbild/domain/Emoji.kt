@@ -19,7 +19,7 @@ object Emoji {
 
     /**
      * Removes emoji (and the spaces next to them) at the start and end of [text]:
-     * "🌙 Mondlicht-Tape ✨" → "Mondlicht-Tape". Decoration at the edges of a title shouts
+     * "🌙 Moonlight Tape ✨" → "Moonlight Tape". Decoration at the edges of a title shouts
      * over the typography; emoji inside a title are part of it and stay. A title made only
      * of emoji is left alone.
      */

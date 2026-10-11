@@ -15,7 +15,7 @@ import kotlin.math.roundToInt
 
 /**
  * Everything the UI needs to draw one track, precomputed off the main thread. The UI only
- * draws these bitmaps – no image processing per frame.
+ * draws these bitmaps; there is no image processing per frame.
  */
 class ArtworkScene(
     val key: String,
@@ -32,9 +32,9 @@ class ArtworkScene(
     /** Size of the source image (shorter side), null for generated art. */
     val coverNativePx: Int?,
     /**
-     * The wall around the print, scaled to the whole screen: in the dark the print's light on
-     * black ([WallGlow]; in Cover Flow the pool of light above the cards, [FlowLight]), in the
-     * light plain paper – no shadow, no frame, no line round the print.
+     * The wall around the print, scaled to the whole screen. In the dark it is the print's light
+     * on black ([WallGlow]; in Cover Flow the pool of light above the cards, [FlowLight]); in the
+     * light it is plain paper. There is no shadow, no frame and no line around the print.
      */
     val wall: Bitmap,
     val palette: ScenePalette,
@@ -42,16 +42,16 @@ class ArtworkScene(
     val lighting: Lighting,
     /** 48 × 48 thumbnail of the cover, kept to re-light the scene without the source. */
     val thumb: IntArray,
-    /** How much of the cover's colour the light wall takes (the light level setting). */
+    /** How much of the cover's color the light wall takes (the light level setting). */
     val wallTint: Float = 1f,
     /** The print as a card of the cover flow, with its mirror image; null in the single view. */
     val card: FlowCard? = null,
     /**
-     * The cover's colours as a field ([CoverField]): with [coverField] it is the wall behind
-     * the picture; the light bars always take their colours from it.
+     * The cover's colors as a field ([CoverField]). With [coverField] it is the wall behind
+     * the picture; the lights always take their colors from it.
      */
     val field: FieldScene? = null,
-    /** The cover's colours are the wall ("Coverfarben") instead of [wall]. */
+    /** The cover's colors are the wall (the "cover colors" background) instead of [wall]. */
     val coverField: Boolean = false,
 ) {
     val screen: ScreenSpec get() = layout.screen
@@ -95,8 +95,8 @@ object SceneBuilder {
             val square = IntArray(side * side)
             source.getPixels(square, 0, side, (source.width - side) / 2, (source.height - side) / 2, side, side)
             nativePx = side
-            // Every cover fills the square – a small one (a station's picture) enlarged once,
-            // with Lanczos: never a frame around a smaller print.
+            // Every cover fills the square. A small one (a station's picture) is enlarged once
+            // with Lanczos, never shown as a smaller print inside a frame.
             coverPixels = ImageOps.resize(square, side, side, slotPx, slotPx)
             coverSize = slotPx
             thumb = ImageOps.thumbnail(square, side, side, THUMB)
@@ -142,13 +142,13 @@ object SceneBuilder {
     ): ArtworkScene {
         val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint, cover = coverField)
         val flow = layout.view == StageView.FLOW
-        // The cover's colours: the wall itself with "Coverfarben", else only for the light bars.
+        // The cover's colors: the wall itself with "cover colors", otherwise only for the lights.
         val field = CoverField.build(
             thumb, THUMB, analysis, lighting, appearance, strength = wallTint,
             layout = layout.takeIf { coverField }, quietInk = palette.inkQuiet,
         )
         val wall = when {
-            // The field is the wall; the plain one is only its colour underneath.
+            // The field is the wall; the plain one is only its color underneath.
             coverField -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
             flow && appearance == Appearance.DARK -> {
                 // The light above the cards takes the print's top edge.
@@ -190,7 +190,7 @@ object SceneBuilder {
     }
 
     /**
-     * Dither amplitude (grey levels) for a map that is drawn multiplied by [tint]: about one
+     * Dither amplitude (gray levels) for a map that is drawn multiplied by [tint]: about one
      * output level of noise, so even the darkest stretch of a glow never shows bands.
      */
     fun ditherFor(tint: Int): Float {

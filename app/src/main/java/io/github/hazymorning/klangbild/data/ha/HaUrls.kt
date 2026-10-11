@@ -11,7 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 object HaUrls {
 
     /**
-     * Normalises user input to a base URL like `http://192.168.1.5:8123` (no trailing slash,
+     * Normalizes user input to a base URL like `http://192.168.1.5:8123` (no trailing slash,
      * no path). Without a scheme, local-looking hosts get `http`, everything else `https`.
      * Returns null if the input cannot be a URL.
      */
@@ -35,7 +35,7 @@ object HaUrls {
         }
     }
 
-    /** `ws(s)://host:port/api/websocket` for a normalised base URL. */
+    /** `ws(s)://host:port/api/websocket` for a normalized base URL. */
     fun webSocketUrl(base: String): String {
         val wsBase = when {
             base.startsWith("https://") -> "wss://" + base.removePrefix("https://")
@@ -60,7 +60,7 @@ object HaUrls {
 
     /**
      * Only requests to the Home Assistant host itself may carry the access token. Absolute
-     * artwork URLs (Spotify CDN, Music Assistant) must never see it.
+     * artwork URLs (a streaming service's CDN, Music Assistant) must never see it.
      */
     fun isHaHost(base: String, url: String): Boolean {
         val b: HttpUrl = base.toHttpUrlOrNull() ?: return false

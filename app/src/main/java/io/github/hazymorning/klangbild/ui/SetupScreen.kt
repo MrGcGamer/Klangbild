@@ -27,9 +27,11 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.em
+import androidx.core.graphics.createBitmap
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.SetupReason
@@ -38,6 +40,7 @@ import io.github.hazymorning.klangbild.render.HaloLayout
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupInfo
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.stage.ArtworkLayer
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
 import io.github.hazymorning.klangbild.ui.stage.WallLayer
@@ -55,7 +58,7 @@ object SetupArt {
      * light as an album.
      */
     fun card(qr: Array<BooleanArray>?, sizePx: Int, appearance: Appearance = Appearance.DARK): Bitmap {
-        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val bmp = createBitmap(sizePx, sizePx)
         val c = Canvas(bmp)
         c.drawColor(if (appearance == Appearance.DARK) 0xFFEAE2D4.toInt() else 0xFFF7F4EE.toInt())
         if (qr != null) {
@@ -105,28 +108,28 @@ fun SetupScreen(
     val balanced = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)
     val label = textType(15f, 500, p.inkQuiet.asColor(), tracking = 0.01f)
     val body = textType(19f, 420, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
-    val lead = when (reason) {
-        SetupReason.FIRST_RUN -> "Einrichten mit dem Handy"
-        SetupReason.AUTH_FAILED -> "Home\u00A0Assistant hat das\u00A0Zugangstoken abgelehnt."
-        SetupReason.REQUESTED -> "Verbindung ändern"
-    }
-    // A short word that opens a sentence never ends a line ("Auf der Seite" stays
-    // together), and articles and adjectives stay with their noun.
-    val text = when (reason) {
-        SetupReason.AUTH_FAILED ->
-            "Erstelle in Home\u00A0Assistant ein\u00A0neues\u00A0langlebiges\u00A0Zugangstoken, scanne den\u00A0Code und füge es auf der Seite ein."
-        else ->
-            "Scanne den\u00A0Code mit\u00A0der\u00A0Kamera. Auf\u00A0der\u00A0Seite verbindest du Home\u00A0Assistant und wählst den\u00A0Lautsprecher."
-    }
-    val hint = if (reason == SetupReason.REQUESTED) "Zurück schließt" else null
+    val t = texts()
+    val lead = t[
+        when (reason) {
+            SetupReason.FIRST_RUN -> R.string.setup_first_run
+            SetupReason.AUTH_FAILED -> R.string.setup_rejected
+            SetupReason.REQUESTED -> R.string.setup_change
+        },
+    ]
+    // A short word that opens a sentence never ends a line, and articles and adjectives stay
+    // with their noun: the texts carry no-break spaces for that.
+    val text = t[if (reason == SetupReason.AUTH_FAILED) R.string.setup_text_rejected else R.string.setup_text]
+    val hint = if (reason == SetupReason.REQUESTED) t[R.string.setup_back] else null
     val address = info?.url?.let { url ->
         buildAnnotatedString {
-            append("oder im Browser: ")
+            append(t[R.string.setup_in_browser])
+            append(" ")
             // A little air between the figures, so the dots stay visible from the sofa.
             withStyle(SpanStyle(letterSpacing = 0.03.em)) { append(SetupArt.shortUrl(url)) }
         }
-    } ?: AnnotatedString("Keine Netzwerkverbindung")
-    val code = info?.code?.chunked(3)?.joinToString(" ") ?: "—"
+    } ?: AnnotatedString(t[R.string.setup_no_network])
+    // Until the code is drawn its line stays empty but keeps its height.
+    val code = info?.code?.chunked(3)?.joinToString(" ") ?: "\u00A0"
     val name = titleType(44f, 420, p.ink.asColor(), tracking = -0.005f)
     val leadStyle = textType(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
     val codeStyle = titleType(44f, 400, p.ink.asColor(), tracking = 0.01f)
@@ -134,7 +137,7 @@ fun SetupScreen(
     // How wide the text really is: its longest line, as it breaks in the column.
     val measurer = rememberTextMeasurer()
     val local = LocalDensity.current
-    val widest = remember(reason, info, layout, local) {
+    val widest = remember(reason, info, layout, local, t) {
         val column = Constraints(maxWidth = with(local) { layout.columnWidth.dp.roundToPx() })
         listOf(AnnotatedString("Klangbild") to name, AnnotatedString(lead) to leadStyle, AnnotatedString(text) to body, AnnotatedString(code) to codeStyle, address to addressStyle)
             .maxOf { (t, style) ->
@@ -161,7 +164,7 @@ fun SetupScreen(
                         Spacer(Modifier.height(20.dp))
                         BasicText(text, style = body)
                         Spacer(Modifier.height(30.dp))
-                        BasicText("Code", style = label)
+                        BasicText(t[R.string.setup_code], style = label)
                         Spacer(Modifier.height(2.dp))
                         BasicText(code, style = codeStyle)
                         Spacer(Modifier.height(8.dp))

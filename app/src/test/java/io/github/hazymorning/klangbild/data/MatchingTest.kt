@@ -7,7 +7,7 @@ import org.junit.Test
 
 class MatchingTest {
     @Test
-    fun `the test catalogue covers the hard cases`() {
+    fun `the test catalog covers the hard cases`() {
         val t = Catalogue.tracks
         assertThat(t.any { it.artworkUrl == null && it.source != null }).isTrue() // radio without cover
         assertThat(t.any { it.title.contains(": ") && it.artists.size > 4 }).isTrue() // classical, many artists

@@ -22,25 +22,25 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class StatesTest {
-    private val pärt = Fixtures.pärt
+    private val spiegel = Fixtures.spiegel
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) =
         captureRoboImage("build/screenshots/states/$name.png") { Fixtures.Still(content) }
 
     private fun stage(name: String, model: StageModel) = shot(name) { Stage(model) }
 
-    @Test fun playing() = stage("stage_playing", Fixtures.model(Fixtures.track(SyntheticCover.NACHTFAHRT), next = pärt, group = "Wohnzimmer + 5"))
+    @Test fun playing() = stage("stage_playing", Fixtures.model(Fixtures.track(SyntheticCover.NIGHT_DRIVE), next = spiegel, group = "Wohnzimmer + 5"))
 
     @Test fun paused() {
-        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.TERRAKOTTA))
+        val stage = Fixtures.stage(Fixtures.track(SyntheticCover.TERRACOTTA))
         shot("stage_paused") { Fixtures.Theatre(stage, PlayerStatus.PAUSED, group = "Wohnzimmer") }
     }
 
-    @Test fun everywhere() = stage("stage_everywhere", Fixtures.model(Fixtures.track(SyntheticCover.MOOS), next = pärt, group = "Überall"))
+    @Test fun everywhere() = stage("stage_everywhere", Fixtures.model(Fixtures.track(SyntheticCover.MOSS), next = spiegel, group = "Überall"))
 
     @Test fun volume() = stage(
         "stage_volume",
-        Fixtures.model(Fixtures.track(SyntheticCover.SALZWASSER), next = pärt, lead = "Lautstärke 35\u00A0%"),
+        Fixtures.model(Fixtures.track(SyntheticCover.SALT_WATER), next = spiegel, lead = "Lautstärke 35\u00A0%"),
     )
 
     @Test fun muted() {
@@ -48,18 +48,18 @@ class StatesTest {
         shot("stage_muted") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, muted = true, group = "Küche") }
     }
 
-    @Test fun linkDown() = stage("stage_link_down", Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), linkDown = true))
+    @Test fun linkDown() = stage("stage_link_down", Fixtures.model(Fixtures.track(SyntheticCover.MIST), linkDown = true))
 
     @Test fun minimal() = stage(
         "stage_minimal",
-        Fixtures.model(Fixtures.track(SyntheticCover.KONFETTI), clock = null, album = false, progress = false),
+        Fixtures.model(Fixtures.track(SyntheticCover.CONFETTI), clock = null, album = false, progress = false),
     )
 
-    @Test fun evening() = stage("stage_evening", Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = pärt, lighting = Lighting.EVENING))
+    @Test fun evening() = stage("stage_evening", Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = spiegel, lighting = Lighting.EVENING))
 
     @Test fun night() = stage(
         "stage_night",
-        Fixtures.model(Fixtures.track(SyntheticCover.NEBELLAND), next = pärt, lighting = Lighting.NIGHT, clock = "23:12"),
+        Fixtures.model(Fixtures.track(SyntheticCover.MIST), next = spiegel, lighting = Lighting.NIGHT, clock = "23:12"),
     )
 
     @Test fun restIdle() = shot("rest_idle") {
@@ -105,7 +105,7 @@ class StatesTest {
     }
 }
 
-/** The same at 3840 × 2160 (xxxhdpi), to check crispness and the honest cover scale. */
+/** The same at 3840 × 2160 (xxxhdpi), to check crispness and the true cover scale. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xxxhdpi")
@@ -115,10 +115,10 @@ class States4kTest {
 
     @Test fun playing4k() = shot(
         "4k_stage_classical",
-        Fixtures.model(Fixtures.track(SyntheticCover.KAMMERMUSIK), next = Fixtures.pärt, screen = Fixtures.TV_4K),
+        Fixtures.model(Fixtures.track(SyntheticCover.CHAMBER_MUSIC), next = Fixtures.spiegel, screen = Fixtures.TV_4K),
     )
 
-    @Test fun lowRes4k() = shot("4k_stage_lowres", Fixtures.model(Fixtures.track(SyntheticCover.PASTELL), screen = Fixtures.TV_4K))
+    @Test fun lowRes4k() = shot("4k_stage_lowres", Fixtures.model(Fixtures.track(SyntheticCover.PASTEL), screen = Fixtures.TV_4K))
 
     @Test fun radio4k() = shot("4k_stage_radio", Fixtures.model(Fixtures.radio, screen = Fixtures.TV_4K))
 }

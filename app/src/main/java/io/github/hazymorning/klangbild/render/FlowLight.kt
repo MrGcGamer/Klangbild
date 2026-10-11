@@ -8,10 +8,10 @@ import kotlin.math.min
 
 /**
  * The wall behind the cover flow in the dark: a soft oval of light above the middle card, in
- * the colour of its top edge – as if the picture lit the wall above it. It is at most ≈ L* 8
- * and follows the edge's lightness: a dark edge gives a faint glow; it fades out long before
- * the text column, the floor (where the mirror images stand
- * on black) and the screen's edges – no edge of it shows.
+ * the color of its top edge, as if the picture lit the wall above it. It is at most ≈ L* 8
+ * and follows the edge's lightness, so a dark edge gives a faint glow. It fades out long before
+ * the text column, the floor (where the mirror images stand on black) and the screen's edges,
+ * so no edge of it shows.
  *
  * One dithered bitmap per scene at half the dp resolution (the light is soft), drawn as one
  * rectangle like [WallGlow].
@@ -20,18 +20,18 @@ object FlowLight {
     const val MAP_W = 480
     const val MAP_H = 270
 
-    /** Brightest point (relative luminance, ≈ L* 8 by day) – behind a light edge; a black one gives [DARK_SHARE] of it. */
+    /** Brightest point (relative luminance, ≈ L* 8 by day) behind a light edge. A black edge gives [DARK_SHARE] of it. */
     const val PEAK = 0.0088f
     const val DARK_SHARE = 0.35f
 
-    /** Spread of the oval (dp) and how far its centre sits above the middle card's top edge. */
+    /** Spread of the oval (dp) and how far its center sits above the middle card's top edge. */
     const val SIGMA_X = 180f
     const val SIGMA_Y = 90f
     const val ABOVE = 20f
 
     /**
-     * The colour (ARGB) along the top edge of the print, from its [thumb] of [size] × [size]
-     * pixels – for a round plate (transparent in its corners) the upper half of the disc.
+     * The color (ARGB) along the top edge of the print, from its [thumb] of [size] × [size]
+     * pixels. For a round plate (transparent in its corners) it is the upper half of the disc.
      */
     fun topEdge(thumb: IntArray, size: Int): Int {
         fun mean(rows: Int): Int? {
@@ -58,7 +58,7 @@ object FlowLight {
         val screen = layout.screen
         val lab = Oklab.fromArgb(edge)
         val peak = PEAK * (DARK_SHARE + (1f - DARK_SHARE) * HaloLight.smoothstep(0.05f, 0.35f, lab.l))
-        // The edge's own hue, a little more colourful (it is light, not paint); a grey edge gives lamp light.
+        // The edge's own hue, a little more colorful (it is light, not paint). A gray edge gives lamp light.
         val color = if (lab.chroma < 0.02f) HaloLight.LAMP else Lch(0.62f, min(lab.chroma * 1.2f, 0.12f), lab.hue)
         val tint = HaloLight.lightTint(color, peak, lighting)
         val tr = Oklab.srgbToLinear(tint shr 16)

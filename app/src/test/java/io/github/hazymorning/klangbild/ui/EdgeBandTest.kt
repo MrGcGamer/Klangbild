@@ -8,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
@@ -23,16 +22,16 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * OLED: the band next to the screen edges stays black – checked on the rendered pixels of
- * every test scene, in both views and behind the menu, not on the light model. Only the cover's
- * colours fill the screen to its edges, wherever the stage drifts.
+ * OLED: the band next to the screen edges stays black. This is checked on the rendered pixels
+ * of every test scene, in both views and behind the menu, not on the light model. Only the cover
+ * colors fill the screen to its edges, wherever the stage drifts.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class EdgeBandTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 
@@ -67,7 +66,7 @@ class EdgeBandTest {
 
     @Test
     fun theCoverColoursReachEveryEdgeWhereverTheStageDrifts() {
-        // "Coverfarben" is the one wall that fills the screen: it meets the light behind the TV.
+        // The cover colors background is the one wall that fills the screen: it meets the light behind the TV.
         // The stage drifts ±12 dp against burn-in; the field reaches beyond, so no edge ever shows black.
         val scenes = Fixtures.tracks.take(6).map { Fixtures.scene(it, mdpi, coverField = true) }
         var i by mutableStateOf(0)
@@ -105,12 +104,12 @@ class EdgeBandTest {
     @Test
     fun theScreenEdgesStayBlackBehindTheMenu() {
         val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
-        val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext())
+        val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext(), Fixtures.texts)
         var cursor by mutableStateOf(0)
         compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), io.github.hazymorning.klangbild.color.Lighting.DAY) } }
         for (c in listOf(0, rows.size / 2, rows.size - 1)) {
             cursor = c
-            assertWithMessage(rows[c].entry.label).that(brightestInBand()).isEqualTo(0)
+            assertWithMessage(rows[c].label).that(brightestInBand()).isEqualTo(0)
         }
     }
 

@@ -16,7 +16,7 @@ class CloudFieldTest {
     }
 
     @Test
-    fun `clouds drift on smoothly – nothing appears or vanishes in the picture`() {
+    fun `clouds drift on smoothly and nothing appears or vanishes in the picture`() {
         val density = CloudField.density(0.6f)
         var t = 1_000.0
         repeat(2_000) {

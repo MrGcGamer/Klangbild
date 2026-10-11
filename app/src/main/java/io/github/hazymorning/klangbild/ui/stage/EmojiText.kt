@@ -8,9 +8,9 @@ import androidx.compose.ui.unit.em
 import io.github.hazymorning.klangbild.domain.Emoji
 
 /**
- * Colour emoji at display size shout over the typography. Emoji at the edges of a title are
- * already gone (see [io.github.hazymorning.klangbild.domain.TrackText]); the ones inside a
- * title are set smaller and dimmed, and glued to their neighbours with no-break spaces, so
+ * Color emoji at display size are louder than the typography. Emoji at the edges of a title are
+ * already gone (see [io.github.hazymorning.klangbild.domain.TrackText]). The ones inside a
+ * title are set smaller and dimmed, and glued to their neighbors with no-break spaces, so
  * an emoji never ends up alone on its own line.
  */
 object EmojiText {
@@ -42,8 +42,8 @@ object EmojiText {
     }
 
     /**
-     * @param dimTo if set, emoji are drawn in this colour's alpha (colour glyphs keep their
-     *              colours but become translucent on the dark wall, i.e. dimmer).
+     * @param dimTo if set, emoji are drawn in this color's alpha (color glyphs keep their
+     *              colors but become translucent on the dark wall, so they look dimmer).
      */
     fun annotate(text: String, scale: Float = 0.74f, dimTo: Color? = null): AnnotatedString {
         if (!containsEmoji(text)) return AnnotatedString(text)

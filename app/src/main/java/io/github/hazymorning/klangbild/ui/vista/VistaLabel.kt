@@ -36,10 +36,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ImageOps
+import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.rememberOffMain
@@ -61,19 +64,19 @@ sealed interface LabelText {
 }
 
 /**
- * The music's label in the Fensterblick, lying on the near bank like a small print with its
+ * The music's label in the window view, lying on the near bank like a small print with its
  * caption: the cover (56 dp, its corners rounded a little), beside it the title in Jost, the
  * artist in DM Sans and a slim bar for how far the track has played (dimmed while paused). What
- * stands beside the cover is one block, exactly centred on it, measured on what is seen: from
- * the title's cap height to the bar's lower edge – filling the cover's height – or, where there
+ * stands beside the cover is one block, exactly centered on it, measured on what is seen. It runs
+ * from the title's cap height to the bar's lower edge (filling the cover's height) or, where there
  * is no bar (a station has no length), to the last baseline. The inks are the bank's
  * ([io.github.hazymorning.klangbild.vista.PaperLight.labelInks]): 4.5:1 in every light. A new
  * track's label cross-fades in place.
  */
 @Composable
-fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, coverLight: () -> Float = { 1f }, modifier: Modifier = Modifier) {
-    // Only another track cross-fades; a pause or a new cover change the label in place – the one
-    // shown always reads the latest, the one leaving keeps what it said.
+fun VistaLabel(text: LabelText, side: LabelSide, inks: () -> IntArray, modifier: Modifier = Modifier, coverLight: () -> Float = { 1f }) {
+    // Only another track cross-fades; a pause or a new cover changes the label in place. The one
+    // shown always reads the latest, and the one leaving keeps what it said.
     val latest by rememberUpdatedState(text)
     val said = remember { HashMap<Any, LabelText>() }
     val key = keyOf(text)
@@ -110,7 +113,8 @@ private class LabelBox(side: LabelSide) {
 private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray, coverLight: () -> Float) {
     val box = remember(side) { LabelBox(side) }
     val density = LocalDensity.current.density
-    val text = remember(m.track) { TrackText.from(m.track) }
+    val others = texts()[R.string.artists_others]
+    val text = remember(m.track, others) { TrackText.from(m.track, others) }
     val titleStyle = remember { titleType(TITLE_SP, 400) }
     val artistStyle = remember { textType(ARTIST_SP, 460) }
     val measurer = rememberTextMeasurer(cacheSize = 8)
@@ -125,17 +129,20 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
     val scene = m.scene
     val cover: ImageBitmap? = rememberOffMain(scene?.key, sizePx) { scene?.let { miniCover(it.cover, sizePx) } }
     val fill by animateFloatAsState(if (m.playing) 1f else 0.55f, tween(Motion.PAUSE_MS, easing = Motion.Dimmer), label = "label-bar")
-    val tick = remember { mutableLongStateOf(0L) }
-    if (!LocalStill.current) {
+    val duration = m.track.durationMs
+    val bar = duration != null && duration > 0L
+    // The window view's tick redraws the bar; alone (in a test), a loop of its own, and none without a bar.
+    val shared = LocalStageTick.current
+    val own = remember { mutableLongStateOf(0L) }
+    if (bar && shared == null && !LocalStill.current) {
         LaunchedEffect(m.playing) {
             while (true) {
-                withFrameNanos { tick.longValue = it }
+                withFrameNanos { own.longValue = it }
                 delay(if (m.playing) BAR_REFRESH_MS else BAR_PAUSED_MS)
             }
         }
     }
-    val duration = m.track.durationMs
-    val bar = duration != null && duration > 0L
+    val tick = shared?.frame ?: own
     Layout(
         modifier = Modifier.fillMaxSize(),
         content = {
@@ -151,7 +158,7 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
             if (artist != null) BasicText(artist, style = artistStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, color = { Color(inks()[1]) }) else Box(Modifier)
             Canvas(Modifier.graphicsLayer()) {
                 val length = duration?.takeIf { it > 0L } ?: return@Canvas
-                tick.longValue // redraw on every refresh
+                tick.value // redraw on every refresh
                 val ink = Color(inks()[1])
                 val f = ((m.positionNow() ?: 0L).toFloat() / length).coerceIn(0f, 1f)
                 val cr = CornerRadius(size.height / 2f)
@@ -186,7 +193,7 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
     }
 }
 
-/** Darker by [k] (0..1), colours kept. */
+/** Darker by [k] (0..1), colors kept. */
 private fun dimmer(k: Float) = ColorFilter.colorMatrix(
     ColorMatrix(floatArrayOf(k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 0f, 1f, 0f)),
 )
@@ -209,7 +216,7 @@ private const val BAR_DP = 3f
 private const val BAR_WIDTH_DP = 190f
 
 /**
- * From the last baseline to the bar's top edge: with a title, an artist and the bar the block is
+ * From the last baseline to the bar's top edge. With a title, an artist and the bar, the block is
  * exactly as tall as the cover (16.8 + 23 + 13.2 + 3 = 56 dp).
  */
 private const val BAR_FROM_BASELINE_DP = 13.2f

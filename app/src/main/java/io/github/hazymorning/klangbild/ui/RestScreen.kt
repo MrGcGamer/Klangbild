@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lab
@@ -40,21 +41,20 @@ import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
+import io.github.hazymorning.klangbild.text.Texts
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
 import io.github.hazymorning.klangbild.ui.theme.rememberInkShift
 import io.github.hazymorning.klangbild.ui.theme.textType
 import io.github.hazymorning.klangbild.ui.theme.titleType
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
- * Quiet colours for screens without a cover: soft white on black, or near-black on warm
- * paper – dimmed with the day either way, but however late it is every line still reads
- * (the quietest at least 4.5:1).
+ * Quiet colors for screens without a cover: soft white on black, or near-black on warm
+ * paper. Either way they are dimmed with the day, but however late it is, every line still
+ * reads (the quietest at least 4.5:1).
  */
 data class QuietColors(val wall: Color, val primary: Color, val secondary: Color, val label: Color) {
     companion object {
@@ -76,37 +76,26 @@ data class QuietColors(val wall: Color, val primary: Color, val secondary: Color
 object RestTexts {
     /** What the rest screen says besides the time. */
     data class Lines(
-        /** A short label ("Wohnzimmer · Pausiert"). */
+        /** A short label ("Living room · Paused"). */
         val label: String?,
         /** A calm sentence, only when something needs explaining. */
         val sentence: String?,
     )
 
-    fun lines(reason: RestReason, speaker: String?, entityId: String?): Lines = when (reason) {
+    fun lines(reason: RestReason, speaker: String?, entityId: String?, t: Texts): Lines = when (reason) {
         RestReason.IDLE -> Lines(speaker, null)
-        RestReason.PAUSED -> Lines(listOfNotNull(speaker, "Pausiert").joinToString(TimeLine.SEPARATOR), null)
-        RestReason.CONNECTING -> Lines(speaker, "Verbindung wird hergestellt …")
-        RestReason.OFFLINE -> Lines(null, "Home\u00A0Assistant ist nicht erreichbar.")
-        RestReason.UNAVAILABLE -> Lines(speaker ?: "Lautsprecher", "Gerade nicht erreichbar.")
-        RestReason.ENTITY_MISSING -> Lines(
-            null,
-            "Home\u00A0Assistant kennt „${entityId ?: "diesen Lautsprecher"}“ nicht.\nZum Einrichten OK lange drücken.",
-        )
+        RestReason.PAUSED -> Lines(listOfNotNull(speaker, t[R.string.status_paused]).joinToString(TimeLine.SEPARATOR), null)
+        RestReason.CONNECTING -> Lines(speaker, t[R.string.rest_connecting])
+        RestReason.OFFLINE -> Lines(null, t[R.string.rest_offline])
+        RestReason.UNAVAILABLE -> Lines(speaker ?: t[R.string.rest_speaker], t[R.string.rest_unavailable])
+        RestReason.ENTITY_MISSING -> Lines(null, t.format(R.string.rest_entity_missing, entityId ?: t[R.string.rest_this_speaker]))
     }
-
-    private val dateFormat = DateTimeFormatter.ofPattern("EEEE, d. MMMM", Locale.GERMAN)
-
-    fun date(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        dateFormat.format(Instant.ofEpochMilli(epochMs).atZone(zone))
-
-    /** "2:13", "21:47" – no leading zero, as a clock on a wall would show it. */
-    fun time(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String = TimeLine.clock(epochMs, zone)
 }
 
 /**
  * The rest screen's light: a soft oval of warm light behind the clock, both exactly in the
- * screen's middle. By day the lamp is a breath of light, in the evening and at night less –
- * turned down, never off.
+ * screen's middle. By day the lamp gives a faint light, and less in the evening and at night.
+ * It is turned down, never off.
  */
 object RestLight {
     const val MAP_W = 480
@@ -120,7 +109,7 @@ object RestLight {
     private const val EDGE_DP = 36f
 
     /**
-     * Greyscale light field for the whole screen (sRGB-encoded, dithered), brightest at
+     * Grayscale light field for the whole screen (sRGB-encoded, dithered), brightest at
      * [cx], [cy] (dp), black well before the screen edges.
      */
     fun field(cx: Float, cy: Float, screen: ScreenSpec, ditherLsb: Float): IntArray {
@@ -154,7 +143,7 @@ object RestLight {
 
 /**
  * Nothing is playing: a quiet clock on a dim, lamp-lit wall, the date, and one line that
- * says why – never an error code. The clock stands exactly in the screen's middle, measured
+ * says why (never an error code). The clock stands exactly in the screen's middle, measured
  * on what is seen (from the top of the figures to their baseline); the lines hang under it.
  * At night the lamp is turned down; nothing is left out.
  */
@@ -171,8 +160,9 @@ fun RestScreen(
     lightFactor: Float = 1f,
     appearance: Appearance = Appearance.DARK,
 ) {
-    val colors = QuietColors.of(lighting, appearance)
-    val lines = RestTexts.lines(reason, speaker, entityId)
+    val colors = remember(lighting, appearance) { QuietColors.of(lighting, appearance) }
+    val t = texts()
+    val lines = RestTexts.lines(reason, speaker, entityId, t)
     // A lamp only lights a dark wall.
     val peak = (RestLight.peak(lighting) * lightFactor).takeIf { it > 0f && appearance == Appearance.DARK }
     val tint = remember(lighting, peak) { peak?.let { HaloLight.lightTint(HaloLight.LAMP, it, lighting) } }
@@ -197,8 +187,8 @@ fun RestScreen(
             }
         }
         RestBlock(
-            time = RestTexts.time(nowMs, zone),
-            date = RestTexts.date(nowMs, zone),
+            time = t.clockFigures(nowMs, zone),
+            date = t.date(nowMs, zone),
             label = lines.label,
             sentence = lines.sentence,
             colors = colors,
@@ -207,8 +197,8 @@ fun RestScreen(
 }
 
 /**
- * The clock and the lines under it, each centred on the screen's vertical axis; the clock's
- * figures centred on its horizontal one.
+ * The clock and the lines under it, each centered on the screen's vertical axis, with the
+ * clock's figures centered on its horizontal one.
  */
 @Composable
 private fun RestBlock(time: String, date: String?, label: String?, sentence: String?, colors: QuietColors) {
@@ -216,9 +206,9 @@ private fun RestBlock(time: String, date: String?, label: String?, sentence: Str
     Layout(
         content = {
             // The figures keep their own widths (in cells this large the "1" would stand apart);
-            // a new minute dissolves in, so the re-centred line never jumps.
+            // a new minute dissolves in, so the re-centered line never jumps.
             Crossfade(targetState = time, Modifier.layoutId(CLOCK), animationSpec = tween(700, easing = Motion.Dimmer), label = "minute") { t ->
-                // Centred on its ink: the figures' side bearings differ.
+                // Centered on its ink: the figures' side bearings differ.
                 val shift = rememberInkShift(t, clock)
                 BasicText(t, Modifier.offset { IntOffset(shift.roundToInt(), 0) }, style = clock)
             }

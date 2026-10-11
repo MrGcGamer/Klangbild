@@ -39,14 +39,14 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lighting
-import io.github.hazymorning.klangbild.config.FavoriteState
-import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.QuickMenu
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.ui.stage.BEYOND_EDGES_DP
+import io.github.hazymorning.klangbild.text.Texts
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.theme.textType
 import kotlin.math.exp
 import kotlin.math.max
@@ -58,22 +58,22 @@ object QuickGrid {
     const val LEFT = 88f
     const val RIGHT = 872f
 
-    /** The values' baseline – well inside the screen's safe area – and the labels' above it. */
+    /** The values' baseline (well inside the screen's safe area) and the labels' above it. */
     const val VALUE_BASELINE = 495f
     const val LABEL_BASELINE = 468f
 
-    /** The veil that lets the row read over whatever shows: from clear here … */
+    /** The veil that lets the row read over whatever shows. It starts clear here. */
     const val VEIL_TOP = 372f
 
-    /** … to its full strength here, down to the edge – nothing behind the row shows through. */
+    /** The veil reaches its full strength here and keeps it down to the edge, so nothing behind the row shows through. */
     const val VEIL_FULL = 448f
 
     /** Room between two entries. */
     const val GAP = 64f
 
     /**
-     * The light under the chosen entry, a Gaussian: across, σ is this share of half the entry's
-     * width plus a little (dp) – it lights the entry, not its neighbours; up and down, σ in dp.
+     * The light under the chosen entry, a Gaussian. Across, σ is this share of half the entry's
+     * width plus a little (dp), so it lights the entry, not its neighbors. Up and down, σ is in dp.
      */
     const val GLOW_SHARE = 0.6f
     const val GLOW_PAD = 8f
@@ -82,15 +82,18 @@ object QuickGrid {
     /** How far the row rises when it comes. */
     const val RISE = 22f
 
+    /** An entry's name over its value: size (sp) and weight. */
     const val LABEL_SP = 15f
+    const val LABEL_WEIGHT = 460
     const val VALUE_SP = 20f
+    const val VALUE_WEIGHT = 480
 }
 
 /**
  * The quick settings along the bottom edge: they rise a little and fade in when down is
  * pressed, and sink back when they close. Each entry is its name in the quiet ink with its value
  * under it; the chosen one is lit from below by the same soft band of light as the menu's
- * chosen line, its words at full strength – no frame, no chip, no icon. The entries keep their
+ * chosen line, its words at full strength (no frame, no chip, no icon). The entries keep their
  * places whatever their values say, so nothing jumps while a value changes.
  */
 @Composable
@@ -105,7 +108,7 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     }
     if (quick == null && shown.value <= 0f) return
     val state = quick ?: last[0] ?: return
-    // It rises as it fades in – faded draw by draw, not through a layer of the screen's size,
+    // It rises as it fades in. It is faded draw by draw, not through a layer of the screen's size,
     // which would cut its ground off at the screen's edges while it moves.
     QuickBar(state, lighting, appearance, modifier.graphicsLayer {
         val v = shown.value
@@ -115,7 +118,7 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     })
 }
 
-/** The quick settings' voices: like the menu's, near-neutral, on black or on paper. */
+/** The quick settings' colors: like the menu's, near-neutral, on black or on paper. */
 private class QuickColors(
     val veil: Color,
     val band: Color,
@@ -150,36 +153,23 @@ private class QuickColors(
     }
 }
 
-/**
- * Every value an entry can show, so its place is as wide as the widest of them (the last entry
- * needs no place kept: nothing stands after it).
- */
-private fun valuesOf(item: QuickItem): List<String> = when (item) {
-    QuickItem.PICTURE -> QuickMenu.PICTURES.map(QuickMenu::pictureValue)
-    QuickItem.FAVORITE -> FavoriteState.entries.map(QuickMenu::favoriteValue)
-    QuickItem.BARS -> listOf("An", "Aus")
-    QuickItem.SHUFFLE -> listOf("An", "Aus")
-}
-
 @Composable
 fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
     // Like the menu: asking for a choice, it takes only a little of the evening's dimming.
     val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
     val colors = remember(light, appearance) { QuickColors.of(light, appearance) }
-    val labelStyle = remember { textType(QuickGrid.LABEL_SP, 460) }
-    val valueStyle = remember { textType(QuickGrid.VALUE_SP, 480) }
+    val labelStyle = remember { textType(QuickGrid.LABEL_SP, QuickGrid.LABEL_WEIGHT) }
+    val valueStyle = remember { textType(QuickGrid.VALUE_SP, QuickGrid.VALUE_WEIGHT) }
     val measurer = rememberTextMeasurer(cacheSize = 32)
+    val t = texts()
     val items = quick.rows.map { it.item }
     val values = quick.rows.map { it.value }
     // Each entry's place (dp): as wide as its name or its widest value, so a value that changes
-    // never moves the others – only the last one is as wide as what it says now.
+    // never moves the others; only the last one is as wide as what it says now (nothing stands
+    // after it).
     val density = LocalDensity.current.density
-    val widths = remember(items, values.last(), density) {
-        items.mapIndexed { i, item ->
-            fun w(text: String, style: androidx.compose.ui.text.TextStyle) = measurer.measure(AnnotatedString(text), style, maxLines = 1).size.width
-            val value = if (i == items.lastIndex) w(values[i], valueStyle) else valuesOf(item).maxOf { w(it, valueStyle) }
-            max(w(item.label, labelStyle), value) / density
-        }
+    val widths = remember(items, values.last(), density, t) {
+        quickWidths(quick, t, measurer, labelStyle, valueStyle, density)
     }
     val lefts = widths.runningFold(QuickGrid.LEFT) { x, w -> x + w + QuickGrid.GAP }.dropLast(1)
     val cursor = quick.cursor.coerceIn(0, items.size - 1)
@@ -192,7 +182,7 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
         Canvas(Modifier.fillMaxSize()) {
             val d = density
             // The veil reaches beyond the screen's sides and bottom (and below, where the row rises
-            // from): seamless to the edges, whatever the drift against burn-in.
+            // from), so it leaves no gap at the edges, whatever the drift against burn-in.
             val m = BEYOND_EDGES_DP * d
             drawRect(
                 Brush.verticalGradient(
@@ -206,7 +196,7 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
                 size = Size(size.width + 2 * m, size.height - QuickGrid.VEIL_TOP * d + m + QuickGrid.RISE * d),
             )
             val g = glow ?: return@Canvas
-            // The band of light, centred on the value's middle line; it adds to the veil. The
+            // The band of light, centered on the value's middle line; it adds to the veil. The
             // blob holds ±3 σ.
             val cy = (QuickGrid.VALUE_BASELINE - QuickGrid.VALUE_SP * 0.35f) * d
             val hw = glowSigma * 3f * d
@@ -225,13 +215,30 @@ fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modi
             val labelColor by animateColorAsState(if (focused) colors.labelFocus else colors.label, tween(240, easing = Motion.Dimmer), label = "quick-label")
             val valueColor by animateColorAsState(if (focused) colors.valueFocus else colors.value, tween(240, easing = Motion.Dimmer), label = "quick-value")
             Entry(x = lefts[i], labelBaseline = QuickGrid.LABEL_BASELINE, valueBaseline = QuickGrid.VALUE_BASELINE, width = widths[i]) {
-                BasicText(row.item.label, style = labelStyle, color = { labelColor }, maxLines = 1)
+                BasicText(row.label, style = labelStyle, color = { labelColor }, maxLines = 1)
                 Crossfade(targetState = row.value, animationSpec = tween(220, easing = Motion.Dimmer), label = "quick-value-text") { v ->
                     BasicText(v, style = valueStyle, color = { valueColor }, maxLines = 1)
                 }
             }
         }
     }
+}
+
+/**
+ * The places of the quick settings' entries (dp): each as wide as its name or the widest value
+ * it can show, the last as wide as what it says now.
+ */
+fun quickWidths(
+    quick: QuickState,
+    t: Texts,
+    measurer: androidx.compose.ui.text.TextMeasurer,
+    labelStyle: androidx.compose.ui.text.TextStyle,
+    valueStyle: androidx.compose.ui.text.TextStyle,
+    density: Float,
+): List<Float> = quick.rows.mapIndexed { i, row ->
+    fun w(text: String, style: androidx.compose.ui.text.TextStyle) = measurer.measure(AnnotatedString(text), style, maxLines = 1).size.width
+    val value = if (i == quick.rows.lastIndex) w(row.value, valueStyle) else QuickMenu.values(row.item, t).maxOf { w(it, valueStyle) }
+    max(w(row.label, labelStyle), value) / density
 }
 
 /** An entry: its name with its baseline at [labelBaseline], its value with its baseline at [valueBaseline] (dp), from [x]. */
@@ -256,7 +263,7 @@ private const val GLOW_PEAK = 0.011f
 private const val BLOB_W = 96
 private const val BLOB_H = 48
 
-/** A soft oval of light (a Gaussian, ±3 σ across the bitmap) – greyscale, dithered, tinted when drawn. */
+/** A soft oval of light (a Gaussian, ±3 σ across the bitmap): grayscale, dithered, tinted when drawn. */
 private fun glowBlob(ditherLsb: Float): androidx.compose.ui.graphics.ImageBitmap {
     val img = LinearImage(BLOB_W, BLOB_H)
     for (y in 0 until BLOB_H) for (x in 0 until BLOB_W) {

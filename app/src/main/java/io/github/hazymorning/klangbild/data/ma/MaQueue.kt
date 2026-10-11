@@ -15,8 +15,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlin.math.roundToLong
 
 /**
- * The part of a queue around its current item: what was played (most recent last) and what
- * comes – and how fast the current item plays (a book at 1.5×).
+ * The part of a queue around its current item: what was played (most recent last), what
+ * comes, and how fast the current item plays (a book at 1.5×).
  */
 data class QueueWindow(val played: List<TrackInfo>, val current: TrackInfo?, val coming: List<TrackInfo>, val speed: Float = 1f)
 
@@ -55,8 +55,8 @@ object MaQueue {
      * One queue item as a track: title (with its version), artists, album and year, picture. A
      * book names its authors and an episode its show where a song names its artists; both bring
      * their chapters. A station's item is the song it plays now, as far as the stream says
-     * (title, artist, album and the song's own picture), the station its source – and its
-     * picture only behind the song's.
+     * (title, artist, album and the song's own picture). The station is its source, and the
+     * station's picture only comes behind the song's.
      */
     fun track(item: JsonObject, baseUrl: String): TrackInfo? {
         val media = item["media_item"] as? JsonObject

@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
 import io.github.hazymorning.klangbild.domain.MediaKind
+import io.github.hazymorning.klangbild.domain.PlayerAbilities
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
@@ -46,7 +47,7 @@ object PlayerParser {
             var source = entity.string("media_channel") ?: entity.string("source")?.takeIf { entity.string("app_id") == "radio" }
             val kind = MediaKind.fromUri(entity.string("media_content_id")) ?: if (source != null) MediaKind.RADIO else MediaKind.MUSIC
             // Music Assistant puts an item's description where the album would be when it has
-            // none – for a book its blurb, paragraphs long. That is never an album line.
+            // none. For a book that is its blurb, paragraphs long. That is never an album line.
             var album = entity.string("media_album_name")?.trim()?.takeIf { it.isNotEmpty() && !isDescription(it) && kind != MediaKind.AUDIOBOOK }
             // A station: Music Assistant names it where the album would be, unless the song brings
             // its own album (then the queue names the station). It is the source, not an album.
@@ -85,22 +86,50 @@ object PlayerParser {
             muted = (entity.attr("is_volume_muted") as? JsonPrimitive)?.booleanOrNull == true,
             isGroupPlayer = entity.string("mass_player_type") == "group",
             shuffle = shuffleOf(entity),
+            abilities = abilitiesOf(entity),
         )
     }
 
-    /** Shuffle as the player reports it – or null when it cannot shuffle (`supported_features` lacks SHUFFLE_SET). */
+    /** Shuffle as the player reports it, or null when it cannot shuffle (`supported_features` lacks SHUFFLE_SET). */
     fun shuffleOf(entity: EntityState): Boolean? {
         val on = (entity.attr("shuffle") as? JsonPrimitive)?.booleanOrNull
         val features = entity.number("supported_features")?.toLong() ?: return on
-        return if (features and SHUFFLE_SET != 0L) on ?: false else null
+        return if (features and Feature.SHUFFLE_SET != 0L) on ?: false else null
     }
 
-    /** Home Assistant's `MediaPlayerEntityFeature.SHUFFLE_SET`. */
-    const val SHUFFLE_SET = 32_768L
+    /** What the player supports (`supported_features`); everything when it does not say. */
+    fun abilitiesOf(entity: EntityState): PlayerAbilities {
+        val f = entity.number("supported_features")?.toLong() ?: return PlayerAbilities()
+        fun has(flag: Long) = f and flag != 0L
+        return PlayerAbilities(
+            play = has(Feature.PLAY),
+            pause = has(Feature.PAUSE),
+            seek = has(Feature.SEEK),
+            next = has(Feature.NEXT_TRACK),
+            previous = has(Feature.PREVIOUS_TRACK),
+            volume = has(Feature.VOLUME_SET) || has(Feature.VOLUME_STEP),
+            shuffle = has(Feature.SHUFFLE_SET),
+        )
+    }
 
     /**
-     * `group_members` lists every speaker of a sync group, the leader first – on the leader
-     * and on each member alike. The others are the list without this speaker.
+     * Home Assistant's `MediaPlayerEntityFeature` flags that the remote's actions need
+     * (https://developers.home-assistant.io/docs/core/entity/media-player).
+     */
+    object Feature {
+        const val PAUSE = 1L
+        const val SEEK = 2L
+        const val VOLUME_SET = 4L
+        const val PREVIOUS_TRACK = 16L
+        const val NEXT_TRACK = 32L
+        const val VOLUME_STEP = 1_024L
+        const val PLAY = 16_384L
+        const val SHUFFLE_SET = 32_768L
+    }
+
+    /**
+     * `group_members` lists every speaker of a sync group, the leader first. It is the same on the
+     * leader and on each member. The others are the list without this speaker.
      */
     fun groupMembers(entity: EntityState): List<String> =
         (entity.attr("group_members") as? JsonArray)
@@ -158,8 +187,8 @@ object PlayerParser {
         val year = (album?.get("year") as? JsonPrimitive)?.intOrNull
         val kind = MediaKind.fromType(media?.string("media_type")) ?: MediaKind.MUSIC
         val isRadio = kind == MediaKind.RADIO
-        // Radio: the station is the source, the stream title (if any) is what plays now – its
-        // song's title after the artist ("Artist - Title"), as Music Assistant splits it too.
+        // Radio: the station is the source, and the stream title (if any) is what plays now: its
+        // song's title after the artist (the two joined by a spaced hyphen), as Music Assistant splits it too.
         val streamTitle = item.string("stream_title")?.takeIf { it.isNotBlank() }
         val title = when {
             isRadio -> streamTitle?.let { t -> t.substringAfter(" - ", t).trim().ifEmpty { t } } ?: name

@@ -1,11 +1,22 @@
 package io.github.hazymorning.klangbild.ui.stage
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.text.TestTexts
+import io.github.hazymorning.klangbild.text.Texts
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class StageTextsTest {
+    private val de = TestTexts.german
+    private val en = TestTexts.english()
+
     private fun lead(
         status: PlayerStatus = PlayerStatus.PLAYING,
         muted: Boolean = false,
@@ -13,13 +24,16 @@ class StageTextsTest {
         volume: String? = "35 %",
         group: String? = "Wohnzimmer",
         always: Boolean = false,
-    ) = StageTexts.lead(status, muted, flash, volume, group, always)
+        t: Texts = de,
+    ) = StageTexts.lead(status, muted, flash, volume, group, always, t)
 
     @Test
     fun `the place comes first, the state last`() {
         assertThat(lead(PlayerStatus.PAUSED)).isEqualTo("Wohnzimmer · Pausiert")
         assertThat(lead(muted = true)).isEqualTo("Wohnzimmer · Stumm")
         assertThat(lead(PlayerStatus.PAUSED, group = null)).isEqualTo("Pausiert")
+        assertThat(lead(PlayerStatus.PAUSED, group = "Living room", t = en)).isEqualTo("Living room\u00A0· Paused")
+        assertThat(lead(muted = true, group = "Kitchen", t = en)).isEqualTo("Kitchen\u00A0· Muted")
     }
 
     @Test
@@ -38,16 +52,17 @@ class StageTextsTest {
     @Test
     fun `what comes next, and its title alone`() {
         val next = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
-        assertThat(StageTexts.next(next)).isEqualTo("Spiegel im Spiegel · Arvo Pärt")
-        assertThat(StageTexts.nextTitle(next)).isEqualTo("Spiegel im Spiegel")
-        assertThat(StageTexts.next(null)).isNull()
+        assertThat(StageTexts.next(next, de)).isEqualTo("Spiegel im Spiegel · Arvo Pärt")
+        assertThat(StageTexts.nextTitle(next, de)).isEqualTo("Spiegel im Spiegel")
+        assertThat(StageTexts.next(null, de)).isNull()
     }
 
     @Test
     fun `a radio shows its station, a lost link says so`() {
         val radio = TrackInfo("Morgenmusik", source = "Radio Morgenlicht")
-        assertThat(StageTexts.line(false, radio)).isEqualTo("Radio Morgenlicht")
-        assertThat(StageTexts.line(true, radio)).isEqualTo(StageTexts.LINK_DOWN)
-        assertThat(StageTexts.line(false, radio.copy(durationMs = 1000))).isNull()
+        assertThat(StageTexts.line(false, radio, de)).isEqualTo("Radio Morgenlicht")
+        assertThat(StageTexts.line(true, radio, de)).isEqualTo(de[R.string.stage_link_down])
+        assertThat(StageTexts.line(true, radio, de)).isEqualTo("Verbindung wird wiederhergestellt\u00A0…")
+        assertThat(StageTexts.line(false, radio.copy(durationMs = 1000), de)).isNull()
     }
 }

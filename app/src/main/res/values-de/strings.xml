@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="on">An</string>
+    <string name="off">Aus</string>
+    <string name="set_up">Einrichten</string>
+    <string name="connected">Verbunden</string>
+    <string name="connecting">Verbindet …</string>
+
+    <string name="menu_heading">Einstellungen</string>
+    <string name="menu_hint">OK ändert · Zurück schließt</string>
+    <string name="section_picture">Bild</string>
+    <string name="section_info">Informationen</string>
+    <string name="section_effects">Effekte</string>
+    <string name="section_vista">Fensterblick</string>
+    <string name="section_remote">Fernbedienung</string>
+    <string name="section_timer">Timer</string>
+    <string name="section_connection">Verbindung</string>
+    <string name="section_system">System</string>
+
+    <string name="entry_view">Ansicht</string>
+    <string name="entry_appearance">Erscheinungsbild</string>
+    <string name="entry_clock">Uhrzeit</string>
+    <string name="entry_progress">Fortschrittsbalken</string>
+    <string name="entry_next">Nächster Titel</string>
+    <string name="entry_album">Album und Jahr</string>
+    <string name="entry_group">Lautsprechergruppe</string>
+    <string name="entry_volume">Lautstärke</string>
+    <string name="entry_background">Hintergrund</string>
+    <string name="entry_intensity">Intensität</string>
+    <string name="entry_motion">Bewegung</string>
+    <string name="entry_lights">Licht</string>
+    <string name="entry_vista_pause">Bei Pause</string>
+    <string name="entry_vista_playing">Während der Musik</string>
+    <string name="entry_mini_player">Mini-Player</string>
+    <string name="entry_remote">Musik steuern</string>
+    <string name="entry_up_down">Hoch und runter</string>
+    <string name="entry_spoken">Hörbücher, Podcasts</string>
+    <string name="entry_sleep_timer">Sleep-Timer</string>
+    <string name="entry_sleep_after">Ausschalten nach</string>
+    <string name="entry_sleep_action">Beim Ausschalten</string>
+    <string name="entry_language">Sprache</string>
+
+    <string name="view_single">Einzelnes Cover</string>
+    <string name="view_flow">Cover Flow</string>
+    <string name="view_vista">Fensterblick</string>
+    <string name="appearance_auto">Automatisch</string>
+    <string name="appearance_light">Hell</string>
+    <string name="appearance_dark">Dunkel</string>
+    <string name="volume_on_change">Bei Änderung</string>
+    <string name="volume_always">Immer</string>
+    <string name="background_plain">Einfarbig</string>
+    <string name="background_cover">Coverfarben</string>
+    <string name="intensity_strong">Stark</string>
+    <string name="intensity_normal">Normal</string>
+    <string name="intensity_low">Schwach</string>
+    <string name="motion_slow">Langsam</string>
+    <string name="motion_medium">Mittel</string>
+    <string name="motion_fast">Schnell</string>
+    <string name="mini_player_left">Unten links</string>
+    <string name="mini_player_right">Unten rechts</string>
+    <string name="up_down_vista">Fensterblick, Menü</string>
+    <string name="up_down_volume">Lautstärke</string>
+    <string name="spoken_jump">Spulen</string>
+    <string name="spoken_change">Titel wechseln</string>
+    <string name="sleep_chapter_end">Ende des Kapitels</string>
+    <string name="sleep_episode_end">Ende der Folge</string>
+    <string name="sleep_book_end">Ende des Hörbuchs</string>
+    <string name="sleep_track_end">Ende des Titels</string>
+    <string name="sleep_action_close">App schließen</string>
+    <string name="sleep_action_release">Bildschirmschoner</string>
+    <string name="link_rejected">Zugang abgelehnt</string>
+    <string name="ma_not_set_up">Nicht eingerichtet</string>
+    <string name="ma_rejected">Token abgelehnt</string>
+    <string name="ma_unreachable">Nicht erreichbar</string>
+    <string name="language_system">Systemsprache</string>
+    <plurals name="seconds">
+        <item quantity="one">Eine Sekunde</item>
+        <item quantity="other">%s Sekunden</item>
+    </plurals>
+    <plurals name="minutes">
+        <item quantity="one">Eine Minute</item>
+        <item quantity="other">%s Minuten</item>
+    </plurals>
+    <plurals name="hours">
+        <item quantity="one">Eine Stunde</item>
+        <item quantity="other">%s Stunden</item>
+    </plurals>
+
+    <string name="about_view_single">Ein Cover, groß, neben dem Titel.</string>
+    <string name="about_view_flow">Das Cover in der Mitte, links die Cover davor, rechts die nächsten. Sie blättern weiter, wenn ein neues Album beginnt.</string>
+    <string name="about_appearance_auto">Tagsüber hell, von Sonnenuntergang bis Sonnenaufgang dunkel, nach dem Stand der Sonne in Home Assistant.</string>
+    <string name="about_appearance_light">Immer hell: heller Hintergrund, dunkle Schrift.</string>
+    <string name="about_appearance_dark">Immer dunkel: dunkler Hintergrund, helle Schrift.</string>
+    <string name="about_clock">Die Uhrzeit oben in der ersten Zeile.</string>
+    <string name="about_progress">Der Balken mit gespielter Zeit und Länge. Ausgeschaltet zeigt ihn ein Tastendruck trotzdem kurz.</string>
+    <string name="about_next">Der nächste Titel aus der Warteschlange, in der letzten Zeile.</string>
+    <string name="about_album">Name und Jahr des Albums unter den Künstlern.</string>
+    <string name="about_group">Spielen weitere Lautsprecher mit, steht neben der Uhrzeit etwa „Wohnzimmer + 5“ oder „Überall“.</string>
+    <string name="about_volume_on_change">Ändert sich die Lautstärke, steht sie ein paar Sekunden lang neben der Uhrzeit.</string>
+    <string name="about_volume_always">Die Lautstärke steht immer neben der Uhrzeit.</string>
+    <string name="about_volume_off">Die Lautstärke wird nie angezeigt.</string>
+    <string name="about_background_cover">Die Farben des Covers füllen den ganzen Bildschirm, weich verlaufend. Der Fortschrittsbalken nimmt ihren Ton an.</string>
+    <string name="about_background_plain">Ein ruhiger Hintergrund: dunkel mit dem Licht des Covers, hell mit seinem Schatten.</string>
+    <string name="about_intensity_cover">Wie kräftig die Farben des Covers den Hintergrund färben.</string>
+    <string name="about_intensity_cover_strong">Stark: satte Farben.</string>
+    <string name="about_intensity_cover_normal">Normal ist so, wie Klangbild gedacht ist.</string>
+    <string name="about_intensity_cover_low">Schwach: gedeckte Farben.</string>
+    <string name="about_intensity_cover_off_light">Aus: fast ohne Farbe.</string>
+    <string name="about_intensity_cover_off_dark">Aus: nur das Cover auf Schwarz.</string>
+    <string name="about_intensity_light">Wie stark der helle Hintergrund die Farbe des Covers annimmt.</string>
+    <string name="about_intensity_light_strong">Stark: ein deutlicher Hauch.</string>
+    <string name="about_intensity_light_normal">Normal ist so, wie Klangbild gedacht ist.</string>
+    <string name="about_intensity_light_low">Schwach: nur eine Ahnung.</string>
+    <string name="about_intensity_light_off">Aus: ohne Farbe.</string>
+    <string name="about_intensity_dark">Wie hell das Cover den Hintergrund um sich herum anstrahlt.</string>
+    <string name="about_intensity_dark_strong">Stark passt zu hellen Räumen.</string>
+    <string name="about_intensity_dark_normal">Normal ist so, wie Klangbild gedacht ist.</string>
+    <string name="about_intensity_dark_low">Schwach passt zu dunklen Abenden.</string>
+    <string name="about_intensity_dark_off">Aus: nur das Cover, ohne Licht.</string>
+    <string name="about_motion_both">Wie schnell die Farben im Hintergrund und in den Lichtern fließen.</string>
+    <string name="about_motion_lights">Wie schnell die Farben der Lichter fließen. Auf dem Bildschirm nur mit Coverfarben.</string>
+    <string name="about_motion_screen">Wie schnell die Coverfarben im Hintergrund fließen.</string>
+    <string name="about_motion_off">Aus: Sie stehen still.</string>
+    <string name="about_motion_slow">Langsam: kaum zu bemerken.</string>
+    <string name="about_motion_medium">Mittel: deutlich, aber ruhig.</string>
+    <string name="about_motion_fast">Schnell: sichtbar in Bewegung.</string>
+    <string name="about_motion_playing">Nur während Musik läuft.</string>
+    <string name="about_lights_set_up">Deine Lichter leuchten in den Farben des Covers. OK zeigt den QR-Code; am Handy wählst du sie aus Home Assistant aus.</string>
+    <string name="about_lights_off">Die Lichter behalten ihr eigenes Licht. Rechts schaltet sie zu.</string>
+    <string name="about_lights_on">Jedes Licht leuchtet in einer Farbe des Bildes. So hell bei Tag; abends und nachts werden sie von selbst dunkler. Nach der Musik sind sie wieder wie vorher.</string>
+    <string name="about_vista_pause_off">Ist die Musik angehalten, bleibt das Cover stehen; nach drei Minuten erscheint die Uhr.</string>
+    <string name="about_vista_pause">Ist die Musik so lange angehalten, erscheint eine Landschaft aus Papier, deren Licht der echten Tageszeit folgt. Jede Taste holt das Cover zurück.</string>
+    <string name="about_vista_playing_off_volume">Während Musik läuft, bleibt das Cover.</string>
+    <string name="about_vista_playing_off">Während Musik läuft, bleibt das Cover. Den Fensterblick gibt es jederzeit: Pfeil hoch.</string>
+    <string name="about_vista_playing">Läuft die Musik so lange ohne Tastendruck, erscheint der Fensterblick mit dem Mini-Player in der Ecke.</string>
+    <string name="about_mini_player_left">Cover, Titel und Fortschritt unten links in der Landschaft.</string>
+    <string name="about_mini_player_right">Cover, Titel und Fortschritt unten rechts in der Landschaft.</string>
+    <string name="about_mini_player_off">Der Fensterblick zeigt nur die Landschaft.</string>
+    <string name="about_remote_on">OK hält die Musik an und spielt weiter, links und rechts wechseln den Titel.</string>
+    <string name="about_remote_off">Die Fernbedienung steuert die Musik nicht; OK lange drücken öffnet weiter dieses Menü.</string>
+    <string name="about_up_down_volume">Pfeil hoch und runter ändern die Lautstärke des Lautsprechers; die Schnelleinstellungen gibt es dann nicht.</string>
+    <string name="about_up_down_vista">Pfeil hoch zeigt den Fensterblick; noch einmal hoch oder Zurück holt das Cover zurück. Pfeil runter öffnet unten die Schnelleinstellungen, noch einmal runter schließt sie.</string>
+    <string name="about_spoken_jump">Bei Hörbüchern und Podcasts spult links 15 Sekunden zurück, rechts 30 Sekunden vor. Gedrückt gehalten geht es zum vorigen oder nächsten Kapitel.</string>
+    <string name="about_spoken_change">Links und rechts wechseln auch bei Hörbüchern und Podcasts den Titel.</string>
+    <string name="about_sleep_timer_off">Hält die Musik nach einer Weile an, auf Wunsch am Ende eines Kapitels. Dafür muss Klangbild laufen.</string>
+    <string name="about_sleep_timer_at">Die Musik hält um %s an.</string>
+    <string name="about_sleep_timer_end">Die Musik hält an, sobald %s erreicht ist.</string>
+    <string name="sleep_end_chapter">das Ende des Kapitels</string>
+    <string name="sleep_end_episode">das Ende der Folge</string>
+    <string name="sleep_end_book">das Ende des Hörbuchs</string>
+    <string name="sleep_end_track">das Ende des Titels</string>
+    <string name="about_sleep_after">Läuft keine Musik mehr, schaltet Klangbild nach dieser Zeit aus.</string>
+    <string name="about_sleep_action_close">Klangbild schließt sich, zurück zum Startbildschirm.</string>
+    <string name="about_sleep_action_release">Der Fernseher übernimmt: sein Bildschirmschoner oder Standby.</string>
+    <string name="about_connection_set_up">OK zeigt den QR-Code. Am Handy meldest du dich bei Home Assistant an und wählst den Lautsprecher.</string>
+    <string name="about_connection">OK zeigt den QR-Code. Am Handy änderst du Adresse, Anmeldung und Lautsprecher.</string>
+    <string name="about_ma_set_up">Freiwillig. Mit Music Assistant zeigt Cover Flow die ganze Warteschlange, und bei Hörbüchern stehen die Kapitel da. OK zeigt den QR-Code zum Einrichten.</string>
+    <string name="about_ma">Cover Flow zeigt die ganze Warteschlange. OK zeigt den QR-Code. Am Handy änderst du Adresse und Token.</string>
+    <string name="about_language">Die Sprache der Anzeigen und der Einrichtungsseite. Die Systemsprache ist die des Fernsehers.</string>
+
+    <string name="quick_view">Ansicht</string>
+    <string name="quick_favorite">Favorit</string>
+    <string name="quick_lights">Licht</string>
+    <string name="quick_shuffle">Zufallswiedergabe</string>
+    <string name="favorite_add">Hinzufügen</string>
+    <string name="favorite_adding">Hinzufügen …</string>
+    <string name="favorite_added">Hinzugefügt</string>
+    <string name="favorite_failed">Nicht gefunden</string>
+
+    <string name="status_paused">Pausiert</string>
+    <string name="status_muted">Stumm</string>
+    <string name="status_volume">Lautstärke %s</string>
+    <string name="status_pause_at">Pause um %s</string>
+    <string name="status_speed">Tempo %s×</string>
+    <string name="group_everywhere">Überall</string>
+    <plurals name="group_speakers">
+        <item quantity="one">%s Lautsprecher</item>
+        <item quantity="other">%s Lautsprecher</item>
+    </plurals>
+    <string-array name="count_words">
+        <item>Null</item>
+        <item>Ein</item>
+        <item>Zwei</item>
+        <item>Drei</item>
+        <item>Vier</item>
+        <item>Fünf</item>
+        <item>Sechs</item>
+        <item>Sieben</item>
+        <item>Acht</item>
+        <item>Neun</item>
+        <item>Zehn</item>
+        <item>Elf</item>
+        <item>Zwölf</item>
+    </string-array>
+    <string name="volume_muted">stumm</string>
+    <string name="stage_link_down">Verbindung wird wiederhergestellt …</string>
+    <string name="stage_next">Als Nächstes</string>
+    <string name="chapter_number">Kapitel %d</string>
+    <string name="artists_others">u. a.</string>
+
+    <string name="rest_connecting">Verbindung wird hergestellt …</string>
+    <string name="rest_offline">Home Assistant ist nicht erreichbar.</string>
+    <string name="rest_speaker">Lautsprecher</string>
+    <string name="rest_unavailable">Gerade nicht erreichbar.</string>
+    <string name="rest_entity_missing">Home Assistant kennt „%s“ nicht.\nZum Einrichten OK lange drücken.</string>
+    <string name="rest_this_speaker">diesen Lautsprecher</string>
+
+    <string name="setup_first_run">Einrichten mit dem Handy</string>
+    <string name="setup_rejected">Home Assistant hat den Zugang abgelehnt.</string>
+    <string name="setup_change">Verbindung ändern</string>
+    <string name="setup_text">Scanne den Code mit der Kamera. Auf der Seite meldest du dich bei Home Assistant an und wählst den Lautsprecher.</string>
+    <string name="setup_text_rejected">Scanne den Code und melde dich auf der Seite neu bei Home Assistant an.</string>
+    <string name="setup_back">Zurück schließt</string>
+    <string name="setup_code">Code</string>
+    <string name="setup_in_browser">oder im Browser:</string>
+    <string name="setup_no_network">Keine Netzwerkverbindung</string>
+
+    <string name="debug_frames" tools:ignore="PluralsCandidate">%1$d Bilder/s · langsamstes %2$s ms · %3$d zu spät</string>
+    <string name="page_title">Klangbild einrichten</string>
+    <string name="page_subtitle">Einrichtung für den Fernseher</string>
+    <string name="page_code_heading">Code</string>
+    <string name="page_code_label">Der sechsstellige Code auf dem Fernseher</string>
+    <string name="page_ha_heading">1 · Home Assistant</string>
+    <string name="page_address">Adresse</string>
+    <string name="page_sign_in">Bei Home Assistant anmelden</string>
+    <string name="page_sign_in_hint">Die Anmeldeseite von Home Assistant öffnet sich. Danach geht es hier weiter.</string>
+    <string name="page_token_toggle">Stattdessen ein langlebiges Zugangstoken verwenden</string>
+    <string name="page_token_label">Langlebiges Zugangstoken</string>
+    <string name="page_token_hint">In Home Assistant: Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen.</string>
+    <string name="page_find">Lautsprecher suchen</string>
+    <string name="page_speaker_heading">2 · Lautsprecher</string>
+    <string name="page_speakers_empty">Erst Home Assistant verbinden, dann erscheinen hier die Lautsprecher.</string>
+    <string name="page_entity_label">oder Entität direkt eingeben</string>
+    <string name="page_entity_placeholder">media_player.wohnzimmer</string>
+    <string name="page_no_speakers">Keine media_player-Entitäten gefunden.</string>
+    <string name="page_general_heading">3 · Allgemein</string>
+    <string name="page_sleep_before">Ausschalten nach</string>
+    <string name="page_sleep_after">Minuten ohne Musik, dann:</string>
+    <string name="page_release">Bildschirmschoner des Fernsehers</string>
+    <string name="page_close">App schließen</string>
+    <string name="page_clock">Uhrzeit anzeigen</string>
+    <string name="page_remote">Fernbedienung steuert die Musik (OK: Pause, ◀ ▶: Titel)</string>
+    <string name="page_ma_heading">4 · Music Assistant (freiwillig)</string>
+    <string name="page_ma_hint">Für Cover Flow: Mit Music Assistant zeigt Klangbild die ganze Warteschlange, was lief und was kommt.</string>
+    <string name="page_ma_token_placeholder">Aus Music Assistant</string>
+    <string name="page_ma_token_hint">In Music Assistant unter Einstellungen → Profil ein langlebiges Zugangstoken erstellen. Leer lassen, wenn du es nicht brauchst.</string>
+    <string name="page_lights_heading">5 · Licht (freiwillig)</string>
+    <string name="page_lights_hint">Deine Lichter leuchten in den Farben des Covers. Klangbild merkt sich, wie sie vorher waren, und stellt das nach der Musik wieder her.</string>
+    <string name="page_lights_empty">Erst Home Assistant verbinden, dann erscheinen hier die Lichter.</string>
+    <string name="page_no_lights">Keine Lichter gefunden.</string>
+    <string name="page_light_left">Links</string>
+    <string name="page_light_center">Mitte</string>
+    <string name="page_light_right">Rechts</string>
+    <string name="page_none">Keine</string>
+    <string name="page_vista_heading">6 · Fensterblick</string>
+    <string name="page_vista_hint">Die Landschaft aus Papier, die bei Pause erscheint: Sonne, Mond und Sterne stehen, wo sie bei dir gerade stehen. Wolken, Regen und Schnee folgen dem Wetter.</string>
+    <string name="page_weather">Wetter</string>
+    <string name="page_weather_auto">Automatisch</string>
+    <string name="page_weather_none">Keines: immer ein heiterer Himmel</string>
+    <string name="page_save">Speichern</string>
+    <string name="page_connecting">Verbinde mit Home Assistant …</string>
+    <string name="page_failed">Das hat nicht geklappt.</string>
+    <string name="page_connected">Verbunden. Bitte den Lautsprecher wählen.</string>
+    <string name="page_tv_unreachable">Der Fernseher ist nicht erreichbar.</string>
+    <string name="page_saved">Gespeichert.</string>
+    <string name="page_token_kept">Gespeichertes Token bleibt erhalten, nur zum Ändern neu einfügen</string>
+    <string name="page_signing_in">Anmeldeseite von Home Assistant wird geöffnet …</string>
+    <string name="page_signed_in">Bei Home Assistant angemeldet.</string>
+    <string name="page_signin_failed">Die Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.</string>
+    <string name="page_with_token">Verbunden mit einem langlebigen Zugangstoken.</string>
+
+    <string name="setup_error_request">Ungültige Anfrage.</string>
+    <string name="setup_error_code">Der Code stimmt nicht. Bitte den Code vom Fernseher eingeben.</string>
+    <string name="setup_error_not_allowed">Nicht erlaubt.</string>
+    <string name="setup_error_not_found">Nicht gefunden.</string>
+    <string name="setup_error_internal">Interner Fehler.</string>
+    <string name="setup_error_address">Bitte die Adresse von Home Assistant angeben, z. B. http://192.168.1.10:8123.</string>
+    <string name="setup_error_credentials">Bitte bei Home Assistant anmelden oder ein langlebiges Zugangstoken einfügen.</string>
+    <string name="setup_error_ma_address">Die Adresse von Music Assistant ist ungültig.</string>
+    <string name="setup_error_ma_token">Bitte das Zugangstoken von Music Assistant einfügen oder die Adresse leeren.</string>
+    <string name="setup_error_ma_rejected">Music Assistant hat das Zugangstoken abgelehnt.</string>
+    <string name="setup_error_ma_unreachable">Music Assistant antwortet nicht unter dieser Adresse. Bitte prüfen oder die Adresse leeren, dann geht es ohne.</string>
+    <string name="setup_error_speaker">Bitte einen Lautsprecher auswählen.</string>
+    <string name="setup_error_sleep">Die Ruhezeit muss zwischen 1 und 720 Minuten liegen.</string>
+    <string name="setup_error_lights">Bitte nur Lichter wählen.</string>
+    <string name="setup_error_weather">Bitte eine Wetter-Entität wählen.</string>
+    <string name="setup_saved">Gespeichert. Der Fernseher verbindet sich jetzt mit Home Assistant.</string>
+    <string name="discover_rejected">Home Assistant hat den Zugang abgelehnt.</string>
+    <string name="discover_unexpected">Home Assistant antwortet nicht wie erwartet (HTTP %d).</string>
+    <string name="discover_cleartext">Unverschlüsseltes http:// ist nur im Heimnetz erlaubt. Bitte https:// verwenden.</string>
+    <string name="discover_unreachable">Home Assistant ist unter %s nicht erreichbar.</string>
+    <string name="discover_invalid_address">Die Adresse ist ungültig.</string>
+    <string name="discover_garbled">Die Antwort von Home Assistant war unverständlich.</string>
+
+    <string name="entity_state_playing">spielt</string>
+    <string name="entity_state_paused">pausiert</string>
+    <string name="entity_state_idle">bereit</string>
+    <string name="entity_state_off">aus</string>
+    <string name="entity_state_on">an</string>
+    <string name="entity_state_unavailable">nicht erreichbar</string>
+    <string name="entity_state_buffering">lädt</string>
+    <string name="entity_state_standby">Standby</string>
+    <string name="entity_state_unknown">unbekannt</string>
+    <string name="weather_sunny">sonnig</string>
+    <string name="weather_clear_night">klar</string>
+    <string name="weather_partlycloudy">teils bewölkt</string>
+    <string name="weather_cloudy">bewölkt</string>
+    <string name="weather_fog">Nebel</string>
+    <string name="weather_rain">Regen</string>
+    <string name="weather_snow">Schnee</string>
+    <string name="weather_hail">Hagel</string>
+    <string name="weather_thunderstorm">Gewitter</string>
+    <string name="weather_windy">windig</string>
+    <string name="weather_exceptional">außergewöhnlich</string>
+</resources>

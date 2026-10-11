@@ -8,7 +8,6 @@ captures/
 .cxx/
 *.apk
 *.aab
-!docs/**/*.apk
 
 # IDE
 .idea/
@@ -16,10 +15,13 @@ captures/
 .vscode/
 .DS_Store
 
-# Secrets that must never be committed (the release keystore is committed on purpose,
-# see docs/DECISIONS.md; anything else that looks like a credential stays local)
+# Secrets never belong in the repository: releases are signed in CI with keys kept in
+# GitHub Actions secrets.
 *.env
 secrets.properties
+*.jks
+*.keystore
+*.p12
 
 # Screenshot test output (renderings are produced by the tests, curated ones live in docs/)
 app/src/test/screenshots/

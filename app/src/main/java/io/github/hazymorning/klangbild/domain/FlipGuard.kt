@@ -6,7 +6,7 @@ package io.github.hazymorning.klangbild.domain
  * as reported, the screen jumps forth, back and forth.
  *
  * A return to an item left only moments ago ([WINDOW_MS]) is therefore held back until it has
- * lasted [HOLD_MS]: the flicker never reaches the screen, a real return still does – a moment
+ * lasted [HOLD_MS]. The flicker never reaches the screen, and a real return still does, a moment
  * later. A new item always passes at once, and so does a return asked for with the remote
  * ([expectReturn]). Nothing else is filtered, and nothing about any one player is assumed.
  */

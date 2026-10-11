@@ -62,17 +62,17 @@ class CardMotion(
 )
 
 /**
- * The cards of the cover flow, drawn in one perspective: every frame each card's position
+ * The cards of the cover flow, drawn in one perspective. Every frame, each card's position
  * is interpolated, its four corners computed ([FlowGeometry]) and its texture drawn as one
- * quad through a perspective matrix – farthest first (cards never cut through each other,
- * see [FlowGeometry]). Nothing is laid out or allocated per frame; colour filters are cached
+ * quad through a perspective matrix, farthest first (cards never cut through each other,
+ * see [FlowGeometry]). Nothing is laid out or allocated per frame; color filters are cached
  * by step.
  *
  * @param time how far the change has come (0..1, linear); each card eases its own stretch.
  * @param dim brightness of the cards (pause).
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
- * @param edges the cards dissolve into the plain wall before the screen's edges; on the
- *   cover's colours, which reach the edges, they simply pass them.
+ * @param edges the cards dissolve into the plain wall before the screen's edges. On the
+ *   cover's colors, which reach the edges, they pass the edges.
  */
 @Composable
 fun FlowStrip(
@@ -139,7 +139,7 @@ fun FlowStrip(
             }
         }
         // The cards dissolve into the wall before the screen's edges (on an OLED the band stays
-        // black; on paper briefly, so a card leaving does not look bleached).
+        // black; on paper the fade is short, so a card leaving does not look bleached).
         if (!edges) return@Canvas
         val band = WallGlow.EDGE_BLACK_DP * density
         val fadeDp = (if (appearance == Appearance.LIGHT) PAPER_EDGE_FADE_DP else EDGE_FADE_DP) * density
@@ -153,10 +153,10 @@ fun FlowStrip(
 }
 
 /**
- * On the dark wall a card beside the middle one steps back by its brightness too: one much
+ * On the dark wall a card beside the middle one also steps back by its brightness. One much
  * lighter than the middle card (a cream sleeve beside a night sky) dims until it is at most a
- * little lighter, never below half – the middle card stays the heaviest. Fades in with the
- * distance from the middle.
+ * little lighter, never below half, so the middle card stays the heaviest. The effect fades in
+ * with the distance from the middle.
  */
 private fun stepBack(lightness: Float, middle: Float, position: Float, appearance: Appearance): Float {
     if (appearance != Appearance.DARK) return 1f
@@ -164,7 +164,7 @@ private fun stepBack(lightness: Float, middle: Float, position: Float, appearanc
     return 1f + (relative - 1f) * min(abs(position), 1f)
 }
 
-/** Reused per strip: corners, matrix and paint – nothing allocated per frame. */
+/** Reused per strip: corners, matrix and paint, so nothing is allocated per frame. */
 private class DrawTools {
     val dp = FloatArray(8)
     val dst = FloatArray(8)
@@ -195,7 +195,7 @@ private fun quad(
     s[6] = pad; s[7] = pad + h
     val m = tools.matrix
     if (snap) {
-        // Facing the room the card is drawn 1:1 on whole pixels, as crisp as the single view.
+        // Facing the room, the card is drawn 1:1 on whole pixels, as crisp as the single view.
         m.setTranslate((tools.dst[0] - pad).roundToInt().toFloat(), (tools.dst[1] - pad).roundToInt().toFloat())
     } else {
         m.setPolyToPoly(s, 0, tools.dst, 0, 4)
@@ -206,9 +206,9 @@ private fun quad(
 }
 
 /**
- * The colour matrix for a card lit at [light] (1 in the middle, less to the sides and in a
- * pause): on black the card simply gets darker, on paper it fades towards the paper – the
- * way things further from the window look in daylight.
+ * The color matrix for a card lit at [light] (1 in the middle, less to the sides and in a
+ * pause). On black the card gets darker; on paper it fades toward the paper, the way things
+ * farther from the window look in daylight.
  */
 private fun cardMatrix(lighting: Lighting, light: Float, appearance: Appearance, paper: Int): ColorMatrix {
     val (r, g, b) = coverScale(lighting, 1f, appearance)
@@ -246,7 +246,7 @@ private const val PAPER_FOG = 0.3f
 /** A card beside the middle one is at most this much lighter than it (dark wall). */
 private const val STEP_BACK_RATIO = 1.1f
 
-/** Squeezed below this share of its width a card starts to take the half-size texture, fully below [HALF_TO]. */
+/** Squeezed below this share of its width, a card starts to take the half-size texture, fully below [HALF_TO]. */
 private const val HALF_FROM = 0.62f
 private const val HALF_TO = 0.82f
 

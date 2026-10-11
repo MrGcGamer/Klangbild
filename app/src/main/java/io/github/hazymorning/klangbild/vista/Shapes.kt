@@ -32,7 +32,7 @@ class Outline(val xs: FloatArray, val ys: FloatArray) {
 class Polyline(val xs: FloatArray, val ys: FloatArray) {
     val size: Int get() = xs.size
 
-    /** The line's height at [x] (dp) – for lines running left to right or right to left; beyond its ends, the end's height. */
+    /** The line's height at [x] (dp), for lines running left to right or right to left; beyond its ends, the end's height. */
     fun yAt(x: Float): Float {
         val ascending = xs[0] <= xs[size - 1]
         val first = if (ascending) 0 else size - 1
@@ -81,7 +81,7 @@ object Shapes {
         for (i in 0 until knots.size - 1) {
             val p1 = knots[i]
             val p2 = knots[i + 1]
-            // At a corner (or an end) the curve leaves straight towards its neighbour.
+            // At a corner (or an end) the curve leaves straight toward its neighbor.
             val p0 = if (i == 0 || p1.corner) Knot(2 * p1.x - p2.x, 2 * p1.y - p2.y) else knots[i - 1]
             val p3 = if (i + 2 >= knots.size || p2.corner) Knot(2 * p2.x - p1.x, 2 * p2.y - p1.y) else knots[i + 2]
             val len = hypot(p2.x - p1.x, p2.y - p1.y)

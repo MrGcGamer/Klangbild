@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Renders the Google TV banner and the launcher icons from the bundled font.
+"""Renders the banner for the TV's home screen and the launcher icons from the bundled font.
 
 Usage: python3 tools/make_launcher_assets.py   (needs Pillow)
 
 The motif is the app itself: a small square "cover" with softly rounded corners whose own
-colours glow onto a black wall, next to the wordmark set in Jost, the title face.
+colors glow onto a black wall, next to the wordmark set in Jost, the title face.
 """
 import math
 import os
@@ -46,10 +46,10 @@ def dither(img, amount=1.6, seed=3):
 
 
 def lit_card(img, box, scale):
-    """A square 'cover' with rounded corners whose colours glow onto the wall around it."""
+    """A square 'cover' with rounded corners whose colors glow onto the wall around it."""
     x0, y0, x1, y1 = box
     radius = max(2, int((x1 - x0) * 0.04))
-    # the glow: the card's own colours, blurred far beyond its edge and kept dim
+    # the glow: the card's own colors, blurred far beyond its edge and kept dim
     glow = Image.new("RGB", img.size, (0, 0, 0))
     gd = ImageDraw.Draw(glow)
     for yy in range(y0, y1):
@@ -88,7 +88,7 @@ def banner(path, w=320, h=180):
     tw = d.textlength(text, font=f)
     tx = x0 + side + int(22 * s)
     ascent, descent = f.getmetrics()
-    # cap height (0.70 em) centred on the card
+    # cap height (0.70 em) centered on the card
     cap = 0.70 * 38 * s
     ty = int((h * s) / 2 + cap / 2 - ascent)
     d.text((tx, ty), text, font=f, fill=INK)

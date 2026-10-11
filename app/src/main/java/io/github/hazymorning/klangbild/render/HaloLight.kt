@@ -42,7 +42,7 @@ data class PrintShape(val rect: RectDp, val round: Boolean = false, val corner: 
  * dimmed and warmed with the time of day. The stage's own light is [WallGlow].
  */
 object HaloLight {
-    /** Light for neutral surroundings: warm white, like a 2700–3000 K bulb. */
+    /** Light for neutral surroundings: warm white, like a 2700 to 3000 K bulb. */
     val LAMP = Lch(0.70f, 0.045f, 72f)
 
     /** Hue of plain lamp light. */
@@ -73,12 +73,12 @@ object HaloLight {
     fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
 
     /**
-     * How strong light is at [night] ([nightOf]) compared with the day: turned down in the
-     * evening, to about half at deep night – never so far that it seems to be gone.
+     * How strong light is at [night] ([nightOf]) compared with the day. It is turned down in the
+     * evening, to about half at deep night, but never so far that it seems to be gone.
      */
     fun nightLight(night: Float) = (1f - 1.1f * night).coerceIn(MIN_NIGHT_LIGHT, 1f)
 
-    /** The least light keeps of its daytime strength at night. */
+    /** The smallest share of its daytime strength that light keeps at night. */
     const val MIN_NIGHT_LIGHT = 0.55f
 
     /** [c] scaled in linear light to the given relative luminance (keeps its chromaticity). */

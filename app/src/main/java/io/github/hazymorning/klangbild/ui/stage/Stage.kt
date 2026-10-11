@@ -34,9 +34,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
+import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
+import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.ui.Motion
@@ -47,13 +49,13 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
- * The wall under everything: black in the dark (on an OLED the pixels are simply off), paper in
- * the light. It reaches [BEYOND_EDGES_DP] beyond the screen on every side: the screen's drift
- * against burn-in never uncovers an edge. [beyondOnly] draws only that margin – a new wall's
- * colour coming up with its light during a change; [alpha] fades it.
+ * The wall under everything: black in the dark (on an OLED the pixels are off), paper in
+ * the light. It reaches [BEYOND_EDGES_DP] beyond the screen on every side, so the screen's drift
+ * against burn-in never uncovers an edge. [beyondOnly] draws only that margin (a new wall's
+ * color coming up with its light during a change); [alpha] fades it.
  */
 @Composable
-fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier, alpha: () -> Float = { 1f }, beyondOnly: Boolean = false) {
+fun BaseWall(color: Color, modifier: Modifier = Modifier, alpha: () -> Float = { 1f }, beyondOnly: Boolean = false) {
     Canvas(modifier.fillMaxSize()) {
         val a = alpha().coerceIn(0f, 1f)
         if (a <= 0.002f) return@Canvas
@@ -75,10 +77,10 @@ fun BaseWall(color: Color = Color.Black, modifier: Modifier = Modifier, alpha: (
 const val BEYOND_EDGES_DP = 24f
 
 /**
- * The wall around the artwork, one static bitmap scaled softly to the screen: in the dark the
- * artwork's light ([io.github.hazymorning.klangbild.render.WallGlow]) – [level] is its
- * brightness in linear light (pause, the "Wandlicht" setting: 0 = off, 1 = as designed,
- * 1.45 = strong) –, in the light paper with the artwork's shadow. [alpha] fades the layer
+ * The wall around the artwork, one static bitmap scaled softly to the screen. In the dark it is
+ * the artwork's light ([io.github.hazymorning.klangbild.render.WallGlow]), and [level] is its
+ * brightness in linear light (pause, the Intensity setting: 0 = off, 1 = as designed,
+ * 1.45 = strong). In the light it is paper with the artwork's shadow. [alpha] fades the layer
  * during a change.
  */
 @Composable
@@ -88,7 +90,7 @@ fun WallLayer(
     alpha: () -> Float = { 1f },
     level: () -> Float = { 1f },
 ) {
-    // With "Coverfarben" the cover's colours are the wall.
+    // With the cover colors background, the cover's own colors are the wall.
     if (scene.coverField) return FieldLayer(scene, modifier, alpha, level)
     val image = remember(scene) { scene.wall.asImageBitmap() }
     val filters = remember { HashMap<Int, ColorFilter?>() }
@@ -116,8 +118,8 @@ private fun scaleFilter(k: Float) = ColorFilter.colorMatrix(
 
 /**
  * The artwork, drawn 1:1 at a whole-pixel position (the bitmap already has its exact display
- * size) with softly rounded corners. [dim] (pause) darkens it through the colour matrix, not
- * through transparency; [scale] lets it settle during a change. Nothing is drawn round it:
+ * size) with softly rounded corners. [dim] (pause) darkens it through the color matrix, not
+ * through transparency; [scale] lets it settle during a change. Nothing is drawn around it:
  * no frame, no line, no shadow.
  */
 @Composable
@@ -131,6 +133,8 @@ fun ArtworkLayer(
     val shader = remember(scene) {
         android.graphics.BitmapShader(scene.cover, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
     }
+    val brush = remember(shader) { ShaderBrush(shader) }
+    val place = remember { android.graphics.Matrix() }
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
     Canvas(
@@ -151,8 +155,9 @@ fun ArtworkLayer(
         val w = scene.cover.width.toFloat()
         val h = scene.cover.height.toFloat()
         val corner = CornerRadius(scene.corner * density)
-        shader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(x, y) })
-        drawRoundRect(ShaderBrush(shader), Offset(x, y), Size(w, h), corner, colorFilter = filter)
+        place.setTranslate(x, y)
+        shader.setLocalMatrix(place)
+        drawRoundRect(brush, Offset(x, y), Size(w, h), corner, colorFilter = filter)
     }
 }
 
@@ -164,7 +169,7 @@ fun ArtworkLayer(
 private fun opticalIndent(size: Float): Float = -(0.065f * (size - 15f)).coerceAtLeast(0f)
 
 /**
- * The text block beside the artwork, centred on it from the first line's cap height to the
+ * The text block beside the artwork, centered on it from the first line's cap height to the
  * last baseline: (work), title, (version), artist, album · year, then the progress bar (or the
  * station, or a notice). What comes next sits apart on the artwork's bottom edge. [alpha] and
  * [rise] animate a change line by line; [dim] darkens the text while paused.
@@ -211,7 +216,7 @@ fun TextLayer(
             } else {
                 Box(Modifier)
             }
-            // 4: album · year – or the chapter, which changes in place
+            // 4: album · year, or the chapter, which changes in place
             when {
                 model.chapter != null -> Crossfade(
                     targetState = model.chapter,
@@ -226,7 +231,7 @@ fun TextLayer(
                 plan.album != null -> BasicText(plan.album, line(TextLine.ALBUM), style = block.album, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 else -> Box(Modifier)
             }
-            // 5: progress bar, station or notice – changes cross-fade
+            // 5: progress bar, station or notice; changes cross-fade
             Crossfade(
                 targetState = when {
                     bottomLine != null -> bottomLine
@@ -321,8 +326,8 @@ private const val BAR = "\u0000bar"
 
 /**
  * [text] on one line of [width] px: whole, or cut after its last whole word that leaves room
- * for an ellipsis ("Gespräch mit Frau Grubach – dann …"); a single word too long for the line
- * is left to the line's own ellipsis.
+ * for an ellipsis ("Conversation with Mrs. Grubach, then …"). A single word too long for the
+ * line is left to the line's own ellipsis.
  */
 internal fun fitWords(measurer: TextMeasurer, text: String, style: TextStyle, width: Int): String {
     fun fits(s: String) = measurer.measure(AnnotatedString(s), style, maxLines = 1, softWrap = false).size.width <= width
@@ -331,7 +336,7 @@ internal fun fitWords(measurer: TextMeasurer, text: String, style: TextStyle, wi
     while (true) {
         end = text.lastIndexOfAny(charArrayOf(' ', ' '), end - 1)
         if (end <= 0) return text
-        // Never end on a dash or a separator: "Grubach – …", not "Grubach –…".
+        // Never end on a dash or a separator: they are trimmed before the ellipsis is added.
         val head = text.substring(0, end).trimEnd(' ', ' ', '–', '·', ',', ':', ';')
         if (head.isNotEmpty() && fits("$head …")) return "$head …"
     }
@@ -340,16 +345,17 @@ internal fun fitWords(measurer: TextMeasurer, text: String, style: TextStyle, wi
 /** What comes next; a new one (the next chapter, while a book plays on) cross-fades in place. */
 @Composable
 private fun NextLine(text: String, styles: StageStyles, modifier: Modifier) {
+    val lead = texts()[R.string.stage_next]
     Crossfade(text, modifier, tween(Motion.LINE_FADE_MS, easing = Motion.Dimmer), label = "next") { t ->
-        BasicText(nextText(t, styles), style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        BasicText(nextText(t, styles, lead), style = styles.next, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /**
  * The status line at the top of the column: the time, then where the music plays and what
- * it is doing ("Wohnzimmer · Pausiert", or a passing volume) – cap height on the artwork's top
- * edge, on the column's left edge like everything else. The place cross-fades when it changes;
- * the clock just ticks, its figures in fixed cells.
+ * it is doing ("Living room · Paused", or a passing volume). Its cap height is on the artwork's
+ * top edge, and it starts on the column's left edge like everything else. The place cross-fades
+ * when it changes; the clock just ticks, its figures in fixed cells.
  */
 @Composable
 fun StatusLayer(

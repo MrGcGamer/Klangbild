@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -28,14 +27,14 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-mdpi")
 class RootTransitionTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = composeRule()
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 
     @Test
     fun trackChangeAndRest() {
-        val a = Fixtures.stage(Fixtures.track(SyntheticCover.MOOS), mdpi)
-        val b = Fixtures.stage(Fixtures.track(SyntheticCover.KONFETTI), mdpi)
+        val a = Fixtures.stage(Fixtures.track(SyntheticCover.MOSS), mdpi)
+        val b = Fixtures.stage(Fixtures.track(SyntheticCover.CONFETTI), mdpi)
         fun stageUi(s: io.github.hazymorning.klangbild.app.StageData) =
             UiState(screen = Screen.Stage(s.track, PlayerStatus.PLAYING, null), stage = s)
         var ui by mutableStateOf(stageUi(a))

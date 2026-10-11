@@ -106,7 +106,7 @@ class ChangesTest {
     @Test
     fun linesHeldBeforeTheySetOffRiseAtOnceWhenReleased() = frames {
         // Skipped 150 ms in, long before the first line (500 ms): released, the lines set off
-        // straight away instead of waiting out the rest of a change that has already landed.
+        // right away instead of waiting out the rest of a change that has already landed.
         val t = Animatable(1f)
         val text = RisingText(t)
         skippedChange(t, text, 150)
