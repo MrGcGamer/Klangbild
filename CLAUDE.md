@@ -3,8 +3,10 @@
 Android TV "now playing" screen for Home Assistant and Music Assistant. Built for a 4K Android
 TV device with a weak GPU in front of an OLED TV. Sideload only.
 The UI speaks English (default) and German (`values-de`); code, comments, the README, the release
-notes, CI and every other document are English. The README stays under 400 characters of text:
-one sentence on what it is, the main features as a short list, three screenshots from
+notes, CI and every other document are English. The README stays under 400 characters of text,
+in plain, complete sentences that a reader understands at once: what Klangbild is, that it works
+with any Home Assistant media player but is built for Music Assistant, and a feature or two.
+Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
 `docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
 notes are 100 to 200 characters. `docs/` holds only the release notes that CI publishes and the
 README's screenshots: effort goes into the app, not into documents.
@@ -15,6 +17,8 @@ README's screenshots: effort goes into the app, not into documents.
   punctuation, no exclamation marks, no bold for emphasis, no marketing words (seamless,
   effortless, elevate, delightful, immersive, robust, powerful, crafted), no filler, no poetic
   fragments. Commit subjects under 60 characters, PR descriptions under 300.
+- No attribution lines in commits, PRs or comments: no Co-Authored-By, no session links, no
+  "Generated with".
 - An English UI sentence is never longer than its German one (`LanguageTest` checks it).
 - Never name a brand of light, speaker, media player or TV device in texts, names or comments.
 - Music metadata keeps its typesetting (`TrackText`); dashes inside strings and test data are
@@ -63,7 +67,8 @@ python3 tools/make_launcher_assets.py                          # re-render banne
   key update in place on every supported API level, and the original key can no longer sign
   an update. The key, its password and the lineage are repository secrets
   (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`), made once with
-  `tools/rotate-signing-key.sh`. `ci/rotation-check.sh` installs over an old-signed copy on
+  `tools/rotate-signing-key.sh` (needs only the GitHub CLI and Java; it fetches apksigner when
+  no Android SDK is installed and refuses to run twice). `ci/rotation-check.sh` installs over an old-signed copy on
   API 31 to 36 in CI.
 - Only a version publishes a release: a pushed tag (`v6.0.0`), or a manual CI run on main with
   the version as `release` (the release creates the tag). Its text is `docs/releases/<tag>.md`.
@@ -470,12 +475,12 @@ UI words are given in English with the German in parentheses where it matters.
   17, bar) lies on the dark near bank (snow only along its edge), the fire on the other side;
   beside the cover one block exactly centered on it: the title's cap height to the bar's lower
   edge (filling the cover's height), or without a bar (a station) to the last baseline
-  (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1
-  on its lightest grain (`PaperLightTest`). Every sheet in its own box, baked only down to
-  where nearer paper hides it, each piece cut in a box of its own; sky, far range, clearing and
-  near banks stand as layers between light changes, each only as tall as its paper, moved by
-  the camera as a whole; what falls is drawn in a few batched calls (fill and memory: see the
-  CI's measuring run; 5.1 measured about 2.9 screens of fill per frame and 55 MB at 1080p).
+  (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1 on its lightest grain
+  (`PaperLightTest`). Every sheet in its own box, baked only down to where nearer paper hides
+  it, each piece cut in a box of its own; sky, far range, clearing and near banks stand as
+  layers between light changes, each only as tall as its paper, moved by the camera as a whole;
+  what falls is drawn in a few batched calls (fill and memory: see the CI's measuring run; 5.1
+  measured about 2.9 screens of fill per frame and 55 MB at 1080p).
 - **The phone's setup page** follows the same rules: one (system) sans face, sentence case, no
   italics, no gradients, no shadows, no pill buttons, no icons, light or dark as the phone is
   set, in the language the TV shows. The setup server runs only while the setup screen shows,
