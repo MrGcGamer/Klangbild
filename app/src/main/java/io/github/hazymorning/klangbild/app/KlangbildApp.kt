@@ -13,11 +13,14 @@ import io.github.hazymorning.klangbild.config.SettingsStore
 import io.github.hazymorning.klangbild.data.ha.LocalNetwork
 import io.github.hazymorning.klangbild.text.Localizer
 import io.github.hazymorning.klangbild.text.PlatformLanguageStore
+import io.github.hazymorning.klangbild.ui.vista.releaseBakedVista
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.Cache
 import okhttp3.OkHttpClient
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /** Manual dependency graph. The app is small enough not to need a DI framework. */
@@ -25,6 +28,8 @@ class AppGraph(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val http: OkHttpClient = OkHttpClient.Builder()
+        // Covers come again (the album's next song, the cover flow): kept on disk as the servers allow.
+        .cache(Cache(File(context.cacheDir, "http"), HTTP_CACHE_BYTES))
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
@@ -38,6 +43,8 @@ class AppGraph(context: Context) {
     val tokenHttp: OkHttpClient = http.newBuilder()
         .followRedirects(false)
         .followSslRedirects(false)
+        // What a token fetches is not written to disk.
+        .cache(null)
         .build()
 
     val settings = SettingsStore(context.applicationContext)
@@ -68,8 +75,9 @@ class KlangbildApp : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // In the background the covers and scenes are only kept for a quick return.
-        if (level >= TRIM_MEMORY_UI_HIDDEN) graph.controller.releaseMemory()
+        // Nothing shows in the background: the covers, the scenes and the window view's picture
+        // go, and are made again on return.
+        if (level >= TRIM_MEMORY_UI_HIDDEN && graph.controller.releaseMemory()) releaseBakedVista()
     }
 
     override fun onCreate() {
@@ -100,3 +108,6 @@ class KlangbildApp : Application() {
 }
 
 val Context.graph: AppGraph get() = (applicationContext as KlangbildApp).graph
+
+/** Room for covers on disk. */
+private const val HTTP_CACHE_BYTES = 32L * 1024 * 1024

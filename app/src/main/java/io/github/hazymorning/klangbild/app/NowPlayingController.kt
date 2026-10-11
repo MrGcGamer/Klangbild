@@ -123,7 +123,7 @@ data class UiState(
     val sleepAt: Long? = null,
     /** The window view, while it has the screen. */
     val vista: VistaUi? = null,
-    /** The window view is on and may come: its picture is baked ahead, for its label on this side. */
+    /** The window view shows or is on its way: its picture is baked ahead, for its label on this side. */
     val vistaAhead: MiniPlayer? = null,
     /** The words in the language shown; null leaves them to the screen's own context. */
     val texts: Texts? = null,
@@ -332,13 +332,14 @@ class NowPlayingController(
         )
     }
 
-    /** Lets go of decoded covers and scenes while no screen shows them (or when the system asks). */
+    /** Lets go of decoded covers and scenes while no screen shows them; whether it did. */
     @Synchronized
-    fun releaseMemory() {
-        if (viewers > 0) return
+    fun releaseMemory(): Boolean {
+        if (viewers > 0) return false
         scenes.clear()
         artwork.clear()
         strip.clear()
+        return true
     }
 
     /** Once a second, or sooner when a chapter ends before that. */
@@ -682,7 +683,7 @@ class NowPlayingController(
             chapter = chapter,
             sleepAt = sleep.shownPauseAt(previous.sleepAt),
             vista = vista,
-            vistaAhead = s.miniPlayer.takeIf { s.vistaPauseSeconds > 0 || s.vistaPlayingSeconds > 0 },
+            vistaAhead = s.miniPlayer.takeIf { vistaPolicy.onItsWay },
             texts = texts,
         )
         // The colors move only while music plays, on the screen and in the lights alike.
