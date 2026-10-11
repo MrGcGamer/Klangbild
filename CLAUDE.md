@@ -65,7 +65,10 @@ python3 tools/make_launcher_assets.py                          # re-render banne
   (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`), made once with
   `tools/rotate-signing-key.sh`. `ci/rotation-check.sh` installs over an old-signed copy on
   API 31 to 36 in CI.
-- Only a version tag (`v6.0.0`) publishes a release; its text is `docs/releases/<tag>.md`.
+- Only a version publishes a release: a pushed tag (`v6.0.0`), or a manual CI run on main with
+  the version as `release` (the release creates the tag). Its text is `docs/releases/<tag>.md`.
+- 6.0.0 alone may be signed with the original key while the secrets are not set
+  (`ci/sign-original.sh`, the key from the history); every later release needs them.
 
 ## Architecture (data source → state model → UI)
 

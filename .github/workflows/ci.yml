@@ -8,6 +8,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      release:
+        description: "Run on main: publish this commit as a release under this version tag (like v6.0.1); empty only builds"
+        required: false
+        default: ""
       measure:
         description: "Measure the window view on the emulator (1080p and 4K): frames, CPU, memory"
         required: false
@@ -44,6 +48,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
+      - name: Check the version and its release notes
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release != ''
+        env:
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::$TAG is not a version tag like v6.0.1."
+            exit 1
+          fi
+          if [ ! -s "docs/releases/$TAG.md" ]; then
+            echo "::error::docs/releases/$TAG.md is missing."
+            exit 1
+          fi
+
       - name: Cache Robolectric android-all
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -59,7 +77,7 @@ jobs:
       - name: Release APK (R8)
         env:
           # A release carries its tag as version name (v6.0.0 becomes 6.0.0).
-          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release || '' }}
         run: |
           if [ -n "$TAG" ]; then
             ./gradlew :app:assembleRelease "-Pklangbild.versionName=${TAG#v}" --stacktrace
@@ -230,35 +248,42 @@ jobs:
   release:
     name: GitHub release
     needs: [build, smoke, rotation]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # A version tag, or a manual run on main with a version (the release then creates the tag).
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.release || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The original key lives in the history (ci/sign-original.sh).
+          fetch-depth: 0
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: klangbild-apk
 
-      - name: Release notes
-        run: |
-          if [ ! -s "docs/releases/$TAG.md" ]; then
-            echo "::error::docs/releases/$TAG.md is missing."
-            exit 1
-          fi
-
-      - name: Sign with the release key
+      - name: Sign
         env:
           RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_LINEAGE: ${{ secrets.RELEASE_LINEAGE }}
           # The key every copy installed so far trusts: the lineage must start with it.
           ORIGINAL_CERT_SHA256: 6a27430a5a3a6507f770002420f7972ba2a99320ed557e32dde734eceaf837d9
+          # The last release that may still be signed with the original key while the secrets
+          # are not set. Every later one needs them.
+          LAST_ORIGINAL_KEY_RELEASE: v6.0.0
         run: |
           if [ -z "$RELEASE_KEYSTORE" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_LINEAGE" ]; then
+            if [ "$TAG" = "$LAST_ORIGINAL_KEY_RELEASE" ]; then
+              echo "::warning::Signed with the original key. Run tools/rotate-signing-key.sh before the next release."
+              bash ci/sign-original.sh klangbild.apk
+              exit 0
+            fi
             echo "::error::The signing secrets are missing (see tools/rotate-signing-key.sh)."
             exit 1
           fi
@@ -272,6 +297,8 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ env.TAG }}
+          # A manual run creates the tag on the commit it built.
+          target_commitish: ${{ github.sha }}
           name: Klangbild ${{ needs.build.outputs.version_name }}
           body_path: docs/releases/${{ env.TAG }}.md
           # Only a tag with a hyphen is a pre-release; every other one is the latest release.
