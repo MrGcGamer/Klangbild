@@ -50,6 +50,7 @@ import io.github.hazymorning.klangbild.ui.stage.StageTexts
 import io.github.hazymorning.klangbild.ui.stage.StageTheatre
 import io.github.hazymorning.klangbild.ui.stage.StatusLine
 import io.github.hazymorning.klangbild.ui.vista.VistaAhead
+import io.github.hazymorning.klangbild.ui.vista.releaseBakedVista
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
 import io.github.hazymorning.klangbild.ui.vista.labelSide
 import io.github.hazymorning.klangbild.ui.vista.rememberVistaFeed
@@ -118,6 +119,13 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
     ) {
         // The window view's picture is baked while it is only on its way, so it comes at once.
         ui.vistaAhead?.let { VistaAhead(rememberVistaFeed(ui, hooks.vistaClock, hooks.now), labelSide(it)) }
+        // No longer coming: its picture is let go after a while, and baked anew the next time.
+        if (ui.vistaAhead == null && ui.vista == null && !LocalStill.current) {
+            LaunchedEffect(Unit) {
+                delay(VISTA_RELEASE_MS)
+                releaseBakedVista()
+            }
+        }
         // Animate between kinds of screens only (stage/rest/setup). The latest content
         // per kind is kept, so a track change stays inside the stage (its own transition)
         // and an outgoing screen keeps showing what it showed.
@@ -201,6 +209,9 @@ private sealed interface Content {
 }
 
 private const val QUIET_START_MS = 4_000L
+
+/** The window view's picture is kept this long after it stopped coming (a pause cut short, say). */
+private const val VISTA_RELEASE_MS = 10_000L
 
 /**
  * How far the whole screen drifts against burn-in (dp): enough to soften every edge on an
@@ -299,8 +310,14 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     // The cover's colors move only while music plays (a pause holds them, like everything else).
     val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
     val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
-    // One tick for the bar and the colors, so they are redrawn in the same frames.
-    val tick = rememberStageTick(fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING)
+    // The bar shows when its length is known and nothing stands in its place, by setting or for a moment.
+    val barShown = (display.timeLine || peek) && !linkDown && (chapter != null || stage.track.durationMs != null)
+    // One tick for the bar and the colors, so they are redrawn in the same frames. With nothing
+    // to redraw, or with the settings covering the stage, it stops.
+    val tick = rememberStageTick(
+        fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING,
+        running = (moving || barShown) && ui.menu == null,
+    )
     CompositionLocalProvider(LocalFieldTime provides fieldTime, LocalStageTick provides tick) {
         theatre(status, modelFor, { lightFactor }, linkDown)
     }

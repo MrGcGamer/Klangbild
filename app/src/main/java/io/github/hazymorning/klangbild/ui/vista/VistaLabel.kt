@@ -42,6 +42,7 @@ import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.render.ImageOps
+import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.rememberOffMain
@@ -128,17 +129,20 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
     val scene = m.scene
     val cover: ImageBitmap? = rememberOffMain(scene?.key, sizePx) { scene?.let { miniCover(it.cover, sizePx) } }
     val fill by animateFloatAsState(if (m.playing) 1f else 0.55f, tween(Motion.PAUSE_MS, easing = Motion.Dimmer), label = "label-bar")
-    val tick = remember { mutableLongStateOf(0L) }
-    if (!LocalStill.current) {
+    val duration = m.track.durationMs
+    val bar = duration != null && duration > 0L
+    // The window view's tick redraws the bar; alone (in a test), a loop of its own, and none without a bar.
+    val shared = LocalStageTick.current
+    val own = remember { mutableLongStateOf(0L) }
+    if (bar && shared == null && !LocalStill.current) {
         LaunchedEffect(m.playing) {
             while (true) {
-                withFrameNanos { tick.longValue = it }
+                withFrameNanos { own.longValue = it }
                 delay(if (m.playing) BAR_REFRESH_MS else BAR_PAUSED_MS)
             }
         }
     }
-    val duration = m.track.durationMs
-    val bar = duration != null && duration > 0L
+    val tick = shared?.frame ?: own
     Layout(
         modifier = Modifier.fillMaxSize(),
         content = {
@@ -154,7 +158,7 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
             if (artist != null) BasicText(artist, style = artistStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, color = { Color(inks()[1]) }) else Box(Modifier)
             Canvas(Modifier.graphicsLayer()) {
                 val length = duration?.takeIf { it > 0L } ?: return@Canvas
-                tick.longValue // redraw on every refresh
+                tick.value // redraw on every refresh
                 val ink = Color(inks()[1])
                 val f = ((m.positionNow() ?: 0L).toFloat() / length).coerceIn(0f, 1f)
                 val cr = CornerRadius(size.height / 2f)

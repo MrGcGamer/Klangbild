@@ -26,6 +26,13 @@ class VistaPolicy {
     var requested = false
         private set
 
+    /**
+     * As of the last [shows]: the window view shows, or comes if nothing changes (its delay
+     * runs). Its picture is baked ahead only then.
+     */
+    var onItsWay = false
+        private set
+
     /** A key was pressed: the delays start again (a chosen window view stays). */
     fun interaction(now: Long) {
         lastKey = now
@@ -54,6 +61,7 @@ class VistaPolicy {
         }
         quietSince = if (quiet) quietSince ?: now else null
         val trouble = screen is Screen.Setup || (screen is Screen.Rest && !quiet)
+        onItsWay = !trouble && (requested || (playing && playingMs > 0) || (quiet && pauseMs > 0))
         if (trouble) return false
         if (requested) return true
         val since = when {

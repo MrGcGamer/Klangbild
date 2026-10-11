@@ -32,11 +32,14 @@ class StageTick(val frame: State<Long>)
 /** The stage's tick; null where nobody provides one (a lone bar then keeps its own loop). */
 val LocalStageTick = staticCompositionLocalOf<StageTick?> { null }
 
-/** A tick for the stage: [fast] while music plays or the colors move. */
+/**
+ * A tick for the stage: [fast] while music plays or the colors move. While nothing reads it
+ * (no [running]: no bar shown, the colors still, or the settings over the stage) it stops.
+ */
 @Composable
-fun rememberStageTick(fast: Boolean): StageTick {
+fun rememberStageTick(fast: Boolean, running: Boolean = true): StageTick {
     val frame = remember { mutableLongStateOf(0L) }
-    if (!LocalStill.current) {
+    if (running && !LocalStill.current) {
         LaunchedEffect(fast) {
             while (true) {
                 withFrameNanos { frame.longValue = it }

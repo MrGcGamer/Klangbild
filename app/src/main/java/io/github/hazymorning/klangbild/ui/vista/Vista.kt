@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -19,7 +20,9 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
+import io.github.hazymorning.klangbild.ui.StageTick
 import io.github.hazymorning.klangbild.ui.Motion
 import io.github.hazymorning.klangbild.ui.TICK_MS
 import io.github.hazymorning.klangbild.ui.rememberOffMain
@@ -41,7 +44,6 @@ import io.github.hazymorning.klangbild.vista.World
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.lang.ref.SoftReference
 import java.util.concurrent.Executors
 import java.time.ZoneId
 import kotlin.math.abs
@@ -113,10 +115,7 @@ fun Vista(
         LaunchedEffect(images) {
             val next = images ?: return@LaunchedEffect
             val old = shown
-            if (still) {
-                shown = next
-                return@LaunchedEffect
-            }
+            if (still) return@LaunchedEffect
             if (old == null) {
                 shown = next
                 appear.animateTo(1f, tween(FIRST_FADE_MS, easing = Motion.Dimmer))
@@ -131,13 +130,22 @@ fun Vista(
         val look: () -> PaperLook = { light.intValue; state.look }
         val places: () -> SkyPlaces = { light.intValue; state.places }
         val motion: () -> PaperMotion = { frame.longValue; state.motion }
+        // A still shows the bake at once, as it shows everything else (no effect has to run first).
+        val current = if (still) images else shown
+        val outgoing = if (still) null else leaving
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear.value }) {
-            leaving?.let { PaperView(it, look, places, motion, Modifier.fillMaxSize()) }
-            shown?.let { s ->
-                PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (leaving != null) fade.value else 1f })
+            outgoing?.let { PaperView(it, look, places, motion, Modifier.fillMaxSize()) }
+            current?.let { s ->
+                PaperView(s, look, places, motion, Modifier.fillMaxSize().graphicsLayer { alpha = if (outgoing != null) fade.value else 1f })
             }
             // The label stands still because it is not part of the scenery; the camera keeps its bank under it.
-            if (shown != null) Box(Modifier.fillMaxSize()) { content(look) }
+            // Its bar is redrawn in the scenery's frames: one loop, not two out of step.
+            val tick = remember(frame) { StageTick(frame) }
+            if (current != null) {
+                CompositionLocalProvider(LocalStageTick provides tick) {
+                    Box(Modifier.fillMaxSize()) { content(look) }
+                }
+            }
         }
     }
 }
@@ -184,23 +192,40 @@ private const val AHEAD_DELAY_MS = 8_000L
 private const val AHEAD_RECHECK_MS = 3_600_000L
 
 /**
- * The last bake, kept for the next time the window view comes (the next pause, most often the
- * same screen and season). It is held softly: the system takes it back whenever it needs the memory.
+ * The last bake, kept while the window view shows or is on its way (most often the same screen
+ * and season). [releaseBakedVista] lets it go when the window view is no longer coming and when
+ * the app goes to the background.
  */
 private object PaperCache {
     private class Entry(val key: List<Any>, val images: PaperImages)
 
-    private var last: SoftReference<Entry>? = null
+    @Volatile private var last: Entry? = null
 
-    @Synchronized
+    /** Counts the clears: a bake that was under way during one is not kept. */
+    @Volatile private var generation = 0
+    private val baking = Any()
+
     fun get(w: Int, h: Int, density: Float, shapes: SeasonShapes, label: LabelSide): PaperImages {
         val key = listOf(w, h, density, shapes, label)
-        last?.get()?.takeIf { it.key == key }?.let { return it.images }
-        val images = PaperImages(PaperBake.bake(w, h, density, shapes, label))
-        last = SoftReference(Entry(key, images))
-        return images
+        last?.takeIf { it.key == key }?.let { return it.images }
+        synchronized(baking) {
+            last?.takeIf { it.key == key }?.let { return it.images }
+            val started = generation
+            val images = PaperImages(PaperBake.bake(w, h, density, shapes, label))
+            if (started == generation) last = Entry(key, images)
+            return images
+        }
+    }
+
+    /** Forgets the last bake at once, without waiting for one under way. */
+    fun clear() {
+        generation++
+        last = null
     }
 }
+
+/** Lets the window view's last picture go (tens of megabytes at 4K): it is baked again when it comes. */
+fun releaseBakedVista() = PaperCache.clear()
 
 /** How often (frames) the season's shapes are checked: every few seconds. */
 private const val SHAPES_EVERY = 60L
