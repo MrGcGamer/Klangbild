@@ -15,8 +15,9 @@ LINEAGE="$3"
 : "${RELEASE_KEYSTORE_PASSWORD:?RELEASE_KEYSTORE_PASSWORD must hold the password of the keystore}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APKSIGNER="$("$HERE/apksigner-path.sh")"
-SIGNED="$(mktemp --suffix=.apk)"
-trap 'rm -f "$SIGNED"' EXIT
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+SIGNED="$WORK/signed.apk"
 
 "$APKSIGNER" sign \
   --ks "$KEYSTORE" --ks-key-alias klangbild --ks-pass env:RELEASE_KEYSTORE_PASSWORD \
@@ -34,4 +35,3 @@ if [ -n "${ORIGINAL_CERT_SHA256:-}" ]; then
   fi
 fi
 mv "$SIGNED" "$APK"
-trap - EXIT
