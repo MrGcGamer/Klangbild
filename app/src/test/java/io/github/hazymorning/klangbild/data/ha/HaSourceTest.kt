@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -47,6 +48,9 @@ class HaSourceTest {
     private var queueAnswer: (() -> String)? = { """{"media_player.wz":{"queue_id":"q1","current_index":0,"current_item":{"name":"Erstes Lied","media_item":{"media_type":"track","name":"Erstes Lied"}},"next_item":null}}""" }
     private var subscription: String? = null
     private var changes = 0
+
+    /** Home Assistant takes `get_queue` and never answers. */
+    private var queueSilent = false
 
     /** The entity registry as listed for display. */
     private var registry = """[{"ei":"media_player.wz","pl":"music_assistant","di":"d1"}]"""
@@ -108,6 +112,7 @@ class HaSourceTest {
                     val target = (msg["target"] as? JsonObject)?.get("entity_id")?.jsonPrimitive?.content
                     // A long automation: Home Assistant answers once its actions are done.
                     if (target == "automation.slow") return
+                    if (queueSilent && msg["service"]?.jsonPrimitive?.content == "get_queue") return
                     val answer = when {
                         target == "script.broken" -> null
                         msg["service"]?.jsonPrimitive?.content == "get_queue" -> queueAnswer?.invoke()
@@ -138,7 +143,7 @@ class HaSourceTest {
 
     private fun queueCalls() = calls.count { it["service"]?.jsonPrimitive?.content == "get_queue" }
 
-    private fun source(ma: MaClient? = null, refreshMs: Long = 60_000L) = HaSource(
+    private fun source(ma: MaClient? = null, refreshMs: Long = 60_000L, detailsWaitMs: Long = HaSource.DETAILS_WAIT_MS) = HaSource(
         http,
         scope,
         HaConfig(HaAuth(http, ha.url("/").toString().trimEnd('/'), HaCredentials.LongLived("good"))),
@@ -146,6 +151,7 @@ class HaSourceTest {
         ma = ma,
         queueRefreshMs = refreshMs,
         actionAnswerMs = 500L,
+        detailsWaitMs = detailsWaitMs,
     )
 
     @Test
@@ -153,13 +159,14 @@ class HaSourceTest {
         val s = source()
         s.start()
         withTimeout(5_000) { s.state.first { it.player?.track?.title == "Erstes Lied" } }
+        val before = queueCalls()
         for (i in 2..6) {
             play("Lied $i")
             delay(60)
         }
         withTimeout(5_000) { s.state.first { it.player?.track?.title == "Lied 6" } }
         delay(1_000)
-        assertThat(queueCalls()).isEqualTo(1)
+        assertThat(queueCalls() - before).isEqualTo(1)
         s.stop()
     }
 
@@ -418,4 +425,83 @@ class HaSourceTest {
         assertThat(s.favorite()).isFalse()
         s.stop()
     }
+
+    /** Home Assistant's state of a Music Assistant player: its own picture is Music Assistant's small one. */
+    private fun maPlayer(title: String, picture: String) =
+        """{"media_title":"$title","media_artist":"A","media_album_name":"Platte","app_id":"music_assistant","mass_player_type":"player",
+            "entity_picture":"/api/media_player_proxy/media_player.wz?token=t1&cache=$picture"}"""
+
+    /** A queue item as Home Assistant's `get_queue` gives it: the song's own picture and the album's year. */
+    private fun item(title: String, picture: String) =
+        """{"name":"$title","media_item":{"media_type":"track","name":"$title","artists":[{"name":"A"}],
+            "image":"https://cdn.example/$picture.jpg","album":{"name":"Platte","year":2024}}}"""
+
+    private fun queueOf(current: String, next: String?) =
+        """{"media_player.wz":{"queue_id":"q1","current_index":0,"current_item":$current,"next_item":${next ?: "null"}}}"""
+
+    @Test
+    fun `a Music Assistant song comes once, with its own picture and the album's year`() = runBlocking {
+        player = maPlayer("Erstes Lied", "c1")
+        queueAnswer = { queueOf(item("Erstes Lied", "erstes"), null) }
+        val seen = CopyOnWriteArrayList<io.github.hazymorning.klangbild.domain.TrackInfo>()
+        val s = source()
+        val watch = scope.launch { s.state.collect { st -> st.player?.track?.let { seen += it } } }
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player?.track?.year == 2024 } }
+        delay(300)
+        // Never first with Home Assistant's small picture or without the year.
+        assertThat(seen.map { it.artworkUrl }.distinct()).containsExactly("https://cdn.example/erstes.jpg")
+        assertThat(seen.map { it.year }.distinct()).containsExactly(2024)
+        watch.cancel()
+        s.stop()
+    }
+
+    @Test
+    fun `the song the queue announced as next comes at once, complete`() = runBlocking {
+        player = maPlayer("Erstes Lied", "c1")
+        queueAnswer = { queueOf(item("Erstes Lied", "erstes"), item("Zweites Lied", "zweites")) }
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player?.track?.year == 2024 } }
+        val before = queueCalls()
+        queueAnswer = { queueOf(item("Zweites Lied", "zweites"), null) }
+        report("media_title" to "Zweites Lied", "entity_picture" to "/api/media_player_proxy/media_player.wz?token=t1&cache=c2")
+        val second = withTimeout(5_000) { s.state.first { it.player?.track?.title == "Zweites Lied" } }.player!!.track!!
+        // Before its own read: what the queue announced is enough.
+        assertThat(queueCalls()).isEqualTo(before)
+        assertThat(second.artworkUrl).isEqualTo("https://cdn.example/zweites.jpg")
+        assertThat(second.year).isEqualTo(2024)
+        s.stop()
+    }
+
+    @Test
+    fun `a song waits for a silent queue only a moment`() = runBlocking {
+        player = maPlayer("Erstes Lied", "c1")
+        queueSilent = true
+        val s = source(detailsWaitMs = 800L)
+        val started = System.currentTimeMillis()
+        s.start()
+        val track = withTimeout(5_000) { s.state.first { it.player?.track != null } }.player!!.track!!
+        // Shown as Home Assistant has it, once the wait is over.
+        assertThat(System.currentTimeMillis() - started).isAtLeast(750L)
+        assertThat(track.artworkUrl).contains("/api/media_player_proxy/")
+        s.stop()
+    }
+
+    @Test
+    fun `the songs of a player without a queue come at once`() = runBlocking {
+        player = maPlayer("Erstes Lied", "c1")
+        queueAnswer = null
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player?.track != null } }
+        withTimeout(5_000) { while (queueCalls() < 1) delay(20) }
+        val before = queueCalls()
+        play("Zweites Lied")
+        withTimeout(5_000) { s.state.first { it.player?.track?.title == "Zweites Lied" } }
+        // Not held for a read: the next one only starts after the burst has settled.
+        assertThat(queueCalls()).isEqualTo(before)
+        s.stop()
+    }
+
 }
