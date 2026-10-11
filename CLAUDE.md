@@ -8,10 +8,11 @@ in plain, complete sentences that a reader understands at once: what Klangbild i
 with any Home Assistant media player but is built for Music Assistant, and a feature or two.
 Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
 `docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
-notes are 100 to 200 characters, headings included, easy to scan and in everyday words: a small
-heading for each kind of change there is (`### New`, `### Better`, `### Bug fixes`), under it a
-few short points a user understands at once, nothing technical. `docs/` holds only the notes of
-the releases on GitHub and the README's screenshots: effort goes into the app, not into documents.
+notes are easy to scan and in everyday words: a small heading for each kind of change there is
+(`### New`, `### Better`, `### Bug fixes`), under it a few short points a user understands at
+once, nothing technical. As short as the release allows; up to 300 words only when a release
+needs them and every one is well spent. `docs/` holds only the notes of the releases on GitHub
+and the README's screenshots: effort goes into the app, not into documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
 
@@ -88,11 +89,12 @@ python3 tools/make_launcher_assets.py                          # re-render banne
 ```
 data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client id → 30 minute access
                 tokens; a refused refresh is never tried again), HaRest (GET /api/states/<id>, all
-                states for the setup page), HaConnection (WebSocket: auth, subscribe_trigger with a
+                states and all actions (a script's fields) for the setup page), HaConnection (WebSocket: auth, subscribe_trigger with a
                 state trigger for the followed entities, or subscribe_events state_changed for users
                 who are not administrators; states read over REST when a subscription starts; a
                 second swappable trigger for group members and lights via watch(); get_config;
-                config/entity_registry/list_for_display; call_service (+ the call's context id);
+                config/entity_registry/list_for_display (+ a sensor's display precision);
+                call_service (+ the call's context id);
                 ping, backoff), EntityStore (state objects, never replaced by older ones, each
                 state's context), PlayerParser (entity + MA get_queue; MediaKind from the MA URI,
                 a book's description never an album; supported_features → PlayerAbilities),
@@ -101,9 +103,11 @@ data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client i
                 HaSource (NowPlayingSource + LightBridge: player + sun.sun + MA queue (one read
                 at a time, only for MA players with a queue) + "Everywhere" from the registry's
                 MA players + the optional MA queue window, commands only where supported, seek
-                in seconds, shuffle, the favorite button by its translation key, the own
-                buttons' entities followed and run, the lights' states and calls; a Music
-                Assistant song published once its queue has described it),
+                in seconds, shuffle, the favorite button by its translation key, the entities of
+                one's own followed (the buttons', their conditions', the values') with their
+                precision and Home Assistant's temperature unit, a button run (a script with its
+                variables and `player`), the lights' states and calls; a Music Assistant song
+                published once its queue has described it),
                 StationPictures (a station's song: the best picture on offer wins and holds)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
@@ -123,7 +127,8 @@ domain/         TrackInfo (+ pictureKey and sceneKey: a station's song by its pi
                 chapters, labels, jumps), SleepTimer (minutes or an end reached by playing),
                 FieldClock (the color field's own time, shared by screen and lights), SunClock (the
                 sun by the local clock, without `sun.sun`), VistaPolicy (when the window view takes
-                the screen)
+                the screen), ValueText (a value of one's own in words: precision, unit, on and off,
+                a time of day)
 text/           Texts (the words of one language: resources, plurals, numbers, percent, dates, the
                 clock in 12 or 24 hours), AppLanguage + PlatformLanguageStore (LocaleManager from
                 API 33, the app's own preference on 31 and 32), Localizer (StateFlow<Texts>,
@@ -146,7 +151,7 @@ vista/          The window view, a paper diorama: PaperMotif (folded mountains, 
                 stands in front, each on a Depth layer; snow caps, folds, silhouette forests,
                 clustered crowns, flowers and fallen leaves, the tent; the meadow's cut-outs and
                 the near banks' tall firs as Standee sprites about their feet; tissue clouds and
-                flames, focus blur, shadows), PaperGrain (pulp clouds, fibers, tooth per sheet),
+                flames, focus blur, shadows; its progress weighted by what each part takes), PaperGrain (pulp clouds, fibers, tooth per sheet),
                 Inks/InkRaster/Coverage/Shapes (color matrices, exact AA, outlines), PaperLight
                 (plates per hour: sky, key and fill light, folds, haze, fire, lantern; season
                 papers, moonlight, the weather's skies and veils, mist, smoke, fireflies, label
@@ -174,14 +179,19 @@ config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, Appearanc
                 MotionLevel, RoomLights, RoomLightLevel) + SettingsStore (DataStore; tokens sealed by
                 SecretBox: AES-GCM with a key in the Android keystore), SettingsMenu (entries, values,
                 explanations, steps), QuickMenu (the quick settings' entries and values),
-                QuickActions (the own buttons: a name, an entity, what its kind does),
+                QuickActions (the own buttons: a name, an entity, what its kind does, a script's
+                variables) + Condition (when a button shows: a state or attribute is, is not, is
+                above or below a value; a list counts its entries), OwnValues (the values in the
+                status line: a name, an entity, an attribute),
                 LaunchExtras (am start extras and klangbild:// links: English names and values, the
                 German ones of earlier versions still taken)
 setup/          MiniHttp, SetupHandler (one-time code, the sign-in through Home Assistant's login
                 page: state, callback, code exchange, revocation of what is not kept; API, tokens
-                bound to their address, the own buttons), SetupPage (HTML in the language shown),
+                bound to their address, the own buttons and values, every entity and the scripts'
+                fields), SetupPage (HTML in the language shown; entities chosen by searching),
                 SetupServer (+ QR, discovery; Host, Origin and content type checked, a few
-                connections at a time, slow ones closed, only while the setup screen shows)
+                connections at a time, slow ones closed, only while the setup screen shows; a
+                request that has arrived is still answered when it stops)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; provides LocalTexts),
                 stage/ (Stage layers, Typesetting, StageTheatre transitions, ProgressBar (a range:
                 the chapter), StageModel + StageTexts, FieldLayer: the pools as gradient quads,
@@ -193,7 +203,7 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; pr
                 SetupScreen, Changes (`playChange`, `RisingText`: one change at a time, hurrying,
                 held lines), DebugOverlay, vista/ (Vista: bake off the main thread and ahead of
                 time, 20 fps tick, season cross-fade, the weather glided in over minutes;
-                VistaWaiting: a ring while the first bake keeps one waiting; PaperView: sky, far
+                VistaWaiting: the far range's skyline traced as the first bake goes; PaperView: sky, far
                 range, clearing and near banks as layers redrawn only when the light moves on,
                 each only as tall as its paper, moved by the camera as a whole; stars, clouds,
                 mist, snow and rain, swaying cut-outs and firs, the fire, its smoke, sparks and
@@ -216,9 +226,12 @@ UI words are given in English with the German in parentheses where it matters.
   pixels in both languages): the stage grid (960 × 540 dp, `HaloLayout`) is artwork 368 dp at
   88 dp from the left, exactly centered vertically; 64 dp gap; text column 352 dp; 88 dp right
   margin, as much room left of the artwork as right of the progress bar. Text block centered on
-  the artwork; the status line ("9:47 PM · Living room + 5") hangs with its cap height from the
-  artwork's top edge, "Up next" (Als Nächstes) stands with its baseline on the bottom edge;
-  every line starts on the column's left edge. The rest clock's figures (top to baseline,
+  the artwork; the column stands within the artwork's straight edge, a corner radius in from its
+  top and bottom (the artwork stays the tallest on what is seen; its edges recede at the round
+  corners and where a dark cover meets the dark wall; until 6.1 the descenders of "Up next" hung
+  below it and the column read as taller): the status line ("9:47 PM · Living room + 5") hangs
+  there with its cap height, the descenders of "Up next" (Als Nächstes) end there
+  (`Fonts.DESCENT`); every line starts on the column's left edge. The rest clock's figures (top to baseline,
   ink-centered across from the outlines' exact bounds: side bearings differ) stand in the very
   middle, its lines under it; setup: code + longest text line centered as a group; menu on the
   stage grid. No optical lifts, no re-hanging. The whole screen drifts only ±6 dp against
@@ -325,6 +338,14 @@ UI words are given in English with the German in parentheses where it matters.
 - **States say it in words**, in the status line, place first and state last: "Living room
   · Paused", "Kitchen · Muted", "Volume 35%" (3.5 s), "Everywhere"; "Reconnecting…" in the
   progress bar's place.
+- **Values of one's own** (`OwnValues`, the setup page's section 8, at most 3; setting
+  "Values"): the state of any Home Assistant entity, or one of its attributes, after a name of
+  one's own, between the time and the place ("21:47 · Outside 12.3 °C · Living room + 5").
+  Numbers in the language's figures with Home Assistant's display precision and their unit
+  (a weather entity's own units, a thermostat's in Home Assistant's), on and off in words, a
+  time as a time of day (`ValueText`); what Home Assistant cannot tell shows nothing, so a
+  template helper can hide a value. The place always has its room: values that do not fit
+  beside it are left out from the last, never cut. They tick like the clock, no cross-fade.
 - **Remote:** OK plays and pauses, held it opens the settings; left and right change the song
   (spoken word: jump); down opens the quick settings and, pressed again, closes them; up
   brings the window view and, pressed again, leaves it (both also show hidden parts for a
@@ -346,12 +367,19 @@ UI words are given in English with the German in parentheses where it matters.
   the window view as it was.
 - **Own buttons** (`QuickActions`, the setup page's section 7, at most 6): a name of one's own
   (at most 32 characters; without one, the entity's own words) and a Home Assistant entity,
-  whose kind says what OK does: a script runs (`script.turn_on` with the speaker followed as
-  the variable `player`, so one script can ungroup whatever plays), an automation runs its
-  actions (`automation.trigger`), a scene is activated, a button is pressed, a switch, input
-  boolean or light is toggled and shows On / Off. The value is the verb ("Run"), then "Done"
-  or "Failed" for 4 s; a call still running after 4 s (a long automation) counts as taken. An
-  entity Home Assistant does not know or has as unavailable is left out of the row.
+  whose kind says what OK does: a script runs (`script.turn_on` with its variables (the fields
+  it declares, asked for on the setup page, and any others as `name: value` lines) and the
+  speaker followed as the variable `player` unless it names one, so one script can ungroup
+  whatever plays), an automation runs its actions (`automation.trigger`), a scene is
+  activated, a button is pressed, a switch, input boolean or light is toggled and shows On /
+  Off. The value is the verb ("Run"), then "Done" or "Failed" for 4 s; a call still running
+  after 4 s (a long automation) counts as taken. An entity Home Assistant does not know or has
+  as unavailable is left out of the row, and so is a button whose condition does not hold
+  (`Condition`: an entity's state or attribute is, is not, is above or below a value, as Home
+  Assistant's own state conditions; a list counts its entries, so `group_members` above 1 means
+  the speaker plays in a group; anything more is a template helper's state) unless it is just
+  saying how its call went. Buttons are told apart by their place: one script can be two
+  buttons with other variables.
 - **Settings menu** (OK long-press or Menu): the stage's grid, heading and the chosen line's
   explanation on the left, lines on the right; the chosen line sits at the screen's middle in
   a soft, low band of light (σ 120 × 12 dp, ≈ L* 10) that lights it alone; the list glides
@@ -360,7 +388,7 @@ UI words are given in English with the German in parentheses where it matters.
   wall and the language, and dim the light; no fonts, colors or layout variants. Labels are
   the common words people know from TVs and phones, values plain words: sections Picture
   (View: Single cover / Cover Flow, Appearance), Information (Clock, Progress bar, Next track,
-  Album and year, Speaker group, Volume), Effects (Background: Plain / Cover colors,
+  Album and year, Speaker group, Volume, Values), Effects (Background: Plain / Cover colors,
   Intensity, Motion: Off / Slow / Medium / Fast, Lights: Off / 10 to 100% with a slider),
   Window view (When paused, While playing, Mini player: Bottom left / Bottom right / Off),
   Remote (Control music, Up and down: Window view, menu / Volume, Audiobooks, podcasts: Jump /
@@ -518,8 +546,11 @@ UI words are given in English with the German in parentheses where it matters.
   goes with any key, which still does its work. Baked ahead only while it shows or is on its
   way (`VistaPolicy.onItsWay`); the bake is let go 10 s after it stopped coming and when the app
   goes to the background (tens of megabytes at 4K). While a first bake keeps one waiting
-  (after 1 s), a thin ring turns in the screen's middle, drawn like the progress bar in the
-  rest screen's quiet ink and gone before the picture is up (`VistaWaiting`). The label
+  (after 1 s), the far range's own skyline stands in the screen's middle as one thin line,
+  drawn like the progress bar in the rest screen's quiet ink and traced from the left as the
+  paper is cut (the bake's progress weighted by what each part takes, gliding, never going
+  back, its head breathing); once the picture is ready it is drawn to its end and gone while
+  the landscape comes up (`VistaWaiting`; a turning ring read as too plain in 6.1). The label
   (cover 56 dp, Jost 24 / DM Sans 17, bar) lies on the dark near bank (snow only along its
   edge), the fire on the other side;
   beside the cover one block exactly centered on it: the title's cap height to the bar's lower
@@ -532,9 +563,10 @@ UI words are given in English with the German in parentheses where it matters.
   measured about 2.9 screens of fill per frame and 55 MB at 1080p).
 - **The phone's setup page** follows the same rules: one (system) sans face, sentence case, no
   italics, no gradients, no shadows, no pill buttons, no icons, light or dark as the phone is
-  set, in the language the TV shows. The setup server runs only while the setup screen shows,
-  answers only requests for its own address, takes API calls only as JSON from its own page
-  and with the six-digit code (a wrong one is answered only after a second), and closes slow
-  connections.
+  set, in the language the TV shows. An entity is chosen by searching its name, never from an
+  endless list. The setup server runs only while the setup screen shows (saving ends it, and
+  the answer to the save still reaches the phone), answers only requests for its own address,
+  takes API calls only as JSON from its own page and with the six-digit code (a wrong one is
+  answered only after a second), and closes slow connections.
 - Never claim device behavior that was not verified on the device (frame rate, CEC wake,
   dream on the TV device): mark it as unverified.
