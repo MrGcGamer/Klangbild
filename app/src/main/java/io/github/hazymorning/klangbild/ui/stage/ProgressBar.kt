@@ -96,6 +96,7 @@ fun ProgressBar(
     }
     val label = labelStyle.copy(color = colors.label)
     val figures = rememberFigures(labelStyle, Face.TITLE)
+    val length = remember(figures, durationMs) { figures.of(TimeLine.formatClock(durationMs)) }
     Layout(
         modifier = modifier.fillMaxWidth(),
         content = {
@@ -113,7 +114,7 @@ fun ProgressBar(
                 }
             }
             BasicText(figures.of(TimeLine.formatClock(second * 1000L)), style = label, maxLines = 1)
-            BasicText(figures.of(TimeLine.formatClock(durationMs)), style = label, maxLines = 1)
+            BasicText(length, style = label, maxLines = 1)
         },
     ) { measurables, constraints ->
         val bar = measurables[0].measure(constraints)

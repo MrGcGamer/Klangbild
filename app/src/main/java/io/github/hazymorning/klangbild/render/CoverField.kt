@@ -507,7 +507,8 @@ object FieldModel {
 
     /** Where every shape of [field] stands at time [t]: worked out once, then read for many points. */
     fun places(field: FieldScene, t: Double, out: FloatArray = FloatArray(field.blobs.size * STRIDE)): FloatArray {
-        for ((i, b) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val b = field.blobs[i]
             val o = i * STRIDE
             FieldMotion.place(b, t, out, o)
             val a = Math.toRadians(out[o + 2].toDouble())
@@ -525,7 +526,8 @@ object FieldModel {
         var r = ((field.base shr 16) and 0xFF) / 255f
         var g = ((field.base shr 8) and 0xFF) / 255f
         var b = (field.base and 0xFF) / 255f
-        for ((i, blob) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val blob = field.blobs[i]
             val a = blob.alpha * strength(blob, u, v, places, i * STRIDE)
             if (a <= 0f) continue
             val sr = ((blob.colour shr 16) and 0xFF) / 255f
@@ -553,7 +555,8 @@ object FieldModel {
         out[0] = field.baseLight[0]
         out[1] = field.baseLight[1]
         out[2] = field.baseLight[2]
-        for ((i, blob) in field.blobs.withIndex()) {
+        for (i in field.blobs.indices) {
+            val blob = field.blobs[i]
             val a = blob.alpha * strength(blob, u, v, places, i * STRIDE)
             if (a <= 0f) continue
             for (k in 0..2) out[k] += (blob.light[k] - out[k]) * a

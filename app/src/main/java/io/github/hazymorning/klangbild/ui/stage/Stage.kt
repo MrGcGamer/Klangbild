@@ -133,6 +133,8 @@ fun ArtworkLayer(
     val shader = remember(scene) {
         android.graphics.BitmapShader(scene.cover, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
     }
+    val brush = remember(shader) { ShaderBrush(shader) }
+    val place = remember { android.graphics.Matrix() }
     val filters = remember(scene) { HashMap<Int, ColorFilter>() }
     val rect = scene.coverRect
     Canvas(
@@ -153,8 +155,9 @@ fun ArtworkLayer(
         val w = scene.cover.width.toFloat()
         val h = scene.cover.height.toFloat()
         val corner = CornerRadius(scene.corner * density)
-        shader.setLocalMatrix(android.graphics.Matrix().apply { setTranslate(x, y) })
-        drawRoundRect(ShaderBrush(shader), Offset(x, y), Size(w, h), corner, colorFilter = filter)
+        place.setTranslate(x, y)
+        shader.setLocalMatrix(place)
+        drawRoundRect(brush, Offset(x, y), Size(w, h), corner, colorFilter = filter)
     }
 }
 

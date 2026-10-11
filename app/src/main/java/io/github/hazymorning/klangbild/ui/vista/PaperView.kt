@@ -363,19 +363,22 @@ private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m
     val wind = m.weather.wind
     val shadowFilter = f.tint(l.shadow)
     val depth = SheetId.STANDEES.depth
-    for ((i, st) in b.standees.withIndex()) {
+    for (i in b.standees.indices) {
+        val st = b.standees[i]
         val sway = swayOf(t, st.seed, wind)
         withTransform({
             translate(st.footX, st.footY)
             rotate(sway, pivot = Offset.Zero)
         }) {
             if (l.shadowAlpha > 0.003f) {
-                for ((k, sh) in st.shadows.withIndex()) {
+                for (k in st.shadows.indices) {
+                    val sh = st.shadows[k]
                     val alpha = if (st.parts[k].first == SheetId.CROWNS) b.leafAlpha else 1f
                     sheet(images.standeeShadows[i][k], sh, shadowFilter, l.shadowAlpha * alpha, l.shadowSide * (1f + 3.8f * depth) * l.shadowLength * d, (1.4f + 1.6f * depth) * d)
                 }
             }
-            for ((k, part) in st.parts.withIndex()) {
+            for (k in st.parts.indices) {
+                val part = st.parts[k]
                 val (id, sheet) = part
                 val alpha = if (id == SheetId.CROWNS) b.leafAlpha else 1f
                 if (alpha > 0.01f) sheet(images.standees[i][k], sheet, f.of(l.inks(id)), alpha)
@@ -383,7 +386,8 @@ private fun DrawScope.drawStandeesAndFlames(images: PaperImages, l: PaperLook, m
         }
     }
     val filter = f.of(l.flame)
-    for ((i, flame) in b.flames.withIndex()) {
+    for (i in b.flames.indices) {
+        val flame = b.flames[i]
         val k = flame.seed
         val stretch = 1f + 0.11f * Noise.wander(t, 0.8 + 0.2 * k, 500 + k).toFloat() + 0.05f * Noise.wander(t, 0.31, 520 + k).toFloat()
         // The wind blows to the left: the tongues bend with it.
@@ -409,13 +413,15 @@ private fun DrawScope.drawFrontFirs(images: PaperImages, l: PaperLook, m: PaperM
     val t = m.time
     val wind = m.weather.wind
     val shadowFilter = f.tint(l.shadow)
-    for ((i, st) in b.frontStandees.withIndex()) {
+    for (i in b.frontStandees.indices) {
+        val st = b.frontStandees[i]
         val sway = FRONT_SWAY * swayOf(t * 0.7, st.seed, wind)
         withTransform({
             translate(st.footX, st.footY)
             rotate(sway, pivot = Offset.Zero)
         }) {
-            for ((k, part) in st.parts.withIndex()) {
+            for (k in st.parts.indices) {
+                val part = st.parts[k]
                 val (id, sheet) = part
                 if (l.shadowAlpha > 0.003f) {
                     sheet(images.frontShadows[i][k], st.shadows[k], shadowFilter, l.shadowAlpha, l.shadowSide * (1f + 3.8f * id.depth) * l.shadowLength * d, (1.4f + 1.6f * id.depth) * d)

@@ -160,7 +160,7 @@ fun RestScreen(
     lightFactor: Float = 1f,
     appearance: Appearance = Appearance.DARK,
 ) {
-    val colors = QuietColors.of(lighting, appearance)
+    val colors = remember(lighting, appearance) { QuietColors.of(lighting, appearance) }
     val t = texts()
     val lines = RestTexts.lines(reason, speaker, entityId, t)
     // A lamp only lights a dark wall.

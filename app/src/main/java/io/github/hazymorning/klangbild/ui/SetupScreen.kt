@@ -128,7 +128,8 @@ fun SetupScreen(
             withStyle(SpanStyle(letterSpacing = 0.03.em)) { append(SetupArt.shortUrl(url)) }
         }
     } ?: AnnotatedString(t[R.string.setup_no_network])
-    val code = info?.code?.chunked(3)?.joinToString(" ") ?: "—"
+    // Until the code is drawn its line stays empty but keeps its height.
+    val code = info?.code?.chunked(3)?.joinToString(" ") ?: "\u00A0"
     val name = titleType(44f, 420, p.ink.asColor(), tracking = -0.005f)
     val leadStyle = textType(21f, 520, p.inkMuted.asColor(), lineHeight = 27f).merge(TextStyle(lineBreak = balanced))
     val codeStyle = titleType(44f, 400, p.ink.asColor(), tracking = 0.01f)
