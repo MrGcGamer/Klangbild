@@ -34,7 +34,16 @@ class FirstLaunchTest {
             .putExtra("token", "smoke")
             .putExtra("entity", "media_player.living_room")
             .putExtra("window_view", "on")
-        Robolectric.buildActivity(MainActivity::class.java, intent).setup()
+        val activity = Robolectric.buildActivity(MainActivity::class.java, intent).setup()
+        try {
+            watch(app, ha)
+        } finally {
+            // Closed at the end, so nothing of it keeps running into the next test.
+            activity.pause().stop().destroy()
+        }
+    }
+
+    private fun watch(app: KlangbildApp, ha: String?) {
         val controller = app.graph.controller
         val seconds = if (ha != null) 200 else 10
         val start = System.currentTimeMillis()
