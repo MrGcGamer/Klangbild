@@ -3,16 +3,20 @@
 Android TV "now playing" screen for Home Assistant and Music Assistant. Built for a 4K Android
 TV device with a weak GPU in front of an OLED TV. Sideload only.
 The UI speaks English (default) and German (`values-de`); code, comments, the README, the release
-notes, CI and every other document are English. The README stays under 400 characters of text,
-in plain, complete sentences that a reader understands at once: what Klangbild is, that it works
-with any Home Assistant media player but is built for Music Assistant, and a feature or two.
-Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
-`docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
-notes are easy to scan and in everyday words: a small heading for each kind of change there is
-(`### New`, `### Better`, `### Bug fixes`), under it a few short points a user understands at
-once, nothing technical. As short as the release allows; up to 300 words only when a release
-needs them and every one is well spent. `docs/` holds only the notes of the releases on GitHub
-and the README's screenshots: effort goes into the app, not into documents.
+notes, CI and every other document are English. The README stays at about 500 words, in plain,
+complete sentences that a reader understands at once: what Klangbild is and what it works with, its
+views, leaving it on, setup, the remote and privacy. Leave a feature out rather than squeeze a
+sentence. Its pictures are mockups in `docs/screenshots/`: the app's own screens
+(`ReadmeShotsTest`, with the colors the lights behind the TV would show) set in a room by
+`tools/make_readme_pictures.py`, made again when the look changes, and the download button under
+the first paragraph. The logo (seven rounded squares rounding into a circle toward the middle, blue
+on night blue) is drawn by `tools/make_launcher_assets.py` for the banner, the icons, the mockups
+and the button, never scaled from a bitmap. Release notes are easy to scan and in everyday words: a
+small heading for each kind of change there is (`### New`, `### Better`, `### Bug fixes`), under it
+a few short points a user understands at once, nothing technical. As short as the release allows;
+up to 300 words only when a release needs them and every one is well spent. `docs/` holds only the
+notes of the releases on GitHub and the README's pictures: effort goes into the app, not into
+documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
 
@@ -36,7 +40,8 @@ and the README's screenshots: effort goes into the app, not into documents.
 ./gradlew :app:testDebugUnitTest --tests '*HaloStageTest*' -Proborazzi.test.record=true   # one class
 ./gradlew :app:lintRelease                                     # Android Lint: every warning fails
 ./gradlew :app:assembleRelease                                 # R8-minified APK, signed with the debug key
-python3 tools/make_launcher_assets.py                          # re-render banner + icons (Pillow)
+python3 tools/make_launcher_assets.py                          # re-render banner + icons from the logo (Pillow)
+python3 tools/make_readme_pictures.py                          # README mockups + download button (Pillow, numpy)
 ```
 
 - Local SDK: `local.properties` → `sdk.dir=/opt/android-sdk` (not committed). compileSdk 37,
@@ -222,7 +227,7 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; pr
                 near bank, standing still while the camera moves)
 dream/          KlangbildDream (DreamService with ComposeView)
 test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME, a
-                book and an episode, invented words), Fixtures, TestTexts, the static stages for stills
+                book and an episode, invented words, the README's aurora), Fixtures, TestTexts, the static stages for stills
 ```
 
 ## Design principles (do not regress)
