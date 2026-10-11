@@ -1,0 +1,60 @@
+name: Tidy up
+
+# Run by hand from the Actions tab: keeps only the newest releases (the older ones go, their
+# version tags stay) and deletes the branches that are fully merged into main.
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "How many of the newest releases to keep"
+        required: true
+        default: "2"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tidy-up
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tidy:
+    name: Old releases and merged branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Keep the newest releases
+        env:
+          KEEP: ${{ inputs.keep }}
+        run: |
+          if ! [[ "$KEEP" =~ ^[0-9]+$ ]] || [ "$KEEP" -lt 1 ]; then
+            echo "::error::Keep at least one release."
+            exit 1
+          fi
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | select(.draft | not) | [.published_at, .tag_name] | @tsv' |
+            sort -r | tail -n +"$((KEEP + 1))" | cut -f2 |
+            while read -r tag; do
+              gh release delete "$tag" -R "$REPO" --yes
+              echo "Deleted the release $tag (its tag stays)." >> "$GITHUB_STEP_SUMMARY"
+            done
+          echo "The newest $KEEP releases are kept." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete merged branches
+        run: |
+          main="$(gh api "repos/$REPO" --jq .default_branch)"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | select(.protected | not) | .name' |
+            while read -r branch; do
+              [ "$branch" = "$main" ] && continue
+              if [ "$(gh api "repos/$REPO/compare/$main...$branch" --jq .ahead_by)" = 0 ]; then
+                gh api -X DELETE "repos/$REPO/git/refs/heads/$branch"
+                echo "Deleted the branch $branch, which is merged into $main." >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done

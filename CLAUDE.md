@@ -8,7 +8,7 @@ in plain, complete sentences that a reader understands at once: what Klangbild i
 with any Home Assistant media player but is built for Music Assistant, and a feature or two.
 Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
 `docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
-notes are 100 to 200 characters. `docs/` holds only the release notes that CI publishes and the
+notes are 100 to 200 characters. `docs/` holds only the notes of the releases on GitHub and the
 README's screenshots: effort goes into the app, not into documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
@@ -64,18 +64,16 @@ python3 tools/make_launcher_assets.py                          # re-render banne
 
 - No key is in the repository. Release APKs are signed in CI (`ci/sign-release.sh`) with APK
   Signature Scheme v3 and a signing certificate lineage, so installs signed with the original
-  key update in place on every supported API level, and the original key can no longer sign
-  an update. The key, its password and the lineage are repository secrets
-  (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`), made once by
-  `tools/rotate-signing-key.sh`. The owner runs it from the browser: the "Finish setup"
-  workflow (`.github/workflows/finish-setup.yml`, started by hand) runs the script with a
-  one-time classic token in the secret `SETUP_TOKEN`, which it deletes when done. The script
-  never makes a second key once `RELEASE_KEYSTORE` is set. `ci/rotation-check.sh` installs over
-  an old-signed copy on API 31 to 36 in CI.
+  key (every release up to 6.0.0) update in place on every supported API level, and the
+  original key can no longer sign an update. The key, its password and the lineage exist only
+  as repository secrets (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`);
+  they were made once, after 6.0.0, and cannot be made again: a new key would be refused by
+  installed copies. `ci/rotation-check.sh` installs over an old-signed copy on API 31 to 36 in
+  CI, with throwaway keys.
 - Only a version publishes a release: a pushed tag (`v6.0.0`), or a manual CI run on main with
   the version as `release` (the release creates the tag). Its text is `docs/releases/<tag>.md`.
-- 6.0.0 alone may be signed with the original key while the secrets are not set
-  (`ci/sign-original.sh`, the key from the history); every later release needs them.
+- The "Tidy up" workflow (started by hand) keeps only the newest releases, two by default, and
+  deletes branches merged into main. `docs/releases/` holds the notes of the releases kept.
 - The app declares no signature permission of its own: the original key has no permission
   capability in the lineage, so an update that declares one is refused. The manifest removes
   the one AndroidX core adds for `ContextCompat.registerReceiver` (not used for that reason).
