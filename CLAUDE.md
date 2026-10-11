@@ -66,10 +66,12 @@ python3 tools/make_launcher_assets.py                          # re-render banne
   Signature Scheme v3 and a signing certificate lineage, so installs signed with the original
   key update in place on every supported API level, and the original key can no longer sign
   an update. The key, its password and the lineage are repository secrets
-  (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`), made once with
-  `tools/rotate-signing-key.sh` (needs only the GitHub CLI and Java; it fetches apksigner when
-  no Android SDK is installed and refuses to run twice). `ci/rotation-check.sh` installs over an old-signed copy on
-  API 31 to 36 in CI.
+  (`RELEASE_KEYSTORE`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_LINEAGE`), made once by
+  `tools/rotate-signing-key.sh`. The owner runs it from the browser: the "Finish setup"
+  workflow (`.github/workflows/finish-setup.yml`, started by hand) runs the script with a
+  one-time classic token in the secret `SETUP_TOKEN`, which it deletes when done. The script
+  never makes a second key once `RELEASE_KEYSTORE` is set. `ci/rotation-check.sh` installs over
+  an old-signed copy on API 31 to 36 in CI.
 - Only a version publishes a release: a pushed tag (`v6.0.0`), or a manual CI run on main with
   the version as `release` (the release creates the tag). Its text is `docs/releases/<tag>.md`.
 - 6.0.0 alone may be signed with the original key while the secrets are not set

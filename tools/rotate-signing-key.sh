@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Moves Klangbild's releases to a new signing key. Run it once, on macOS or Linux, with the
-# GitHub CLI logged in as an admin of the repository (gh auth login) and Java 17 or later
-# (Android Studio's own is found). Nothing else is needed, not even a clone:
+# Moves Klangbild's releases to a new signing key. The easiest way is the "Finish setup" workflow
+# on GitHub, which runs this script (.github/workflows/finish-setup.yml). It also runs on macOS
+# or Linux with the GitHub CLI logged in as an admin of the repository (gh auth login) and Java
+# 17 or later (Android Studio's own is found); nothing else is needed, not even a clone:
 #
 #   curl -fsSL https://raw.githubusercontent.com/hazymorning/Klangbild/main/tools/rotate-signing-key.sh | bash
 #
@@ -34,7 +35,7 @@ main() {
   gh auth status > /dev/null 2>&1 || fail "Log in to GitHub first: gh auth login"
   local names
   names="$(gh secret list -R "$REPO")" || fail "Could not read the secrets of $REPO: an admin of it must run this."
-  if printf '%s\n' "$names" | cut -f1 | grep -qx RELEASE_KEYSTORE; then
+  if printf '%s\n' "$names" | cut -f1 | grep -x RELEASE_KEYSTORE > /dev/null; then
     fail "The new key is already in the secrets. Nothing to do."
   fi
 
@@ -73,6 +74,8 @@ main() {
   git show "$OLD_COMMIT:keystore/klangbild-release.jks" > "$WORK/old.jks"
   OLD_PASS="$(git show "$OLD_COMMIT:app/build.gradle.kts" | sed -n 's/^ *storePassword = "\(.*\)"$/\1/p')"
   NEW_PASS="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+  # In a GitHub workflow the log never shows it.
+  if [ "${GITHUB_ACTIONS:-}" = true ]; then echo "::add-mask::$NEW_PASS"; fi
   export OLD_PASS NEW_PASS
   keytool -genkeypair -keystore "$WORK/new.p12" -storetype PKCS12 -storepass "$NEW_PASS" \
     -alias klangbild -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Klangbild, O=hazymorning" > /dev/null 2>&1
@@ -84,9 +87,10 @@ main() {
     bash ci/sign-release.sh "$WORK/klangbild.apk" "$WORK/new.p12" "$WORK/lineage" > /dev/null
 
   say "Storing them as repository secrets ..."
-  base64 < "$WORK/new.p12" | tr -d '\n' | gh secret set RELEASE_KEYSTORE -R "$REPO"
-  printf '%s' "$NEW_PASS" | gh secret set RELEASE_KEYSTORE_PASSWORD -R "$REPO"
+  # The key goes last: it marks the switch as done, so a run that stopped halfway can run again.
   base64 < "$WORK/lineage" | tr -d '\n' | gh secret set RELEASE_LINEAGE -R "$REPO"
+  printf '%s' "$NEW_PASS" | gh secret set RELEASE_KEYSTORE_PASSWORD -R "$REPO"
+  base64 < "$WORK/new.p12" | tr -d '\n' | gh secret set RELEASE_KEYSTORE -R "$REPO"
   say "Done. The new key exists only in the repository's secrets; the next release is signed with it."
 }
 
