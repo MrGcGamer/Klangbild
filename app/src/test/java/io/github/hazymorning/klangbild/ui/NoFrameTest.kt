@@ -82,7 +82,7 @@ class NoFrameTest {
             Fixtures.track(SyntheticCover.BAUHAUS),
         )
         val bmp = render {
-            val scenes = Fixtures.flowScenes(strip, Appearance.LIGHT, io.github.hazymorning.klangbild.color.Lighting.DAY)
+            val scenes = Fixtures.flowScenes(strip, Appearance.LIGHT)
             FlowStage(Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer", scene = scenes[2]), Fixtures.restingCards(scenes, 2))
         }
         // The middle card: 300 dp, its middle 303 dp from the left and in the middle of the height; the column from 598 dp.

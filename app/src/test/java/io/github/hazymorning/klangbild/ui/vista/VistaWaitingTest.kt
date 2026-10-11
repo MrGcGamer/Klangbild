@@ -16,7 +16,6 @@ import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.google.common.truth.Truth.assertThat
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.ui.Fixtures
 import io.github.hazymorning.klangbild.ui.QuietColors
 import io.github.hazymorning.klangbild.ui.composeRule
@@ -60,7 +59,7 @@ class VistaWaitingTest {
         assertThat((x0 + x1) / 2f).isWithin(0.5f).of(bmp.width / 2f)
         assertThat((y0 + y1) / 2f).isWithin(0.5f).of(bmp.height / 2f)
         // The arc in the rest screen's quiet ink, never brighter.
-        val ink = brightness(QuietColors.of(Lighting.DAY).secondary.toArgb())
+        val ink = brightness(QuietColors.of().secondary.toArgb())
         assertThat(brightest(bmp)).isIn(com.google.common.collect.Range.closed(ink - 6, ink + 1))
     }
 

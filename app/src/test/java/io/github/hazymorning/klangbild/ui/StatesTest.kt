@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.ui
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.RestReason
 import io.github.hazymorning.klangbild.domain.SetupReason
@@ -55,39 +54,28 @@ class StatesTest {
         Fixtures.model(Fixtures.track(SyntheticCover.CONFETTI), clock = null, album = false, progress = false),
     )
 
-    @Test fun evening() = stage("stage_evening", Fixtures.model(Fixtures.track(SyntheticCover.BAUHAUS), next = spiegel, lighting = Lighting.EVENING))
-
-    @Test fun night() = stage(
-        "stage_night",
-        Fixtures.model(Fixtures.track(SyntheticCover.MIST), next = spiegel, lighting = Lighting.NIGHT, clock = "23:12"),
-    )
-
     @Test fun restIdle() = shot("rest_idle") {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(10, 12), zone = Fixtures.zone)
+        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Fixtures.at(10, 12), zone = Fixtures.zone)
     }
 
     @Test fun restPaused() = shot("rest_paused") {
-        RestScreen(RestReason.PAUSED, "Wohnzimmer", null, Lighting.EVENING, Fixtures.at(18, 40), zone = Fixtures.zone)
-    }
-
-    @Test fun restNight() = shot("rest_night") {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.NIGHT, Fixtures.at(2, 13, day = 9), zone = Fixtures.zone)
+        RestScreen(RestReason.PAUSED, "Wohnzimmer", null, Fixtures.at(18, 40), zone = Fixtures.zone)
     }
 
     @Test fun connecting() = shot("rest_connecting") {
-        RestScreen(RestReason.CONNECTING, null, null, Lighting.DAY, Fixtures.at(13, 5), zone = Fixtures.zone)
+        RestScreen(RestReason.CONNECTING, null, null, Fixtures.at(13, 5), zone = Fixtures.zone)
     }
 
     @Test fun offline() = shot("rest_offline") {
-        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(16, 20), zone = Fixtures.zone)
+        RestScreen(RestReason.OFFLINE, "Wohnzimmer", null, Fixtures.at(16, 20), zone = Fixtures.zone)
     }
 
     @Test fun unavailable() = shot("rest_unavailable") {
-        RestScreen(RestReason.UNAVAILABLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(11, 50), zone = Fixtures.zone)
+        RestScreen(RestReason.UNAVAILABLE, "Wohnzimmer", null, Fixtures.at(11, 50), zone = Fixtures.zone)
     }
 
     @Test fun entityMissing() = shot("rest_entity_missing") {
-        RestScreen(RestReason.ENTITY_MISSING, null, "media_player.wohnzimer", Lighting.DAY, Fixtures.at(9, 30), zone = Fixtures.zone)
+        RestScreen(RestReason.ENTITY_MISSING, null, "media_player.wohnzimer", Fixtures.at(9, 30), zone = Fixtures.zone)
     }
 
     private val setupInfo = SetupInfo(
@@ -97,11 +85,11 @@ class StatesTest {
     )
 
     @Test fun setupFirstRun() = shot("setup_first_run") {
-        SetupScreen(SetupReason.FIRST_RUN, setupInfo, SetupArt.scene(setupInfo, ScreenSpec.TV_1080, Lighting.DAY))
+        SetupScreen(SetupReason.FIRST_RUN, setupInfo, SetupArt.scene(setupInfo, ScreenSpec.TV_1080))
     }
 
     @Test fun setupAuthFailed() = shot("setup_auth_failed") {
-        SetupScreen(SetupReason.AUTH_FAILED, setupInfo, SetupArt.scene(setupInfo, ScreenSpec.TV_1080, Lighting.EVENING))
+        SetupScreen(SetupReason.AUTH_FAILED, setupInfo, SetupArt.scene(setupInfo, ScreenSpec.TV_1080))
     }
 }
 

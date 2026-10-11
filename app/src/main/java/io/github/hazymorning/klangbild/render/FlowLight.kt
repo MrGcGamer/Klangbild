@@ -1,7 +1,6 @@
 package io.github.hazymorning.klangbild.render
 
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
 import kotlin.math.exp
 import kotlin.math.min
@@ -22,7 +21,7 @@ object FlowLight {
     const val MAP_W = 480
     const val MAP_H = 270
 
-    /** Brightest point (relative luminance, ≈ L* 8 by day) behind a light edge. A black edge gives [DARK_SHARE] of it. */
+    /** Brightest point (relative luminance, ≈ L* 8) behind a light edge. A black edge gives [DARK_SHARE] of it. */
     const val PEAK = 0.0088f
     const val DARK_SHARE = 0.35f
 
@@ -56,13 +55,13 @@ object FlowLight {
         return mean((size / 16).coerceAtLeast(1)) ?: mean(size / 2) ?: 0xFF000000.toInt()
     }
 
-    fun field(edge: Int, layout: HaloLayout, lighting: Lighting): IntArray {
+    fun field(edge: Int, layout: HaloLayout): IntArray {
         val screen = layout.screen
         val lab = Oklab.fromArgb(edge)
         val peak = PEAK * (DARK_SHARE + (1f - DARK_SHARE) * HaloLight.smoothstep(0.05f, 0.35f, lab.l))
         // The edge's own hue, a little more colorful (it is light, not paint). A gray edge gives lamp light.
         val color = if (lab.chroma < 0.02f) HaloLight.LAMP else Lch(0.62f, min(lab.chroma * 1.2f, 0.12f), lab.hue)
-        val tint = HaloLight.lightTint(color, peak, lighting)
+        val tint = HaloLight.lightTint(color, peak)
         val tr = Oklab.srgbToLinear(tint shr 16)
         val tg = Oklab.srgbToLinear(tint shr 8)
         val tb = Oklab.srgbToLinear(tint)

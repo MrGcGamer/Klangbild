@@ -182,7 +182,7 @@ fun ArtworkLayer(
             },
     ) {
         val step = (dim().coerceIn(0f, 1f) * 50f).roundToInt()
-        val filter = filters.getOrPut(step) { coverFilter(scene.lighting, step / 50f, scene.appearance) }
+        val filter = filters.getOrPut(step) { coverFilter(step / 50f, scene.appearance) }
         val x = (rect.left * density).roundToInt().toFloat()
         val y = (rect.top * density).roundToInt().toFloat()
         val w = scene.cover.width.toFloat()

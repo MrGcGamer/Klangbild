@@ -57,7 +57,7 @@ class TransitionTest {
             nextSong,
             io.github.hazymorning.klangbild.render.SceneBuilder.build(
                 nextSong.key, io.github.hazymorning.klangbild.art.SyntheticCovers.render(SyntheticCover.SALT_WATER),
-                nextSong.artSeed, MDPI, io.github.hazymorning.klangbild.color.Lighting.DAY,
+                nextSong.artSeed, MDPI,
             ),
         )
         var stage by mutableStateOf(a)

@@ -15,7 +15,6 @@ import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.app.QuickState
 import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.ActionState
 import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.MenuContext
@@ -243,7 +242,7 @@ class LanguageTest {
             shown += shownTexts { SetupScreen(r, i, scene) }.map { "setup screen $r" to it }
         }
         for (reason in RestReason.entries) {
-            shown += shownTexts { RestScreen(reason, "Living room", "media_player.living_room", Lighting.DAY, Fixtures.at(21, 47), zone = Fixtures.zone) }
+            shown += shownTexts { RestScreen(reason, "Living room", "media_player.living_room", Fixtures.at(21, 47), zone = Fixtures.zone) }
                 .map { "rest screen $reason" to it }
         }
         // English music, so that everything the stage shows must be English.

@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.lights
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.RoomLightLevel
 import io.github.hazymorning.klangbild.config.RoomLights
 import io.github.hazymorning.klangbild.data.ha.EntityState
@@ -39,7 +38,7 @@ class LightSyncTest {
     private fun field(): FieldScene {
         val n = 48
         val thumb = IntArray(n * n) { i -> if (i % n < n / 2) 0xFFC8321E.toInt() else 0xFF1E46B4.toInt() }
-        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Lighting.DAY, Appearance.DARK, 1f, layout = null)
+        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Appearance.DARK, 1f, layout = null)
     }
 
     /** A cover of four colors, one per quarter: the field at the edges keeps changing as it moves. */
@@ -47,7 +46,7 @@ class LightSyncTest {
         val n = 48
         val quarters = intArrayOf(0xFFC8321E.toInt(), 0xFF1E46B4.toInt(), 0xFFE0B020.toInt(), 0xFF2E8B57.toInt())
         val thumb = IntArray(n * n) { i -> quarters[(if (i % n < n / 2) 0 else 1) + (if (i / n < n / 2) 0 else 2)] }
-        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Lighting.DAY, Appearance.DARK, 1f, layout = null)
+        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Appearance.DARK, 1f, layout = null)
     }
 
     private class Call(val at: Long, val domain: String, val service: String, val id: String?, val data: JsonObject?) {
@@ -328,7 +327,7 @@ class LightSyncTest {
         testScheduler.advanceTimeBy(5_000)
         val before = ha.calls.size
         val green = IntArray(48 * 48) { 0xFF2E8B57.toInt() }
-        val other = CoverField.build(green, 48, CoverPalette.analyze(green), Lighting.DAY, Appearance.DARK, 1f, null)
+        val other = CoverField.build(green, 48, CoverPalette.analyze(green), Appearance.DARK, 1f, null)
         for ((i, song) in listOf("b", "c", "d").withIndex()) {
             s.update(target(song, f = if (i == 2) other else field))
             testScheduler.advanceTimeBy(400)

@@ -56,7 +56,7 @@ import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.MenuSection
 import io.github.hazymorning.klangbild.domain.TimeLine
@@ -120,7 +120,7 @@ object MenuGrid {
  * behind it keeps running and is there again the moment the menu closes.
  */
 @Composable
-fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
+fun MenuOverlay(menu: MenuState?, appearance: Appearance, modifier: Modifier = Modifier) {
     // The last menu stays while it fades out.
     val last = remember { arrayOfNulls<MenuState>(1) }
     if (menu != null) last[0] = menu
@@ -134,7 +134,6 @@ fun MenuOverlay(menu: MenuState?, lighting: Lighting, appearance: Appearance, mo
     // beyond the screen's edges, and a layer would cut it off there while it fades.
     MenuScreen(
         state,
-        lighting,
         modifier.graphicsLayer {
             alpha = shown.value
             compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -166,7 +165,7 @@ private fun menuLines(rows: List<MenuRow>): List<MenuLine> {
     return out
 }
 
-/** The menu's colors: near-neutral white on black or near-black on paper, a little dimmer in the evening. */
+/** The menu's colors: near-neutral white on black or near-black on paper. */
 private class MenuColors(
     val wall: Color,
     /** The light behind the chosen line, added to the wall. */
@@ -181,12 +180,12 @@ private class MenuColors(
     val valueFocus: Color,
 ) {
     companion object {
-        fun of(lighting: Lighting, appearance: Appearance): MenuColors {
-            fun c(l: Float, chroma: Float = 0.004f) = Color(lighting.applyArgb(Lch(l, chroma, HaloLight.LAMP_HUE).toArgb()))
+        fun of(appearance: Appearance): MenuColors {
+            fun c(l: Float, chroma: Float = 0.004f) = Color(Lamp.applyArgb(Lch(l, chroma, HaloLight.LAMP_HUE).toArgb()))
             return if (appearance == Appearance.DARK) {
                 MenuColors(
                     wall = Color.Black,
-                    band = Color(HaloLight.lightTint(HaloLight.LAMP, MenuGrid.GLOW_PEAK, lighting)),
+                    band = Color(HaloLight.lightTint(HaloLight.LAMP, MenuGrid.GLOW_PEAK)),
                     heading = c(0.90f),
                     description = c(0.72f),
                     hint = c(0.60f),
@@ -222,10 +221,8 @@ private class MenuColors(
  * fades with distance (no frame, no scroll bar, no check box). Values are words.
  */
 @Composable
-fun MenuScreen(menu: MenuState, lighting: Lighting, modifier: Modifier = Modifier, appearance: Appearance = Appearance.DARK) {
-    // A menu asks for action: it takes only a little of the evening's dimming.
-    val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
-    val colors = remember(light, appearance) { MenuColors.of(light, appearance) }
+fun MenuScreen(menu: MenuState, modifier: Modifier = Modifier, appearance: Appearance = Appearance.DARK) {
+    val colors = remember(appearance) { MenuColors.of(appearance) }
     val lines = remember(menu.rows.map { it.entry }) { menuLines(menu.rows) }
     val itemTops = remember(lines) { lines.filterIsInstance<MenuLine.Item>().associate { it.index to it.top } }
     val cursor = menu.cursor.coerceIn(0, menu.rows.size - 1)

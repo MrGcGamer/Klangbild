@@ -10,7 +10,6 @@ import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.contrastRatio
 import io.github.hazymorning.klangbild.color.relativeLuminance
 import io.github.hazymorning.klangbild.domain.StageView
@@ -28,8 +27,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * On the cover colors the quietest text keeps 4.5:1 against the lightest pixel the
- * rendered field shows anywhere in the text column, wherever its layers stand, at every hour;
- * in Cover Flow wherever the column can stand.
+ * rendered field shows anywhere in the text column, wherever its moving layers stand; in Cover
+ * Flow wherever the column can stand.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,28 +39,19 @@ class CoverFieldContrastTest {
 
     private val mdpi = ScreenSpec(960, 540, 1f)
 
-    private val hours = listOf(
-        Lighting.DAY,
-        Lighting.DAY.lerp(Lighting.EVENING, 0.5f),
-        Lighting.EVENING,
-        Lighting.EVENING.lerp(Lighting.NIGHT, 0.5f),
-        Lighting.NIGHT,
-    )
-
     @Test
     fun theQuietestTextKeepsItsContrastOnTheDarkField() = check(Appearance.DARK)
 
     @Test
     fun theQuietestTextKeepsItsContrastOnThePaleField() = check(Appearance.LIGHT)
 
-    // The app lights the stage as by day at every hour; the other hours are checked in the single view.
     @Test
-    fun inCoverFlowTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.DARK, StageView.FLOW, listOf(Lighting.DAY))
+    fun inCoverFlowTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.DARK, StageView.FLOW)
 
     @Test
-    fun inCoverFlowOnPaleColorsTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.LIGHT, StageView.FLOW, listOf(Lighting.DAY))
+    fun inCoverFlowOnPaleColorsTheQuietestTextKeepsItsContrastWhereverTheColumnStands() = check(Appearance.LIGHT, StageView.FLOW)
 
-    private fun check(appearance: Appearance, view: StageView = StageView.SINGLE, lightings: List<Lighting> = hours) {
+    private fun check(appearance: Appearance, view: StageView = StageView.SINGLE) {
         val first = Fixtures.scene(Fixtures.tracks.first(), mdpi, appearance = appearance, view = view, coverField = true)
         var scene by mutableStateOf(first)
         var at by mutableStateOf(0.0)
@@ -70,12 +60,12 @@ class CoverFieldContrastTest {
                 CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) { FieldLayer(scene) }
             }
         }
-        for (track in Fixtures.tracks) for (lighting in lightings) {
-            scene = Fixtures.scene(track, mdpi, lighting, appearance, view = view, coverField = true)
+        for (track in Fixtures.tracks) {
+            scene = Fixtures.scene(track, mdpi, appearance, view = view, coverField = true)
             for (t in listOf(0.0, 47.0, 133.0, 260.0)) {
                 at = t
                 val worst = worstBehindText(scene, darkText = appearance == Appearance.LIGHT)
-                assertWithMessage("${track.title}, $lighting, $appearance, t = $t")
+                assertWithMessage("${track.title}, $appearance, t = $t")
                     .that(contrastRatio(scene.palette.inkQuiet, worst))
                     .isAtLeast(4.5f)
             }

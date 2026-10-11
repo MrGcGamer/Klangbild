@@ -7,7 +7,6 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverKind
 import io.github.hazymorning.klangbild.color.CoverPalette
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.ScenePalette
 import io.github.hazymorning.klangbild.domain.StageView
 import kotlin.math.min
@@ -39,7 +38,6 @@ class ArtworkScene(
     val wall: Bitmap,
     val palette: ScenePalette,
     val analysis: CoverAnalysis,
-    val lighting: Lighting,
     /** 48 × 48 thumbnail of the cover, kept to re-light the scene without the source. */
     val thumb: IntArray,
     /** How much of the cover's color the light wall takes (the light level setting). */
@@ -76,7 +74,6 @@ object SceneBuilder {
         source: Bitmap?,
         artSeed: String,
         screen: ScreenSpec,
-        lighting: Lighting,
         appearance: Appearance = Appearance.DARK,
         wallTint: Float = 1f,
         view: StageView = StageView.SINGLE,
@@ -111,15 +108,15 @@ object SceneBuilder {
         }
         val cover = Bitmap.createBitmap(coverPixels, coverSize, coverSize, Bitmap.Config.ARGB_8888)
         val analysis = CoverPalette.analyze(thumb)
-        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, lighting, thumb, appearance, wallTint, coverField)
+        return assemble(key, layout, cover, shape, source == null, nativePx, analysis, thumb, appearance, wallTint, coverField)
     }
 
-    /** Re-light an existing scene (time of day, appearance or wall tint changed) without the source image. */
-    fun relight(scene: ArtworkScene, lighting: Lighting, appearance: Appearance, wallTint: Float, coverField: Boolean = scene.coverField): ArtworkScene {
+    /** Re-light an existing scene (appearance, wall tint or background changed) without the source image. */
+    fun relight(scene: ArtworkScene, appearance: Appearance, wallTint: Float, coverField: Boolean = scene.coverField): ArtworkScene {
         val sameWall = scene.appearance == appearance
         return assemble(
             scene.key, scene.layout, scene.cover, scene.shape, scene.coverGenerated,
-            scene.coverNativePx, scene.analysis, lighting, scene.thumb, appearance, wallTint, coverField,
+            scene.coverNativePx, scene.analysis, scene.thumb, appearance, wallTint, coverField,
             // The card only changes with the wall (its mirror image and hairline).
             card = scene.card.takeIf { sameWall },
         )
@@ -133,18 +130,17 @@ object SceneBuilder {
         generated: Boolean,
         nativePx: Int?,
         analysis: CoverAnalysis,
-        lighting: Lighting,
         thumb: IntArray,
         appearance: Appearance,
         wallTint: Float,
         coverField: Boolean,
         card: FlowCard? = null,
     ): ArtworkScene {
-        val palette = CoverPalette.derive(analysis, lighting, appearance, wallTint, cover = coverField)
+        val palette = CoverPalette.derive(analysis, appearance, wallTint, cover = coverField)
         val flow = layout.view == StageView.FLOW
         // The cover's colors: the wall itself with "cover colors", otherwise only for the lights.
         val field = CoverField.build(
-            thumb, THUMB, analysis, lighting, appearance, strength = wallTint,
+            thumb, THUMB, analysis, appearance, strength = wallTint,
             layout = layout.takeIf { coverField }, quietInk = palette.inkQuiet,
         )
         val wall = when {
@@ -152,11 +148,11 @@ object SceneBuilder {
             coverField -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
             flow && appearance == Appearance.DARK -> {
                 // The light above the cards takes the print's top edge.
-                Bitmap.createBitmap(FlowLight.field(FlowLight.topEdge(thumb, THUMB), layout, lighting), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
+                Bitmap.createBitmap(FlowLight.field(FlowLight.topEdge(thumb, THUMB), layout), FlowLight.MAP_W, FlowLight.MAP_H, Bitmap.Config.ARGB_8888)
             }
             appearance == Appearance.DARK -> {
                 // The wall sees the outside of the picture: its edges.
-                Bitmap.createBitmap(WallGlow.field(thumb, THUMB, shape, layout.screen, lighting), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
+                Bitmap.createBitmap(WallGlow.field(thumb, THUMB, shape, layout.screen), WallGlow.MAP_W, WallGlow.MAP_H, Bitmap.Config.ARGB_8888)
             }
             // Paper, in Cover Flow as around the single print.
             else -> Bitmap.createBitmap(IntArray(16) { palette.wall }, 4, 4, Bitmap.Config.ARGB_8888)
@@ -180,7 +176,6 @@ object SceneBuilder {
             wall = wall,
             palette = palette,
             analysis = analysis,
-            lighting = lighting,
             thumb = thumb,
             wallTint = wallTint,
             card = flowCard,

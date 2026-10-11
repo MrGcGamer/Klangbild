@@ -8,7 +8,6 @@ import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.art.SyntheticCovers
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.TrackText
@@ -51,24 +50,22 @@ object Fixtures {
     fun scene(
         track: TrackInfo,
         screen: ScreenSpec = ScreenSpec.TV_1080,
-        lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
         view: StageView = StageView.SINGLE,
         coverField: Boolean = false,
     ): ArtworkScene {
         val cover = track.artworkUrl?.removePrefix(Catalogue.SCHEME)?.let { SyntheticCover.valueOf(it) }
         val bmp = cover?.let { SyntheticCovers.render(it) }
-        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, lighting, appearance, view = view, coverField = coverField)
+        return SceneBuilder.build(track.key, bmp, track.artSeed, screen, appearance, view = view, coverField = coverField)
     }
 
     /** Cover flow scenes for [tracks] (the middle one is the current track). */
     fun flowScenes(
         tracks: List<TrackInfo>,
         appearance: Appearance = Appearance.DARK,
-        lighting: Lighting = Lighting.DAY,
         screen: ScreenSpec = ScreenSpec.TV_1080,
         coverField: Boolean = false,
-    ) = tracks.map { scene(it, screen, lighting, appearance, StageView.FLOW, coverField) }
+    ) = tracks.map { scene(it, screen, appearance, StageView.FLOW, coverField) }
 
     /** The cards of [scenes] at rest, the one at [current] in the middle. */
     fun restingCards(scenes: List<ArtworkScene>, current: Int) =
@@ -80,13 +77,12 @@ object Fixtures {
         status: PlayerStatus = PlayerStatus.PLAYING,
         positionMs: Long? = track.durationMs?.let { it / 3 },
         screen: ScreenSpec = ScreenSpec.TV_1080,
-        lighting: Lighting = Lighting.DAY,
         clock: String? = "21:47",
         group: String? = null,
         t: Texts = texts,
         lead: String? = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, t = t),
         appearance: Appearance = Appearance.DARK,
-        scene: ArtworkScene = scene(track, screen, lighting, appearance),
+        scene: ArtworkScene = scene(track, screen, appearance),
         album: Boolean = true,
         progress: Boolean = true,
         linkDown: Boolean = false,
@@ -153,10 +149,9 @@ object Fixtures {
     fun stage(
         track: TrackInfo,
         screen: ScreenSpec = ScreenSpec.TV_1080,
-        lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
         coverField: Boolean = false,
-    ) = StageData(track, scene(track, screen, lighting, appearance, coverField = coverField))
+    ) = StageData(track, scene(track, screen, appearance, coverField = coverField))
 
     /** A cover flow of [scenes] (ids as given), the card with id [middle] in the middle. */
     fun flow(scenes: Map<Long, ArtworkScene>, ids: List<Long>, middle: Long): FlowData {

@@ -6,7 +6,7 @@ import io.github.hazymorning.klangbild.color.CoverAnalysis
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lab
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.domain.StageView
 import kotlin.math.PI
@@ -127,7 +127,6 @@ object CoverField {
         thumb: IntArray,
         size: Int,
         analysis: CoverAnalysis,
-        lighting: Lighting,
         appearance: Appearance,
         strength: Float,
         layout: HaloLayout?,
@@ -139,7 +138,7 @@ object CoverField {
         val seed = sources.fold(17) { h, src -> 31 * h + (src.lab.l * 997).toInt() + (src.lab.a * 7919).toInt() + (src.lab.b * 104729).toInt() }
         val rnd = kotlin.random.Random(seed)
         val dominant = sources.maxBy { it.weight }
-        val base = tone(dominant.lab, Tier.GROUND, s, lighting, dark)
+        val base = tone(dominant.lab, Tier.GROUND, s, dark)
         // Each color gets a mass of its own: a large deep pool where the color sits in the cover,
         // spread over the whole screen and kept apart from the others, so the screen shows the
         // cover's colors side by side instead of one mixed tone. The dominant color lies
@@ -147,21 +146,21 @@ object CoverField {
         val masses = sources.take(5)
         val homes = spread(masses.map { home(it, rnd) }, MIN_APART)
         val blobs = ArrayList<FieldBlob>()
-        for ((i, src) in masses.withIndex()) blobs += blob(src, Tier.FAR, homes[i], s, lighting, dark, rnd)
+        for ((i, src) in masses.withIndex()) blobs += blob(src, Tier.FAR, homes[i], s, dark, rnd)
         // Inside the most characteristic masses a lighter core sits off the middle. The mass gets
         // depth (a deep rim, a lit core) and changes shape as the two drift apart and together.
         val characteristic = masses.indices.sortedByDescending { masses[it].score }.take(3)
         for (i in characteristic) {
             val h = homes[i]
             val core = floatArrayOf(h[0] + rnd.r(-0.1f, 0.1f), h[1] + rnd.r(-0.1f, 0.1f))
-            blobs += blob(masses[i], Tier.MIDDLE, core, s, lighting, dark, rnd)
+            blobs += blob(masses[i], Tier.MIDDLE, core, s, dark, rnd)
         }
         // In front: one or two pools of light in the cover's brightest colorful tones, on the
         // picture's side of the screen (around and behind it, never under the text).
         val bright = sources.sortedByDescending { it.score * (0.5f + it.lab.l) }.take(if (sources.size >= 3) 2 else 1)
         for ((k, src) in bright.withIndex()) {
             val near = floatArrayOf(if (k == 0) rnd.r(0.04f, 0.2f) else rnd.r(0.2f, 0.34f), if (k == 0) rnd.r(0.08f, 0.35f) else rnd.r(0.65f, 0.92f))
-            blobs += blob(src, Tier.NEAR, near, s, lighting, dark, rnd)
+            blobs += blob(src, Tier.NEAR, near, s, dark, rnd)
         }
         val field = FieldScene(base, linear(dominant.lab), blobs, null, dark)
         if (layout == null) return field
@@ -258,7 +257,7 @@ object CoverField {
      * than the cover's average does (rich, but never neon). On paper the same steps are pale
      * washes, the pools a shade deeper than the paper, the light in front whiter.
      */
-    private fun tone(lab: Lab, tier: Tier, s: Float, lighting: Lighting, dark: Boolean): Int {
+    private fun tone(lab: Lab, tier: Tier, s: Float, dark: Boolean): Int {
         val lch = lab.toLch()
         // A neutral color takes on a slight trace of the lamp's warm hue.
         val neutral = lch.c < 0.025f
@@ -306,7 +305,7 @@ object CoverField {
                 }
             }
         }
-        return Oklab.gamutMap(lighting.apply(Lch(l, c, hue).toLab())).toArgb()
+        return Oklab.gamutMap(Lamp.apply(Lch(l, c, hue).toLab())).toArgb()
     }
 
     private fun linear(lab: Lab): FloatArray = Oklab.toLinear(Oklab.gamutMap(lab)).also { for (i in 0..2) it[i] = it[i].coerceIn(0f, 1f) }
@@ -315,11 +314,11 @@ object CoverField {
      * One pool of [src]'s color at [tier] around [home]. Far ones are large, very soft and slow;
      * near ones are small, a little firmer and quicker (parallax).
      */
-    private fun blob(src: Source, tier: Tier, home: FloatArray, s: Float, lighting: Lighting, dark: Boolean, rnd: kotlin.random.Random): FieldBlob {
+    private fun blob(src: Source, tier: Tier, home: FloatArray, s: Float, dark: Boolean, rnd: kotlin.random.Random): FieldBlob {
         fun r(a: Float, b: Float) = rnd.r(a, b)
         fun turn(fast: Float, slow: Float) = (if (rnd.nextBoolean()) 1 else -1) * r(360f / slow, 360f / fast)
         val w = sqrt(src.weight.coerceIn(0.02f, 1f))
-        val colour = tone(src.lab, tier, s, lighting, dark)
+        val colour = tone(src.lab, tier, s, dark)
         val light = linear(src.lab)
         val phase = FloatArray(5) { r(0f, 6.2832f) }
         return when (tier) {

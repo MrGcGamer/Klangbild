@@ -10,7 +10,6 @@ import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.ActionState
 import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.config.QuickKey
@@ -62,7 +61,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.PICTURE, playing), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, playing), Appearance.DARK)
                 }
             }
         }
@@ -70,7 +69,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Appearance.DARK)
                 }
             }
         }
@@ -79,7 +78,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(light, next = Fixtures.spiegel, appearance = Appearance.LIGHT))
-                    QuickBar(state(QuickItem.SHUFFLE, playing), Lighting.DAY, Appearance.LIGHT)
+                    QuickBar(state(QuickItem.SHUFFLE, playing), Appearance.LIGHT)
                 }
             }
         }
@@ -88,7 +87,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.PICTURE, QuickContext(music = true), Settings()), Lighting.EVENING, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, QuickContext(music = true), Settings()), Appearance.DARK)
                 }
             }
         }
@@ -114,7 +113,7 @@ class QuickBarTest {
                 Fixtures.Still(t) {
                     Box(Modifier.fillMaxSize()) {
                         Stage(Fixtures.model(track, next = Fixtures.spiegel, t = t))
-                        QuickBar(QuickState(rows, rows.indexOfFirst { it.key == focus }), Lighting.DAY, Appearance.DARK)
+                        QuickBar(QuickState(rows, rows.indexOfFirst { it.key == focus }), Appearance.DARK)
                     }
                 }
             }
@@ -140,7 +139,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     VistaScreen(ui, ui.vista!!, clock, positionNow = { 60_000L }, now = { t }, modifier = Modifier.fillMaxSize())
-                    QuickBar(state(QuickItem.PICTURE, playing.copy(vista = true)), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, playing.copy(vista = true)), Appearance.DARK)
                 }
             }
         }

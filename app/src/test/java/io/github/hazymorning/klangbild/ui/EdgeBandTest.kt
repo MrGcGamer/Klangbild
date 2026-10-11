@@ -136,7 +136,7 @@ class EdgeBandTest {
         val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext(), Fixtures.texts)
         var cursor by mutableStateOf(0)
-        compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), io.github.hazymorning.klangbild.color.Lighting.DAY) } }
+        compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor)) } }
         for (c in listOf(0, rows.size / 2, rows.size - 1)) {
             cursor = c
             assertWithMessage(rows[c].label).that(brightestInBand()).isEqualTo(0)

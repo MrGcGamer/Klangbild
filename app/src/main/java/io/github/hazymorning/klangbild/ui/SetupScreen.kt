@@ -33,7 +33,6 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.SetupReason
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.render.HaloLayout
@@ -77,13 +76,12 @@ object SetupArt {
         return bmp
     }
 
-    fun scene(info: SetupInfo?, screen: ScreenSpec, lighting: Lighting, appearance: Appearance = Appearance.DARK): ArtworkScene {
-        // The code hangs where the artwork would; setup asks for action, so it takes only a
-        // little of the evening's dimming.
+    fun scene(info: SetupInfo?, screen: ScreenSpec, appearance: Appearance = Appearance.DARK): ArtworkScene {
+        // The code hangs where the artwork would.
         val layout = HaloLayout(screen)
         val px = (layout.art * screen.density).toInt()
         val card = card(info?.qr, px, appearance)
-        return SceneBuilder.build("setup|${info?.url}|${info?.code}", card, "setup", screen, Lighting.DAY.lerp(lighting, 0.35f), appearance)
+        return SceneBuilder.build("setup|${info?.url}|${info?.code}", card, "setup", screen, appearance)
     }
 
     /** "http://192.168.1.23:8765" → "192.168.1.23:8765" (what people actually type). */

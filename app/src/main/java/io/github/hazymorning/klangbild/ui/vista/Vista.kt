@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.ui.LocalStageTick
 import io.github.hazymorning.klangbild.ui.LocalStill
 import io.github.hazymorning.klangbild.ui.QuietColors
@@ -188,7 +187,7 @@ internal fun VistaWaiting(ready: Boolean) {
         }
     }
     if (gone) return
-    val ink = remember { QuietColors.of(Lighting.DAY).secondary }
+    val ink = remember { QuietColors.of().secondary }
     val turn: () -> Float = if (still) {
         { 0f }
     } else {

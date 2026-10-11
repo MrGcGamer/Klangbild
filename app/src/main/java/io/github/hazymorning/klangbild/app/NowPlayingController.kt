@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.app
 import android.util.Log
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
 import io.github.hazymorning.klangbild.config.BackgroundMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
@@ -38,6 +37,7 @@ import io.github.hazymorning.klangbild.domain.ScreenDecision
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
 import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.SunClock
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.VistaPolicy
@@ -101,7 +101,6 @@ data class UiState(
     val view: StageView = StageView.SINGLE,
     /** The cover flow (in [StageView.FLOW]); like [stage] it may lag behind [screen]. */
     val flow: FlowData? = null,
-    val lighting: Lighting = Lighting.DAY,
     /** Light wall by day, dark at night (or as set). */
     val appearance: Appearance = Appearance.DARK,
     /** What the stage shows (clock, progress, album and so on) and how strong its light is. */
@@ -646,7 +645,7 @@ class NowPlayingController(
         quick.expire(t, menu.isOpen)
         val decision: ScreenDecision = machine.decide(src, t)
         val appearance = appearanceFor(s, src)
-        val look = Look(Lighting.DAY, appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
+        val look = Look(appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
         val stage = decision.screen as? Screen.Stage
         val playing = stage?.status == PlayerStatus.PLAYING && !stage.linkDown
         val speed = src.player?.speed ?: 1f
@@ -710,7 +709,7 @@ class NowPlayingController(
             AppearanceMode.DARK -> Appearance.DARK
             AppearanceMode.AUTO -> {
                 val elevation = src.sunElevation ?: Calendar.getInstance().apply { timeInMillis = now() }
-                    .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
+                    .let { SunClock.elevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
                 Appearance.bySun(elevation, lastAppearance)
             }
         }

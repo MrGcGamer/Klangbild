@@ -5,7 +5,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.ui.flow.FlowStage
 import io.github.hazymorning.klangbild.ui.stage.FieldTime
@@ -23,13 +22,13 @@ import org.robolectric.annotation.GraphicsMode
 class CoverFieldTest {
     private val spiegel = Fixtures.spiegel
 
-    private fun stage(name: String, cover: SyntheticCover, appearance: Appearance = Appearance.DARK, lighting: Lighting = Lighting.DAY, at: Double = 0.0) {
+    private fun stage(name: String, cover: SyntheticCover, appearance: Appearance = Appearance.DARK, at: Double = 0.0) {
         val track = Fixtures.track(cover)
-        val scene = Fixtures.scene(track, appearance = appearance, lighting = lighting, coverField = true)
+        val scene = Fixtures.scene(track, appearance = appearance, coverField = true)
         captureRoboImage("build/screenshots/cover_field/$name.png") {
             Fixtures.Still {
                 CompositionLocalProvider(LocalFieldTime provides FieldTime({ at }, false)) {
-                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, lighting = lighting, appearance = appearance))
+                    Stage(Fixtures.model(track, next = spiegel, group = "Wohnzimmer", scene = scene, appearance = appearance))
                 }
             }
         }
@@ -41,7 +40,6 @@ class CoverFieldTest {
     @Test fun moss() = stage("field_moos", SyntheticCover.MOSS)
     @Test fun bauhaus() = stage("field_bauhaus", SyntheticCover.BAUHAUS)
     @Test fun pale() = stage("field_leerraum", SyntheticCover.WHITE_SPACE)
-    @Test fun night() = stage("field_night", SyntheticCover.NIGHT_DRIVE, lighting = Lighting.NIGHT)
     @Test fun paper() = stage("field_paper_salzwasser", SyntheticCover.SALT_WATER, Appearance.LIGHT)
     @Test fun paperTerracotta() = stage("field_paper_terrakotta", SyntheticCover.TERRACOTTA, Appearance.LIGHT)
 

@@ -176,13 +176,12 @@ object CoverPalette {
             (1f - (2f * c.lab.l - 1.1f).pow(2)).coerceAtLeast(0.15f)
 
     /**
-     * The palette for [analysis] under [lighting] on a [appearance] wall. [wallTint] scales
+     * The palette for [analysis] on a [appearance] wall, seen in the [Lamp]. [wallTint] scales
      * how much of the cover's color the light wall takes (the Intensity setting; 0 = plain
      * paper).
      */
     fun derive(
         analysis: CoverAnalysis,
-        lighting: Lighting = Lighting.DAY,
         appearance: Appearance = Appearance.DARK,
         wallTint: Float = 1f,
         cover: Boolean = false,
@@ -195,23 +194,16 @@ object CoverPalette {
         // Text is near-neutral: only a breath of the cover's hue so it belongs to the
         // picture, but never ivory. A neutral cover gets neutral text.
         val neutralChroma = if (lead == null) 0.003f else min(0.009f, lead.chroma * 0.08f + 0.002f)
-        // In the evening the text takes the warm light's hue rather than the cover's: a rosy tint
-        // under amber light reads as pink. The text is also a little warm itself.
-        val evening = ((lighting.warmth - Lighting.DAY.warmth) / (Lighting.EVENING.warmth - Lighting.DAY.warmth)).coerceIn(0f, 1f)
-        val inkHue = mixHue(hue, WARM_HUE, 0.85f * evening)
         // On the cover's own colors the text takes a little more of their hue, but stays near-neutral.
-        val inkChroma = neutralChroma * (if (cover) 1.6f else 1f) + 0.008f * evening
+        val inkChroma = neutralChroma * (if (cover) 1.6f else 1f)
 
         // Three levels (lightness in Oklab): the title; artist, clock and the progress bar's
         // fill; everything else. On black they look like white at 100 / 80 / 62 %, on paper they
         // take the same steps down from near-black. Grays closer than that look like a mistake side by side.
         val levels = if (appearance == Appearance.DARK) {
-            // At night the text must not outshine the dimmed cover, so it goes a little lower than
-            // the light alone would make it, but never below [NIGHT_INK_FLOOR]. On the cover's
-            // own colors the lower two levels stand a little lighter: they are read against color, not black.
-            val nightness = ((1f - lighting.brightness) / 0.4f).coerceIn(0f, 1f)
-            val t = 1f - 0.10f * nightness
-            if (cover) floatArrayOf(0.94f * t, 0.82f * t, 0.71f * t) else floatArrayOf(0.93f * t, 0.80f * t, 0.665f * t)
+            // On the cover's own colors the lower two levels stand a little lighter: they are read
+            // against color, not black.
+            if (cover) floatArrayOf(0.94f, 0.82f, 0.71f) else floatArrayOf(0.93f, 0.80f, 0.665f)
         } else {
             floatArrayOf(LIGHT_INK, LIGHT_INK + 0.13f, LIGHT_INK + 0.25f)
         }
@@ -230,24 +222,18 @@ object CoverPalette {
             }
             val away = hueDistance(pulled, paperHue)
             val paperTint = tint * (1f - away / 90f).coerceIn(0f, 1f)
-            lighting.apply(Lch(PAPER, 0.005f + paperTint, paperHue).toLab()).toArgb()
+            Lamp.apply(Lch(PAPER, 0.005f + paperTint, paperHue).toLab()).toArgb()
         }
-        // The light of the hour warms the text a little: never more than twice the day's color.
-        // However late it is, every level stays readable: on black none falls below
-        // [NIGHT_INK_FLOOR], and on paper dimmed by the night the quietest still keeps 4.5:1.
-        // On the pale cover field the text stands on its darkest part, not on the paper.
+        // On paper the quietest level still keeps 4.5:1. On the pale cover field the text stands
+        // on its darkest part, not on the paper.
         val paperLimit = when {
             appearance == Appearance.DARK -> 1f
-            cover -> min(lightestInkOn(wall), lightestInkOn(lighting.apply(Lch(FIELD_PALEST_DARK, 0.04f, hue).toLab()).toArgb()))
+            cover -> min(lightestInkOn(wall), lightestInkOn(Lamp.apply(Lch(FIELD_PALEST_DARK, 0.04f, hue).toLab()).toArgb()))
             else -> lightestInkOn(wall)
         }
         fun ink(level: Int): Int {
-            val lit = lighting.apply(Lch(levels[level], inkChroma, inkHue).toLab()).toLch()
-            val l = if (appearance == Appearance.DARK) {
-                maxOf(lit.l, (if (cover) FIELD_INK_FLOOR else NIGHT_INK_FLOOR)[level])
-            } else {
-                minOf(lit.l, paperLimit - INK_STEP * (2 - level))
-            }
+            val lit = Lamp.apply(Lch(levels[level], inkChroma, hue).toLab()).toLch()
+            val l = if (appearance == Appearance.DARK) lit.l else minOf(lit.l, paperLimit - INK_STEP * (2 - level))
             return Lch(l, min(lit.c, MAX_INK_CHROMA), lit.h).toLab().toArgb()
         }
         val muted = ink(1)
@@ -256,10 +242,9 @@ object CoverPalette {
         val accent = if (!cover || lead == null) {
             muted
         } else if (appearance == Appearance.DARK) {
-            val lit = lighting.apply(Lch(0.80f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.12f), lead.hue).toLab()).toLch()
-            Lch(maxOf(lit.l, NIGHT_INK_FLOOR[1]), lit.c, lit.h).toLab().toArgb()
+            Lamp.apply(Lch(0.80f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.12f), lead.hue).toLab()).toArgb()
         } else {
-            val lit = lighting.apply(Lch(0.44f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.11f), lead.hue).toLab()).toLch()
+            val lit = Lamp.apply(Lch(0.44f, (lead.chroma * 0.9f).coerceIn(0.05f, 0.11f), lead.hue).toLab()).toLch()
             Lch(minOf(lit.l, paperLimit - INK_STEP), lit.c, lit.h).toLab().toArgb()
         }
         return ScenePalette(
@@ -280,19 +265,16 @@ object CoverPalette {
     /** The hues paper may take (degrees): from peach to straw. */
     val PAPER_HUES = 50f..90f
 
-    /** The most color text takes, even in the warmest light of the evening. */
+    /** The most color text takes. */
     const val MAX_INK_CHROMA = 0.018f
 
     /**
-     * The least lightness (Oklab) of the three text levels on black, however dark the night:
-     * the quietest still 4.5:1, the steps between the levels kept.
+     * The least lightness (Oklab) of three text levels on a dark ground, however dark the night
+     * (the window view's label): the quietest still 4.5:1, the steps between the levels kept.
      */
     val NIGHT_INK_FLOOR = floatArrayOf(0.79f, 0.68f, 0.57f)
 
-    /** The same on the cover's own colors, which stay lighter than black at night. */
-    val FIELD_INK_FLOOR = floatArrayOf(0.81f, 0.71f, 0.62f)
-
-    /** The darkest the pale cover field gets (Oklab L, before the hour's light): text is set against it. */
+    /** The darkest the pale cover field gets (Oklab L): text is set against it. */
     const val FIELD_PALEST_DARK = 0.87f
 
     /** The least step in lightness between two text levels where one has to give way. */

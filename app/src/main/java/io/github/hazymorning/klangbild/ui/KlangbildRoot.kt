@@ -156,14 +156,13 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
                     // A group is named here too: "Living room + 5 · Paused".
                     speaker = c.speaker?.let { name -> SpeakerLabel.group(ui.source.group, t).takeIf { ui.display.group } ?: name },
                     entityId = ui.entityId,
-                    lighting = ui.lighting,
                     nowMs = wall.value,
                     lightFactor = ui.display.light.factor,
                     appearance = c.appearance,
                 )
                 is Content.VistaContent -> VistaScreen(ui, c.vista, hooks.vistaClock, hooks.positionNow, hooks.now)
                 is Content.SetupContent -> {
-                    val scene = rememberOffMain(ui.setup, screen, ui.lighting, c.appearance) { SetupArt.scene(ui.setup, screen, ui.lighting, c.appearance) }
+                    val scene = rememberOffMain(ui.setup, screen, c.appearance) { SetupArt.scene(ui.setup, screen, c.appearance) }
                     if (scene != null) SetupScreen(c.reason, ui.setup, scene) else Box(Modifier.fillMaxSize())
                 }
                 Content.Dark -> Box(Modifier.fillMaxSize())
@@ -171,8 +170,8 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
         }
         // The quick settings rise from the bottom edge over whatever shows (over the landscape on
         // its dark ground); the settings menu lies over everything. Both come and go on their own.
-        QuickBarOverlay(ui.quick, ui.lighting, if (content is Content.VistaContent) Appearance.DARK else ui.appearance)
-        MenuOverlay(ui.menu, ui.lighting, ui.appearance)
+        QuickBarOverlay(ui.quick, if (content is Content.VistaContent) Appearance.DARK else ui.appearance)
+        MenuOverlay(ui.menu, ui.appearance)
     }
 }
 

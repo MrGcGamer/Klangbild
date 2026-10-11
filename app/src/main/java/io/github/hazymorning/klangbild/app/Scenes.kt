@@ -1,7 +1,6 @@
 package io.github.hazymorning.klangbild.app
 
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.data.ArtworkLoader
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -15,19 +14,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.abs
 
 /**
- * How scenes are lit: the time of day, the wall, how much color a light wall takes (the light
- * level, which also sets how colorful the cover's colors are), and whether the cover's
- * colors are the wall ([coverField]).
+ * How scenes are lit: the wall, how much color a light wall takes (the light level, which also
+ * sets how colorful the cover's colors are), and whether the cover's colors are the wall
+ * ([coverField]).
  */
-data class Look(val lighting: Lighting, val appearance: Appearance, val wallTint: Float, val coverField: Boolean = false) {
+data class Look(val appearance: Appearance, val wallTint: Float, val coverField: Boolean = false) {
     fun fits(scene: ArtworkScene) =
         scene.appearance == appearance &&
             scene.coverField == coverField &&
-            abs(scene.lighting.brightness - lighting.brightness) < 0.03f &&
-            abs(scene.lighting.warmth - lighting.warmth) < 0.05f &&
             (appearance == Appearance.DARK && !coverField || scene.wallTint == wallTint)
 }
 
@@ -101,7 +97,7 @@ class Scenes(
     private suspend fun make(track: TrackInfo, key: String, old: ArtworkScene?, look: Look, forFrame: Frame, done: (ArtworkScene) -> Unit) {
         val scene = try {
             if (old != null) {
-                withContext(dispatcher) { SceneBuilder.relight(old, look.lighting, look.appearance, look.wallTint, look.coverField) }
+                withContext(dispatcher) { SceneBuilder.relight(old, look.appearance, look.wallTint, look.coverField) }
             } else {
                 build(track, look, forFrame)
             }
@@ -130,7 +126,6 @@ class Scenes(
                 source = bitmap,
                 artSeed = track.artSeed,
                 screen = frame.screen,
-                lighting = look.lighting,
                 appearance = look.appearance,
                 wallTint = look.wallTint,
                 view = frame.view,

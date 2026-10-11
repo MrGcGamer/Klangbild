@@ -39,7 +39,7 @@ enum class Change {
     /** New track, same picture (the next song of an album): only the text changes. */
     TEXT,
 
-    /** Same track, new scene (better cover, time-of-day light): a quiet cross-fade. */
+    /** Same track, new scene (a better cover): a quiet cross-fade. */
     SOFT,
 
     /** Same track on the other wall (light ↔ dark): the same cross-fade, slower, like the light outside. */

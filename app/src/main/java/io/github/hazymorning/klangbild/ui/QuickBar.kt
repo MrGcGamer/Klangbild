@@ -39,7 +39,7 @@ import io.github.hazymorning.klangbild.app.QuickState
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.render.HaloLight
 import io.github.hazymorning.klangbild.render.ImageOps
 import io.github.hazymorning.klangbild.render.LinearImage
@@ -101,7 +101,7 @@ object QuickGrid {
  * places whatever their values say, so nothing jumps while a value changes.
  */
 @Composable
-fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
+fun QuickBarOverlay(quick: QuickState?, appearance: Appearance, modifier: Modifier = Modifier) {
     // The last state stays while the row sinks away.
     val last = remember { arrayOfNulls<QuickState>(1) }
     if (quick != null) last[0] = quick
@@ -114,7 +114,7 @@ fun QuickBarOverlay(quick: QuickState?, lighting: Lighting, appearance: Appearan
     val state = quick ?: last[0] ?: return
     // It rises as it fades in. It is faded draw by draw, not through a layer of the screen's size,
     // which would cut its ground off at the screen's edges while it moves.
-    QuickBar(state, lighting, appearance, modifier.graphicsLayer {
+    QuickBar(state, appearance, modifier.graphicsLayer {
         val v = shown.value
         alpha = v
         translationY = (1f - v) * QuickGrid.RISE * density
@@ -132,12 +132,12 @@ private class QuickColors(
     val valueFocus: Color,
 ) {
     companion object {
-        fun of(lighting: Lighting, appearance: Appearance): QuickColors {
-            fun c(l: Float, chroma: Float = 0.004f) = Color(lighting.applyArgb(Lch(l, chroma, HaloLight.LAMP_HUE).toArgb()))
+        fun of(appearance: Appearance): QuickColors {
+            fun c(l: Float, chroma: Float = 0.004f) = Color(Lamp.applyArgb(Lch(l, chroma, HaloLight.LAMP_HUE).toArgb()))
             return if (appearance == Appearance.DARK) {
                 QuickColors(
                     veil = Color.Black,
-                    band = Color(HaloLight.lightTint(HaloLight.LAMP, GLOW_PEAK, lighting)),
+                    band = Color(HaloLight.lightTint(HaloLight.LAMP, GLOW_PEAK)),
                     label = c(0.56f),
                     labelFocus = c(0.74f),
                     value = c(0.66f),
@@ -158,10 +158,8 @@ private class QuickColors(
 }
 
 @Composable
-fun QuickBar(quick: QuickState, lighting: Lighting, appearance: Appearance, modifier: Modifier = Modifier) {
-    // Like the menu: asking for a choice, it takes only a little of the evening's dimming.
-    val light = remember(lighting) { Lighting.DAY.lerp(lighting, 0.35f) }
-    val colors = remember(light, appearance) { QuickColors.of(light, appearance) }
+fun QuickBar(quick: QuickState, appearance: Appearance, modifier: Modifier = Modifier) {
+    val colors = remember(appearance) { QuickColors.of(appearance) }
     val labelStyle = remember { textType(QuickGrid.LABEL_SP, QuickGrid.LABEL_WEIGHT) }
     val valueStyle = remember { textType(QuickGrid.VALUE_SP, QuickGrid.VALUE_WEIGHT) }
     val measurer = rememberTextMeasurer(cacheSize = 32)

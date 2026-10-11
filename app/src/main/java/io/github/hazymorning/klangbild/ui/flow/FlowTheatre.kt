@@ -55,7 +55,7 @@ private enum class FlowChange {
     /** Only cards beside the middle came or went (the queue changed). */
     SIDES,
 
-    /** Same track, new scene (better cover, time-of-day light): a quiet cross-fade. */
+    /** Same track, new scene (a better cover): a quiet cross-fade. */
     SOFT,
 
     /** Same track on the other wall (light ↔ dark): the same, slower. */
@@ -232,13 +232,12 @@ fun FlowTheatre(
         if (prev != null && restrip) {
             // A new look of the same strip: the old cards stay underneath while the new ones come up.
             val old = prev.middle.scene
-            FlowStrip(resting(prev), geometry, old.appearance, old.lighting, old.palette.wall.asColor(), dim = { cardDim }, edges = !old.coverField, shift = { balance().cards })
+            FlowStrip(resting(prev), geometry, old.appearance, old.palette.wall.asColor(), dim = { cardDim }, edges = !old.coverField, shift = { balance().cards })
         }
         FlowStrip(
             cards = motions,
             geometry = geometry,
             appearance = appearance,
-            lighting = middle.scene.lighting,
             wall = wall,
             time = { if (softText) 1f else t.value },
             dim = { cardDim },

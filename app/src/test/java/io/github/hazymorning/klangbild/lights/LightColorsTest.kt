@@ -5,7 +5,6 @@ import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lab
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.render.CoverField
 import io.github.hazymorning.klangbild.render.FieldScene
@@ -20,7 +19,7 @@ class LightColorsTest {
         val n = 48
         // The colors side by side, from left to right.
         val thumb = IntArray(n * n) { i -> colors[(i % n) * colors.size / n] }
-        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Lighting.DAY, Appearance.DARK, 1f, layout = null)
+        return CoverField.build(thumb, n, CoverPalette.analyze(thumb), Appearance.DARK, 1f, layout = null)
     }
 
     private fun lab(rgb: FloatArray): Lab = Oklab.fromLinear(rgb[0].coerceAtLeast(0f), rgb[1].coerceAtLeast(0f), rgb[2].coerceAtLeast(0f))
