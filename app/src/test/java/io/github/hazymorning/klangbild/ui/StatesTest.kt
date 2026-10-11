@@ -47,6 +47,16 @@ class StatesTest {
         shot("stage_muted") { Fixtures.Theatre(stage, PlayerStatus.PLAYING, muted = true, group = "Küche") }
     }
 
+    /** Values of one's own after the time; with a long place, those that do not fit beside it are left out. */
+    @Test fun values() {
+        stage("stage_values", Fixtures.model(Fixtures.track(SyntheticCover.NIGHT_DRIVE), next = spiegel, group = "Wohnzimmer + 5", values = listOf("Außen 12,3\u00A0°C", "Strom 412\u00A0W")))
+        stage(
+            "stage_values_crowded",
+            Fixtures.model(Fixtures.track(SyntheticCover.MOSS), next = spiegel, group = "Wohnzimmer, Küche und Bad + 5", values = listOf("Außen 12,3\u00A0°C", "Waschmaschine fertig um 21:30")),
+        )
+        stage("stage_values_no_clock", Fixtures.model(Fixtures.track(SyntheticCover.TERRACOTTA), next = spiegel, clock = null, lead = null, values = listOf("12,3\u00A0°C")))
+    }
+
     @Test fun linkDown() = stage("stage_link_down", Fixtures.model(Fixtures.track(SyntheticCover.MIST), linkDown = true))
 
     @Test fun minimal() = stage(

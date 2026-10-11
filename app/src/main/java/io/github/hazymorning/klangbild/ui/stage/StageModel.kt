@@ -55,12 +55,14 @@ class StageModel(
 }
 
 /**
- * The quiet line at the top of the column: [clock], the time, then [lead]: where the music
- * plays, a pause or a passing volume ("Everywhere", "Paused", "Volume 35%").
+ * The quiet line at the top of the column: [clock], the time, then the [values] of one's own
+ * ("Outside 12 °C"), then [lead]: where the music plays, a pause or a passing volume
+ * ("Everywhere", "Paused", "Volume 35%"). The lead always has its room; values that do not fit
+ * beside it are left out, from the last.
  */
 @Immutable
-data class StatusLine(val lead: String?, val clock: String?) {
-    val isEmpty get() = lead == null && clock == null
+data class StatusLine(val lead: String?, val clock: String?, val values: List<String> = emptyList()) {
+    val isEmpty get() = lead == null && clock == null && values.isEmpty()
 }
 
 /** The stage's words for states and what comes next. */

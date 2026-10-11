@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.app
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.github.hazymorning.klangbild.config.Condition
 import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.Settings
@@ -9,6 +10,7 @@ import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
+import io.github.hazymorning.klangbild.data.ha.EntityState
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -23,6 +25,9 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -30,7 +35,7 @@ import org.robolectric.annotation.Config
 /**
  * The quick settings' own buttons on the TV: OK does what a button says, once at a time, and the
  * row says how it went; a switch shows its new state at once; a button whose entity cannot be
- * used is left out.
+ * used, or whose condition does not hold, is left out.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -47,6 +52,7 @@ class QuickControlTest {
     private inner class FakeSource : NowPlayingSource {
         override val state: StateFlow<SourceState> = MutableStateFlow(SourceState(LinkState.CONNECTED))
         val ran = mutableListOf<String>()
+        val variables = mutableListOf<JsonObject>()
         var answer = CompletableDeferred<Boolean>()
         override fun start() = Unit
         override fun stop() = Unit
@@ -54,6 +60,7 @@ class QuickControlTest {
         override suspend fun seek(positionMs: Long) = Unit
         override suspend fun run(action: QuickAction): Boolean {
             ran += action.entity
+            variables += action.variables
             return answer.await()
         }
     }
@@ -61,14 +68,26 @@ class QuickControlTest {
     private val source = FakeSource()
     private var ui = UiState(
         screen = Screen.Stage(TrackInfo("Song", listOf("A")), PlayerStatus.PLAYING, null),
-        source = SourceState(LinkState.CONNECTED, actions = mapOf(ungroup.entity to "off", party.entity to "off", gone.entity to "unavailable")),
+        source = SourceState(LinkState.CONNECTED, entities = states(ungroup.entity to "off", party.entity to "off", gone.entity to "unavailable")),
     )
+
+    /** Home Assistant's states for entities (`id to state`, attributes as JSON after a `|`). */
+    private fun states(vararg s: Pair<String, String>): Map<String, EntityState> = s.associate { (id, v) ->
+        val attrs = v.substringAfter('|', "{}")
+        id to EntityState(id, v.substringBefore('|'), Json.parseToJsonElement(attrs).jsonObject, 0.0, 0.0)
+    }
+
+    private fun report(vararg s: Pair<String, String>) {
+        ui = ui.copy(source = ui.source.copy(entities = ui.source.entities + states(*s)))
+    }
+
+    private var actions = listOf(ungroup, gone, party)
 
     private val host = object : ControllerHost {
         override val lock: Any = this
         override val scope = test
         override val now: () -> Long = { test.testScheduler.currentTime }
-        override val settings = Settings(quickActions = listOf(ungroup, gone, party))
+        override val settings get() = Settings(quickActions = actions)
         override val ui: UiState get() = this@QuickControlTest.ui
         override val source: NowPlayingSource = this@QuickControlTest.source
         override val texts: Texts = TestTexts.english()
@@ -129,7 +148,7 @@ class QuickControlTest {
         source.answer.complete(true)
         test.runCurrent()
         assertThat(value(party.entity)).isEqualTo("On")
-        ui = ui.copy(source = ui.source.copy(actions = ui.source.actions + (party.entity to "on")))
+        report(party.entity to "on")
         assertThat(value(party.entity)).isEqualTo("On")
         // Home Assistant could not switch it: it says so, then shows what Home Assistant reports.
         source.answer = CompletableDeferred(false)
@@ -146,9 +165,50 @@ class QuickControlTest {
         quick.open(menuOpen = false)
         val shown = rows().filter { it.item == QuickItem.ACTION }.map { it.label }
         assertThat(shown).containsExactly("Ungroup", "Party").inOrder()
-        ui = ui.copy(source = ui.source.copy(actions = ui.source.actions + (gone.entity to "2026-10-10T20:00:00+00:00")))
+        report(gone.entity to "2026-10-10T20:00:00+00:00")
         assertThat(rows().filter { it.item == QuickItem.ACTION }.map { it.label }).containsExactly("Ungroup", "Gone", "Party").inOrder()
-        ui = ui.copy(source = ui.source.copy(actions = emptyMap()))
+        ui = ui.copy(source = ui.source.copy(entities = emptyMap()))
         assertThat(rows().none { it.item == QuickItem.ACTION }).isTrue()
+    }
+
+    @Test
+    fun `a button with a condition shows only while it holds, and says how it went before it goes`() {
+        // Ungroup only while the speaker plays in a group (it counts itself among the members).
+        val grouped = Condition("media_player.wz", "group_members", Condition.Test.ABOVE, "1")
+        actions = listOf(ungroup.copy(condition = grouped), party)
+        report("media_player.wz" to """playing|{"group_members":["media_player.wz"]}""")
+        quick.open(menuOpen = false)
+        assertThat(rows().filter { it.item == QuickItem.ACTION }.map { it.label }).containsExactly("Party")
+        report("media_player.wz" to """playing|{"group_members":["media_player.wz","media_player.kitchen"]}""")
+        assertThat(rows().filter { it.item == QuickItem.ACTION }.map { it.label }).containsExactly("Ungroup", "Party").inOrder()
+        // Pressed, it ungroups: the condition ends, but the button still says it is done.
+        choose(ungroup.entity)
+        quick.change()
+        source.answer.complete(true)
+        test.runCurrent()
+        report("media_player.wz" to """playing|{"group_members":["media_player.wz"]}""")
+        assertThat(value(ungroup.entity)).isEqualTo("Done")
+        test.advanceTimeBy(QuickControl.RESULT_MS + 100)
+        assertThat(rows().filter { it.item == QuickItem.ACTION }.map { it.label }).containsExactly("Party")
+        // A condition on an entity Home Assistant does not have never holds.
+        actions = listOf(ungroup.copy(condition = Condition("sensor.gone", null, Condition.Test.IS_NOT, "x")))
+        assertThat(rows().none { it.item == QuickItem.ACTION }).isTrue()
+    }
+
+    @Test
+    fun `two buttons for one script are two buttons`() {
+        val join = QuickAction("Join", "script.group", Json.parseToJsonElement("""{"mode":"join"}""").jsonObject)
+        val leave = QuickAction("Leave", "script.group", Json.parseToJsonElement("""{"mode":"leave"}""").jsonObject)
+        actions = listOf(join, leave)
+        report("script.group" to "off")
+        choose(join.entity)
+        quick.change()
+        test.runCurrent()
+        // The one is running; the other can still be pressed.
+        quick.move(+1)
+        quick.change()
+        test.runCurrent()
+        assertThat(source.ran).containsExactly("script.group", "script.group")
+        assertThat(source.variables).containsExactly(join.variables, leave.variables).inOrder()
     }
 }

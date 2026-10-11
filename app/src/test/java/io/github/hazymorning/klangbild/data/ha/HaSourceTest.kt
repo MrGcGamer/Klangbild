@@ -68,6 +68,10 @@ class HaSourceTest {
                         """{"entity_id":"input_boolean.party","state":"on","attributes":{},"last_changed":"2026-10-10T18:00:00+00:00",
                             "last_updated":"2026-10-10T18:00:00+00:00","context":{"id":"y","parent_id":null,"user_id":null}}""",
                     ).build()
+                    path == "/api/states/sensor.outside" -> MockResponse.Builder().body(
+                        """{"entity_id":"sensor.outside","state":"12.345","attributes":{"unit_of_measurement":"°C"},"last_changed":"2026-10-10T18:00:00+00:00",
+                            "last_updated":"2026-10-10T18:00:00+00:00","context":{"id":"z","parent_id":null,"user_id":null}}""",
+                    ).build()
                     else -> MockResponse.Builder().code(404).body("""{"message":"Entity not found."}""").build()
                 }
             }
@@ -105,7 +109,7 @@ class HaSourceTest {
                     ok()
                 }
                 "config/entity_registry/list_for_display" -> ok("""{"entity_categories":{},"entities":$registry}""")
-                "get_config" -> ok("""{"latitude":52.52,"longitude":13.4}""")
+                "get_config" -> ok("""{"latitude":52.52,"longitude":13.4,"unit_system":{"temperature":"°C"}}""")
                 "unsubscribe_events" -> ok()
                 "call_service" -> {
                     calls += msg
@@ -379,6 +383,10 @@ class HaSourceTest {
         assertThat(sent[0]["target"].toString()).isEqualTo("""{"entity_id":"script.ungroup_speakers"}""")
         assertThat(sent[0]["service_data"].toString()).isEqualTo("""{"variables":{"player":"media_player.wz"}}""")
         assertThat(sent.drop(1).none { "service_data" in it }).isTrue()
+        // A script's own variables go along; one that names the player itself wins.
+        val vars = Json.parseToJsonElement("""{"mode":"party","player":"media_player.kitchen"}""").jsonObject
+        assertThat(s.run(QuickAction("x", "script.mode", vars))).isTrue()
+        assertThat(calls.last()["service_data"].toString()).isEqualTo("""{"variables":{"player":"media_player.kitchen","mode":"party"}}""")
         // Home Assistant says no: it failed. A long automation is still running: it was taken.
         assertThat(s.run(QuickAction("x", "script.broken"))).isFalse()
         assertThat(s.run(QuickAction("x", "automation.slow"))).isTrue()
@@ -393,9 +401,23 @@ class HaSourceTest {
         val s = source()
         s.start()
         withTimeout(5_000) { s.state.first { it.player != null } }
-        s.followActions(setOf("input_boolean.party", "script.gone"))
-        val state = withTimeout(5_000) { s.state.first { it.actions["input_boolean.party"] == "on" } }
-        assertThat(state.actions).doesNotContainKey("script.gone")
+        s.followEntities(setOf("input_boolean.party", "script.gone"))
+        val state = withTimeout(5_000) { s.state.first { it.entities["input_boolean.party"]?.state == "on" } }
+        assertThat(state.entities).doesNotContainKey("script.gone")
+        s.stop()
+    }
+
+    @Test
+    fun `a value comes with Home Assistant's decimals for it and its unit for temperatures`() = runBlocking {
+        registry = """[{"ei":"media_player.wz","pl":"music_assistant","di":"d1"},{"ei":"sensor.outside","pl":"template","dp":1}]"""
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.player != null } }
+        s.followEntities(setOf("sensor.outside"))
+        val state = withTimeout(5_000) { s.state.first { it.entities["sensor.outside"] != null && it.precision.isNotEmpty() && it.temperatureUnit != null } }
+        assertThat(state.entities.getValue("sensor.outside").state).isEqualTo("12.345")
+        assertThat(state.precision).containsExactly("sensor.outside", 1)
+        assertThat(state.temperatureUnit).isEqualTo("°C")
         s.stop()
     }
 

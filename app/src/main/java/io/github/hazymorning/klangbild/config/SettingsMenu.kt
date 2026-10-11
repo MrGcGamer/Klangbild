@@ -33,6 +33,7 @@ enum class MenuEntry(val section: MenuSection, @StringRes val label: Int) {
     ALBUM(MenuSection.INFO, R.string.entry_album),
     GROUP(MenuSection.INFO, R.string.entry_group),
     VOLUME(MenuSection.INFO, R.string.entry_volume),
+    VALUES(MenuSection.INFO, R.string.entry_values),
     BACKGROUND(MenuSection.EFFECTS, R.string.entry_background),
     LIGHT(MenuSection.EFFECTS, R.string.entry_intensity),
     MOTION(MenuSection.EFFECTS, R.string.entry_motion),
@@ -113,6 +114,7 @@ object SettingsMenu {
                 VolumeDisplay.OFF -> R.string.off
             },
         ]
+        MenuEntry.VALUES -> if (s.ownValues.isEmpty()) t[R.string.set_up] else onOff(s.showValues, t)
         MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.background_cover else R.string.background_plain]
         MenuEntry.MOTION -> t[
             when (s.motion) {
@@ -198,6 +200,13 @@ object SettingsMenu {
                 VolumeDisplay.OFF -> R.string.about_volume_off
             },
         ]
+        MenuEntry.VALUES -> t[
+            when {
+                s.ownValues.isEmpty() -> R.string.about_values_set_up
+                s.showValues -> R.string.about_values_on
+                else -> R.string.about_values_off
+            },
+        ]
         MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.about_background_cover else R.string.about_background_plain]
         MenuEntry.LIGHT -> intensity(s, ctx, t)
         MenuEntry.MOTION -> {
@@ -280,7 +289,7 @@ object SettingsMenu {
      * The settings after one step of [e]: [direction] -1 (left) or +1 (right, OK). Left and
      * right stop at the ends of a scale, OK ([wrap]) goes round. Switches simply flip. Null for
      * the lines that are no setting (the connections, the sleep timer, the language) and for the
-     * lights while none are set up (OK sets them up).
+     * lights and the values while none are set up (OK sets them up).
      */
     fun step(e: MenuEntry, s: Settings, direction: Int, wrap: Boolean = false): Settings? = when (e) {
         MenuEntry.VIEW -> s.copy(view = if (s.view == StageView.FLOW) StageView.SINGLE else StageView.FLOW)
@@ -290,6 +299,7 @@ object SettingsMenu {
         MenuEntry.ALBUM -> s.copy(showAlbum = !s.showAlbum)
         MenuEntry.GROUP -> s.copy(showGroup = !s.showGroup)
         MenuEntry.VOLUME -> s.copy(volumeDisplay = move(VOLUME_ORDER, s.volumeDisplay, direction, wrap))
+        MenuEntry.VALUES -> if (s.ownValues.isEmpty()) null else s.copy(showValues = !s.showValues)
         MenuEntry.BACKGROUND -> s.copy(background = if (s.background == BackgroundMode.COVER) BackgroundMode.WALL else BackgroundMode.COVER)
         MenuEntry.MOTION -> s.copy(motion = move(MOTION_ORDER, s.motion, direction, wrap))
         MenuEntry.LIGHTS -> if (s.roomLights.isSet) s.copy(roomLightLevel = move(LIGHTS_ORDER, s.roomLightLevel, direction, wrap)) else null

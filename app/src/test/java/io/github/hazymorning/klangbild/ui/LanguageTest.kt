@@ -162,7 +162,7 @@ class LanguageTest {
             QuickAction("Bell", "button.bell"), QuickAction("Party", "switch.party"),
         )
         val settings = listOf(Settings(), configured.copy(roomLights = RoomLights("light.left", null, null))).map { it.copy(quickActions = own) }
-        val states = if (!buttons) listOf(emptyMap()) else ActionState.entries.map { st -> own.associate { it.entity to st } }
+        val states = if (!buttons) listOf(emptyMap()) else ActionState.entries.map { st -> own.indices.associateWith { st } }
         for (s in settings) for (music in listOf(true, false)) for (vista in listOf(true, false)) for (actions in states) {
             for (favorite in FavoriteState.entries + null) for (shuffle in listOf(true, false, null)) for (pending in Picture.entries + null) {
                 val rows = QuickMenu.rows(s, QuickContext(vista, pending, music, favorite, shuffle, actions), t)

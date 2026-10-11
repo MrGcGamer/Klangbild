@@ -52,8 +52,9 @@ internal class MenuControl(private val host: ControllerHost, private val sleep: 
         val entry = SettingsMenu.entries[c]
         val s = host.settings
         when {
-            // The connections, and the lights while none are set up, are set up on the phone.
-            entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.LIGHTS && !s.roomLights.isSet) -> {
+            // The connections, and the lights and values while none are set up, are set up on the phone.
+            entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.LIGHTS && !s.roomLights.isSet) ||
+                (entry == MenuEntry.VALUES && s.ownValues.isEmpty()) -> {
                 cursor = null
                 host.requestSetup(true)
             }

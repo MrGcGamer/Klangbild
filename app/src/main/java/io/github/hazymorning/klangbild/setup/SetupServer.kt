@@ -13,6 +13,8 @@ import io.github.hazymorning.klangbild.data.ha.HaRest
 import io.github.hazymorning.klangbild.data.ha.LocalNetwork
 import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -37,7 +40,6 @@ import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
-import java.util.Collections
 
 /** What the TV shows while setup is open. */
 data class SetupInfo(
@@ -51,9 +53,11 @@ data class SetupInfo(
 /**
  * Serves the setup page on the local network while the setup screen is visible. Plain sockets
  * (no web framework): one short request per connection, at most [MAX_CONNECTIONS] at a time,
- * each with [REQUEST_DEADLINE_MS] to arrive. Requests must name the page's own address as their
- * host (no other site can rebind its name to the TV), a call to the API from another origin is
- * refused, and so is one that is not JSON (a form on another page cannot send it unasked).
+ * each with [REQUEST_DEADLINE_MS] to arrive and be answered. Requests must name the page's own
+ * address as their host (no other site can rebind its name to the TV), a call to the API from
+ * another origin is refused, and so is one that is not JSON (a form on another page cannot send
+ * it unasked). A request that has arrived is answered even when serving stops meanwhile: saving
+ * ends the setup, and its answer must still reach the phone.
  */
 class SetupServer(
     private val scope: CoroutineScope,
@@ -68,7 +72,9 @@ class SetupServer(
 
     private var socket: ServerSocket? = null
     private var job: Job? = null
-    private val clients = Collections.synchronizedSet(HashSet<Socket>())
+
+    /** Connections whose request is still arriving: a stop closes them at once. */
+    private val arriving = HashSet<Socket>()
 
     @Synchronized
     fun start() {
@@ -95,7 +101,8 @@ class SetupServer(
                     runCatching { client.close() }
                     continue
                 }
-                launch {
+                // Not a child of this loop: an answer under way outlives a stop.
+                scope.launch(Dispatchers.IO) {
                     try {
                         serve(client)
                     } finally {
@@ -106,7 +113,11 @@ class SetupServer(
         }
     }
 
-    /** Stops serving: the listening socket and every open connection close, and a sign-in never saved is revoked. */
+    /**
+     * Stops serving: the listening socket closes, and so does every connection whose request is
+     * still arriving. A request that has arrived is still answered (within its deadline), and a
+     * sign-in never saved is revoked.
+     */
     @Synchronized
     fun stop() {
         val wasServing = socket != null
@@ -114,9 +125,9 @@ class SetupServer(
         job = null
         runCatching { socket?.close() }
         socket = null
-        synchronized(clients) {
-            clients.forEach { runCatching { it.close() } }
-            clients.clear()
+        synchronized(arriving) {
+            arriving.forEach { runCatching { it.close() } }
+            arriving.clear()
         }
         _info.value = null
         if (wasServing) scope.launch { handler.reset() }
@@ -143,8 +154,8 @@ class SetupServer(
     }
 
     private suspend fun serve(client: Socket) {
-        clients += client
-        // However slowly a request arrives, it has this long; then its socket closes under it.
+        synchronized(arriving) { arriving += client }
+        // However slowly a request arrives and is answered, it has this long; then its socket closes under it.
         val deadline = scope.launch {
             delay(REQUEST_DEADLINE_MS)
             runCatching { client.close() }
@@ -155,6 +166,8 @@ class SetupServer(
                 val texts = handler.texts()
                 val response = try {
                     val req = MiniHttp.read(s.getInputStream())
+                    // It has arrived: from now on a stop lets it be answered (one cut off just now is not).
+                    if (!synchronized(arriving) { arriving.remove(client) }) return
                     refusal(req, texts) ?: handler.handle(req)
                 } catch (_: MiniHttp.BadRequest) {
                     MiniHttp.Response.text(400, texts[R.string.setup_error_request])
@@ -172,7 +185,7 @@ class SetupServer(
             }
         } finally {
             deadline.cancel()
-            clients -= client
+            synchronized(arriving) { arriving -= client }
         }
     }
 
@@ -223,14 +236,27 @@ class SetupServer(
         }.getOrNull()
 
         /**
-         * Asks Home Assistant at [url] for its media players, lights, weather entities and what
-         * a button can work (REST `/api/states`) with [credentials]. Every failure becomes one
-         * calm sentence for the setup page.
+         * Asks Home Assistant at [url] for its media players, lights, weather entities, what a
+         * button can work and every entity for the values and conditions (REST `/api/states`),
+         * and for the fields its scripts declare (`/api/services`, as far as it answers), with
+         * [credentials]. Every failure becomes one calm sentence for the setup page.
          */
         suspend fun discover(http: OkHttpClient, url: String, credentials: HaCredentials, t: Texts): DiscoverResult {
             val rest = HaRest(http, HaAuth(http, url, credentials))
             return try {
-                parseSpeakers(rest.allStates(), t)
+                coroutineScope {
+                    // A script's fields help, but the page works without them.
+                    val services = async {
+                        try {
+                            rest.services()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                    parseSpeakers(rest.allStates(), t, services.await())
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: HaAuthRejectedException) {
@@ -247,11 +273,12 @@ class SetupServer(
             }
         }
 
-        /** The lists for the setup page from all states as JSON text. */
-        fun parseSpeakers(body: String, t: Texts): DiscoverResult {
+        /** The lists for the setup page from all states as JSON text, and the scripts' fields from all [services]. */
+        fun parseSpeakers(body: String, t: Texts, services: String? = null): DiscoverResult {
             val arr = runCatching { Json.parseToJsonElement(body) as? JsonArray }.getOrNull()
                 ?: return DiscoverResult.Failed(t[R.string.discover_garbled])
             val states = arr.mapNotNull { it as? JsonObject }
+            val fields = services?.let(::scriptFields).orEmpty()
             fun JsonObject.id() = (this["entity_id"] as? JsonPrimitive)?.content
             fun JsonObject.attrs() = this["attributes"] as? JsonObject
             fun JsonObject.name() = (attrs()?.get("friendly_name") as? JsonPrimitive)?.content ?: id()
@@ -275,12 +302,114 @@ class SetupServer(
                 val id = o.id()?.takeIf { it.startsWith("weather.") } ?: return@mapNotNull null
                 WeatherOption(id, o.name() ?: id, weatherWord(o.state(), t))
             }.sortedBy { it.name.lowercase() }
-            // What the quick settings' own buttons can work, by kind (scripts first), then by name.
+            // What the quick settings' own buttons can work, by kind (scripts first), then by name;
+            // a script with the fields it declares.
             val actions = states.mapNotNull { o ->
                 val id = o.id()?.takeIf { ActionKind.of(it) != null } ?: return@mapNotNull null
-                ActionOption(id, o.name() ?: id)
+                ActionOption(id, o.name() ?: id, if (id.startsWith("script.")) fields[id.substringAfter('.')].orEmpty() else emptyList())
             }.sortedWith(compareBy<ActionOption> { ActionKind.DOMAINS.indexOf(it.entityId.substringBefore('.')) }.thenBy { it.name.lowercase() })
-            return DiscoverResult.Ok(speakers, lights, weather, actions)
+            // Every entity, for the values in the status line and the buttons' conditions.
+            val entities = states.mapNotNull { o ->
+                val id = o.id() ?: return@mapNotNull null
+                entityOption(id, o.name() ?: id, o.state(), o.attrs())
+            }.sortedBy { it.name.lowercase() }
+            return DiscoverResult.Ok(speakers, lights, weather, actions, entities)
+        }
+
+        /**
+         * An entity as the page offers it: its raw state and unit, and the attributes worth
+         * showing or comparing (words and numbers cut short, lists by their count). What only
+         * describes the entity (its name, icon, unit, what it supports) and long lists of
+         * choices are left out.
+         */
+        private fun entityOption(id: String, name: String, state: String, attrs: JsonObject?): EntityOption {
+            val words = LinkedHashMap<String, String>()
+            val lists = LinkedHashMap<String, Int>()
+            attrs?.forEach { (key, v) ->
+                if (key in DESCRIBING || key.endsWith("_list") || words.size + lists.size >= MAX_ATTRIBUTES) return@forEach
+                when (v) {
+                    is JsonPrimitive -> if (v !is JsonNull) words[key] = v.content.take(MAX_ATTRIBUTE_TEXT)
+                    is JsonArray -> lists[key] = v.size
+                    else -> Unit
+                }
+            }
+            val unit = (attrs?.get("unit_of_measurement") as? JsonPrimitive)?.takeIf { it.isString }?.content
+            return EntityOption(id, name, state.take(MAX_ATTRIBUTE_TEXT), unit, words, lists)
+        }
+
+        /** Attributes that describe an entity rather than tell how it stands. */
+        private val DESCRIBING = setOf(
+            "friendly_name", "icon", "entity_picture", "unit_of_measurement", "device_class", "state_class", "supported_features",
+            "attribution", "restored", "editable", "id", "assumed_state", "supported_color_modes", "options", "entity_picture_local",
+        )
+
+        /** At most this many attributes per entity, each cut to this many characters. */
+        private const val MAX_ATTRIBUTES = 24
+        private const val MAX_ATTRIBUTE_TEXT = 40
+
+        /**
+         * The fields each script declares, from all of Home Assistant's actions as JSON text
+         * (`script.<id>` is the action `script.<id>`): what the page asks for. A field's
+         * selector says how: a switch, a number, a choice, an entity, or text.
+         */
+        fun scriptFields(services: String): Map<String, List<ScriptField>> {
+            val all = runCatching { Json.parseToJsonElement(services) as? JsonArray }.getOrNull() ?: return emptyMap()
+            val script = all.firstOrNull { ((it as? JsonObject)?.get("domain") as? JsonPrimitive)?.content == "script" } as? JsonObject
+            val scripts = script?.get("services") as? JsonObject ?: return emptyMap()
+            return scripts.mapValues { (_, desc) ->
+                val declared = (desc as? JsonObject)?.get("fields") as? JsonObject ?: return@mapValues emptyList()
+                // Fields may stand in sections of their own.
+                val flat = declared.entries.flatMap { (key, f) ->
+                    val inner = (f as? JsonObject)?.get("fields") as? JsonObject
+                    inner?.entries?.map { it.key to it.value } ?: listOf(key to f)
+                }
+                flat.mapNotNull { (key, f) -> (f as? JsonObject)?.let { scriptField(key, it) } }
+            }
+        }
+
+        private fun scriptField(key: String, f: JsonObject): ScriptField? {
+            if (!Regex("[A-Za-z_][A-Za-z0-9_]{0,63}").matches(key)) return null
+            fun str(o: JsonObject?, k: String) = (o?.get(k) as? JsonPrimitive)?.takeIf { it.isString }?.content
+            val selector = f["selector"] as? JsonObject
+            val (kind, config) = selector?.entries?.firstOrNull()?.let { it.key to (it.value as? JsonObject) } ?: ("text" to null)
+            val multiple = (config?.get("multiple") as? JsonPrimitive)?.content == "true"
+            val type = when {
+                multiple -> ScriptField.TEXT
+                kind == "boolean" -> ScriptField.BOOLEAN
+                kind == "number" -> ScriptField.NUMBER
+                kind == "select" -> ScriptField.SELECT
+                kind == "entity" -> ScriptField.ENTITY
+                else -> ScriptField.TEXT
+            }
+            val options = (config?.get("options") as? JsonArray).orEmpty().mapNotNull { o ->
+                when (o) {
+                    is JsonPrimitive -> o.content to o.content
+                    is JsonObject -> str(o, "value")?.let { v -> v to (str(o, "label") ?: v) }
+                    else -> null
+                }
+            }
+            // An entity selector names its domains directly, or in its filters.
+            fun domains(o: JsonObject?): List<String> = when (val d = o?.get("domain")) {
+                is JsonPrimitive -> listOf(d.content)
+                is JsonArray -> d.mapNotNull { (it as? JsonPrimitive)?.content }
+                else -> emptyList()
+            }
+            val filters = when (val fl = config?.get("filter")) {
+                is JsonObject -> listOf(fl)
+                is JsonArray -> fl.mapNotNull { it as? JsonObject }
+                else -> emptyList()
+            }
+            return ScriptField(
+                key = key,
+                name = str(f, "name") ?: key,
+                description = str(f, "description"),
+                required = (f["required"] as? JsonPrimitive)?.content == "true",
+                type = if (type == ScriptField.SELECT && options.isEmpty()) ScriptField.TEXT else type,
+                options = options,
+                default = f["default"],
+                example = (f["example"] as? JsonPrimitive)?.content,
+                domains = (domains(config) + filters.flatMap(::domains)).distinct(),
+            )
         }
 
         /** A weather condition (https://developers.home-assistant.io/docs/core/entity/weather) in words. */

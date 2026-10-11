@@ -2,7 +2,7 @@ package io.github.hazymorning.klangbild.setup
 
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.config.LaunchExtras
-import io.github.hazymorning.klangbild.config.QuickAction
+import io.github.hazymorning.klangbild.config.OwnValues
 import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.config.RoomLights
 import io.github.hazymorning.klangbild.config.Settings
@@ -15,6 +15,7 @@ import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -37,8 +38,48 @@ data class LightOption(val entityId: String, val name: String, val state: String
 /** One weather entity offered for the window view's sky. */
 data class WeatherOption(val entityId: String, val name: String, val state: String)
 
-/** One entity a button of one's own can work (a script, a scene, an automation, a button, a switch). */
-data class ActionOption(val entityId: String, val name: String)
+/**
+ * One entity a button of one's own can work (a script, a scene, an automation, a button, a
+ * switch); a script with the [fields] it declares.
+ */
+data class ActionOption(val entityId: String, val name: String, val fields: List<ScriptField> = emptyList())
+
+/**
+ * A field a script declares, as its selector asks for it ([type]: [TEXT], [NUMBER], [BOOLEAN],
+ * [SELECT] with its [options] as value and label, [ENTITY] of its [domains]).
+ */
+data class ScriptField(
+    val key: String,
+    val name: String,
+    val description: String? = null,
+    val required: Boolean = false,
+    val type: String = TEXT,
+    val options: List<Pair<String, String>> = emptyList(),
+    val default: JsonElement? = null,
+    val example: String? = null,
+    val domains: List<String> = emptyList(),
+) {
+    companion object {
+        const val TEXT = "text"
+        const val NUMBER = "number"
+        const val BOOLEAN = "boolean"
+        const val SELECT = "select"
+        const val ENTITY = "entity"
+    }
+}
+
+/**
+ * Any entity, for the values in the status line and the buttons' conditions: its raw [state]
+ * and [unit], its attributes in words ([attributes]) and its lists by their count ([lists]).
+ */
+data class EntityOption(
+    val entityId: String,
+    val name: String,
+    val state: String,
+    val unit: String? = null,
+    val attributes: Map<String, String> = emptyMap(),
+    val lists: Map<String, Int> = emptyMap(),
+)
 
 sealed interface DiscoverResult {
     data class Ok(
@@ -46,6 +87,7 @@ sealed interface DiscoverResult {
         val lights: List<LightOption> = emptyList(),
         val weather: List<WeatherOption> = emptyList(),
         val actions: List<ActionOption> = emptyList(),
+        val entities: List<EntityOption> = emptyList(),
     ) : DiscoverResult
     data class Failed(val message: String) : DiscoverResult
 }
@@ -190,18 +232,10 @@ class SetupHandler(
                 put("lightsCenter", s.roomLights.center ?: "")
                 put("lightsRight", s.roomLights.right ?: "")
                 put("weather", s.weatherEntity ?: "")
-                put("actions", actionsJson(s.quickActions))
+                put("actions", buildJsonArray { s.quickActions.forEach { add(QuickActions.toJson(it)) } })
+                put("values", buildJsonArray { s.ownValues.forEach { add(OwnValues.toJson(it)) } })
             }.toString(),
         )
-    }
-
-    private fun actionsJson(actions: List<QuickAction>) = buildJsonArray {
-        actions.forEach { a ->
-            add(buildJsonObject {
-                put("name", a.name)
-                put("entity", a.entity)
-            })
-        }
     }
 
     /** Starts a sign-in: the address of Home Assistant's login page, for this request only. */
@@ -299,11 +333,45 @@ class SetupHandler(
                         add(buildJsonObject {
                             put("id", a.entityId)
                             put("name", a.name)
+                            if (a.fields.isNotEmpty()) put("fields", buildJsonArray { a.fields.forEach { add(fieldJson(it)) } })
+                        })
+                    }
+                })
+                put("entities", buildJsonArray {
+                    r.entities.forEach { e ->
+                        add(buildJsonObject {
+                            put("id", e.entityId)
+                            put("name", e.name)
+                            put("state", e.state)
+                            e.unit?.let { put("unit", it) }
+                            if (e.attributes.isNotEmpty()) put("attrs", JsonObject(e.attributes.mapValues { JsonPrimitive(it.value) }))
+                            if (e.lists.isNotEmpty()) put("lists", JsonObject(e.lists.mapValues { JsonPrimitive(it.value) }))
                         })
                     }
                 })
             }.toString())
         }
+    }
+
+    private fun fieldJson(f: ScriptField) = buildJsonObject {
+        put("key", f.key)
+        put("name", f.name)
+        f.description?.let { put("description", it) }
+        if (f.required) put("required", true)
+        put("type", f.type)
+        if (f.options.isNotEmpty()) {
+            put("options", buildJsonArray {
+                f.options.forEach { (value, label) ->
+                    add(buildJsonObject {
+                        put("value", value)
+                        put("label", label)
+                    })
+                }
+            })
+        }
+        f.default?.let { put("default", it) }
+        f.example?.let { put("example", it) }
+        if (f.domains.isNotEmpty()) put("domains", buildJsonArray { f.domains.forEach { add(JsonPrimitive(it)) } })
     }
 
     private suspend fun saveJson(body: JsonObject, t: Texts): MiniHttp.Response {
@@ -352,10 +420,17 @@ class SetupHandler(
         val actions = when (val list = body["actions"]) {
             null -> current.quickActions
             is JsonArray -> list.take(QuickActions.MAX).map { e ->
-                val o = e as? JsonObject
-                QuickActions.valid(o?.str("name"), o?.str("entity")) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_actions]))
+                QuickActions.from(e as? JsonObject) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_actions]))
             }
             else -> return MiniHttp.Response.json(400, error(t[R.string.setup_error_actions]))
+        }
+        // The values in the status line, likewise.
+        val values = when (val list = body["values"]) {
+            null -> current.ownValues
+            is JsonArray -> list.take(OwnValues.MAX).map { e ->
+                OwnValues.from(e as? JsonObject) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_values]))
+            }
+            else -> return MiniHttp.Response.json(400, error(t[R.string.setup_error_values]))
         }
         val updated = withMa.copy(
             weatherEntity = weather,
@@ -366,10 +441,18 @@ class SetupHandler(
             remoteControl = body.bool("remote") ?: current.remoteControl,
             roomLights = roomLights,
             quickActions = actions,
+            ownValues = values,
         )
-        save(updated)
-        // The sign-in is the connection's now; one it replaced is revoked.
-        if ((credentials as? HaCredentials.SignedIn)?.refreshToken == signedIn?.refreshToken) signedIn = null
+        // The sign-in becomes the connection's: it is no longer waiting, before saving ends the
+        // setup (whose reset revokes a sign-in still waiting). One it replaced is revoked.
+        val taken = signedIn?.takeIf { it.refreshToken == (credentials as? HaCredentials.SignedIn)?.refreshToken }
+        if (taken != null) signedIn = null
+        try {
+            save(updated)
+        } catch (e: Exception) {
+            if (taken != null && signedIn == null) signedIn = taken
+            throw e
+        }
         val old = current.haCredentials as? HaCredentials.SignedIn
         val oldUrl = current.haUrl
         if (old != null && oldUrl != null && old != updated.haCredentials) revoke(oldUrl, old.refreshToken)
