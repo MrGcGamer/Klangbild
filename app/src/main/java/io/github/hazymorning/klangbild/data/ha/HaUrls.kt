@@ -58,6 +58,9 @@ object HaUrls {
         return b.resolve(if (p.startsWith("/")) p else "/$p")?.toString()
     }
 
+    /** A picture Home Assistant serves through its media player proxy (`/api/media_player_proxy/…`). */
+    fun isPlayerProxy(url: String): Boolean = url.contains("/api/media_player_proxy/")
+
     /**
      * Only requests to the Home Assistant host itself may carry the access token. Absolute
      * artwork URLs (a streaming service's CDN, Music Assistant) must never see it.

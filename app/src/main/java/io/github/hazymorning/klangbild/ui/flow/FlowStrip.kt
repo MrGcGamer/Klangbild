@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.render.FlowCard
 import io.github.hazymorning.klangbild.render.FlowGeometry
 import io.github.hazymorning.klangbild.render.HaloLight
@@ -73,19 +72,21 @@ class CardMotion(
  * @param alpha opacity of the whole strip (a new strip coming up over the old one).
  * @param edges the cards dissolve into the plain wall before the screen's edges. On the
  *   cover's colors, which reach the edges, they pass the edges.
+ * @param shift how far the cards stand to the right of their place in the grid (dp), so that
+ *   a strip with cards missing stands in the middle ([FlowGeometry.balance]).
  */
 @Composable
 fun FlowStrip(
     cards: List<CardMotion>,
     geometry: FlowGeometry,
     appearance: Appearance,
-    lighting: Lighting,
     wall: Color,
     modifier: Modifier = Modifier,
     time: () -> Float = { 1f },
     dim: () -> Float = { 1f },
     alpha: () -> Float = { 1f },
     edges: Boolean = true,
+    shift: () -> Float = { 0f },
 ) {
     val n = cards.size
     val pos = remember(cards) { FloatArray(n) }
@@ -94,7 +95,7 @@ fun FlowStrip(
     // The card the strip turns to: the others never outshine it.
     val middleLightness = remember(cards) { cards.firstOrNull { it.to == 0f && it.toAlpha > 0f }?.card?.lightness ?: 0.5f }
     val tools = remember { DrawTools() }
-    val filters = remember(appearance, lighting, wall) { HashMap<Int, ColorMatrixColorFilter>() }
+    val filters = remember(appearance, wall) { HashMap<Int, ColorMatrixColorFilter>() }
     val paper = wall.toArgb()
     Canvas(modifier.fillMaxSize()) {
         val t = time().coerceIn(0f, 1f)
@@ -119,6 +120,7 @@ fun FlowStrip(
             }
             order[j + 1] = k
         }
+        val dx = shift()
         drawIntoCanvas { canvas ->
             val native = canvas.nativeCanvas
             for (o in 0 until n) {
@@ -127,10 +129,10 @@ fun FlowStrip(
                 if (a <= 0.004f) continue
                 val card = cards[i].card
                 geometry.corners(pos[i], tools.dp)
-                for (k in 0 until 8) tools.dst[k] = tools.dp[k] * density
+                for (k in 0 until 8) tools.dst[k] = (tools.dp[k] + if (k % 2 == 0) dx else 0f) * density
                 val light = geometry.light(pos[i]) * d * stepBack(card.lightness, middleLightness, pos[i], appearance)
                 val step = (light * STEPS).roundToInt()
-                val filter = filters.getOrPut(step) { ColorMatrixColorFilter(cardMatrix(lighting, step / STEPS.toFloat(), appearance, paper)) }
+                val filter = filters.getOrPut(step) { ColorMatrixColorFilter(cardMatrix(step / STEPS.toFloat(), appearance, paper)) }
                 // How much the card is squeezed sideways: far turned cards take the half-size texture.
                 val width = hypot(tools.dst[2] - tools.dst[0], tools.dst[3] - tools.dst[1]) / card.sidePx
                 val half = 1f - HaloLight.smoothstep(HALF_FROM, HALF_TO, width)
@@ -139,11 +141,12 @@ fun FlowStrip(
             }
         }
         // The cards dissolve into the wall before the screen's edges (on an OLED the band stays
-        // black; on paper the fade is short, so a card leaving does not look bleached).
+        // black; on paper the fade is short, so a card leaving does not look bleached). The fade
+        // ends before the middle card's place, which a first song brings near the left edge.
         if (!edges) return@Canvas
         val band = WallGlow.EDGE_BLACK_DP * density
         val fadeDp = (if (appearance == Appearance.LIGHT) PAPER_EDGE_FADE_DP else EDGE_FADE_DP) * density
-        val reach = band + fadeDp
+        val reach = min(band + fadeDp, (geometry.cx - geometry.side / 2f + dx) * density)
         drawRect(wall, Offset.Zero, Size(band, size.height))
         drawRect(Brush.horizontalGradient(listOf(wall, wall.copy(alpha = 0f)), startX = band, endX = reach), Offset(band, 0f), Size(reach - band, size.height))
         val bottom = size.height - band
@@ -210,8 +213,8 @@ private fun quad(
  * pause). On black the card gets darker; on paper it fades toward the paper, the way things
  * farther from the window look in daylight.
  */
-private fun cardMatrix(lighting: Lighting, light: Float, appearance: Appearance, paper: Int): ColorMatrix {
-    val (r, g, b) = coverScale(lighting, 1f, appearance)
+private fun cardMatrix(light: Float, appearance: Appearance, paper: Int): ColorMatrix {
+    val (r, g, b) = coverScale(1f, appearance)
     return if (appearance == Appearance.DARK) {
         ColorMatrix(
             floatArrayOf(

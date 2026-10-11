@@ -4,7 +4,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.LightLevel
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
@@ -89,35 +88,35 @@ class OptionsTest {
     }
 
     @Test fun restGrouped() = shot("rest_group") {
-        RestScreen(RestReason.PAUSED, everywhere, null, Lighting.EVENING, Fixtures.at(18, 40), zone = Fixtures.zone)
+        RestScreen(RestReason.PAUSED, everywhere, null, Fixtures.at(18, 40), zone = Fixtures.zone)
     }
 
     private fun menu(entry: MenuEntry, settings: Settings = configured, ctx: MenuContext = MenuContext(LinkState.CONNECTED)) =
         MenuState(SettingsMenu.rows(settings, ctx, Fixtures.texts), SettingsMenu.entries.indexOf(entry))
 
-    @Test fun menuTop() = shot("menu_clock") { MenuScreen(menu(MenuEntry.CLOCK), Lighting.DAY) }
+    @Test fun menuTop() = shot("menu_clock") { MenuScreen(menu(MenuEntry.CLOCK)) }
 
-    @Test fun menuGroup() = shot("menu_group") { MenuScreen(menu(MenuEntry.GROUP), Lighting.DAY) }
+    @Test fun menuGroup() = shot("menu_group") { MenuScreen(menu(MenuEntry.GROUP)) }
 
     @Test fun menuLight() = shot("menu_light") {
-        MenuScreen(menu(MenuEntry.LIGHT, configured.copy(light = LightLevel.SUBTLE)), Lighting.DAY)
+        MenuScreen(menu(MenuEntry.LIGHT, configured.copy(light = LightLevel.SUBTLE)))
     }
 
     @Test fun menuBars() = shot("menu_bars") {
-        MenuScreen(menu(MenuEntry.LIGHTS, configured.copy(roomLights = io.github.hazymorning.klangbild.config.RoomLights(left = "light.l", right = "light.r"), roomLightLevel = io.github.hazymorning.klangbild.config.RoomLightLevel.P60)), Lighting.DAY)
+        MenuScreen(menu(MenuEntry.LIGHTS, configured.copy(roomLights = io.github.hazymorning.klangbild.config.RoomLights(left = "light.l", right = "light.r"), roomLightLevel = io.github.hazymorning.klangbild.config.RoomLightLevel.P60)))
     }
 
-    @Test fun menuEveningSleep() = shot("menu_sleep_evening") { MenuScreen(menu(MenuEntry.SLEEP_AFTER), Lighting.EVENING) }
+    @Test fun menuSleep() = shot("menu_sleep") { MenuScreen(menu(MenuEntry.SLEEP_AFTER)) }
 
     @Test fun menuVista() = shot("menu_vista") {
-        MenuScreen(menu(MenuEntry.VISTA_PLAYING, configured.copy(vistaPlayingSeconds = 1800)), Lighting.DAY)
+        MenuScreen(menu(MenuEntry.VISTA_PLAYING, configured.copy(vistaPlayingSeconds = 1800)))
     }
 
     /** The list glides through the light when the cursor moves down by one line, then by three. */
     @Test fun menuGlide() {
         var state by androidx.compose.runtime.mutableStateOf(menu(MenuEntry.ALBUM))
         compose.mainClock.autoAdvance = false
-        compose.setContent { MenuScreen(state, Lighting.DAY) }
+        compose.setContent { MenuScreen(state) }
         compose.mainClock.advanceTimeBy(100)
         var frame = 0
         fun grab() = compose.onRoot().captureRoboImage("build/screenshots/options/menu_glide_%02d.png".format(frame++))
@@ -129,6 +128,6 @@ class OptionsTest {
     }
 
     @Test fun menuConnection() = shot("menu_connection") {
-        MenuScreen(menu(MenuEntry.CONNECTION, Settings(), MenuContext(LinkState.UNCONFIGURED)), Lighting.DAY)
+        MenuScreen(menu(MenuEntry.CONNECTION, Settings(), MenuContext(LinkState.UNCONFIGURED)))
     }
 }

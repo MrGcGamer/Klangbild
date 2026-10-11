@@ -101,6 +101,32 @@ class FlowGeometryTest {
     }
 
     @Test
+    fun `with cards missing, what is there stands with the text in the middle of the screen`() {
+        val half = g.side / 2f
+        for (left in 0..2) for (right in 0..2) {
+            val b = g.balance(left, right)
+            // The outermost card on each side, or the middle one where none stands beside it.
+            fun edge(p: Float, outer: Int): Float {
+                g.corners(p, c)
+                return c[outer] + b.cards
+            }
+            val start = if (left == 0) g.cx + b.cards - half else edge(-left.toFloat(), 0)
+            val end = if (right == 0) g.cx + b.cards + half else edge(right.toFloat(), 2)
+            val column = layout.columnLeft + b.column
+            val room = layout.screen.widthDp - (column + layout.columnWidth)
+            assertThat(start).isWithin(0.5f).of(room)
+            // The column keeps its gap: 40 dp after the cards to come, else the single view's 64 dp.
+            assertThat(column - end).isWithin(0.5f).of(if (right > 0) 40f else 64f)
+        }
+        // The full strip stays exactly where the grid has it.
+        assertThat(g.balance(2, 2)).isEqualTo(Balance.NONE)
+        assertThat(g.balance(2, 0).cards).isWithin(0.5f).of(40.5f)
+        assertThat(g.balance(0, 2).cards).isWithin(0.5f).of(-52.5f)
+        assertThat(g.leftmostColumn).isWithin(0.5f).of(g.balance(0, 0).column)
+        assertThat(g.leftmostColumn).isWithin(0.5f).of(-93f)
+    }
+
+    @Test
     fun `positions in between move smoothly`() {
         var last = Float.NaN
         var p = 0f

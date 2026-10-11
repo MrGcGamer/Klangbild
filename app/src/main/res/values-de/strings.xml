@@ -166,6 +166,11 @@
     <string name="favorite_adding">Hinzufügen …</string>
     <string name="favorite_added">Hinzugefügt</string>
     <string name="favorite_failed">Nicht gefunden</string>
+    <string name="action_run">Ausführen</string>
+    <string name="action_activate">Aktivieren</string>
+    <string name="action_press">Drücken</string>
+    <string name="action_done">Erledigt</string>
+    <string name="action_failed">Fehler</string>
 
     <string name="status_paused">Pausiert</string>
     <string name="status_muted">Stumm</string>
@@ -257,6 +262,20 @@
     <string name="page_weather">Wetter</string>
     <string name="page_weather_auto">Automatisch</string>
     <string name="page_weather_none">Keines: immer ein heiterer Himmel</string>
+    <string name="page_actions_heading">7 · Tasten (freiwillig)</string>
+    <string name="page_actions_hint">Eigene Tasten in den Schnelleinstellungen (Pfeil nach unten auf der Fernbedienung). Jede startet ein Skript oder eine Automatisierung, aktiviert eine Szene, drückt eine Taste oder schaltet etwas ein und aus. Ein Skript bekommt den Lautsprecher als Variable player.</string>
+    <string name="page_actions_empty">Erst Home Assistant verbinden, dann erscheinen hier deine Skripte und Szenen.</string>
+    <string name="page_no_actions">Keine Skripte, Szenen, Tasten oder Schalter gefunden.</string>
+    <string name="page_action_name">Name</string>
+    <string name="page_action_what">Was sie tut</string>
+    <string name="page_action_add">Taste hinzufügen</string>
+    <string name="page_action_remove">Entfernen</string>
+    <string name="page_group_scripts">Skripte</string>
+    <string name="page_group_scenes">Szenen</string>
+    <string name="page_group_automations">Automatisierungen</string>
+    <string name="page_group_buttons">Tasten</string>
+    <string name="page_group_switches">Schalter</string>
+    <string name="page_group_lights">Lichter</string>
     <string name="page_save">Speichern</string>
     <string name="page_connecting">Verbinde mit Home Assistant …</string>
     <string name="page_failed">Das hat nicht geklappt.</string>
@@ -284,6 +303,7 @@
     <string name="setup_error_sleep">Die Ruhezeit muss zwischen 1 und 720 Minuten liegen.</string>
     <string name="setup_error_lights">Bitte nur Lichter wählen.</string>
     <string name="setup_error_weather">Bitte eine Wetter-Entität wählen.</string>
+    <string name="setup_error_actions">Jede Taste braucht ein Skript, eine Szene, eine Automatisierung, eine Taste oder einen Schalter.</string>
     <string name="setup_saved">Gespeichert. Der Fernseher verbindet sich jetzt mit Home Assistant.</string>
     <string name="discover_rejected">Home Assistant hat den Zugang abgelehnt.</string>
     <string name="discover_unexpected">Home Assistant antwortet nicht wie erwartet (HTTP %d).</string>

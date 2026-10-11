@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -22,7 +21,7 @@ class CoverFillTest {
         for (appearance in Appearance.entries) {
             for (native in listOf(120, 300, 640, 1400)) {
                 val src = Bitmap.createBitmap(native, native, Bitmap.Config.ARGB_8888).apply { eraseColor(red) }
-                val scene = SceneBuilder.build("k$native", src, "seed", ScreenSpec.TV_1080, Lighting.DAY, appearance)
+                val scene = SceneBuilder.build("k$native", src, "seed", ScreenSpec.TV_1080, appearance)
                 val slot = (scene.layout.art * ScreenSpec.TV_1080.density).roundToInt()
                 assertThat(scene.cover.width).isEqualTo(slot)
                 // The print reaches every edge of the square: no board around it.

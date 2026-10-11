@@ -5,7 +5,6 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.Settings
@@ -50,17 +49,17 @@ class LightWallTest {
     }
 
     @Test fun rest() = shot("rest") {
-        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Lighting.DAY, Fixtures.at(10, 12), zone = Fixtures.zone, appearance = light)
+        RestScreen(RestReason.IDLE, "Wohnzimmer", null, Fixtures.at(10, 12), zone = Fixtures.zone, appearance = light)
     }
 
     @Test fun menu() = shot("menu") {
         val s = Settings(haUrl = "http://ha.local:8123", haToken = "x", entityId = "media_player.wohnzimmer")
         val rows = SettingsMenu.rows(s, MenuContext(LinkState.CONNECTED, light), Fixtures.texts)
-        MenuScreen(MenuState(rows, SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE)), Lighting.DAY, appearance = light)
+        MenuScreen(MenuState(rows, SettingsMenu.entries.indexOf(MenuEntry.APPEARANCE)), appearance = light)
     }
 
     @Test fun setup() = shot("setup") {
         val info = SetupInfo("http://192.168.1.23:8765", "482913", SetupServer.qrMatrix("http://192.168.1.23:8765/?code=482913"))
-        SetupScreen(SetupReason.FIRST_RUN, info, SetupArt.scene(info, ScreenSpec.TV_1080, Lighting.DAY, light))
+        SetupScreen(SetupReason.FIRST_RUN, info, SetupArt.scene(info, ScreenSpec.TV_1080, light))
     }
 }

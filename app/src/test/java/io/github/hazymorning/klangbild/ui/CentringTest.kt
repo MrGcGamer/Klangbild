@@ -13,7 +13,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.app.MenuState
 import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SettingsMenu
@@ -61,7 +60,7 @@ class CentringTest {
         for (t in listOf(Fixtures.texts, TestTexts.english())) for ((reason, at) in cases) {
             val ink = render {
                 CompositionLocalProvider(LocalTexts provides t) {
-                    RestScreen(reason, "Wohnzimmer", "media_player.wohnzimer", Lighting.DAY, at, zone = Fixtures.zone)
+                    RestScreen(reason, "Wohnzimmer", "media_player.wohnzimer", at, zone = Fixtures.zone)
                 }
             }
             val lines = ink.lines()
@@ -90,7 +89,7 @@ class CentringTest {
     fun theMenuHasAsMuchRoomOnEachSide() {
         val settings = Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = SettingsMenu.rows(settings, MenuContext(LinkState.CONNECTED), Fixtures.texts)
-        val ink = render { Fixtures.Still { MenuScreen(MenuState(rows, 1), Lighting.DAY) } }
+        val ink = render { Fixtures.Still { MenuScreen(MenuState(rows, 1)) } }
         val all = ink.box(0, 0, 1920, 1080)
         assertWithMessage("left of the heading, right of the values").that(abs(all.left - (1919 - all.right))).isAtMost(4)
     }
@@ -99,7 +98,7 @@ class CentringTest {
     fun theSetupCodeAndItsTextStandInTheMiddle() {
         val info = SetupInfo(url = "http://192.168.1.23:8765", code = "482913", qr = SetupServer.qrMatrix("http://192.168.1.23:8765/?code=482913"))
         for (reason in SetupReason.entries) {
-            val ink = render { Fixtures.Still { SetupScreen(reason, info, SetupArt.scene(info, tv, Lighting.DAY)) } }
+            val ink = render { Fixtures.Still { SetupScreen(reason, info, SetupArt.scene(info, tv)) } }
             val all = ink.box(0, 0, 1920, 1080)
             val card = ink.box(0, 0, 960, 1080)
             assertWithMessage("$reason: left of the code, right of the longest line").that(abs(card.left - (1919 - all.right))).isAtMost(6)

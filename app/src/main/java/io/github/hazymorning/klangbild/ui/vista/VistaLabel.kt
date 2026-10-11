@@ -127,7 +127,8 @@ private fun MusicLabel(m: LabelText.Music, side: LabelSide, inks: () -> IntArray
     }
     val sizePx = (box.cover * density).roundToInt()
     val scene = m.scene
-    val cover: ImageBitmap? = rememberOffMain(scene?.key, sizePx) { scene?.let { miniCover(it.cover, sizePx) } }
+    // By the print itself: a station's song keeps its key when its own picture replaces the station's.
+    val cover: ImageBitmap? = rememberOffMain(scene?.cover, sizePx) { scene?.let { miniCover(it.cover, sizePx) } }
     val fill by animateFloatAsState(if (m.playing) 1f else 0.55f, tween(Motion.PAUSE_MS, easing = Motion.Dimmer), label = "label-bar")
     val duration = m.track.durationMs
     val bar = duration != null && duration > 0L

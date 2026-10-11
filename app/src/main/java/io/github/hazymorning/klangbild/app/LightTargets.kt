@@ -1,12 +1,12 @@
 package io.github.hazymorning.klangbild.app
 
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.MiniPlayer
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.FieldClock
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.SunClock
 import io.github.hazymorning.klangbild.lights.CoverLightColors
 import io.github.hazymorning.klangbild.lights.LightSync
 import io.github.hazymorning.klangbild.lights.VistaLightColors
@@ -98,7 +98,7 @@ internal class LightTargets(
     /** 0 by day to 1 at night, by the sun (Home Assistant's elevation, else the local clock): how far the lights dim. */
     private fun night(src: SourceState): Float {
         val elevation = src.sunElevation ?: Calendar.getInstance().apply { timeInMillis = now() }
-            .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
+            .let { SunClock.elevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
         val t = ((DAY_ELEVATION - elevation.toFloat()) / (DAY_ELEVATION - NIGHT_ELEVATION)).coerceIn(0f, 1f)
         return t * t * (3f - 2f * t)
     }

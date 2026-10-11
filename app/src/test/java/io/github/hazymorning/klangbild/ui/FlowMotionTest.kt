@@ -115,6 +115,41 @@ class FlowMotionTest {
     }
 
     @Test
+    fun theQueueRunsOut() {
+        // The last song comes: nothing stands to the right any more, and the composition settles in the middle with the turn.
+        val s = scenes()
+        run("runs_out", Fixtures.flow(s, listOf(1, 2, 3, 4), 3), Fixtures.flow(s, listOf(2, 3, 4), 4), frames = 13, stepMs = 100)
+    }
+
+    @Test
+    fun cardsArriveBesideALoneCover() {
+        // A first song alone, then its queue: the cards roll in and everything moves along to the middle.
+        val s = scenes()
+        run("arrive", Fixtures.flow(s, listOf(2), 2), Fixtures.flow(s, listOf(2, 3, 4), 2), frames = 10, stepMs = 100)
+    }
+
+    @Test
+    fun theFirstTurn() {
+        // From the first song (nothing played) to the second: a card comes to the left.
+        val s = scenes()
+        run("first_turn", Fixtures.flow(s, listOf(2, 3, 4), 2), Fixtures.flow(s, listOf(2, 3, 4, 5), 3), frames = 13, stepMs = 100)
+    }
+
+    @Test
+    fun theQueueIsCleared() {
+        // Nothing comes any more: the cards to the right go first, then the cover and the text move together.
+        val s = scenes()
+        run("cleared", Fixtures.flow(s, listOf(2, 3, 4), 2), Fixtures.flow(s, listOf(2), 2), frames = 12, stepMs = 100)
+    }
+
+    @Test
+    fun backToTheFirstSong() {
+        // A step back to the first song: nothing stands to the left any more.
+        val s = scenes()
+        run("back_first", Fixtures.flow(s, listOf(2, 3, 4, 5), 3), Fixtures.flow(s, listOf(2, 3, 4), 2), frames = 13, stepMs = 100)
+    }
+
+    @Test
     fun forwardOnPaper() {
         val s = scenes(Appearance.LIGHT)
         run("paper", Fixtures.flow(s, listOf(0, 1, 2, 3, 4), 2), Fixtures.flow(s, listOf(1, 2, 3, 4, 5), 3), frames = 6, stepMs = 200)

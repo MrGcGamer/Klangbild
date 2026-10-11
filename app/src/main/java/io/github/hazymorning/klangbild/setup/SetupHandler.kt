@@ -2,6 +2,8 @@ package io.github.hazymorning.klangbild.setup
 
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.config.LaunchExtras
+import io.github.hazymorning.klangbild.config.QuickAction
+import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.config.RoomLights
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.config.SleepAction
@@ -12,6 +14,7 @@ import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -34,11 +37,15 @@ data class LightOption(val entityId: String, val name: String, val state: String
 /** One weather entity offered for the window view's sky. */
 data class WeatherOption(val entityId: String, val name: String, val state: String)
 
+/** One entity a button of one's own can work (a script, a scene, an automation, a button, a switch). */
+data class ActionOption(val entityId: String, val name: String)
+
 sealed interface DiscoverResult {
     data class Ok(
         val speakers: List<SpeakerOption>,
         val lights: List<LightOption> = emptyList(),
         val weather: List<WeatherOption> = emptyList(),
+        val actions: List<ActionOption> = emptyList(),
     ) : DiscoverResult
     data class Failed(val message: String) : DiscoverResult
 }
@@ -183,8 +190,18 @@ class SetupHandler(
                 put("lightsCenter", s.roomLights.center ?: "")
                 put("lightsRight", s.roomLights.right ?: "")
                 put("weather", s.weatherEntity ?: "")
+                put("actions", actionsJson(s.quickActions))
             }.toString(),
         )
+    }
+
+    private fun actionsJson(actions: List<QuickAction>) = buildJsonArray {
+        actions.forEach { a ->
+            add(buildJsonObject {
+                put("name", a.name)
+                put("entity", a.entity)
+            })
+        }
     }
 
     /** Starts a sign-in: the address of Home Assistant's login page, for this request only. */
@@ -277,6 +294,14 @@ class SetupHandler(
                         })
                     }
                 })
+                put("actions", buildJsonArray {
+                    r.actions.forEach { a ->
+                        add(buildJsonObject {
+                            put("id", a.entityId)
+                            put("name", a.name)
+                        })
+                    }
+                })
             }.toString())
         }
     }
@@ -323,6 +348,15 @@ class SetupHandler(
             else -> w.takeIf { it.startsWith("weather.") && LaunchExtras.isEntityId(it) }
                 ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_weather]))
         }
+        // The quick settings' own buttons only when the page showed them; an empty list removes them.
+        val actions = when (val list = body["actions"]) {
+            null -> current.quickActions
+            is JsonArray -> list.take(QuickActions.MAX).map { e ->
+                val o = e as? JsonObject
+                QuickActions.valid(o?.str("name"), o?.str("entity")) ?: return MiniHttp.Response.json(400, error(t[R.string.setup_error_actions]))
+            }
+            else -> return MiniHttp.Response.json(400, error(t[R.string.setup_error_actions]))
+        }
         val updated = withMa.copy(
             weatherEntity = weather,
             entityId = entity,
@@ -331,6 +365,7 @@ class SetupHandler(
             showClock = body.bool("clock") ?: current.showClock,
             remoteControl = body.bool("remote") ?: current.remoteControl,
             roomLights = roomLights,
+            quickActions = actions,
         )
         save(updated)
         // The sign-in is the connection's now; one it replaced is revoked.

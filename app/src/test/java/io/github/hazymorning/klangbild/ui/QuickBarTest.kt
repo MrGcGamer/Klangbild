@@ -10,7 +10,9 @@ import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.config.ActionState
+import io.github.hazymorning.klangbild.config.QuickAction
+import io.github.hazymorning.klangbild.config.QuickKey
 import io.github.hazymorning.klangbild.config.RoomLightLevel
 import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.RoomLights
@@ -59,7 +61,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.PICTURE, playing), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, playing), Appearance.DARK)
                 }
             }
         }
@@ -67,7 +69,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.FAVORITE, playing.copy(favorite = FavoriteState.DONE, shuffle = true)), Appearance.DARK)
                 }
             }
         }
@@ -76,7 +78,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(light, next = Fixtures.spiegel, appearance = Appearance.LIGHT))
-                    QuickBar(state(QuickItem.SHUFFLE, playing), Lighting.DAY, Appearance.LIGHT)
+                    QuickBar(state(QuickItem.SHUFFLE, playing), Appearance.LIGHT)
                 }
             }
         }
@@ -85,10 +87,41 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     Stage(Fixtures.model(track, next = Fixtures.spiegel))
-                    QuickBar(state(QuickItem.PICTURE, QuickContext(music = true), Settings()), Lighting.EVENING, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, QuickContext(music = true), Settings()), Appearance.DARK)
                 }
             }
         }
+    }
+
+    /** Buttons of one's own: they come after the built-in entries; a row too long for the room glides to the chosen one. */
+    @Test
+    fun withButtonsOfOnesOwn() {
+        val buttons = withLights.copy(
+            quickActions = listOf(
+                QuickAction("Lautsprecher trennen", "script.ungroup_speakers"),
+                QuickAction("Kinolicht", "scene.kino"),
+                QuickAction("Partymodus", "input_boolean.party"),
+            ),
+        )
+        val ctx = playing.copy(
+            actions = mapOf("script.ungroup_speakers" to ActionState.READY, "scene.kino" to ActionState.DONE, "input_boolean.party" to ActionState.ON),
+        )
+        val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
+        fun shot(name: String, focus: QuickKey, t: io.github.hazymorning.klangbild.text.Texts = Fixtures.texts) {
+            val rows = QuickMenu.rows(buttons, ctx, t)
+            captureRoboImage("build/screenshots/quick/$name.png") {
+                Fixtures.Still(t) {
+                    Box(Modifier.fillMaxSize()) {
+                        Stage(Fixtures.model(track, next = Fixtures.spiegel, t = t))
+                        QuickBar(QuickState(rows, rows.indexOfFirst { it.key == focus }), Appearance.DARK)
+                    }
+                }
+            }
+        }
+        shot("buttons_start", QuickKey(QuickItem.PICTURE))
+        shot("buttons_first", QuickKey(QuickItem.ACTION, 0))
+        shot("buttons_end", QuickKey(QuickItem.ACTION, 2))
+        shot("buttons_end_en", QuickKey(QuickItem.ACTION, 2), io.github.hazymorning.klangbild.text.TestTexts.english())
     }
 
     @Test
@@ -106,7 +139,7 @@ class QuickBarTest {
             Fixtures.Still {
                 Box(Modifier.fillMaxSize()) {
                     VistaScreen(ui, ui.vista!!, clock, positionNow = { 60_000L }, now = { t }, modifier = Modifier.fillMaxSize())
-                    QuickBar(state(QuickItem.PICTURE, playing.copy(vista = true)), Lighting.DAY, Appearance.DARK)
+                    QuickBar(state(QuickItem.PICTURE, playing.copy(vista = true)), Appearance.DARK)
                 }
             }
         }

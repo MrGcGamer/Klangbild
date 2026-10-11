@@ -3,7 +3,6 @@ package io.github.hazymorning.klangbild.app
 import android.util.Log
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.config.AppearanceMode
 import io.github.hazymorning.klangbild.config.BackgroundMode
 import io.github.hazymorning.klangbild.config.DisplayOptions
@@ -38,6 +37,7 @@ import io.github.hazymorning.klangbild.domain.ScreenDecision
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
 import io.github.hazymorning.klangbild.domain.StageView
+import io.github.hazymorning.klangbild.domain.SunClock
 import io.github.hazymorning.klangbild.domain.Timing
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.domain.VistaPolicy
@@ -101,7 +101,6 @@ data class UiState(
     val view: StageView = StageView.SINGLE,
     /** The cover flow (in [StageView.FLOW]); like [stage] it may lag behind [screen]. */
     val flow: FlowData? = null,
-    val lighting: Lighting = Lighting.DAY,
     /** Light wall by day, dark at night (or as set). */
     val appearance: Appearance = Appearance.DARK,
     /** What the stage shows (clock, progress, album and so on) and how strong its light is. */
@@ -531,6 +530,8 @@ class NowPlayingController(
             machine = ScreenStateMachine(timing).also { it.requestSetup(setup) }
         }
         reconcileSource()
+        // The quick settings' own buttons show only while their entities are there.
+        source?.followActions(s.quickActions.map { it.entity }.toSet())
         recompute()
     }
 
@@ -644,7 +645,7 @@ class NowPlayingController(
         quick.expire(t, menu.isOpen)
         val decision: ScreenDecision = machine.decide(src, t)
         val appearance = appearanceFor(s, src)
-        val look = Look(Lighting.DAY, appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
+        val look = Look(appearance, s.light.factor, coverField = s.background == BackgroundMode.COVER)
         val stage = decision.screen as? Screen.Stage
         val playing = stage?.status == PlayerStatus.PLAYING && !stage.linkDown
         val speed = src.player?.speed ?: 1f
@@ -708,7 +709,7 @@ class NowPlayingController(
             AppearanceMode.DARK -> Appearance.DARK
             AppearanceMode.AUTO -> {
                 val elevation = src.sunElevation ?: Calendar.getInstance().apply { timeInMillis = now() }
-                    .let { Lighting.approximateElevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
+                    .let { SunClock.elevation(it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)) }
                 Appearance.bySun(elevation, lastAppearance)
             }
         }
@@ -718,7 +719,7 @@ class NowPlayingController(
 
     /** The stage shows [stage]'s track as soon as its scene is ready (the next track's is made ahead). */
     private fun showStage(stage: Screen.Stage, look: Look) {
-        scenes.retain(setOfNotNull(stage.track.key, stage.next?.key))
+        scenes.retain(setOfNotNull(stage.track.sceneKey, stage.next?.sceneKey))
         val scene = scenes.ready(stage.track, look)
         if (scene == null) {
             scenes.prepare(stage.track, look) { recompute() }
@@ -741,7 +742,7 @@ class NowPlayingController(
         // Music Assistant's whole queue if it is set up, else Home Assistant's next track.
         val coming = if (src.queueKnown) src.coming.ifEmpty { listOfNotNull(stage.next) } else null
         val s = strip.update(stage.track, coming, before = src.played)
-        scenes.retain(s.cards.map { it.track.key }.toSet())
+        scenes.retain(s.cards.map { it.track.sceneKey }.toSet())
         val order = listOf(s.current) + (s.current + 1 until s.cards.size) + (s.current - 1 downTo 0)
         for (i in order) {
             val track = s.cards[i].track

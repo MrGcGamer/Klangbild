@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.setup
 
 import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.config.QuickActions
 import io.github.hazymorning.klangbild.text.Texts
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -20,6 +21,8 @@ object SetupPage {
             .replace("__LANG__", t.locale.language)
             .replace("__CODE__", escape(code))
             .replace("__CODE_HIDDEN__", if (code.isNotEmpty()) "hidden" else "")
+            .replace("__MAX_ACTIONS__", QuickActions.MAX.toString())
+            .replace("__MAX_NAME__", QuickActions.MAX_NAME.toString())
             .replace("__SCRIPT_TEXTS__", script)
         for ((key, value) in words) page = page.replace("{{$key}}", escape(value))
         return page
@@ -76,6 +79,10 @@ object SetupPage {
         "weather" to R.string.page_weather,
         "weatherAuto" to R.string.page_weather_auto,
         "weatherNone" to R.string.page_weather_none,
+        "actionsHeading" to R.string.page_actions_heading,
+        "actionsHint" to R.string.page_actions_hint,
+        "actionsEmpty" to R.string.page_actions_empty,
+        "actionAdd" to R.string.page_action_add,
         "save" to R.string.page_save,
     )
 
@@ -99,6 +106,16 @@ object SetupPage {
         "signedIn" to R.string.page_signed_in,
         "signInFailed" to R.string.page_signin_failed,
         "withToken" to R.string.page_with_token,
+        "noActions" to R.string.page_no_actions,
+        "actionName" to R.string.page_action_name,
+        "actionWhat" to R.string.page_action_what,
+        "actionRemove" to R.string.page_action_remove,
+        "groupScripts" to R.string.page_group_scripts,
+        "groupScenes" to R.string.page_group_scenes,
+        "groupAutomations" to R.string.page_group_automations,
+        "groupButtons" to R.string.page_group_buttons,
+        "groupSwitches" to R.string.page_group_switches,
+        "groupLights" to R.string.page_group_lights,
     )
 
     private val TEMPLATE = """
@@ -156,6 +173,10 @@ object SetupPage {
   .inline input { width: 90px; }
   .status { min-height: 1.5em; margin-top: 16px; }
   .status.bad { color: var(--bad); } .status.good { color: var(--ink); }
+  .action { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 4px; }
+  .action:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  button.quiet { border: 0; padding: 10px 0 0; margin-top: 6px; color: var(--muted); font-weight: 500; text-decoration: underline;
+    text-underline-offset: 3px; text-decoration-color: var(--line); }
   .hidden { display: none; }
 </style>
 </head>
@@ -225,6 +246,13 @@ object SetupPage {
   </section>
 
   <section>
+    <h2>{{actionsHeading}}</h2>
+    <p class="hint">{{actionsHint}}</p>
+    <div id="actions"><p class="hint">{{actionsEmpty}}</p></div>
+    <button id="addAction" class="hidden">{{actionAdd}}</button>
+  </section>
+
+  <section>
     <button class="primary" id="save">{{save}}</button>
     <p class="status" id="status"></p>
   </section>
@@ -238,6 +266,13 @@ object SetupPage {
   let lightsShown = false;
   let weather = '';
   let weatherShown = false;
+  // The quick settings' own buttons: as stored, what Home Assistant offers for them, and whether the page has shown them.
+  let actions = [];
+  let actionOptions = [];
+  let actionsShown = false;
+  const MAX_ACTIONS = __MAX_ACTIONS__;
+  const ACTION_GROUPS = [[['script'], T.groupScripts], [['scene'], T.groupScenes], [['automation'], T.groupAutomations],
+    [['button', 'input_button'], T.groupButtons], [['switch', 'input_boolean'], T.groupSwitches], [['light'], T.groupLights]];
   // The code survives the trip to Home Assistant's sign-in page and back in this tab.
   if (!${'$'}('code').value) ${'$'}('code').value = sessionStorage.getItem('klangbild-code') || '';
   function code() { return ${'$'}('code').value.trim(); }
@@ -292,6 +327,54 @@ object SetupPage {
     if (sel.value !== weather) sel.value = '';
     weatherShown = true;
   }
+  function optionName(id) { const o = actionOptions.find((a) => a.id === id); return o ? o.name : ''; }
+  function actionSelect(selected) {
+    const sel = document.createElement('select');
+    const none = document.createElement('option'); none.value = ''; none.textContent = T.none; sel.append(none);
+    ACTION_GROUPS.forEach(([domains, label]) => {
+      const items = actionOptions.filter((o) => domains.includes(o.id.split('.')[0]));
+      if (!items.length) return;
+      const group = document.createElement('optgroup'); group.label = label;
+      items.forEach((o) => {
+        const opt = document.createElement('option'); opt.value = o.id; opt.textContent = o.name; opt.selected = o.id === selected; group.append(opt);
+      });
+      sel.append(group);
+    });
+    // One stored that Home Assistant no longer lists stays chosen.
+    if (selected && sel.value !== selected) {
+      const opt = document.createElement('option'); opt.value = selected; opt.textContent = selected; opt.selected = true; sel.append(opt);
+    }
+    return sel;
+  }
+  function renderActions() {
+    const box = ${'$'}('actions'); box.textContent = '';
+    actionsShown = true;
+    if (!actionOptions.length && !actions.length) {
+      const p = document.createElement('p'); p.className = 'hint'; p.textContent = T.noActions; box.append(p);
+      ${'$'}('addAction').classList.add('hidden');
+      return;
+    }
+    actions.forEach((a, i) => {
+      const row = document.createElement('div'); row.className = 'action';
+      const nameLabel = document.createElement('label'); nameLabel.htmlFor = 'actionName' + i; nameLabel.textContent = T.actionName;
+      const name = document.createElement('input'); name.type = 'text'; name.id = 'actionName' + i; name.maxLength = __MAX_NAME__;
+      name.value = a.name || ''; name.placeholder = optionName(a.entity);
+      name.oninput = () => { a.name = name.value; };
+      const whatLabel = document.createElement('label'); whatLabel.htmlFor = 'actionWhat' + i; whatLabel.textContent = T.actionWhat;
+      const what = actionSelect(a.entity); what.id = 'actionWhat' + i;
+      what.onchange = () => { a.entity = what.value; name.placeholder = optionName(what.value); };
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet'; remove.textContent = T.actionRemove;
+      remove.onclick = () => { actions.splice(i, 1); renderActions(); };
+      row.append(nameLabel, name, whatLabel, what, remove); box.append(row);
+    });
+    ${'$'}('addAction').classList.toggle('hidden', actions.length >= MAX_ACTIONS);
+  }
+  function addAction() {
+    if (actions.length >= MAX_ACTIONS) return;
+    actions.push({ name: '', entity: '' });
+    renderActions();
+    const last = ${'$'}('actionWhat' + (actions.length - 1)); if (last) last.focus();
+  }
   async function load() {
     if (code().length !== 6) return;
     sessionStorage.setItem('klangbild-code', code());
@@ -307,6 +390,7 @@ object SetupPage {
     ${'$'}('maUrl').value = s.maUrl || '';
     lights = { lightsLeft: s.lightsLeft || '', lightsCenter: s.lightsCenter || '', lightsRight: s.lightsRight || '' };
     weather = s.weather || ''; ${'$'}('weather').value = weather;
+    actions = (s.actions || []).map((a) => ({ name: a.name || '', entity: a.entity || '' }));
     if (s.hasMaToken) ${'$'}('maToken').placeholder = T.tokenKept;
     if (params.get('signin') === 'failed') show('haStatus', T.signInFailed, 'bad');
     else if (s.auth === 'signin') show('haStatus', T.signedIn, 'good');
@@ -333,6 +417,8 @@ object SetupPage {
       renderSpeakers(r.speakers, ${'$'}('entity').value);
       renderLights(r.lights || []);
       renderWeather(r.weather || []);
+      actionOptions = r.actions || [];
+      renderActions();
       status(T.connected, 'good');
     } catch (e) { status(T.tvUnreachable, 'bad'); }
     finally { ${'$'}('find').disabled = false; }
@@ -351,6 +437,8 @@ object SetupPage {
       if (weatherShown || w !== '' || weather === '') body.weather = w;
       // The lights only once the page has shown them; otherwise they stay as they are.
       if (lightsShown) ['lightsLeft', 'lightsCenter', 'lightsRight'].forEach((k) => body[k] = ${'$'}(k).value);
+      // The buttons too, in their order; one without an entity is left out, one without a name takes the entity's.
+      if (actionsShown) body.actions = actions.filter((a) => a.entity).map((a) => ({ name: a.name.trim() || optionName(a.entity), entity: a.entity }));
       const r = await api('/api/save', body);
       status(r.message || (r.ok ? T.saved : T.failed), r.ok ? 'good' : 'bad');
       if (r.ok) sessionStorage.removeItem('klangbild-code');
@@ -360,6 +448,7 @@ object SetupPage {
   ${'$'}('signIn').onclick = signIn;
   ${'$'}('find').onclick = find;
   ${'$'}('save').onclick = save;
+  ${'$'}('addAction').onclick = addAction;
   ${'$'}('code').oninput = () => { if (code().length === 6) load(); };
   if (params.has('signin')) history.replaceState(null, '', '/');
   load();

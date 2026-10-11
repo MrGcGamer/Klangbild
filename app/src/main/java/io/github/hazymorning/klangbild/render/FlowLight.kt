@@ -1,17 +1,18 @@
 package io.github.hazymorning.klangbild.render
 
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
 import kotlin.math.exp
 import kotlin.math.min
+import kotlin.math.pow
 
 /**
  * The wall behind the cover flow in the dark: a soft oval of light above the middle card, in
  * the color of its top edge, as if the picture lit the wall above it. It is at most ≈ L* 8
- * and follows the edge's lightness, so a dark edge gives a faint glow. It fades out long before
- * the text column, the floor (where the mirror images stand on black) and the screen's edges,
- * so no edge of it shows.
+ * and follows the edge's lightness, so a dark edge gives a faint glow. It fades out before the
+ * floor (where the mirror images stand on black) and the screen's edges, so no edge of it shows.
+ * Toward the text column it is faded where it is drawn ([shade]): the column moves when cards
+ * are missing ([FlowGeometry.balance]), and it stands on black wherever it stands.
  *
  * One dithered bitmap per scene at half the dp resolution (the light is soft), drawn as one
  * rectangle like [WallGlow].
@@ -20,7 +21,7 @@ object FlowLight {
     const val MAP_W = 480
     const val MAP_H = 270
 
-    /** Brightest point (relative luminance, ≈ L* 8 by day) behind a light edge. A black edge gives [DARK_SHARE] of it. */
+    /** Brightest point (relative luminance, ≈ L* 8) behind a light edge. A black edge gives [DARK_SHARE] of it. */
     const val PEAK = 0.0088f
     const val DARK_SHARE = 0.35f
 
@@ -54,13 +55,13 @@ object FlowLight {
         return mean((size / 16).coerceAtLeast(1)) ?: mean(size / 2) ?: 0xFF000000.toInt()
     }
 
-    fun field(edge: Int, layout: HaloLayout, lighting: Lighting): IntArray {
+    fun field(edge: Int, layout: HaloLayout): IntArray {
         val screen = layout.screen
         val lab = Oklab.fromArgb(edge)
         val peak = PEAK * (DARK_SHARE + (1f - DARK_SHARE) * HaloLight.smoothstep(0.05f, 0.35f, lab.l))
         // The edge's own hue, a little more colorful (it is light, not paint). A gray edge gives lamp light.
         val color = if (lab.chroma < 0.02f) HaloLight.LAMP else Lch(0.62f, min(lab.chroma * 1.2f, 0.12f), lab.hue)
-        val tint = HaloLight.lightTint(color, peak, lighting)
+        val tint = HaloLight.lightTint(color, peak)
         val tr = Oklab.srgbToLinear(tint shr 16)
         val tg = Oklab.srgbToLinear(tint shr 8)
         val tb = Oklab.srgbToLinear(tint)
@@ -70,7 +71,6 @@ object FlowLight {
         val cx = layout.artRect.centerX
         val cy = layout.artTop - ABOVE
         val floor = layout.artTop + layout.art
-        val column = layout.columnLeft
         for (y in 0 until MAP_H) {
             val py = (y + 0.5f) * sy
             // Gone by the floor line: the floor is dark glass.
@@ -81,9 +81,7 @@ object FlowLight {
                 val v = (py - cy) / SIGMA_Y
                 val fade = HaloLight.smoothstep(WallGlow.EDGE_BLACK_DP, WallGlow.EDGE_BLACK_DP + 120f, min(px, screen.widthDp - px)) *
                     HaloLight.smoothstep(WallGlow.EDGE_BLACK_DP, WallGlow.EDGE_BLACK_DP + 60f, min(py, screen.heightDp - py))
-                // The text column stands on black.
-                val beside = HaloLight.smoothstep(column - 30f, column - 220f, px)
-                val value = exp(-0.5f * (u * u + v * v)) * fade * wall * beside
+                val value = exp(-0.5f * (u * u + v * v)) * fade * wall
                 val o = y * MAP_W + x
                 img.r[o] = tr * value
                 img.g[o] = tg * value
@@ -92,4 +90,21 @@ object FlowLight {
         }
         return ImageOps.toArgbDithered(img, seed = 19, ditherLsb = 1.1f, blackBelow = 0.0004f)
     }
+
+    /** The light is gone this far before the text column, and whole this far before it (dp). */
+    const val GONE_BEFORE_COLUMN = 30f
+    const val WHOLE_BEFORE_COLUMN = 220f
+
+    /**
+     * The opacity of black laid over the sRGB map at [t] of the way from [WHOLE_BEFORE_COLUMN]
+     * to [GONE_BEFORE_COLUMN] before the column, so that a smoothstep's share of the light is
+     * left in linear light. At the light's low levels sRGB is close to linear, so the share is
+     * taken to the power [SHADE_POWER] (within a level of the exact curve).
+     */
+    fun shade(t: Float): Float {
+        val left = 1f - HaloLight.smoothstep(0f, 1f, t)
+        return 1f - left.pow(SHADE_POWER)
+    }
+
+    private const val SHADE_POWER = 0.85f
 }

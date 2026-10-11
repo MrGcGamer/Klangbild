@@ -32,12 +32,37 @@ data class TrackInfo(
     val artSeed: String get() = source ?: album ?: artists.firstOrNull() ?: title
 
     /**
+     * Which picture this is: its address without the access token in Home Assistant's own
+     * picture links, which changes every few minutes while the picture stays the same.
+     */
+    val artworkId: String? get() = artworkUrl?.let(::pictureId)
+
+    /**
      * Identity of the picture this track shows: the album (one card for all its songs, even
      * where each song carries its own copy of the artwork), else the artwork, else the
      * generated figure's seed.
      */
     val pictureKey: String
         get() = album?.takeIf { it.isNotBlank() }?.let { "album|" + it.trim().lowercase() }
-            ?: artworkUrl?.let { "art|$it" }
+            ?: artworkId?.let { "art|$it" }
             ?: "seed|$artSeed"
+
+    /**
+     * What a scene is made for: the song, and for a station also its picture. A station's song
+     * often shows the station's picture first and its own a moment later; the new picture then
+     * gets a scene of its own and takes the old one's place.
+     */
+    val sceneKey: String get() = if (kind == MediaKind.RADIO) key + "|" + artworkId.orEmpty() else key
+}
+
+/**
+ * Which picture [url] is: the address without its `token` query parameter, which Home
+ * Assistant renews every few minutes in the links to its own pictures.
+ */
+internal fun pictureId(url: String): String {
+    val query = url.indexOf('?')
+    if (query < 0 || !url.contains("token=")) return url
+    val end = url.indexOf('#', query).let { if (it < 0) url.length else it }
+    val kept = url.substring(query + 1, end).split('&').filter { it.isNotEmpty() && !it.startsWith("token=") }
+    return url.substring(0, query) + (if (kept.isEmpty()) "" else "?" + kept.joinToString("&")) + url.substring(end)
 }

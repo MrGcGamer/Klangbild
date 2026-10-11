@@ -91,7 +91,13 @@ data class HaloLayout(val screen: ScreenSpec, val view: StageView = StageView.SI
     private class Grid(val margin: Float, val art: Float, val gap: Float, val rightMargin: Float)
 
     companion object {
-        private val SINGLE = Grid(margin = 88f, art = 368f, gap = 64f, rightMargin = 88f)
+        /** The grid's width (dp): every measure here is for a screen this wide, scaled to the real one. */
+        const val GRID_WIDTH = 960f
+
+        /** Between the artwork and the text (dp at 960 × 540). */
+        const val ART_TEXT_GAP = 64f
+
+        private val SINGLE = Grid(margin = 88f, art = 368f, gap = ART_TEXT_GAP, rightMargin = 88f)
         private val FLOW = Grid(margin = 153f, art = 300f, gap = 145f, rightMargin = 48f)
 
         /** Corner radius of square artwork (dp at 960 × 540, for the single view's 368 dp). */

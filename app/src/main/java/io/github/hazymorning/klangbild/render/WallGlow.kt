@@ -1,7 +1,7 @@
 package io.github.hazymorning.klangbild.render
 
 import io.github.hazymorning.klangbild.color.Lab
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.color.Oklab
 import kotlin.math.exp
 import kotlin.math.max
@@ -21,7 +21,7 @@ import kotlin.math.pow
  * never moves, so there is no work per frame and nothing that could step.
  */
 object WallGlow {
-    /** Glow brightness (relative luminance, ≈ L* 17) right at the edge of a bright print, by day. */
+    /** Glow brightness (relative luminance, ≈ L* 17) right at the edge of a bright print. */
     const val EDGE_LUMINANCE = 0.022f
 
     /** The glow is never more than this share of the edge's own luminance. */
@@ -45,11 +45,11 @@ object WallGlow {
 
     /**
      * The glow for a print of [shape] whose edge colors come from [thumb] (a small square
-     * thumbnail of the artwork, sRGB ARGB, [thumbSize]²), on [screen], at time of day
-     * [lighting]. Returns ARGB pixels of [MAP_W] × [MAP_H] covering the whole screen.
+     * thumbnail of the artwork, sRGB ARGB, [thumbSize]²), on [screen]. Returns ARGB pixels of
+     * [MAP_W] × [MAP_H] covering the whole screen.
      */
-    fun field(thumb: IntArray, thumbSize: Int, shape: PrintShape, screen: ScreenSpec, lighting: Lighting): IntArray {
-        val edge = edgeColours(thumb, thumbSize, lighting)
+    fun field(thumb: IntArray, thumbSize: Int, shape: PrintShape, screen: ScreenSpec): IntArray {
+        val edge = edgeColours(thumb, thumbSize)
         val n = edge.size
         // Light is diffuse: a point of the wall further from the print sees a longer stretch
         // of its edge, so the colors mix more with distance and there are no streaks.
@@ -142,16 +142,14 @@ object WallGlow {
      * The colors along the print's outline, clockwise from the top-left corner, as linear
      * RGB light at the glow's edge brightness. Each sample is the blurred edge region of the
      * artwork at [EDGE_LUMINANCE] (or at [SHARE_OF_EDGE] of its own luminance, if that is less),
-     * with its colorfulness capped, then dimmed and warmed for the time of day.
+     * with its colorfulness capped and a little warmed by the [Lamp].
      */
-    fun edgeColours(thumb: IntArray, size: Int, lighting: Lighting): Array<FloatArray> {
+    fun edgeColours(thumb: IntArray, size: Int): Array<FloatArray> {
         // A blurred copy: the glow takes the color of a region, not of single pixels.
         val lin = LinearImage.fromArgb(thumb, size, size)
         ImageOps.blur(lin, radius = max(1, size / 16))
         val perSide = size
         val out = Array(perSide * 4) { FloatArray(3) }
-        val night = (1f - lighting.brightness).coerceIn(0f, 1f)
-        val warm = lighting.warmth.coerceIn(0f, 1f)
         val inset = max(1, size / 12) // a little inside the edge: the first pixels are often a border
         for (i in 0 until perSide * 4) {
             val side = i / perSide
@@ -165,23 +163,21 @@ object WallGlow {
             val xi = x.toInt().coerceIn(inset, size - 1 - inset)
             val yi = y.toInt().coerceIn(inset, size - 1 - inset)
             val o = yi * size + xi
-            out[i] = light(lin.r[o], lin.g[o], lin.b[o], night, warm)
+            out[i] = light(lin.r[o], lin.g[o], lin.b[o])
         }
         return out
     }
 
     /** One edge color as glow light (linear RGB). */
-    private fun light(r: Float, g: Float, b: Float, night: Float, warm: Float): FloatArray {
+    private fun light(r: Float, g: Float, b: Float): FloatArray {
         val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
         var lab = Oklab.fromLinear(r, g, b)
-        // Cap the color, then let the evening pull it a little toward warm lamp light and let
-        // the night take most of its color away. Dim light is never vivid.
-        val maxC = MAX_CHROMA * (1f - 1.1f * night).coerceAtLeast(0.25f)
-        if (lab.chroma > maxC) lab = Lab(lab.l, lab.a * maxC / lab.chroma, lab.b * maxC / lab.chroma)
-        lab = lab.lerp(Lab(lab.l, 0.012f, 0.045f), 0.3f * warm)
+        // Cap the color, then pull it a little toward the lamp's warm light.
+        if (lab.chroma > MAX_CHROMA) lab = Lab(lab.l, lab.a * MAX_CHROMA / lab.chroma, lab.b * MAX_CHROMA / lab.chroma)
+        lab = lab.lerp(Lab(lab.l, 0.012f, 0.045f), 0.3f * Lamp.WARMTH)
         val lin = Oklab.toLinear(Oklab.gamutMap(Lab(0.7f, lab.a, lab.b)))
         val y = 0.2126f * lin[0] + 0.7152f * lin[1] + 0.0722f * lin[2]
-        val target = min(EDGE_LUMINANCE, SHARE_OF_EDGE * lum) * HaloLight.nightLight(night)
+        val target = min(EDGE_LUMINANCE, SHARE_OF_EDGE * lum)
         val k = if (y > 1e-5f) target / y else 0f
         return floatArrayOf(lin[0] * k, lin[1] * k, lin[2] * k)
     }

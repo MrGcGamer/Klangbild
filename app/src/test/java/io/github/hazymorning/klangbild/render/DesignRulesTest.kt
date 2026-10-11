@@ -6,7 +6,6 @@ import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.art.ChladniArt
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
 import io.github.hazymorning.klangbild.color.contrastRatio
 import io.github.hazymorning.klangbild.color.relativeLuminance
@@ -25,7 +24,7 @@ class DesignRulesTest {
     private fun thumb(top: Int, bottom: Int = top, split: Float = 0.5f): IntArray =
         IntArray(48 * 48) { i -> if (i / 48 < (48 * split).toInt()) top else bottom }
 
-    private fun glow(thumb: IntArray, lighting: Lighting = Lighting.DAY) = WallGlow.field(thumb, 48, shape, screen, lighting)
+    private fun glow(thumb: IntArray) = WallGlow.field(thumb, 48, shape, screen)
 
     /** The glow at (x, y) dp on the 960 × 540 map. */
     private fun IntArray.at(xDp: Float, yDp: Float): Int = this[yDp.toInt() * WallGlow.MAP_W + xDp.toInt()]
@@ -102,20 +101,10 @@ class DesignRulesTest {
     }
 
     @Test
-    fun `night turns the glow down to about half, never off, and takes its color`() {
-        val c = thumb(0xFFE0457B.toInt())
-        val day = glow(c, Lighting.DAY).at(layout.artRect.right + 2f, layout.artRect.centerY)
-        val night = glow(c, Lighting.NIGHT).at(layout.artRect.right + 2f, layout.artRect.centerY)
-        assertThat(luminance(night)).isAtMost(luminance(day) * 0.65f)
-        assertThat(luminance(night)).isAtLeast(luminance(day) * 0.45f)
-        assertThat(Oklab.fromArgb(night).chroma).isLessThan(Oklab.fromArgb(day).chroma)
-    }
-
-    @Test
     fun `the quietest text stays readable on the glow`() {
         for (c in covers) {
             val field = glow(thumb(c))
-            val palette = CoverPalette.derive(CoverPalette.analyze(thumb(c)), Lighting.DAY)
+            val palette = CoverPalette.derive(CoverPalette.analyze(thumb(c)))
             // the brightest wall under the text column: its left edge, level with the artwork's center
             val wall = field.at(layout.columnLeft + 1f, layout.textCenter)
             assertWithMessage("cover " + Integer.toHexString(c)).that(contrast(palette.inkQuiet, wall)).isAtLeast(4.5f)
@@ -128,37 +117,27 @@ class DesignRulesTest {
     @Test
     fun `text is near-neutral, never pure white, never ivory`() {
         for (c in covers) {
-            val p = CoverPalette.derive(CoverPalette.analyze(thumb(c)), Lighting.DAY)
+            val p = CoverPalette.derive(CoverPalette.analyze(thumb(c)))
             val ink = Oklab.fromArgb(p.ink)
             assertThat(p.ink and 0xFFFFFF).isNotEqualTo(0xFFFFFF)
             assertThat(ink.l).isIn(Range.closed(0.88f, 0.95f))
             assertThat(ink.chroma).isAtMost(0.015f)
         }
         // a neutral cover gets neutral text
-        val grey = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF808080.toInt())), Lighting.DAY)
+        val grey = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF808080.toInt())))
         assertThat(Oklab.fromArgb(grey.ink).chroma).isAtMost(0.007f)
     }
 
     @Test
-    fun `three clear text levels on both walls, day and night, every one at least four and a half to one`() {
-        for (appearance in Appearance.entries) for (lighting in listOf(Lighting.DAY, Lighting.EVENING, Lighting.NIGHT)) {
-            val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), lighting, appearance)
+    fun `three clear text levels on both walls, every one at least four and a half to one`() {
+        for (appearance in Appearance.entries) {
+            val p = CoverPalette.derive(CoverPalette.analyze(thumb(0xFF2A6FD6.toInt())), appearance)
             val tiers = listOf(p.ink, p.inkMuted, p.inkQuiet)
             // each level clearly apart from the one before it, away from the wall
             val l = tiers.map { Oklab.fromArgb(it).l }
-            for (i in 1 until l.size) assertWithMessage("$appearance $lighting").that(abs(l[i - 1] - l[i])).isAtLeast(0.095f)
-            // nothing is left out at night, so every line has to read
-            for (ink in tiers) assertWithMessage("$appearance $lighting").that(contrast(ink, p.wall)).isAtLeast(4.5f)
+            for (i in 1 until l.size) assertWithMessage("$appearance").that(abs(l[i - 1] - l[i])).isAtLeast(0.095f)
+            for (ink in tiers) assertWithMessage("$appearance").that(contrast(ink, p.wall)).isAtLeast(4.5f)
         }
-    }
-
-    @Test
-    fun `night turns the lamp down to about half, never off, and takes its color`() {
-        val day = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.DAY)
-        val night = HaloLight.lightTint(HaloLight.LAMP, 0.05f, Lighting.NIGHT)
-        assertThat(luminance(night)).isAtMost(luminance(day) * 0.62f)
-        assertThat(luminance(night)).isAtLeast(luminance(day) * 0.5f)
-        assertThat(HaloLight.hsvSaturation(night)).isAtMost(0.5f)
     }
 
     // --- The grid -------------------------------------------------------------------------

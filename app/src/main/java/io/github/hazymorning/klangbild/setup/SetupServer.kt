@@ -5,6 +5,7 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import io.github.hazymorning.klangbild.R
+import io.github.hazymorning.klangbild.config.ActionKind
 import io.github.hazymorning.klangbild.data.ha.HaAuth
 import io.github.hazymorning.klangbild.data.ha.HaAuthRejectedException
 import io.github.hazymorning.klangbild.data.ha.HaCredentials
@@ -222,9 +223,9 @@ class SetupServer(
         }.getOrNull()
 
         /**
-         * Asks Home Assistant at [url] for its media players, lights and weather entities (REST
-         * `/api/states`) with [credentials]. Every failure becomes one calm sentence for the
-         * setup page.
+         * Asks Home Assistant at [url] for its media players, lights, weather entities and what
+         * a button can work (REST `/api/states`) with [credentials]. Every failure becomes one
+         * calm sentence for the setup page.
          */
         suspend fun discover(http: OkHttpClient, url: String, credentials: HaCredentials, t: Texts): DiscoverResult {
             val rest = HaRest(http, HaAuth(http, url, credentials))
@@ -274,7 +275,12 @@ class SetupServer(
                 val id = o.id()?.takeIf { it.startsWith("weather.") } ?: return@mapNotNull null
                 WeatherOption(id, o.name() ?: id, weatherWord(o.state(), t))
             }.sortedBy { it.name.lowercase() }
-            return DiscoverResult.Ok(speakers, lights, weather)
+            // What the quick settings' own buttons can work, by kind (scripts first), then by name.
+            val actions = states.mapNotNull { o ->
+                val id = o.id()?.takeIf { ActionKind.of(it) != null } ?: return@mapNotNull null
+                ActionOption(id, o.name() ?: id)
+            }.sortedWith(compareBy<ActionOption> { ActionKind.DOMAINS.indexOf(it.entityId.substringBefore('.')) }.thenBy { it.name.lowercase() })
+            return DiscoverResult.Ok(speakers, lights, weather, actions)
         }
 
         /** A weather condition (https://developers.home-assistant.io/docs/core/entity/weather) in words. */

@@ -1,5 +1,6 @@
 package io.github.hazymorning.klangbild.data
 
+import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
@@ -50,6 +51,8 @@ data class SourceState(
     val windKmh: Double? = null,
     /** What plays can be added to Music Assistant's favorites. */
     val favorites: Boolean = false,
+    /** The states of the entities the quick settings' own buttons work, as far as Home Assistant has them. */
+    val actions: Map<String, String> = emptyMap(),
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }
@@ -68,4 +71,10 @@ interface NowPlayingSource {
 
     /** Turns shuffle on or off; whether the call went out. */
     suspend fun shuffle(on: Boolean): Boolean = false
+
+    /** Follows the entities of the quick settings' own buttons, for whether they are there and on. */
+    fun followActions(ids: Set<String>) = Unit
+
+    /** Does what [action] says in Home Assistant; whether Home Assistant took it. */
+    suspend fun run(action: QuickAction): Boolean = false
 }

@@ -15,13 +15,14 @@ import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.app.QuickState
 import io.github.hazymorning.klangbild.art.SyntheticCover
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.config.ActionState
 import io.github.hazymorning.klangbild.config.FavoriteState
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.MenuSection
 import io.github.hazymorning.klangbild.config.Picture
+import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.config.QuickContext
 import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.QuickMenu
@@ -151,12 +152,20 @@ class LanguageTest {
         return out.toList()
     }
 
-    /** The quick settings in every state they can be in. */
-    private fun allQuick(t: Texts): List<QuickState> = buildList {
-        val settings = listOf(Settings(), configured.copy(roomLights = RoomLights("light.left", null, null)))
-        for (s in settings) for (music in listOf(true, false)) for (vista in listOf(true, false)) {
+    /**
+     * The quick settings in every state they can be in; with [buttons] also with buttons of one's
+     * own, of every kind and in every state.
+     */
+    private fun allQuick(t: Texts, buttons: Boolean = false): List<QuickState> = buildList {
+        val own = if (!buttons) emptyList() else listOf(
+            QuickAction("Ungroup", "script.ungroup"), QuickAction("Movie", "scene.movie"),
+            QuickAction("Bell", "button.bell"), QuickAction("Party", "switch.party"),
+        )
+        val settings = listOf(Settings(), configured.copy(roomLights = RoomLights("light.left", null, null))).map { it.copy(quickActions = own) }
+        val states = if (!buttons) listOf(emptyMap()) else ActionState.entries.map { st -> own.associate { it.entity to st } }
+        for (s in settings) for (music in listOf(true, false)) for (vista in listOf(true, false)) for (actions in states) {
             for (favorite in FavoriteState.entries + null) for (shuffle in listOf(true, false, null)) for (pending in Picture.entries + null) {
-                val rows = QuickMenu.rows(s, QuickContext(vista, pending, music, favorite, shuffle), t)
+                val rows = QuickMenu.rows(s, QuickContext(vista, pending, music, favorite, shuffle, actions), t)
                 add(QuickState(rows, 0))
             }
         }
@@ -176,7 +185,7 @@ class LanguageTest {
 
     @Test
     fun theQuickSettingsSayNothingInGerman() {
-        for (quick in allQuick(en)) for (row in quick.rows) {
+        for (quick in allQuick(en, buttons = true)) for (row in quick.rows) {
             assertEnglish("quick ${row.item} label", row.label)
             assertEnglish("quick ${row.item} value", row.value)
         }
@@ -233,7 +242,7 @@ class LanguageTest {
             shown += shownTexts { SetupScreen(r, i, scene) }.map { "setup screen $r" to it }
         }
         for (reason in RestReason.entries) {
-            shown += shownTexts { RestScreen(reason, "Living room", "media_player.living_room", Lighting.DAY, Fixtures.at(21, 47), zone = Fixtures.zone) }
+            shown += shownTexts { RestScreen(reason, "Living room", "media_player.living_room", Fixtures.at(21, 47), zone = Fixtures.zone) }
                 .map { "rest screen $reason" to it }
         }
         // English music, so that everything the stage shows must be English.
@@ -313,6 +322,7 @@ class LanguageTest {
         }
     }
 
+    /** The built-in entries fit; with buttons of one's own the row may be longer, and then it glides. */
     @Test
     fun theQuickSettingsFitTheScreenInBothLanguages() {
         measuring()
@@ -324,7 +334,7 @@ class LanguageTest {
             val states = allQuick(t).distinctBy { q -> q.rows.map { it.item to it.value } }
             compose.runOnIdle {
                 for (quick in states) {
-                    val widths = quickWidths(quick, t, measurer, label, value, density)
+                    val widths = quickWidths(quick, measurer, label, value, density)
                     val end = QuickGrid.LEFT + widths.sum() + QuickGrid.GAP * (widths.size - 1)
                     assertWithMessage("${quick.rows.map { it.label + ": " + it.value }} (${t.locale})").that(end).isAtMost(right)
                 }

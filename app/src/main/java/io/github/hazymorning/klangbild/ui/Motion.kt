@@ -114,7 +114,7 @@ object Motion {
     /** Cards beside the middle come or go (the queue changed). */
     const val FLOW_SIDES_MS = 900
 
-    /** Same track, better cover or new time-of-day light. */
+    /** Same track, a better cover. */
     const val SOFT_SWAP_MS = 900
 
     /** Light wall to dark one at sunset (and back in the morning). */

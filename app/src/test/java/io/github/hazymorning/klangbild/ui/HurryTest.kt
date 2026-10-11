@@ -18,7 +18,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.render.ScreenSpec
@@ -112,7 +111,8 @@ class HurryTest {
         val pair = sideBySide(
             Fixtures.stage(Fixtures.track(SyntheticCover.NIGHT_DRIVE), mdpi),
             Fixtures.stage(song, mdpi),
-            Fixtures.stage(song, mdpi, lighting = Lighting.EVENING),
+            // A better cover for the same song: a new scene, here its cover's colors as the wall.
+            Fixtures.stage(song, mdpi, coverField = true),
         ) { Fixtures.Theatre(it, PlayerStatus.PLAYING) }
         assertAlike(pair)
     }

@@ -1,5 +1,7 @@
 package io.github.hazymorning.klangbild.data.ha
 
+import io.github.hazymorning.klangbild.config.ActionKind
+import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.data.LinkState
 import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
@@ -37,6 +39,8 @@ import java.text.Normalizer
  * Home Assistant as the source: the configured media_player plus `sun.sun`, enriched with
  * Music Assistant's queue (next track, full-size artwork, individual artist names) and, when
  * Music Assistant itself is set up ([ma]), with the whole queue around the current track.
+ * A Music Assistant song is published once that queue has described it, so it never comes
+ * first with Home Assistant's small picture and without its year ([awaitsDetails]).
  * Remote commands go out only where the player supports them.
  */
 class HaSource(
@@ -51,6 +55,10 @@ class HaSource(
     private val weatherEntities: List<String> = emptyList(),
     /** How often the queue is read again while music plays (shorter in tests). */
     private val queueRefreshMs: Long = QUEUE_REFRESH_MS,
+    /** How long a button's call may go unanswered before it counts as still running (shorter in tests). */
+    private val actionAnswerMs: Long = ACTION_ANSWER_MS,
+    /** How long a new song may wait for Music Assistant's queue to describe it (shorter in tests). */
+    private val detailsWaitMs: Long = DETAILS_WAIT_MS,
 ) : NowPlayingSource, LightBridge {
 
     private val connection = HaConnection(http, scope)
@@ -68,8 +76,19 @@ class HaSource(
     @Volatile private var maLink: MaLink? = null
     @Volatile private var lastPlayerKey: String? = null
 
-    /** Home Assistant answered the last `get_queue`. A player without a queue is not asked again until its track changes. */
-    @Volatile private var queueWorks = false
+    /**
+     * Home Assistant answered the last `get_queue` (null: not asked yet). A player without a
+     * queue is not asked again until its track changes, and its songs do not wait for one.
+     */
+    @Volatile private var queueWorks: Boolean? = null
+
+    /** The song that waits for the queue to describe it, since when, and what publishes it when the wait is over. */
+    private var awaited: String? = null
+    private var awaitedSince = 0L
+    private var awaitEnd: Job? = null
+
+    /** A station's pictures, ranked and steady while a song plays (only touched in [publish]). */
+    private val stationPictures = StationPictures()
 
     /** Music Assistant's queue was last read at this time, for what it was then (id, place, next). */
     private var windowReadAt = 0L
@@ -88,6 +107,43 @@ class HaSource(
         if (ids == lightIds) return
         lightIds = ids
         publish(connection.status.value, connection.entities.value)
+    }
+
+    /** The entities the quick settings' own buttons work, followed for whether they are there and on. */
+    @Volatile private var actionIds: Set<String> = emptySet()
+
+    override fun followActions(ids: Set<String>) {
+        if (ids == actionIds) return
+        actionIds = ids
+        publish(connection.status.value, connection.entities.value)
+    }
+
+    /**
+     * Does what [action] says: a script runs (with the speaker as its variable `player`), a scene
+     * is activated, an automation runs its actions, a button is pressed, a switch is turned the
+     * other way. Home Assistant answers a call once it is done: one still running after
+     * [actionAnswerMs] (a long automation) has been taken.
+     */
+    override suspend fun run(action: QuickAction): Boolean {
+        val kind = action.kind ?: return false
+        val domain = action.entity.substringBefore('.')
+        val service = when (kind) {
+            ActionKind.RUN -> if (domain == "script") "turn_on" else "trigger"
+            ActionKind.ACTIVATE -> "turn_on"
+            ActionKind.PRESS -> "press"
+            ActionKind.TOGGLE -> "toggle"
+        }
+        val data = if (domain == "script") buildJsonObject { put("variables", buildJsonObject { put("player", playerEntity) }) } else null
+        return try {
+            connection.callService(domain, service, action.entity, data = data, timeoutMs = actionAnswerMs)
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: HaNoAnswerException) {
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override suspend fun call(domain: String, service: String, entityId: String?, data: JsonObject?): String? = try {
@@ -114,7 +170,7 @@ class HaSource(
             while (isActive) {
                 delay(queueRefreshMs)
                 val p = _state.value.player
-                if (p?.status == PlayerStatus.PLAYING && p.isMusicAssistant && queueWorks) startQueueRead(force = true)
+                if (p?.status == PlayerStatus.PLAYING && p.isMusicAssistant && queueWorks == true) startQueueRead(force = true)
             }
         }
     }
@@ -123,6 +179,7 @@ class HaSource(
         collector?.cancel()
         queuePoller?.cancel()
         queueJob?.cancel()
+        awaitEnd?.cancel()
         connection.stop()
     }
 
@@ -218,7 +275,7 @@ class HaSource(
         // The other speakers of a group are followed too, for their names, and so are the
         // lights; in a larger group also every Music Assistant speaker, to tell "everywhere".
         val others = player?.groupMembers.orEmpty()
-        val follow = others.toSet() + lightIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
+        val follow = others.toSet() + lightIds + actionIds + (if (others.size + 1 >= EVERYWHERE_MIN) maSpeakers() else emptySet())
         if (follow != watched) {
             watched = follow
             connection.watch(watched)
@@ -228,7 +285,7 @@ class HaSource(
         val queueKnown = key != null && queueForKey == key
         val currentQueue = queue?.takeIf { queueKnown }
         val currentWindow = window?.takeIf { queueKnown }
-        _state.value = SourceState(
+        val fresh = SourceState(
             link = link,
             player = enriched,
             entityMissing = status == HaStatus.Connected && entity == null && playerEntity in connection.missing.value,
@@ -249,8 +306,54 @@ class HaSource(
             cloudCoverage = weather?.number("cloud_coverage") ?: _state.value.cloudCoverage.takeIf { weather == null },
             windKmh = weather?.let { w -> w.number("wind_speed")?.let { speed -> WeatherMood.kmh(speed, w.string("wind_speed_unit")) } }
                 ?: _state.value.windKmh.takeIf { weather == null },
+            actions = actionIds.mapNotNull { id -> entities[id]?.let { id to it.state } }.toMap(),
         )
+        // Until the new song is described, what was shown stays: the song before it, all of it.
+        _state.value = if (player != null && key != null && awaitsDetails(player, key, t)) fresh.showing(_state.value) else fresh
     }
+
+    /**
+     * Whether the song [key] on [p] waits for Music Assistant's queue: Home Assistant reports a
+     * new song first with a small picture (512 px) and without the album's year, and the queue
+     * tells the rest a moment later. A song the queue has described or announced as next does not
+     * wait, nor does a player whose queue does not answer; none waits longer than [detailsWaitMs].
+     */
+    private fun awaitsDetails(p: PlayerSnapshot, key: String, t: Long): Boolean {
+        val track = p.track
+        if (track == null || !p.isMusicAssistant || queueWorks == false || queueForKey == key || announced(track) != null) {
+            awaited = null
+            return false
+        }
+        if (awaited != key) {
+            awaited = key
+            awaitedSince = t
+            awaitEnd?.cancel()
+            awaitEnd = scope.launch {
+                delay(detailsWaitMs)
+                publish(connection.status.value, connection.entities.value)
+            }
+        }
+        return t - awaitedSince < detailsWaitMs
+    }
+
+    /** This state with the player, its queue and its time as [shown] has them. */
+    private fun SourceState.showing(shown: SourceState) = copy(
+        player = shown.player,
+        receivedAtMs = shown.receivedAtMs,
+        next = shown.next,
+        group = shown.group,
+        queueKnown = shown.queueKnown,
+        coming = shown.coming,
+        played = shown.played,
+        favorites = shown.favorites,
+    )
+
+    /**
+     * The song Music Assistant's queue announced as next, when [track] is it: described before
+     * its own read (music only; a book's or an episode's chapters come with that read).
+     */
+    private fun announced(track: TrackInfo): TrackInfo? =
+        queue?.next?.takeIf { it.kind == MediaKind.MUSIC && track.kind == MediaKind.MUSIC && sameTitle(it.title, track.title) }
 
     /** Home Assistant's latitude and longitude from its configuration. */
     private fun placeOf(cfg: JsonObject?): Pair<Double, Double>? {
@@ -272,16 +375,17 @@ class HaSource(
     }
 
     /**
-     * Prefer the queue's richer data when it describes the same track; Music Assistant's own
-     * queue adds a book's authors, an episode's show, the chapters and the speed.
+     * Prefer the queue's richer data when it describes the same track (or announced it as next,
+     * before its own read); Music Assistant's own queue adds a book's authors, an episode's show,
+     * the chapters and the speed.
      */
     private fun enrich(p: PlayerSnapshot): PlayerSnapshot {
         val track = p.track ?: return p
         if (track.kind == MediaKind.RADIO) return enrichStation(p, track)
-        val q = queue ?: return p
-        val current = q.current ?: return p
-        if (queueForKey != trackKey(track) || !sameTitle(current.title, track.title)) return p
-        val w = window?.takeIf { w -> w.current?.let { sameTitle(it.title, track.title) } == true }
+        val known = queueForKey == trackKey(track)
+        val current = (if (known) queue?.current else announced(track)) ?: return p
+        if (!sameTitle(current.title, track.title)) return p
+        val w = window?.takeIf { w -> known && w.current?.let { sameTitle(it.title, track.title) } == true }
         val mine = w?.current
         // Only Music Assistant's own queue knows the album's year.
         return p.copy(
@@ -301,25 +405,30 @@ class HaSource(
     }
 
     /**
-     * A station: the song it plays keeps Home Assistant's picture (the song's own when Music
-     * Assistant knows it) unless Music Assistant's queue brings the song's picture itself. The
-     * station's picture only ever stands behind. The queue names the station; a name in the
-     * album's place that is not the station's is the song's album.
+     * A station: the queue names the station, and a name in the album's place that is not the
+     * station's is the song's album. The picture is [StationPictures]' choice from what is
+     * offered: the song's picture from Music Assistant's own queue, Home Assistant's picture
+     * (Music Assistant's choice of the moment) and the station's from the queue.
      */
     private fun enrichStation(p: PlayerSnapshot, track: TrackInfo): PlayerSnapshot {
-        if (queueForKey != trackKey(track)) return p
-        val mine = window?.current?.takeIf { it.kind == MediaKind.RADIO && sameTitle(it.title, track.title) }
-        val station = queue?.current?.takeIf { it.kind == MediaKind.RADIO }?.source ?: mine?.source ?: track.source
-        val album = track.album ?: mine?.album ?: track.source?.takeIf { station != null && !it.equals(station, ignoreCase = true) }
-        val song = mine?.takeIf { it.songPicture }
-        return p.copy(
-            track = track.copy(
-                album = album,
-                artworkUrl = song?.artworkUrl ?: track.artworkUrl ?: queue?.current?.artworkUrl,
-                artworkFallbackUrl = if (song != null) track.artworkUrl ?: song.artworkFallbackUrl else track.artworkFallbackUrl ?: queue?.current?.artworkUrl,
-                source = station,
+        val known = queueForKey == trackKey(track)
+        val mine = window?.current?.takeIf { known && it.kind == MediaKind.RADIO && sameTitle(it.title, track.title) }
+        val item = queue?.current?.takeIf { known && it.kind == MediaKind.RADIO }
+        val station = item?.source ?: mine?.source ?: track.source
+        val album = track.album ?: mine?.album ?: track.source?.takeIf { known && station != null && !it.equals(station, ignoreCase = true) }
+        val picture = stationPictures.choose(
+            trackKey(track),
+            listOfNotNull(
+                mine?.takeIf { it.songPicture }?.artworkUrl?.let { StationPictures.Offer(it, mine.artworkFallbackUrl, StationPictures.Rank.SONG, certain = true) },
+                track.artworkUrl?.let { url ->
+                    // Home Assistant serves the station's picture through its own proxy; an address of its own is the song's.
+                    val rank = if (HaUrls.isPlayerProxy(url)) StationPictures.Rank.UNKNOWN else StationPictures.Rank.SONG
+                    StationPictures.Offer(url, track.artworkFallbackUrl, rank)
+                },
+                item?.artworkUrl?.let { StationPictures.Offer(it, item.artworkFallbackUrl, StationPictures.Rank.STATION, certain = true) },
             ),
         )
+        return p.copy(track = track.copy(album = album, artworkUrl = picture?.url, artworkFallbackUrl = picture?.fallback, source = station))
     }
 
     /** Starts reading the queue anew; a read under way for an older track is canceled, a periodic one waits its turn. */
@@ -436,6 +545,12 @@ class HaSource(
 
         /** "Everywhere" needs at least this many speakers playing together. */
         const val EVERYWHERE_MIN = 3
+
+        /** A button's call that Home Assistant has not answered after this long is still running, and counts as taken. */
+        const val ACTION_ANSWER_MS = 4_000L
+
+        /** A new song waits at most this long for Music Assistant's queue to describe it. */
+        const val DETAILS_WAIT_MS = 2_000L
 
         /**
          * The service for [command] on player [p], or null when the player does not support it

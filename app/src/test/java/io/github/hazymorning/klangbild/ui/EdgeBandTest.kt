@@ -11,6 +11,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertWithMessage
+import io.github.hazymorning.klangbild.render.FlowGeometry
+import io.github.hazymorning.klangbild.render.FlowLight
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.render.WallGlow
 import io.github.hazymorning.klangbild.ui.flow.FlowStage
@@ -65,6 +67,34 @@ class EdgeBandTest {
     }
 
     @Test
+    fun theEdgesAndTheTextStayOnBlackWithCardsMissing() {
+        // The first song, the last, no queue: the strip and its light move to stand in the middle,
+        // the column moves with them. Every test cover once in the middle (its top edge colors the
+        // light), in the strips that move them most: the light never reaches the band, nor the column.
+        val tracks = Fixtures.tracks
+        val scenes = Fixtures.flowScenes(tracks, screen = mdpi)
+        val geometry = FlowGeometry(scenes[0].layout)
+        var middle by mutableStateOf(0)
+        var sides by mutableStateOf(0 to 0)
+        compose.setContent {
+            Fixtures.Still {
+                val (left, right) = sides
+                val shown = (-left..right).map { scenes[(middle + it + scenes.size) % scenes.size] }
+                FlowStage(Fixtures.model(tracks[middle], screen = mdpi, scene = scenes[middle]), Fixtures.restingCards(shown, left))
+            }
+        }
+        for (i in tracks.indices) for ((left, right) in listOf(0 to 0, 2 to 0, 0 to 2)) {
+            middle = i
+            sides = left to right
+            val what = "${tracks[i].title}, $left before, $right to come"
+            assertWithMessage(what).that(brightestInBand()).isEqualTo(0)
+            // Up to the column's edge, where the first letters' soft edges may begin.
+            val column = scenes[i].layout.columnLeft + geometry.balance(left, right).column
+            assertWithMessage("$what: before the column").that(brightestBetween(column - FlowLight.GONE_BEFORE_COLUMN, column - 2f)).isEqualTo(0)
+        }
+    }
+
+    @Test
     fun theCoverColoursReachEveryEdgeWhereverTheStageDrifts() {
         // The cover colors background is the one wall that fills the screen: it meets the light behind the TV.
         // The stage drifts ±12 dp against burn-in; the field reaches beyond, so no edge ever shows black.
@@ -106,7 +136,7 @@ class EdgeBandTest {
         val settings = io.github.hazymorning.klangbild.config.Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = io.github.hazymorning.klangbild.config.SettingsMenu.rows(settings, io.github.hazymorning.klangbild.config.MenuContext(), Fixtures.texts)
         var cursor by mutableStateOf(0)
-        compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor), io.github.hazymorning.klangbild.color.Lighting.DAY) } }
+        compose.setContent { Fixtures.Still { MenuScreen(io.github.hazymorning.klangbild.app.MenuState(rows, cursor)) } }
         for (c in listOf(0, rows.size / 2, rows.size - 1)) {
             cursor = c
             assertWithMessage(rows[c].label).that(brightestInBand()).isEqualTo(0)
@@ -127,6 +157,21 @@ class EdgeBandTest {
             darkest = minOf(darkest, maxOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF))
         }
         return darkest
+    }
+
+    /** The brightest channel value from [fromDp] to [toDp] across the screen, all the way down. */
+    private fun brightestBetween(fromDp: Float, toDp: Float): Int {
+        compose.waitForIdle()
+        val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+        var brightest = 0
+        for (y in 0 until h) for (x in fromDp.toInt() until toDp.toInt()) {
+            val p = px[y * w + x]
+            brightest = maxOf(brightest, (p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF)
+        }
+        return brightest
     }
 
     /** The brightest channel value in the band along the screen edges. */

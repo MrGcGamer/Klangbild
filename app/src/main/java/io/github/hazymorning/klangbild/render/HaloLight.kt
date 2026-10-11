@@ -1,7 +1,7 @@
 package io.github.hazymorning.klangbild.render
 
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.color.Lch
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.color.Oklab
 import kotlin.math.hypot
 import kotlin.math.max
@@ -38,8 +38,8 @@ data class PrintShape(val rect: RectDp, val round: Boolean = false, val corner: 
 }
 
 /**
- * Lamp light for the screens without artwork (rest, menu): a warm white bulb whose tint is
- * dimmed and warmed with the time of day. The stage's own light is [WallGlow].
+ * Lamp light for the screens without artwork (rest, menu): a warm white bulb. The stage's own
+ * light is [WallGlow].
  */
 object HaloLight {
     /** Light for neutral surroundings: warm white, like a 2700 to 3000 K bulb. */
@@ -48,38 +48,9 @@ object HaloLight {
     /** Hue of plain lamp light. */
     const val LAMP_HUE = 72f
 
-    /**
-     * The sRGB tint for a pool of light: [color] at [peak] luminance, adjusted for the time of
-     * day. The lamp gets warmer only after sunset; at night it is turned down ([nightLight]) and
-     * loses saturation (≤ 50 %).
-     */
-    fun lightTint(color: Lch, peak: Float, lighting: Lighting): Int {
-        val night = nightOf(lighting)
-        val warm = lighting.warmth.coerceIn(0f, 1f)
-        val base = color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * warm).toLch()
-        var chroma = base.c * (1f - 1.25f * night)
-        val luminance = peak * nightLight(night)
-        val maxSaturation = 1f - 1.25f * night
-        var argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
-        repeat(12) {
-            if (hsvSaturation(argb) <= maxSaturation + 1e-3f) return argb
-            chroma *= 0.85f
-            argb = scaledTo(Lch(base.l, chroma, base.h), luminance)
-        }
-        return argb
-    }
-
-    /** 0 by day, 0.4 at deep night (from the lighting's brightness). */
-    fun nightOf(lighting: Lighting) = (1f - lighting.brightness).coerceIn(0f, 1f)
-
-    /**
-     * How strong light is at [night] ([nightOf]) compared with the day. It is turned down in the
-     * evening, to about half at deep night, but never so far that it seems to be gone.
-     */
-    fun nightLight(night: Float) = (1f - 1.1f * night).coerceIn(MIN_NIGHT_LIGHT, 1f)
-
-    /** The smallest share of its daytime strength that light keeps at night. */
-    const val MIN_NIGHT_LIGHT = 0.55f
+    /** The sRGB tint for a pool of light: [color], a little warmed by the [Lamp], at [peak] luminance. */
+    fun lightTint(color: Lch, peak: Float): Int =
+        scaledTo(color.toLab().lerp(Lch(color.l, LAMP.c, LAMP.h).toLab(), 0.35f * Lamp.WARMTH).toLch(), peak)
 
     /** [c] scaled in linear light to the given relative luminance (keeps its chromaticity). */
     private fun scaledTo(c: Lch, luminance: Float): Int {
@@ -88,15 +59,6 @@ object HaloLight {
         val k = if (y > 0f) luminance / y else 0f
         fun ch(v: Float) = (Oklab.linearToSrgb((v * k).coerceIn(0f, 1f)) * 255f).roundToInt().coerceIn(0, 255)
         return (0xFF shl 24) or (ch(lin[0]) shl 16) or (ch(lin[1]) shl 8) or ch(lin[2])
-    }
-
-    fun hsvSaturation(argb: Int): Float {
-        val r = (argb shr 16) and 0xFF
-        val g = (argb shr 8) and 0xFF
-        val b = argb and 0xFF
-        val mx = maxOf(r, g, b)
-        val mn = minOf(r, g, b)
-        return if (mx == 0) 0f else (mx - mn).toFloat() / mx
     }
 
     fun smoothstep(e0: Float, e1: Float, x: Float): Float {

@@ -4,7 +4,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.ui.flow.FlowStage
 import org.junit.Test
@@ -25,12 +24,12 @@ class FlowTest {
         Fixtures.track(SyntheticCover.BAUHAUS),
     )
 
-    private fun shot(name: String, appearance: Appearance, lighting: Lighting = Lighting.DAY) =
+    private fun shot(name: String, appearance: Appearance) =
         captureRoboImage("build/screenshots/flow/$name.png") {
             Fixtures.Still {
-                val scenes = Fixtures.flowScenes(strip, appearance, lighting)
+                val scenes = Fixtures.flowScenes(strip, appearance)
                 FlowStage(
-                    Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2], lighting = lighting),
+                    Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer + 5", scene = scenes[2]),
                     Fixtures.restingCards(scenes, 2),
                 )
             }
@@ -38,5 +37,4 @@ class FlowTest {
 
     @Test fun dark() = shot("flow_dark", Appearance.DARK)
     @Test fun light() = shot("flow_light", Appearance.LIGHT)
-    @Test fun night() = shot("flow_night", Appearance.DARK, Lighting.NIGHT)
 }

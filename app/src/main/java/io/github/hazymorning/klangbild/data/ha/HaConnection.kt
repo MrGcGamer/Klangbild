@@ -58,6 +58,12 @@ sealed interface HaStatus {
 /** A Home Assistant error answer to a command. */
 class HaCommandException(val code: String, message: String) : Exception(message)
 
+/**
+ * Home Assistant took a command but has not answered within [timeoutMs]. It answers a call only
+ * when the call is done, so a long automation is still running.
+ */
+class HaNoAnswerException(timeoutMs: Long) : IOException("no answer within $timeoutMs ms")
+
 /** An entity as the entity registry lists it for display (`config/entity_registry/list_for_display`). */
 data class RegistryEntry(val entityId: String, val platform: String, val deviceId: String?, val translationKey: String?)
 
@@ -263,7 +269,7 @@ class HaConnection(
             try {
                 if (!send(build(id))) throw IOException("socket closed")
                 val answer = withTimeoutOrNull(timeoutMs) { Answer(deferred.await()) }
-                    ?: throw IOException("no answer within $timeoutMs ms")
+                    ?: throw HaNoAnswerException(timeoutMs)
                 return answer.value
             } catch (e: CancellationException) {
                 currentCoroutineContext().ensureActive()

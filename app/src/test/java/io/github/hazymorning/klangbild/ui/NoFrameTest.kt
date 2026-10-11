@@ -11,6 +11,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.render.FlowGeometry
 import io.github.hazymorning.klangbild.ui.flow.FlowStage
 import io.github.hazymorning.klangbild.ui.stage.Stage
 import org.junit.Rule
@@ -19,11 +20,14 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * Nothing frames a cover on paper: no shadow, no line, no lighter or darker box. Around the
  * single print and above and below the cover flow's cards the paper is plain, measured on
- * rendered pixels.
+ * rendered pixels. Nor does anything darken the cover flow's middle card at an edge, wherever
+ * the strip stands.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -78,7 +82,7 @@ class NoFrameTest {
             Fixtures.track(SyntheticCover.BAUHAUS),
         )
         val bmp = render {
-            val scenes = Fixtures.flowScenes(strip, Appearance.LIGHT, io.github.hazymorning.klangbild.color.Lighting.DAY)
+            val scenes = Fixtures.flowScenes(strip, Appearance.LIGHT)
             FlowStage(Fixtures.model(strip[2], next = strip[3], group = "Wohnzimmer", scene = scenes[2]), Fixtures.restingCards(scenes, 2))
         }
         // The middle card: 300 dp, its middle 303 dp from the left and in the middle of the height; the column from 598 dp.
@@ -88,5 +92,37 @@ class NoFrameTest {
             intArrayOf(80, bottom + 6, 1110, bottom + 90),
         )
         assertWithMessage("paper above and below the cards").that(deviation(bmp, boxes)).isAtMost(3)
+    }
+
+    @Test
+    fun `the middle card keeps every pixel wherever the strip stands`() {
+        // A first song brings the middle card near the left edge, where the side cards dissolve into the black band.
+        val strip = listOf(SyntheticCover.TERRACOTTA, SyntheticCover.MOSS, SyntheticCover.WHITE_SPACE, SyntheticCover.NIGHT_DRIVE, SyntheticCover.BAUHAUS)
+            .map { Fixtures.track(it) }
+        val scenes = Fixtures.flowScenes(strip)
+        val geometry = FlowGeometry(scenes[2].layout)
+        fun shot(left: Int, right: Int) = render {
+            FlowStage(Fixtures.model(strip[2], scene = scenes[2]), Fixtures.restingCards(scenes.subList(2 - left, 3 + right), left))
+        }
+        val full = shot(2, 2)
+        for ((left, right) in listOf(0 to 2, 0 to 1, 0 to 0, 2 to 0)) {
+            val bmp = shot(left, right)
+            // The card stands on whole pixels: the strip's shift, rounded one way or the other.
+            val dx = geometry.balance(left, right).cards * 2f
+            val worst = listOf(floor(dx), ceil(dx)).minOf { middleCardDifference(full, bmp, it.toInt()) }
+            assertWithMessage("$left before, $right to come").that(worst).isEqualTo(0)
+        }
+    }
+
+    /** The largest difference (levels, any channel) between the middle card in [a] and in [b], [dx] px further right (round corners left out). */
+    private fun middleCardDifference(a: Bitmap, b: Bitmap, dx: Int): Int {
+        // The middle card: 300 dp, its middle 303 dp from the left and in the middle of the height, at 2 px a dp.
+        var worst = 0
+        for (y in 256 until 824) for (x in 306 until 906) {
+            val p = a.getPixel(x, y)
+            val q = b.getPixel(x + dx, y)
+            for (shift in intArrayOf(16, 8, 0)) worst = maxOf(worst, abs(((p shr shift) and 0xFF) - ((q shr shift) and 0xFF)))
+        }
+        return worst
     }
 }

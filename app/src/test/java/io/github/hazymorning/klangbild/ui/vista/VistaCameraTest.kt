@@ -75,10 +75,18 @@ class VistaCameraTest {
     @Test
     fun noEdgeEverShows() {
         val drift = VistaCamera.DRIFT
+        // At an end of the camera's range only the drift toward that end can bring an edge in:
+        // the picture moves further that way. A range without width gets both.
+        fun outward(v: Float, lo: Float, hi: Float) = when {
+            lo == hi -> listOf(-drift, drift)
+            v == lo -> listOf(drift)
+            else -> listOf(-drift)
+        }
         for (side in LabelSide.entries) for (zoom in listOf(VistaCamera.ZOOM_MIN, (VistaCamera.ZOOM_MIN + VistaCamera.ZOOM_MAX) / 2f, VistaCamera.ZOOM_MAX)) {
             val (x0, x1) = VistaCamera.rangeX(zoom, side)
-            for (cx in listOf(x0, x1)) for (cy in VistaCamera.rangeY(zoom, side, cx).toList()) {
-                for ((dx, dy) in listOf(-drift to -drift, drift to drift, -drift to drift, drift to -drift)) {
+            for (cx in listOf(x0, x1).distinct()) {
+                val (y0, y1) = VistaCamera.rangeY(zoom, side, cx)
+                for (cy in listOf(y0, y1).distinct()) for (dx in outward(cx, x0, x1)) for (dy in outward(cy, y0, y1)) {
                     val bmp = render(VistaCamera.pose(zoom, cx, cy), dx, dy, side)
                     val px = IntArray(bmp.width * bmp.height)
                     bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)

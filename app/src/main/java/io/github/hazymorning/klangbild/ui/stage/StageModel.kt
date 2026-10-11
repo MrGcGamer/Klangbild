@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import io.github.hazymorning.klangbild.color.Appearance
-import io.github.hazymorning.klangbild.color.Lighting
+import io.github.hazymorning.klangbild.color.Lamp
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -13,7 +13,6 @@ import io.github.hazymorning.klangbild.domain.TrackText
 import io.github.hazymorning.klangbild.R
 import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.text.Texts
-import kotlin.math.pow
 
 /**
  * Everything the stage draws for one track. Time-dependent values are providers so that
@@ -109,15 +108,14 @@ object StageTexts {
 fun Int.asColor() = Color(this)
 
 /**
- * Color matrix for the artwork. It applies the time-of-day lighting (perceptual dimming, only a
- * touch warmer at night, since dim light loses color rather than gaining it) and a gentle
+ * Color matrix for the artwork: the [Lamp]'s breath of warmth, [dim] (a pause) and a gentle
  * highlight compression, so even a white cover never glares on black. White becomes a soft paper
  * tone around L* 88 instead of #FFFFFF; a full-screen-bright print would also make the TV's
  * brightness limiter dim everything. On the light wall a white cover stays a little whiter
  * than the paper around it.
  */
-fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): ColorFilter {
-    val (r, g, b) = coverScale(lighting, dim, appearance)
+fun coverFilter(dim: Float = 1f, appearance: Appearance = Appearance.DARK): ColorFilter {
+    val (r, g, b) = coverScale(dim, appearance)
     return ColorFilter.colorMatrix(
         ColorMatrix(
             floatArrayOf(
@@ -131,8 +129,8 @@ fun coverFilter(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Ap
 }
 
 /** The per-channel scale of [coverFilter] (red, green, blue). */
-fun coverScale(lighting: Lighting, dim: Float = 1f, appearance: Appearance = Appearance.DARK): Triple<Float, Float, Float> {
-    val k = lighting.brightness.pow(1.36f) * dim * if (appearance == Appearance.LIGHT) 1.06f else 1f
-    val w = lighting.warmth
+fun coverScale(dim: Float = 1f, appearance: Appearance = Appearance.DARK): Triple<Float, Float, Float> {
+    val k = dim * if (appearance == Appearance.LIGHT) 1.06f else 1f
+    val w = Lamp.WARMTH
     return Triple(k * 0.92f * (1f + 0.0375f * w), k * 0.905f * (1f - 0.0066f * w), k * 0.876f * (1f - 0.045f * w))
 }

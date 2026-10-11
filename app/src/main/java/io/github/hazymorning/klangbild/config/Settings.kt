@@ -164,6 +164,8 @@ data class Settings(
     val miniPlayer: MiniPlayer = MiniPlayer.LEFT,
     /** The weather entity whose clouds set the window view's sky; null finds Home Assistant's own, [NO_WEATHER] none. */
     val weatherEntity: String? = null,
+    /** Buttons of one's own in the quick settings, set up on the phone. */
+    val quickActions: List<QuickAction> = emptyList(),
 ) {
     /** The weather entities to follow: the one chosen, else Home Assistant's usual forecast entities. */
     val weatherEntities: List<String>
@@ -272,6 +274,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
         val vistaPlaying = intPreferencesKey("vista_playing_s")
         val miniPlayer = stringPreferencesKey("mini_player")
         val weather = stringPreferencesKey("weather_entity")
+        val quickActions = stringPreferencesKey("quick_actions")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -306,6 +309,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             vistaPlayingSeconds = p[Keys.vistaPlaying] ?: 0,
             miniPlayer = p[Keys.miniPlayer]?.let { runCatching { MiniPlayer.valueOf(it) }.getOrNull() } ?: MiniPlayer.LEFT,
             weatherEntity = p[Keys.weather],
+            quickActions = QuickActions.decode(p[Keys.quickActions]),
         )
     }
 
@@ -348,6 +352,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             p[Keys.vistaPlaying] = s.vistaPlayingSeconds
             p[Keys.miniPlayer] = s.miniPlayer.name
             putOrRemove(Keys.weather, s.weatherEntity)
+            putOrRemove(Keys.quickActions, s.quickActions.takeIf { it.isNotEmpty() }?.let(QuickActions::encode))
         }
     }
 
