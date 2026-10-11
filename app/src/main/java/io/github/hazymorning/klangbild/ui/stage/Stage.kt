@@ -199,14 +199,15 @@ fun ArtworkLayer(
  * Large type has more room before its first stem than small type; left as it is, a title
  * looks indented against the lines below it. Pulled left by the difference (dp).
  */
-private fun opticalIndent(size: Float): Float = -(0.065f * (size - 15f)).coerceAtLeast(0f)
+internal fun opticalIndent(size: Float): Float = -(0.065f * (size - 15f)).coerceAtLeast(0f)
 
 /**
  * The text block beside the artwork, centered on it from the first line's cap height to the
  * last baseline: (work), title, (version), artist, album · year, then the progress bar (or the
  * station, or a notice). What comes next sits apart on the artwork's bottom edge. [alpha] and
  * [rise] animate a change line by line; [dim] darkens the text while paused; [shift] moves the
- * column to the right of its place in the grid (dp: a cover flow with cards missing).
+ * column to the right of its place in the grid (dp: a cover flow with cards missing). While the
+ * song's words take the column ([StageModel.lyrics]), they stand there instead ([LyricsText]).
  */
 @Composable
 fun TextLayer(
@@ -218,6 +219,11 @@ fun TextLayer(
     dim: () -> Float = { 1f },
     shift: () -> Float = { 0f },
 ) {
+    val lyrics = model.lyrics
+    if (lyrics != null) {
+        LyricsText(model, lyrics, modifier, alpha, rise, dim, shift)
+        return
+    }
     val layout = model.scene.layout
     val t = model.text
     val styles = remember(model.scene.palette) { StageStyles(model.scene.palette) }

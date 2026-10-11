@@ -30,6 +30,8 @@ import io.github.hazymorning.klangbild.domain.ChapterPlace
 import io.github.hazymorning.klangbild.domain.CoverStrip
 import io.github.hazymorning.klangbild.domain.FieldClock
 import io.github.hazymorning.klangbild.domain.FlipGuard
+import io.github.hazymorning.klangbild.domain.Lyrics
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Progress
 import io.github.hazymorning.klangbild.domain.RestReason
@@ -37,6 +39,7 @@ import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.ScreenDecision
 import io.github.hazymorning.klangbild.domain.ScreenStateMachine
 import io.github.hazymorning.klangbild.domain.SmoothedPosition
+import io.github.hazymorning.klangbild.domain.SongWords
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.SunClock
 import io.github.hazymorning.klangbild.domain.Timing
@@ -72,17 +75,23 @@ import okhttp3.OkHttpClient
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicInteger
 
-/** A scene that is ready to be shown for a track. */
-data class StageData(val track: TrackInfo, val scene: ArtworkScene)
+/** A scene that is ready to be shown for a track, with the song's [lyrics] while they take the text column. */
+data class StageData(val track: TrackInfo, val scene: ArtworkScene, val lyrics: Lyrics? = null)
 
 /** A card of the cover flow with its scene, ready to be shown. */
 data class FlowEntry(val id: Long, val track: TrackInfo, val scene: ArtworkScene) {
     val stage: StageData get() = StageData(track, scene)
 }
 
-/** The cover flow as far as it is ready: cards in play order, the one at [current] in the middle. */
-data class FlowData(val cards: List<FlowEntry>, val current: Int) {
+/**
+ * The cover flow as far as it is ready: cards in play order, the one at [current] in the middle,
+ * and the middle song's [lyrics] while they take the text column.
+ */
+data class FlowData(val cards: List<FlowEntry>, val current: Int, val lyrics: Lyrics? = null) {
     val middle: FlowEntry get() = cards[current]
+
+    /** The middle card as the stage shows it: with its words. */
+    val stage: StageData get() = StageData(middle.track, middle.scene, lyrics)
 }
 
 /** The settings menu while it is open: its lines and the one the cursor is on. */
@@ -561,6 +570,7 @@ class NowPlayingController(
         stopSource(source)
         // Another speaker (or another server) has its own history.
         strip.clear()
+        lastWords = null
         val ma = if (s.hasMusicAssistant) MaClient(tokenHttp, s.maUrl!!, s.maToken!!) else null
         val newAuth = if (s.isConfigured) HaAuth(tokenHttp, s.haUrl!!, s.haCredentials!!, now) else null
         auth = newAuth
@@ -673,6 +683,7 @@ class NowPlayingController(
         // While the quick settings are open, the window view stays as it was (unless they change it).
         val vistaOn = quick.vistaHeld ?: quietLongEnough
         val vista = if (vistaOn && menuState == null) VistaUi(track = stage?.track, status = stage?.status, miniPlayer = s.miniPlayer) else null
+        val lyrics = stage?.let { lyricsFor(s, src, it.track) }
         val quickState = quick.state(decision.screen, vista != null)
         _ui.value = previous.copy(
             screen = decision.screen,
@@ -700,7 +711,7 @@ class NowPlayingController(
         fieldClock.run(if (playing) s.motion.speed else 0f)
         lightSync.update(lightTargets.target(s, _ui.value, stage, playing, vista))
         if (stage != null) {
-            if (s.view == StageView.FLOW) showFlow(stage, look) else showStage(stage, look)
+            if (s.view == StageView.FLOW) showFlow(stage, look, lyrics) else showStage(stage, look, lyrics)
         }
         // The setup page is only reachable while the setup screen is visible.
         if (decision.screen is Screen.Setup && viewers > 0) setupServer.start() else setupServer.stop()
@@ -726,8 +737,21 @@ class NowPlayingController(
         return a
     }
 
+    /** What was last known of the words of the song on stage: it stays while a moment between two songs says nothing. */
+    private var lastWords: SongWords? = null
+
+    /**
+     * The words that take the text column for [track]: with Lyrics on, the synced words Music
+     * Assistant has for a song whose position is known (the words follow it).
+     */
+    private fun lyricsFor(s: Settings, src: SourceState, track: TrackInfo): Lyrics? {
+        src.words?.let { lastWords = it }
+        if (!s.lyrics || track.kind != MediaKind.MUSIC || track.durationMs == null) return null
+        return lastWords?.takeIf { it.key == track.key }?.lyrics
+    }
+
     /** The stage shows [stage]'s track as soon as its scene is ready (the next track's is made ahead). */
-    private fun showStage(stage: Screen.Stage, look: Look) {
+    private fun showStage(stage: Screen.Stage, look: Look, lyrics: Lyrics?) {
         scenes.retain(setOfNotNull(stage.track.sceneKey, stage.next?.sceneKey))
         val scene = scenes.ready(stage.track, look)
         if (scene == null) {
@@ -735,7 +759,9 @@ class NowPlayingController(
             return
         }
         val shown = _ui.value.stage
-        if (shown?.track != stage.track || shown.scene !== scene) _ui.value = _ui.value.copy(stage = StageData(stage.track, scene))
+        if (shown?.track != stage.track || shown.scene !== scene || shown.lyrics !== lyrics) {
+            _ui.value = _ui.value.copy(stage = StageData(stage.track, scene, lyrics))
+        }
         stage.next?.let { scenes.prepare(it, look) }
     }
 
@@ -746,7 +772,7 @@ class NowPlayingController(
      * again keeps the one it has meanwhile. When the wall changes (light to dark), the whole
      * strip changes at once, as soon as every card it shows is ready.
      */
-    private fun showFlow(stage: Screen.Stage, look: Look) {
+    private fun showFlow(stage: Screen.Stage, look: Look, lyrics: Lyrics?) {
         val src = _ui.value.source
         // Music Assistant's whole queue if it is set up, else Home Assistant's next track.
         val coming = if (src.queueKnown) src.coming.ifEmpty { listOfNotNull(stage.next) } else null
@@ -765,7 +791,7 @@ class NowPlayingController(
             val scene = scenes.ready(c.track, look) ?: shown[c.id]?.scene?.takeIf { !newWall && it.layout == middle.layout }
             scene?.let { FlowEntry(c.id, c.track, it) }
         }
-        val flow = FlowData(entries, entries.indexOfFirst { it.id == s.middle.id })
+        val flow = FlowData(entries, entries.indexOfFirst { it.id == s.middle.id }, lyrics)
         if (flow != _ui.value.flow) _ui.value = _ui.value.copy(flow = flow)
     }
 

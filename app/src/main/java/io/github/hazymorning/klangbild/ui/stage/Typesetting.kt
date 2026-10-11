@@ -285,7 +285,7 @@ private fun pickTitleSize(
  * A short word (one to three letters: "im", "de", "der", "You") stays with the word after it,
  * so no line of a title ends on it: "Spiegel / im Spiegel", never "Spiegel im / Spiegel".
  */
-private fun glueShortWords(text: AnnotatedString): AnnotatedString {
+internal fun glueShortWords(text: AnnotatedString): AnnotatedString {
     val s = text.text
     val chars = s.toCharArray()
     var start = 0
@@ -303,7 +303,7 @@ private fun glueShortWords(text: AnnotatedString): AnnotatedString {
 }
 
 /** Short parentheses never break inside: "(alla marcia)" stays one piece. */
-private fun glueParentheses(text: AnnotatedString): AnnotatedString {
+internal fun glueParentheses(text: AnnotatedString): AnnotatedString {
     val s = text.text
     if (!s.contains('(')) return text
     val chars = s.toCharArray()

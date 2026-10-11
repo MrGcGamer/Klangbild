@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.Lamp
+import io.github.hazymorning.klangbild.domain.Lyrics
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.TimeLine
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -46,6 +47,11 @@ class StageModel(
     val chapter: String? = null,
     /** Where the progress bar starts in the item's time: the chapter's start. */
     val rangeStartMs: Long = 0L,
+    /**
+     * The song's words, while they take the text column: then [next] names the song itself,
+     * and the progress bar shows only for a moment after a key ([progress]).
+     */
+    val lyrics: Lyrics? = null,
 ) {
     fun fraction(): Float? {
         val d = durationMs ?: return null

@@ -511,6 +511,72 @@ class HaSourceTest {
     }
 
     @Test
+    fun `the words of the song that plays come by its address, the next song's ahead of it`() = runBlocking {
+        player = """{"media_title":"Erstes Lied","media_artist":"A","media_content_id":"library://track/1","app_id":"music_assistant",
+            "mass_player_type":"player","active_queue":"q1"}"""
+        queueAnswer = { queueOf(item("Erstes Lied", "erstes"), item("Zweites Lied", "zweites")) }
+        val asked = CopyOnWriteArrayList<String>()
+        val ma = MockWebServer()
+        ma.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+                val command = body["command"]!!.jsonPrimitive.content
+                maCommands += command
+                return when (command) {
+                    // The song that plays brings its words; the next one does not.
+                    "player_queues/items" -> MockResponse.Builder().body(
+                        """[{"queue_id":"q1","queue_item_id":"a","name":"Erstes Lied","duration":200,
+                              "media_item":{"media_type":"track","name":"Erstes Lied","uri":"library://track/1","artists":[{"name":"A"}],
+                                "metadata":{"lrc_lyrics":"[00:05.00]Erste Zeile\n[00:09.00]Zweite Zeile"}}},
+                            {"queue_id":"q1","queue_item_id":"b","name":"Zweites Lied","duration":200,
+                              "media_item":{"media_type":"track","name":"Zweites Lied","uri":"library://track/2","artists":[{"name":"A"}],"metadata":{}}}]""",
+                    ).build()
+                    "metadata/get_track_lyrics" -> {
+                        asked += body["args"]!!.jsonObject["track"]!!.jsonObject["uri"]!!.jsonPrimitive.content
+                        MockResponse.Builder().body("""[null,"[00:03.00]Noch eine Zeile\n[00:07.00]Und noch eine"]""").build()
+                    }
+                    else -> MockResponse.Builder().body("[]").build()
+                }
+            }
+        }
+        ma.start()
+        try {
+            val s = source(ma = MaClient(http, ma.url("/").toString().trimEnd('/'), "ma-token"))
+            s.start()
+            val first = withTimeout(5_000) { s.state.first { it.words != null } }
+            val words = first.words!!
+            assertThat(words.key).isEqualTo(first.player!!.track!!.key)
+            assertThat(words.lyrics!!.lines.map { it.text }).containsExactly("Erste Zeile", "Zweite Zeile").inOrder()
+            // Asked ahead for the song up next, and only for it.
+            withTimeout(5_000) { while (asked.isEmpty()) delay(20) }
+            assertThat(asked).containsExactly("library://track/2")
+            delay(300)
+            // It starts: its words are there with it.
+            queueAnswer = { queueOf(item("Zweites Lied", "zweites"), null) }
+            report("media_title" to "Zweites Lied", "media_content_id" to "library://track/2")
+            val second = withTimeout(5_000) { s.state.first { it.player?.track?.title == "Zweites Lied" } }
+            val next = second.words!!
+            assertThat(next.key).isEqualTo(second.player!!.track!!.key)
+            assertThat(next.lyrics!!.lines.first().text).isEqualTo("Noch eine Zeile")
+            delay(300)
+            assertThat(asked).hasSize(1)
+            s.stop()
+        } finally {
+            ma.close()
+        }
+    }
+
+    @Test
+    fun `without Music Assistant itself nothing is known of the words`() = runBlocking {
+        player = """{"media_title":"Erstes Lied","media_artist":"A","media_content_id":"library://track/1","app_id":"music_assistant","mass_player_type":"player"}"""
+        val s = source()
+        s.start()
+        withTimeout(5_000) { s.state.first { it.queueKnown } }
+        assertThat(s.state.value.words).isNull()
+        s.stop()
+    }
+
+    @Test
     fun `the songs of a player without a queue come at once`() = runBlocking {
         player = maPlayer("Erstes Lied", "c1")
         queueAnswer = null

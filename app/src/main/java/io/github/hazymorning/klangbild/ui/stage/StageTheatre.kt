@@ -10,7 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -44,6 +46,9 @@ enum class Change {
 
     /** Same track on the other wall (light ↔ dark): the same cross-fade, slower, like the light outside. */
     WALL,
+
+    /** Same track and picture, other words in the column (its lyrics come or go): only the text changes. */
+    WORDS,
     ;
 
     /** A cross-fade of the same track. */
@@ -54,7 +59,8 @@ enum class Change {
  * The stage with its transitions. On a track change the new artwork comes up over the old one
  * in a plain cross-fade (the screen never goes dark), while the light on the wall turns from
  * the old colors to the new. The old text leaves first; the new lines rise into place one
- * after another. A pause dims light, artwork and text; nothing moves.
+ * after another, and so they do when the song's words come or go. A pause dims light, artwork
+ * and text; nothing moves.
  *
  * Every animated value is read inside draw/layer lambdas, so animations never recompose.
  *
@@ -87,9 +93,11 @@ fun StageTheatre(
             val newer: suspend () -> Unit = { snapshotFlow { latest.track.key }.first { it != song } }
             // Lines held by a skip that came to nothing rise the rest of the way first.
             if (song == old.track.key) text.release(newer)
-            if (target.scene === old.scene && target.track == old.track) return@collect
+            if (target.scene === old.scene && target.track == old.track && target.lyrics === old.lyrics) return@collect
             val kind = when {
                 song == old.track.key && target.scene.appearance != old.scene.appearance -> Change.WALL
+                song == old.track.key && target.scene !== old.scene -> Change.SOFT
+                song == old.track.key && target.lyrics !== old.lyrics -> Change.WORDS
                 song == old.track.key -> Change.SOFT
                 samePicture(old.scene, target.scene) -> Change.TEXT
                 else -> Change.FULL
@@ -97,7 +105,7 @@ fun StageTheatre(
             t.snapTo(0f)
             when (kind) {
                 Change.FULL -> text.begin(TextRise(Motion.TEXT_IN_MS, durationOf(kind)))
-                Change.TEXT -> text.begin(TextRise(Motion.TEXT_IN_SAME_PICTURE_MS, durationOf(kind)))
+                Change.TEXT, Change.WORDS -> text.begin(TextRise(Motion.TEXT_IN_SAME_PICTURE_MS, durationOf(kind)))
                 else -> Unit
             }
             change = kind
@@ -154,7 +162,7 @@ fun StageTheatre(
     val prevPlan = prevModel?.let { rememberTextPlan(it) }
 
     val level: () -> Float = { pausedLevel * breathing.value * lightFactor() }
-    val pictureChanges = prev != null && kind != Change.TEXT
+    val pictureChanges = prev != null && kind != Change.TEXT && kind != Change.WORDS
     // A new picture comes up over the old one; the old goes once it is covered (a picture of
     // another shape, such as a round plate, lets the old one's corners fade with it).
     val oldPicture: () -> Float = {
@@ -181,6 +189,10 @@ fun StageTheatre(
     val textRise: (TextLine) -> Float = { line -> if (text.rising) 10f * (1f - text.level(line)) else 0f }
     val stood: (TextLine) -> Float = { line -> if (kind.isSoft) text.level(line) else text.leaving(line) }
 
+    // The words of the song shown and of the one leaving keep their places through a change.
+    val lyricsViews = remember { LyricsViews() }
+    SideEffect { lyricsViews.keep(cur.lyrics, prev?.lyrics) }
+
     Box(modifier.fillMaxSize()) {
         // The old wall stays whole until the new one (its light and its color beyond the screen's
         // edges) has come up over it, so a new wall never shows the old one in a strip at the side.
@@ -193,16 +205,18 @@ fun StageTheatre(
         WallLayer(cur.scene, alpha = newGlow, level = level)
         if (prev != null && pictureChanges) ArtworkLayer(prev.scene, alpha = oldPicture, dim = { coverDim })
         ArtworkLayer(cur.scene, alpha = newPicture, dim = { coverDim })
-        if (prevModel != null && prevPlan != null) {
-            TextLayer(
-                prevModel,
-                plan = prevPlan,
-                alpha = { line -> stood(line) * (if (kind.isSoft) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS)) },
-                rise = { line -> 10f * (1f - stood(line)) - (if (kind.isSoft) 0f else 6f * p(0, Motion.TEXT_OUT_MS)) },
-                dim = { textDim },
-            )
+        CompositionLocalProvider(LocalLyricsViews provides lyricsViews) {
+            if (prevModel != null && prevPlan != null) {
+                TextLayer(
+                    prevModel,
+                    plan = prevPlan,
+                    alpha = { line -> stood(line) * (if (kind.isSoft) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS)) },
+                    rise = { line -> 10f * (1f - stood(line)) - (if (kind.isSoft) 0f else 6f * p(0, Motion.TEXT_OUT_MS)) },
+                    dim = { textDim },
+                )
+            }
+            TextLayer(curModel, plan = curPlan, alpha = textIn, rise = textRise, dim = { textDim })
         }
-        TextLayer(curModel, plan = curPlan, alpha = textIn, rise = textRise, dim = { textDim })
         // The status line belongs to the room, not to the track, so it stays.
         StatusLayer(curModel)
     }
@@ -210,7 +224,7 @@ fun StageTheatre(
 
 private fun durationOf(change: Change) = when (change) {
     Change.FULL -> Motion.TRACK_CHANGE_MS
-    Change.TEXT -> Motion.TEXT_CHANGE_MS
+    Change.TEXT, Change.WORDS -> Motion.TEXT_CHANGE_MS
     Change.SOFT -> Motion.SOFT_SWAP_MS
     Change.WALL -> Motion.WALL_CHANGE_MS
 }

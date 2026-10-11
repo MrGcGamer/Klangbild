@@ -16,9 +16,24 @@ import kotlin.math.roundToLong
 
 /**
  * The part of a queue around its current item: what was played (most recent last), what
- * comes, and how fast the current item plays (a book at 1.5×).
+ * comes, and how fast the current item plays (a book at 1.5×). The current item and the next,
+ * when they are songs, as far as their words go ([currentSong], [nextSong]).
  */
-data class QueueWindow(val played: List<TrackInfo>, val current: TrackInfo?, val coming: List<TrackInfo>, val speed: Float = 1f)
+data class QueueWindow(
+    val played: List<TrackInfo>,
+    val current: TrackInfo?,
+    val coming: List<TrackInfo>,
+    val speed: Float = 1f,
+    val currentSong: QueueSong? = null,
+    val nextSong: QueueSong? = null,
+)
+
+/**
+ * A song of Music Assistant's queue as far as its words go: its URI, the item as Music Assistant
+ * gave it (to ask for its words with), and the words it brought along ([lyrics] plain or with
+ * times, [lrcLyrics] with times), if any.
+ */
+class QueueSong(val uri: String, val item: JsonObject, val lyrics: String?, val lrcLyrics: String?)
 
 /** Reads Music Assistant's queue items (`player_queues/items`). */
 object MaQueue {
@@ -43,7 +58,18 @@ object MaQueue {
             current = tracks.getOrNull(at),
             coming = if (at < 0) emptyList() else tracks.drop(at + 1).filterNotNull(),
             speed = (items.getOrNull(at) as? JsonObject)?.let(::speed) ?: 1f,
+            currentSong = (items.getOrNull(at) as? JsonObject)?.takeIf { at >= 0 }?.let(::song),
+            nextSong = (items.getOrNull(at + 1) as? JsonObject)?.takeIf { at >= 0 }?.let(::song),
         )
+    }
+
+    /** A queue item that is a song, with its URI and the words it brought (`media_item.metadata`); null for anything else. */
+    fun song(item: JsonObject): QueueSong? {
+        val media = item["media_item"] as? JsonObject ?: return null
+        if (media.string("media_type") != "track") return null
+        val uri = media.string("uri")?.takeIf { it.isNotBlank() } ?: return null
+        val metadata = media["metadata"] as? JsonObject
+        return QueueSong(uri, media, metadata?.string("lyrics")?.takeIf { it.isNotBlank() }, metadata?.string("lrc_lyrics")?.takeIf { it.isNotBlank() })
     }
 
     /** How fast an item plays: Music Assistant keeps a book's or an episode's speed with its queue item. */

@@ -47,6 +47,12 @@ object Fixtures {
     /** What comes next in most shots. */
     val spiegel = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
 
+    /** An English song to the night drive's cover, for the English shots of the words. */
+    val night = TrackInfo("Night drive", listOf("Lumen Drive"), "Neon roads", 2024, 251_000, artworkUrl = Catalogue.SCHEME + SyntheticCover.NIGHT_DRIVE.name)
+
+    /** Synced words from LRC. */
+    fun words(lrc: String): io.github.hazymorning.klangbild.domain.Lyrics = io.github.hazymorning.klangbild.domain.Lrc.parse(lrc)!!
+
     fun scene(
         track: TrackInfo,
         screen: ScreenSpec = ScreenSpec.TV_1080,
@@ -134,6 +140,43 @@ object Fixtures {
             statusLine = StatusLine(lead, "21:47"),
             chapter = chapter?.label,
             rangeStartMs = chapter?.startMs ?: 0L,
+        )
+    }
+
+    /**
+     * The stage with the song's [lyrics] at [position] (ms), as the root builds it: the song itself
+     * where "Up next" stands, the progress bar only for a moment after a key ([peek]).
+     */
+    fun lyricsModel(
+        track: TrackInfo,
+        lyrics: io.github.hazymorning.klangbild.domain.Lyrics,
+        position: () -> Long? = { 84_000L },
+        status: PlayerStatus = PlayerStatus.PLAYING,
+        appearance: Appearance = Appearance.DARK,
+        view: StageView = StageView.SINGLE,
+        coverField: Boolean = false,
+        screen: ScreenSpec = ScreenSpec.TV_1080,
+        scene: ArtworkScene = scene(track, screen, appearance, view, coverField),
+        clock: String? = "21:47",
+        group: String? = "Wohnzimmer",
+        t: Texts = texts,
+        peek: Boolean = false,
+        linkDown: Boolean = false,
+    ): StageModel {
+        val lead = StageTexts.lead(status, muted = false, volumeFlash = false, volume = null, group = group, volumeAlways = false, t = t)
+        return StageModel(
+            scene = scene,
+            text = TrackText.from(track, t[io.github.hazymorning.klangbild.R.string.artists_others]),
+            status = status,
+            durationMs = track.durationMs,
+            positionMs = position,
+            year = track.year,
+            progress = peek,
+            line = StageTexts.line(linkDown, track, t),
+            next = StageTexts.next(track, t),
+            nextTitle = StageTexts.nextTitle(track, t),
+            statusLine = StatusLine(lead, clock),
+            lyrics = lyrics,
         )
     }
 

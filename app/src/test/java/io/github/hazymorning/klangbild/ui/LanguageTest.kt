@@ -17,6 +17,7 @@ import io.github.hazymorning.klangbild.app.QuickState
 import io.github.hazymorning.klangbild.art.SyntheticCover
 import io.github.hazymorning.klangbild.config.ActionState
 import io.github.hazymorning.klangbild.config.FavoriteState
+import io.github.hazymorning.klangbild.config.LyricsChoice
 import io.github.hazymorning.klangbild.config.MenuContext
 import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.MenuRow
@@ -165,8 +166,10 @@ class LanguageTest {
         val states = if (!buttons) listOf(emptyMap()) else ActionState.entries.map { st -> own.indices.associateWith { st } }
         for (s in settings) for (music in listOf(true, false)) for (vista in listOf(true, false)) for (actions in states) {
             for (favorite in FavoriteState.entries + null) for (shuffle in listOf(true, false, null)) for (pending in Picture.entries + null) {
-                val rows = QuickMenu.rows(s, QuickContext(vista, pending, music, favorite, shuffle, actions), t)
-                add(QuickState(rows, 0))
+                for (lyrics in LyricsChoice.entries + null) {
+                    val rows = QuickMenu.rows(s, QuickContext(vista, pending, music, favorite, shuffle, actions, lyrics), t)
+                    add(QuickState(rows, 0))
+                }
             }
         }
     }

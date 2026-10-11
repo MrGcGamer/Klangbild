@@ -178,9 +178,12 @@
 
     <!-- Quick settings -->
     <string name="quick_view">View</string>
+    <string name="quick_lyrics">Lyrics</string>
     <string name="quick_favorite">Favorite</string>
     <string name="quick_lights">Lights</string>
     <string name="quick_shuffle">Shuffle</string>
+    <!-- The lyrics entry while this song has no synced words -->
+    <string name="lyrics_none">None</string>
     <string name="favorite_add">Add</string>
     <string name="favorite_adding">Adding…</string>
     <string name="favorite_added">Added</string>
