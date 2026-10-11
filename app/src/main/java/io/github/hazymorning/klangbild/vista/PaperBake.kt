@@ -11,8 +11,24 @@ import kotlin.math.ceil
  * BakeMountains.kt, BakeTrees.kt, BakeMeadow.kt, BakeCamp.kt).
  */
 object PaperBake {
-    fun bake(widthPx: Int, heightPx: Int, density: Float, shapes: SeasonShapes = SeasonShapes(), label: LabelSide = LabelSide.LEFT): PaperBaked {
+    /**
+     * Bakes the diorama; [progress] hears how far it has come (0 to 1), after each sheet, by the
+     * time each part takes ([COST]).
+     */
+    fun bake(
+        widthPx: Int,
+        heightPx: Int,
+        density: Float,
+        shapes: SeasonShapes = SeasonShapes(),
+        label: LabelSide = LabelSide.LEFT,
+        progress: (Float) -> Unit = {},
+    ): PaperBaked {
         val started = System.nanoTime()
+        var done = 0f
+        fun step(cost: Float) {
+            done += cost
+            progress((done / TOTAL_COST).coerceAtMost(1f))
+        }
         val m = PaperMotif
         val cw = ceil((m.WIDTH + 2 * m.OVERSCAN) * density).toInt().coerceAtLeast(widthPx)
         val ch = ceil((m.HEIGHT + 2 * m.OVERSCAN) * density).toInt().coerceAtLeast(heightPx)
@@ -29,24 +45,41 @@ object PaperBake {
                     frontStandees += b.frontFirs(left = id == SheetId.FRONT_LEFT)
                     b.cutSheet(id)?.let { sheets[id] = b.finish(it) }
                 }
-                else -> {
-                    val build = b.cutSheet(id) ?: continue
-                    sheets[id] = b.finish(build)
-                }
+                else -> b.cutSheet(id)?.let { sheets[id] = b.finish(it) }
             }
+            step(COST[id] ?: 0f)
         }
         val ordered = LinkedHashMap<SheetId, Sheet>()
         for (id in SheetId.entries) sheets[id]?.let { ordered[id] = it }
         val shadows = ordered.filterKeys { it.depth > 0f }.mapValues { (id, s) -> b.shadow(s, shadowBlurDp(id.depth)) }
+        step(SHADOWS_COST)
         val clouds = (0 until CLOUD_DESIGNS).map { b.cloud(it) }
-        return PaperBaked(
+        step(CLOUDS_COST)
+        val baked = PaperBaked(
             cw, ch, density, ordered, shadows, clouds, clouds.map { b.shadow(it, shadowBlurDp(CLOUD_DEPTH)) },
             b.flames(), b.px(b.fg.fireX), b.px(b.fg.fireY), standees, frontStandees, b.px(b.fg.tentX), b.px(b.tentFoot - TENT_HEIGHT * 0.24f),
             b.disc(SUN_RADIUS, 77), b.disc(MOON_RADIUS, 78),
             b.shadow(b.disc(SUN_RADIUS, 79), DISC_SHADOW_DP), b.glow(), shapes, leafAlpha(shapes.leaves), label,
             (System.nanoTime() - started) / 1_000_000,
         )
+        step(REST_COST)
+        return baked
     }
+
+    /**
+     * How long each part of the bake takes, as measured at 4K (ms on a desktop's JVM; only their
+     * proportions count): the sheets, then the shadows, the clouds, and the flames, discs and glow.
+     */
+    private val COST: Map<SheetId, Float> = mapOf(
+        SheetId.FRONT_RIGHT to 504f, SheetId.FRONT_LEFT to 265f, SheetId.BLOOMS_NEAR to 24f, SheetId.MEADOW_NEAR to 128f,
+        SheetId.FIREWOOD to 8f, SheetId.PROPS to 6f, SheetId.TENT to 8f, SheetId.STANDEES to 72f, SheetId.BLOOMS to 15f,
+        SheetId.MEADOW to 136f, SheetId.LEAVES to 57f, SheetId.WOOD_NEAR to 439f, SheetId.WOOD_FAR to 343f,
+        SheetId.RANGE_NEAR to 373f, SheetId.SNOW to 315f, SheetId.RANGE_FAR to 709f, SheetId.SKY to 478f,
+    )
+    private const val SHADOWS_COST = 133f
+    private const val CLOUDS_COST = 728f
+    private const val REST_COST = 375f
+    private val TOTAL_COST = COST.values.sum() + SHADOWS_COST + CLOUDS_COST + REST_COST
 
     /** Cuts the sheet [id] (null where the season leaves it empty, or where its pieces are sprites). */
     private fun Baker.cutSheet(id: SheetId): Build? = when (id) {
