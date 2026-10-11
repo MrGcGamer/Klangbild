@@ -5,6 +5,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- No signature permission of the app's own: after the key rotation an update that declares
+         one again is refused (the original key has no permission capability in the lineage).
+         AndroidX core adds this one for ContextCompat.registerReceiver, which the app does not use. -->
+    <permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />

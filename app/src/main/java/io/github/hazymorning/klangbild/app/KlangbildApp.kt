@@ -6,9 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
-import androidx.core.content.ContextCompat
 import android.net.ConnectivityManager
 import android.net.Network
+import android.os.Build
 import io.github.hazymorning.klangbild.config.SettingsStore
 import io.github.hazymorning.klangbild.data.ha.LocalNetwork
 import io.github.hazymorning.klangbild.text.Localizer
@@ -83,18 +83,21 @@ class KlangbildApp : Application() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
-        ContextCompat.registerReceiver(
-            this,
-            object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) = graph.localizer.refresh()
-            },
-            IntentFilter().apply {
-                // Sent when the system's 12 or 24 hour setting changes, too.
-                addAction(Intent.ACTION_TIME_CHANGED)
-                addAction(Intent.ACTION_LOCALE_CHANGED)
-            },
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        val refresh = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = graph.localizer.refresh()
+        }
+        // Both are protected broadcasts that only the system sends. Not ContextCompat: below API 33
+        // it needs a signature permission of the app's own (see the manifest).
+        val system = IntentFilter().apply {
+            // Sent when the system's 12 or 24 hour setting changes, too.
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_LOCALE_CHANGED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(refresh, system, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(refresh, system)
+        }
         // When the network comes back (Wi-Fi hiccup), reconnect right away instead of
         // waiting for the backoff timer.
         getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(

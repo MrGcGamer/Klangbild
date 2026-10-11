@@ -40,10 +40,8 @@ class LanguageSwitchTest {
     @Config(sdk = [34])
     fun `from API 33 the platform keeps the choice`() = switchesAtOnce()
 
-    // A plain application: the app's own registers for system broadcasts, which needs a
-    // permission the test environment does not grant on API 32.
     @Test
-    @Config(sdk = [32], application = android.app.Application::class)
+    @Config(sdk = [32])
     fun `on API 31 and 32 the app keeps the choice itself`() = switchesAtOnce()
 
     @Test

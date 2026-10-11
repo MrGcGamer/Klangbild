@@ -69,6 +69,9 @@ python3 tools/make_launcher_assets.py                          # re-render banne
   the version as `release` (the release creates the tag). Its text is `docs/releases/<tag>.md`.
 - 6.0.0 alone may be signed with the original key while the secrets are not set
   (`ci/sign-original.sh`, the key from the history); every later release needs them.
+- The app declares no signature permission of its own: the original key has no permission
+  capability in the lineage, so an update that declares one is refused. The manifest removes
+  the one AndroidX core adds for `ContextCompat.registerReceiver` (not used for that reason).
 
 ## Architecture (data source → state model → UI)
 
@@ -464,9 +467,10 @@ UI words are given in English with the German in parentheses where it matters.
   goes with any key, which still does its work. Baked ahead only while it shows or is on its
   way (`VistaPolicy.onItsWay`); the bake is let go 10 s after it stopped coming and when the app
   goes to the background (tens of megabytes at 4K). The label (cover 56 dp, Jost 24 / DM Sans
-  17, bar) lies on the dark near bank (snow only along its edge), the fire on the other side; beside the cover one block exactly centered on it: the
-  title's cap height to the bar's lower edge (filling the cover's height), or without a bar (a
-  station) to the last baseline (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1
+  17, bar) lies on the dark near bank (snow only along its edge), the fire on the other side;
+  beside the cover one block exactly centered on it: the title's cap height to the bar's lower
+  edge (filling the cover's height), or without a bar (a station) to the last baseline
+  (`VistaLabelTest`). Its inks come from the bank and keep 4.5:1
   on its lightest grain (`PaperLightTest`). Every sheet in its own box, baked only down to
   where nearer paper hides it, each piece cut in a box of its own; sky, far range, clearing and
   near banks stand as layers between light changes, each only as tall as its paper, moved by
