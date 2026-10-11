@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Prints the path of apksigner: $APKSIGNER when set, else the one from the newest Android build
-# tools installed (key rotation needs build tools 33 or later), looked for in ANDROID_HOME,
-# ANDROID_SDK_ROOT, local.properties and where Android Studio puts the SDK.
+# Prints the path of apksigner from the newest Android build tools installed (key rotation needs
+# build tools 33 or later), looked for in ANDROID_HOME, ANDROID_SDK_ROOT, local.properties and
+# where Android Studio puts the SDK.
 set -euo pipefail
-if [ -n "${APKSIGNER:-}" ]; then
-  echo "$APKSIGNER"
-  exit 0
-fi
 for SDK in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" \
   "$( [ -f local.properties ] && sed -n 's/^sdk\.dir=//p' local.properties || true)" \
   "$HOME/Library/Android/sdk" "$HOME/Android/Sdk"; do

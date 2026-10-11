@@ -259,9 +259,6 @@ jobs:
       TAG: ${{ inputs.release || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The original key lives in the history (ci/sign-original.sh).
-          fetch-depth: 0
 
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -274,17 +271,9 @@ jobs:
           RELEASE_LINEAGE: ${{ secrets.RELEASE_LINEAGE }}
           # The key every copy installed so far trusts: the lineage must start with it.
           ORIGINAL_CERT_SHA256: 6a27430a5a3a6507f770002420f7972ba2a99320ed557e32dde734eceaf837d9
-          # The last release that may still be signed with the original key while the secrets
-          # are not set. Every later one needs them.
-          LAST_ORIGINAL_KEY_RELEASE: v6.0.0
         run: |
           if [ -z "$RELEASE_KEYSTORE" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_LINEAGE" ]; then
-            if [ "$TAG" = "$LAST_ORIGINAL_KEY_RELEASE" ]; then
-              echo "::warning::Signed with the original key. Run tools/rotate-signing-key.sh before the next release."
-              bash ci/sign-original.sh klangbild.apk
-              exit 0
-            fi
-            echo "::error::The signing secrets are missing (see tools/rotate-signing-key.sh)."
+            echo "::error::The signing secrets RELEASE_KEYSTORE, RELEASE_KEYSTORE_PASSWORD and RELEASE_LINEAGE are missing."
             exit 1
           fi
           keys="$(mktemp -d)"
