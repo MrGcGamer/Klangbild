@@ -59,6 +59,9 @@ python3 tools/make_launcher_assets.py                          # re-render banne
   `-Pklangbild.fakeHa=http://127.0.0.1:8123` lets `FirstLaunchTest` talk to it for a few
   minutes. The app logs its connection steps with the tag `Klangbild`, never a token.
 - Run Gradle with a UTF-8 locale (`export LC_ALL=C.UTF-8`): test names and data hold umlauts.
+- CI runs three jobs side by side: the release APK (the emulator smoke test and the key
+  rotation checks start from it), the JVM tests (they upload the screenshots) and lint. A
+  release waits for all of them.
 
 ## Signing and releases
 
@@ -97,7 +100,8 @@ data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client i
                 at a time, only for MA players with a queue) + "Everywhere" from the registry's
                 MA players + the optional MA queue window, commands only where supported, seek
                 in seconds, shuffle, the favorite button by its translation key, the own
-                buttons' entities followed and run, the lights' states and calls),
+                buttons' entities followed and run, the lights' states and calls; a Music
+                Assistant song published once its queue has described it),
                 StationPictures (a station's song: the best picture on offer wins and holds)
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
@@ -115,14 +119,15 @@ domain/         TrackInfo (+ pictureKey and sceneKey: a station's song by its pi
                 ScreenStateMachine, StageView (SINGLE / FLOW), CoverStrip (the cover flow's cards:
                 one per picture, ids kept), Spoken (MediaKind, Chapter/Chapters/ChapterPlace:
                 chapters, labels, jumps), SleepTimer (minutes or an end reached by playing),
-                FieldClock (the color field's own time, shared by screen and lights), VistaPolicy
-                (when the window view takes the screen)
+                FieldClock (the color field's own time, shared by screen and lights), SunClock (the
+                sun by the local clock, without `sun.sun`), VistaPolicy (when the window view takes
+                the screen)
 text/           Texts (the words of one language: resources, plurals, numbers, percent, dates, the
                 clock in 12 or 24 hours), AppLanguage + PlatformLanguageStore (LocaleManager from
                 API 33, the app's own preference on 31 and 32), Localizer (StateFlow<Texts>,
                 refreshed on configuration, locale and time changes), LocalTexts/texts()
-color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, inks, both walls), Lighting
-                (the renderer's lamp; the app always passes DAY), Appearance (LIGHT / DARK, by the sun)
+color/          Oklab, CoverPalette (k-means in Oklab → ScenePalette, inks, both walls), Lamp (the
+                warm daylight every color is seen in), Appearance (LIGHT / DARK, by the sun)
 render/         HaloLayout (the grid, per view), CoverField (cover colors: ground + soft pools in
                 the cover's colors, the veil with text shade) + FieldMotion (where each pool stands
                 at a field time) + FieldModel (the field on the CPU: text shade, the lights'
@@ -240,10 +245,11 @@ UI words are given in English with the German in parentheses where it matters.
 - **Text color:** three levels only: title; artist, clock and the bar's fill; everything
   else (like white at 100 / 80 / 62%; on paper Oklab L 0.24 / 0.37 / 0.49, the quietest
   still 4.5:1), near-neutral with a breath of the cover's hue (chroma ≤ 0.009), never #FFF,
-  never ivory. Every level keeps 4.5:1 (`NIGHT_INK_FLOOR` on black, `lightestInkOn` on paper).
-- **No night mode:** the stage looks the same at every hour (`Lighting.DAY`); only the wall
-  (appearance) and the lights' brightness follow the sun. A night mode that hid lines at dusk
-  looked like a crash (v3.0.2) and was removed in 5.2. Never hide anything by the time of day.
+  never ivory. Every level keeps 4.5:1 (`DesignRulesTest`; on paper `lightestInkOn` holds it).
+- **No night mode:** the stage looks the same at every hour, seen in one warm daylight
+  (`Lamp`); only the wall (appearance) and the lights' brightness follow the sun. A night mode
+  that hid lines at dusk looked like a crash (v3.0.2) and was removed in 5.2; its dimmed, warmer
+  light went in 6.1. Never hide anything by the time of day.
 - **Light and dark wall (`Appearance`):** automatic by the sun (light from sunrise to sunset,
   elevation −0.833°, 0.5° hysteresis; the local clock without `sun.sun`) or fixed. The light
   wall is warm paper (Oklab L 0.915) with a breath of the cover's color pulled toward warm and
@@ -278,8 +284,9 @@ UI words are given in English with the German in parentheses where it matters.
   up; old text leaves in 220 ms, new lines rise one after another from 260 ms (the dip through
   dark of 5.1 read as a glitch on every skip). Up to 4 s without music between two songs, the
   stage stays (`Timing.betweenSongsMs`) instead of flashing the rest screen. Same picture
-  (album): only text; same track in new light: quiet cross-fade. Pause (600 ms) dims light,
-  artwork and text; nothing moves, so the lines hung on the artwork's edges stay aligned.
+  (album): only text; same track, new scene (a better cover): quiet cross-fade. Pause (600 ms)
+  dims light, artwork and text; nothing moves, so the lines hung on the artwork's edges stay
+  aligned.
   Mute is only a word; a lost link dims like a pause. Nothing slides, nothing bounces.
   Screens switch by fading through dark. **One change at a time:** what arrives during a
   change waits until it has landed, then the newest goes next (`snapshotFlow … conflate()`).
@@ -379,7 +386,7 @@ UI words are given in English with the German in parentheses where it matters.
   (sampled over 20 min of motion, aiming at 4.8:1 so the quietest text keeps 4.5:1, tested on
   rendered pixels). No shadow under the artwork, no vignette. `FieldModel` computes the same
   field on the CPU (text shade, lights). On color the lower inks stand a little lighter
-  (0.82 / 0.71, night floors 0.71 / 0.62); the progress bar takes the cover's leading hue.
+  (0.82 / 0.71); the progress bar takes the cover's leading hue.
   "Intensity" sets how strong the colors are. Cover Flow on the field: the cards pass the
   screen's edges (`FlowStrip(edges = false)`).
 - **Motion** (Off / Slow / Medium / Fast = speed 0 / 0.3 / 0.6 / 1.0; the main layer turns
@@ -420,6 +427,11 @@ UI words are given in English with the German in parentheses where it matters.
   for that light only.
 - **Skip flicker** (`FlipGuard`): a return to an item left within 5 s is held 2 s and shown
   only if it is still what plays; new items pass at once, and so does the remote's "previous".
+- **A song arrives whole** (`HaSource.awaitsDetails`): Home Assistant reports a Music Assistant
+  song first with a 512 px picture and without its year; the queue tells the rest about 0.4 s
+  later. A song the queue announced as next is described at once; any other waits for its
+  queue read (at most 2 s), while the song before it stays as it was, all of it. So the first
+  picture is the song's own at full size, and nothing changes a moment after a song starts.
 - **A station's pictures** (`StationPictures`): Music Assistant shows the station's picture
   first and the song's once it has looked it up, and may fall back for a while. The song's own
   picture (named by the queue window, or one with an address of its own) ranks above any
