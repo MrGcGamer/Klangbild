@@ -60,7 +60,8 @@ interface LightBridge {
  *  - by day the lights glow at the chosen level, at night at [NIGHT] of it (by the sun); a pause
  *    dims them to half;
  *  - a light someone else changes (switched off, set to white, much brighter or darker, another
- *    color from Home Assistant) is left alone until the next time music starts.
+ *    color from Home Assistant) is left alone until the next time music starts;
+ *  - with [Target.onlyOn], a light that is off is never switched on.
  *
  * All its state lives on one thread; [update] and [release] only hand over.
  */
@@ -92,6 +93,8 @@ class LightSync(
          * and seldom calls; a pause does not dim them (the picture is the show).
          */
         val vista: Boolean = false,
+        /** Lights that are off are left alone; one switched on later joins in. */
+        val onlyOn: Boolean = false,
     )
 
     /** What a light can show, from its attributes (https://developers.home-assistant.io/docs/core/entity/light). */
@@ -254,9 +257,9 @@ class LightSync(
         if (wanted.keys != activeFor) {
             if (wanted.keys.any { it !in states } && t - followedAt < STATES_WAIT_MS) return
             if (activeFor != null) restore(b)
-            activate(b, wanted, states, t)
+            activate(b, wanted, states, t, tg.onlyOn)
         }
-        adopt(b, wanted, states, t)
+        adopt(b, wanted, states, t, tg.onlyOn)
         watchForOthers(states, t)
         val paused = !tg.playing && !tg.vista
         pausedSince = if (paused) (pausedSince ?: t) else null
@@ -293,11 +296,11 @@ class LightSync(
      * A wanted light whose state arrived only after the others were taken over (or that was
      * unavailable then): its state is saved, then it joins in at once.
      */
-    private suspend fun adopt(b: LightBridge, wanted: Map<String, LightSlot>, states: Map<String, EntityState>, t: Long) {
+    private suspend fun adopt(b: LightBridge, wanted: Map<String, LightSlot>, states: Map<String, EntityState>, t: Long, onlyOn: Boolean) {
         for ((id, slot) in wanted) {
             if (id in lights) continue
             val s = states[id] ?: continue
-            if (s.state == UNAVAILABLE) continue
+            if (s.state == UNAVAILABLE || (onlyOn && s.state == "off")) continue
             if (id !in saved) save(b, mapOf(id to s))
             lights[id] = Light(id, slot).also {
                 it.checkedUpdate = s.lastUpdated
@@ -310,22 +313,19 @@ class LightSync(
      * Saves how the lights are, then takes them over. Lights that were off are switched on dark
      * first, in the new color: never a flash of their old one.
      */
-    private suspend fun activate(b: LightBridge, wanted: Map<String, LightSlot>, states: Map<String, EntityState>, t: Long) {
+    private suspend fun activate(b: LightBridge, wanted: Map<String, LightSlot>, states: Map<String, EntityState>, t: Long, onlyOn: Boolean) {
+        val taken = wanted.keys.mapNotNull { id -> states[id]?.takeIf { it.state != UNAVAILABLE && !(onlyOn && it.state == "off") }?.let { id to it } }.toMap()
         // Taken back within a minute (the screen came back): the earlier snapshot still holds.
-        if (t - savedAt > REUSE_SNAPSHOT_MS || !wanted.keys.all { it in saved }) {
+        if (t - savedAt > REUSE_SNAPSHOT_MS || !taken.keys.all { it in saved }) {
             saved = emptyMap()
             snapshots = emptySet()
-            save(b, wanted.keys.mapNotNull { id -> states[id]?.takeIf { it.state != UNAVAILABLE }?.let { id to it } }.toMap())
+            save(b, taken)
             savedAt = t
         }
         lights.clear()
         activeFor = wanted.keys.toSet()
         activeLights = true
-        for ((id, slot) in wanted) {
-            val s = states[id] ?: continue
-            if (s.state == UNAVAILABLE) continue
-            lights[id] = Light(id, slot).also { it.checkedUpdate = s.lastUpdated }
-        }
+        for ((id, s) in taken) lights[id] = Light(id, wanted.getValue(id)).also { it.checkedUpdate = s.lastUpdated }
         shownSong = null
         waitingSong = null
         shownPaused = false

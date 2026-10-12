@@ -38,6 +38,7 @@ enum class MenuEntry(val section: MenuSection, @StringRes val label: Int) {
     LIGHT(MenuSection.EFFECTS, R.string.entry_intensity),
     MOTION(MenuSection.EFFECTS, R.string.entry_motion),
     LIGHTS(MenuSection.EFFECTS, R.string.entry_lights),
+    LIGHTS_ONLY_ON(MenuSection.EFFECTS, R.string.entry_lights_only_on),
     VISTA_PAUSE(MenuSection.VISTA, R.string.entry_vista_pause),
     VISTA_PLAYING(MenuSection.VISTA, R.string.entry_vista_playing),
     MINI_PLAYER(MenuSection.VISTA, R.string.entry_mini_player),
@@ -129,6 +130,7 @@ object SettingsMenu {
             s.roomLightLevel == RoomLightLevel.OFF -> t[R.string.off]
             else -> t.percent(s.roomLightLevel.percent)
         }
+        MenuEntry.LIGHTS_ONLY_ON -> onOff(s.lightsOnlyOn, t)
         MenuEntry.APPEARANCE -> t[
             when (s.appearance) {
                 AppearanceMode.AUTO -> R.string.appearance_auto
@@ -230,6 +232,7 @@ object SettingsMenu {
                 else -> R.string.about_lights_on
             },
         ]
+        MenuEntry.LIGHTS_ONLY_ON -> t[if (s.lightsOnlyOn) R.string.about_lights_only_on else R.string.about_lights_switch_on]
         MenuEntry.VISTA_PAUSE -> t[if (s.vistaPauseSeconds == 0) R.string.about_vista_pause_off else R.string.about_vista_pause]
         MenuEntry.VISTA_PLAYING -> t[
             when {
@@ -303,6 +306,7 @@ object SettingsMenu {
         MenuEntry.BACKGROUND -> s.copy(background = if (s.background == BackgroundMode.COVER) BackgroundMode.WALL else BackgroundMode.COVER)
         MenuEntry.MOTION -> s.copy(motion = move(MOTION_ORDER, s.motion, direction, wrap))
         MenuEntry.LIGHTS -> if (s.roomLights.isSet) s.copy(roomLightLevel = move(LIGHTS_ORDER, s.roomLightLevel, direction, wrap)) else null
+        MenuEntry.LIGHTS_ONLY_ON -> s.copy(lightsOnlyOn = !s.lightsOnlyOn)
         MenuEntry.APPEARANCE -> s.copy(appearance = move(APPEARANCE_ORDER, s.appearance, direction, wrap))
         MenuEntry.LIGHT -> s.copy(light = move(LIGHT_ORDER, s.light, direction, wrap))
         MenuEntry.VISTA_PAUSE -> s.copy(vistaPauseSeconds = move(PAUSE_DELAYS, nearest(PAUSE_DELAYS, s.vistaPauseSeconds), direction, wrap))

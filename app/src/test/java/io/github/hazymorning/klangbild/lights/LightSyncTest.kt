@@ -234,6 +234,27 @@ class LightSyncTest {
     }
 
     @Test
+    fun `with only lights that are on, a light that is off stays off until someone switches it on`() = runTest {
+        val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = false)))
+        val s = sync()
+        s.attach(ha)
+        s.update(target("a").copy(onlyOn = true))
+        testScheduler.advanceTimeBy(30_000)
+        assertThat(ha.to(left)).hasSize(1)
+        assertThat(ha.to(right)).isEmpty()
+        assertThat(ha.scenes.keys).containsExactly("scene.klangbild_tv_left")
+        ha.byHand(right, "on", buildJsonObject { put("brightness", 120) })
+        testScheduler.advanceTimeBy(3_000)
+        assertThat(ha.to(right)).hasSize(1)
+        assertThat(ha.scenes.keys).containsExactly("scene.klangbild_tv_left", "scene.klangbild_tv_right")
+        // Given back on, as it was when it joined in.
+        s.update(null)
+        testScheduler.advanceTimeBy(LightSync.IDLE_RELEASE_MS + 5_000)
+        assertThat(ha.named("light.turn_off")).isEmpty()
+        assertThat(ha.states.value.getValue(right).state).isEqualTo("on")
+    }
+
+    @Test
     fun `a failing call is tried once more, for its light only`() = runTest {
         val ha = FakeHa(this, mapOf(left to light(left, on = true), right to light(right, on = true)))
         val s = sync()
