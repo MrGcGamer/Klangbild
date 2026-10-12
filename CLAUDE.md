@@ -208,8 +208,11 @@ setup/          MiniHttp, SetupHandler (one-time code, the sign-in through Home 
                 bound to their address, the own buttons and values, every entity and the scripts'
                 fields), SetupPage (HTML in the language shown; entities chosen by searching),
                 SetupServer (+ QR, discovery; Host, Origin and content type checked, a few
-                connections at a time, slow ones closed, only while the setup screen shows; a
-                request that has arrived is still answered when it stops)
+                connections at a time, slow ones closed, only while the setup screen shows and
+                the TV has an address of its own, tried again until it has; a request that has
+                arrived is still answered when it stops, checked against the address it came to;
+                once a stop has returned, the port takes no connection: it waits for the thread
+                blocked in accept(), which holds the socket open until it lets go)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; provides LocalTexts),
                 stage/ (Stage layers, Typesetting, StageTheatre transitions, ProgressBar (a range:
                 the chapter), StageModel + StageTexts, FieldLayer: the pools as gradient quads,
