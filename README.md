@@ -1,18 +1,18 @@
 ![Klangbild on a TV at night, the wall behind it lit in the colors of the cover](docs/screenshots/mockup-now-playing.jpg)
 
-Klangbild turns your Android TV into a now playing screen for Home Assistant. You play music the way you always do, and the TV shows the cover, the song and what's coming up next. It doesn't matter whether you started the music from your phone, by voice or with an automation.
+Klangbild turns your Android TV into a now playing screen for Home Assistant. You play music the way you always do, and the TV shows the cover, the song and what's coming up next.
 
 <a href="https://github.com/hazymorning/Klangbild/releases/latest"><img src="docs/screenshots/download.png" width="236" alt="Download for Android TV"></a>
 
 ## What it works with
 
-Klangbild works with any media player in Home Assistant. With Music Assistant you also get the queue and chapters for audiobooks and podcasts. The sleep timer can then stop at the end of a chapter.
+Klangbild works with any media player in Home Assistant. With Music Assistant you also get the queue, lyrics that follow the song line by line, and chapters for audiobooks and podcasts. The sleep timer can then stop at the end of a chapter.
 
 If you have lights behind the TV, Klangbild can color them to match the cover. When the music is over, they go back to how they were.
 
 ## Three views
 
-![The window view at dusk on a TV, with the small player in the corner](docs/screenshots/mockup-window-view.jpg)
+![The window view on a winter night, stars and a campfire, on a TV in a room lit by a lamp and candles](docs/screenshots/mockup-window-view.jpg)
 
 Single cover shows one large cover next to the song. Cover Flow shows the covers of the queue in a row. The window view shows a landscape made of paper, with a small player in the corner.
 
