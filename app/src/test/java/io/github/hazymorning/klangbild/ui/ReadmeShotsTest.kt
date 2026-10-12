@@ -28,7 +28,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import org.shredzone.commons.suncalc.SunTimes
 import java.io.File
 import java.time.ZonedDateTime
 import java.util.TimeZone
@@ -81,22 +80,19 @@ class ReadmeShotsTest {
         coverLights("now-playing", scene, warmth = 1f)
     }
 
-    /** The window view at dusk in spring, the mini player bottom left. */
+    /** The window view on a deep winter night: a thin moon, a sky full of stars, the campfire on the snow; the mini player bottom left. */
     @Test
     fun windowView() {
-        val date = ZonedDateTime.of(2026, 4, 26, 0, 0, 0, 0, Fixtures.zone)
-        val set = SunTimes.compute().on(date).at(52.52, 13.40).execute().set!!.withZoneSameInstant(Fixtures.zone)
-        val at = set.plusMinutes(8).toInstant().toEpochMilli()
-        val track = TrackInfo("Under the Moss", listOf("Forest House"), durationMs = 213_000, artworkUrl = cover(SyntheticCover.MOSS))
+        val at = ZonedDateTime.of(2026, 1, 22, 19, 15, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         val ui = UiState(
-            screen = Screen.Stage(track, PlayerStatus.PAUSED, null),
-            stage = Fixtures.stage(track),
-            source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "sunny"),
-            vista = VistaUi(track, PlayerStatus.PAUSED, MiniPlayer.LEFT),
+            screen = Screen.Stage(polarNight, PlayerStatus.PAUSED, null),
+            stage = Fixtures.stage(polarNight),
+            source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "clear-night"),
+            vista = VistaUi(polarNight, PlayerStatus.PAUSED, MiniPlayer.LEFT),
         )
         val vistaClock = VistaClock(now = { at })
         shot("window-view") {
-            VistaScreen(ui, ui.vista!!, vistaClock, positionNow = { 213_000L / 3 }, now = { at }, modifier = Modifier.fillMaxSize())
+            VistaScreen(ui, ui.vista!!, vistaClock, positionNow = { 94_000L }, now = { at }, modifier = Modifier.fillMaxSize())
         }
     }
 
