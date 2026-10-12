@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.app
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.github.hazymorning.klangbild.config.Condition
+import io.github.hazymorning.klangbild.config.LyricsChoice
 import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.config.QuickItem
 import io.github.hazymorning.klangbild.config.Settings
@@ -11,7 +12,11 @@ import io.github.hazymorning.klangbild.data.NowPlayingSource
 import io.github.hazymorning.klangbild.data.RemoteCommand
 import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ha.EntityState
+import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.domain.Lrc
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerStatus
+import io.github.hazymorning.klangbild.domain.SongWords
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import io.github.hazymorning.klangbild.text.AppLanguage
@@ -83,17 +88,22 @@ class QuickControlTest {
 
     private var actions = listOf(ungroup, gone, party)
 
+    /** The song's words in the text column, as the quick settings set them. */
+    private var lyrics = false
+
     private val host = object : ControllerHost {
         override val lock: Any = this
         override val scope = test
         override val now: () -> Long = { test.testScheduler.currentTime }
-        override val settings get() = Settings(quickActions = actions)
+        override val settings get() = Settings(quickActions = actions, lyrics = lyrics)
         override val ui: UiState get() = this@QuickControlTest.ui
         override val source: NowPlayingSource = this@QuickControlTest.source
         override val texts: Texts = TestTexts.english()
         override var language: AppLanguage = AppLanguage.ENGLISH
         override fun recompute() = Unit
-        override fun applySettings(updated: Settings) = Unit
+        override fun applySettings(updated: Settings) {
+            lyrics = updated.lyrics
+        }
         override fun send(command: RemoteCommand) = Unit
         override fun requestSetup(show: Boolean) = Unit
         override fun showVista() = Unit
@@ -193,6 +203,35 @@ class QuickControlTest {
         // A condition on an entity Home Assistant does not have never holds.
         actions = listOf(ungroup.copy(condition = Condition("sensor.gone", null, Condition.Test.IS_NOT, "x")))
         assertThat(rows().none { it.item == QuickItem.ACTION }).isTrue()
+    }
+
+    @Test
+    fun `the lyrics entry shows with Music Assistant and a song, says whether this one has words, and OK turns it on and off`() {
+        val song = TrackInfo("Song", listOf("A"), durationMs = 200_000L)
+        ui = ui.copy(screen = Screen.Stage(song, PlayerStatus.PLAYING, null))
+        quick.open(menuOpen = false)
+        // Without Music Assistant's own link, no words can come: no entry.
+        assertThat(rows().map { it.item }).doesNotContain(QuickItem.LYRICS)
+        ui = ui.copy(source = ui.source.copy(ma = MaLink.CONNECTED))
+        fun lyricsValue() = rows().first { it.item == QuickItem.LYRICS }.value
+        assertThat(rows().map { it.item }.take(2)).containsExactly(QuickItem.PICTURE, QuickItem.LYRICS).inOrder()
+        assertThat(lyricsValue()).isEqualTo("Off")
+        quick.move(+1)
+        quick.change()
+        assertThat(lyrics).isTrue()
+        // Not known yet: on. Known to have none: none. With words: on.
+        assertThat(lyricsValue()).isEqualTo("On")
+        ui = ui.copy(source = ui.source.copy(words = SongWords(song.key, null)))
+        assertThat(lyricsValue()).isEqualTo("None")
+        ui = ui.copy(source = ui.source.copy(words = SongWords(song.key, Lrc.parse("[00:01.00]Eins\n[00:05.00]Zwei"))))
+        assertThat(lyricsValue()).isEqualTo("On")
+        quick.change()
+        assertThat(lyrics).isFalse()
+        assertThat(lyricsValue()).isEqualTo("Off")
+        // A station's song: no entry.
+        ui = ui.copy(screen = Screen.Stage(song.copy(kind = MediaKind.RADIO), PlayerStatus.PLAYING, null))
+        assertThat(rows().map { it.item }).doesNotContain(QuickItem.LYRICS)
+        assertThat(LyricsChoice.entries).hasSize(3)
     }
 
     @Test

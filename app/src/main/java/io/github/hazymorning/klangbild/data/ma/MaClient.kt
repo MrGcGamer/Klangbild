@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,6 +15,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /** How the optional link to Music Assistant stands, for the menu, never as raw errors. */
 enum class MaLink {
@@ -29,10 +31,13 @@ enum class MaLink {
 /** Music Assistant rejected the token. */
 class MaAuthException : IOException("Music Assistant rejected the token")
 
+/** Music Assistant does not know the command (a version from before it). */
+class MaUnknownCommandException(command: String) : IOException("Music Assistant does not know $command")
+
 /**
- * Music Assistant's own API, for the one thing Home Assistant does not pass on: the whole
- * queue, meaning what was played before the current song and what follows it. Optional: without
- * an address and a token (from the setup page) Klangbild works from Home Assistant alone.
+ * Music Assistant's own API, for what Home Assistant does not pass on: the whole queue, meaning
+ * what was played before the current song and what follows it, and a song's words. Optional:
+ * without an address and a token (from the setup page) Klangbild works from Home Assistant alone.
  *
  * One HTTP call per command (`POST <base>/api`, the long-lived token as bearer), only to the
  * address set up; the cleartext guard of the shared client keeps plain HTTP inside the home
@@ -70,8 +75,33 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         MaLink.UNREACHABLE
     }
 
+    /**
+     * The words Music Assistant has for [track] (a queue item's `media_item`): plain and with
+     * times (`metadata/get_track_lyrics`, Music Assistant 2.8 and later). It may look them up
+     * online first, which it does at most once in 30 seconds, so the answer may take a while:
+     * the call has a timeout of its own ([LYRICS_TIMEOUT_MS]). Throws [MaUnknownCommandException]
+     * on a version without the command.
+     */
+    suspend fun lyrics(track: JsonObject): Pair<String?, String?> {
+        val answer = command(LYRICS_COMMAND, buildJsonObject { put("track", track) }, slowHttp, LYRICS_TIMEOUT_MS)
+        fun JsonElement?.text() = (this as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return when (answer) {
+            is JsonArray -> answer.getOrNull(0).text() to answer.getOrNull(1).text()
+            is JsonObject -> answer["lyrics"].text() to answer["lrc_lyrics"].text()
+            else -> null to null
+        }
+    }
+
+    /** The same connections, with room for an answer that takes a while (the lyrics). */
+    private val slowHttp: OkHttpClient by lazy { http.newBuilder().readTimeout(LYRICS_TIMEOUT_MS, TimeUnit.MILLISECONDS).build() }
+
     /** One command; canceling the coroutine cancels the request. */
-    private suspend fun command(name: String, args: JsonObject): JsonElement {
+    private suspend fun command(
+        name: String,
+        args: JsonObject,
+        client: OkHttpClient = http,
+        timeoutMs: Long = CALL_TIMEOUT_MS,
+    ): JsonElement {
         val body = buildJsonObject {
             put("message_id", name)
             put("command", name)
@@ -82,8 +112,10 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
             .header("Authorization", "Bearer $token")
             .post(body.toString().toRequestBody(JSON))
             .build()
-        val text = http.fetch(request, CALL_TIMEOUT_MS) { response ->
+        val text = client.fetch(request, timeoutMs) { response ->
             if (response.code == 401 || response.code == 403) throw MaAuthException()
+            // An older version says so in words: "Invalid Command: …".
+            if (response.code == 400 && response.peekBody(UNKNOWN_PEEK_BYTES).string().startsWith("Invalid Command")) throw MaUnknownCommandException(name)
             if (!response.isSuccessful) throw IOException("Music Assistant answered ${response.code}")
             response.body.source().let { src ->
                 if (!src.request(MAX_ANSWER_BYTES)) src.readUtf8() else throw IOException("Answer too large")
@@ -105,5 +137,16 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
 
         /** One command gets this long, reading included. */
         const val CALL_TIMEOUT_MS = 10_000L
+
+        const val LYRICS_COMMAND = "metadata/get_track_lyrics"
+
+        /**
+         * The words get this long: Music Assistant asks the online service it looks them up in
+         * at most once in 30 seconds, so an answer may wait for that, and for one before it.
+         */
+        const val LYRICS_TIMEOUT_MS = 75_000L
+
+        /** Enough of a refusal to read its first words. */
+        private const val UNKNOWN_PEEK_BYTES = 256L
     }
 }

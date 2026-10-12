@@ -11,6 +11,7 @@ import android.graphics.Shader
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
@@ -33,6 +34,7 @@ enum class SyntheticCover(val nativeSize: Int = 640) {
     PASTEL(300),        // soft pastel, deliberately low resolution
     WHITE_SPACE,            // almost white with a single line
     CHAMBER_MUSIC(1200),   // color field painting, high resolution
+    AURORA(1200),          // northern lights over a spruce forest: the README's song
 }
 
 object SyntheticCovers {
@@ -54,6 +56,7 @@ object SyntheticCovers {
             SyntheticCover.PASTEL -> pastel(c, s)
             SyntheticCover.WHITE_SPACE -> whiteSpace(c, s)
             SyntheticCover.CHAMBER_MUSIC -> chamberMusic(bmp, noise)
+            SyntheticCover.AURORA -> aurora(bmp, noise)
         }
         val grain = when (cover) {
             SyntheticCover.MIST -> 10f
@@ -371,6 +374,97 @@ object SyntheticCovers {
             px[y * w + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or bl
         }
         bmp.setPixels(px, 0, w, 0, 0, w, h)
+    }
+
+    /**
+     * Northern lights over a spruce forest: one ribbon swinging across the night sky, bright and
+     * mint green at its lower edge, its rays fading up through teal to violet, the air around it
+     * lit; stars; a treeline of spruces of many heights against the sky's last blue.
+     */
+    private fun aurora(bmp: Bitmap, noise: Noise) {
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h)
+        val sky = arrayOf(rgb(0x01030A), rgb(0x081230), rgb(0x123056))
+        val mint = rgb(0xA6FFD6)
+        val green = rgb(0x3EE597)
+        val teal = rgb(0x25B2B8)
+        val violet = rgb(0x7A55EC)
+        val rose = rgb(0xD257B2)
+        val haze = rgb(0x134552)
+        val wood = rgb(0x02050C)
+        class Spruce(val x: Float, val top: Float, val height: Float, val half: Float, val tiers: Int)
+        val trees = ArrayList<Spruce>()
+        val r = Random(3)
+        var tx = 0f
+        while (tx < 1.05f) {
+            var tall = 0.06f + 0.09f * r.nextFloat().pow(1.6f)
+            if (r.nextFloat() < 0.12f) tall *= 1.4f
+            val wide = tall * (0.32f + 0.08f * r.nextFloat())
+            trees += Spruce(tx, 0.93f - 0.02f * sin(2.2f * tx + 0.5f) - tall, tall, wide / 2f, 6 + (tall * 30f).toInt())
+            tx += wide * (0.45f + 0.5f * r.nextFloat())
+        }
+        val stars = Random(17)
+        val col = FloatArray(3)
+        val c = FloatArray(3)
+        for (y in 0 until h) for (x in 0 until w) {
+            val u = x / w.toFloat()
+            val v = y / h.toFloat()
+            val t = (v / 0.86f).coerceIn(0f, 1f)
+            if (t < 0.5f) mix(sky[0], sky[1], t / 0.5f, col) else mix(sky[1], sky[2], (t - 0.5f) / 0.5f, col)
+            val star = (stars.nextFloat().pow(1100) * 1.8f + stars.nextFloat().pow(4000) * 3f) * smooth(0.85f, 0.3f, v)
+            col[0] += star * 0.85f
+            col[1] += star * 0.92f
+            col[2] += star
+            // The ribbon's lower edge swings across the sky; its rays rise from it.
+            val edgeY = 0.46f + 0.15f * sin(2.7f * u - 0.4f) + 0.035f * sin(8.1f * u + 1.2f) + 0.010f * sin(23f * u)
+            val dy = edgeY - v
+            val along = ((noise.fbm(u * 6f, 3.7f + v, 4) - 0.22f) * 2.6f).coerceIn(0.25f, 1.4f)
+            val rays = (0.3f + 1.9f * (noise.fbm(u * 30f, 11f + v, 3) - 0.38f)).coerceIn(0.05f, 1.7f)
+            val reach = 0.19f + 0.12f * noise.fbm(u * 3f, 21f + v, 3)
+            val ragged = 0.004f + 0.006f * noise.fbm(u * 60f, 31f + v, 2)
+            val edge = exp(-(dy / ragged) * (dy / ragged))
+            val body = smooth(-0.002f, 0.012f, dy) * exp(-max(dy, 0f) / reach) * rays * 1.7f
+            val below = if (dy < 0f) exp(dy / 0.03f) * 0.22f else 0f
+            val light = (body + 0.7f * edge + below) * along
+            val up = (dy / 0.30f).coerceIn(0f, 1f)
+            when {
+                up < 0.07f -> mix(mint, green, up / 0.07f, c)
+                up < 0.42f -> mix(green, teal, (up - 0.07f) / 0.35f, c)
+                up < 0.78f -> mix(teal, violet, (up - 0.42f) / 0.36f, c)
+                else -> mix(violet, rose, (up - 0.78f) / 0.22f, c)
+            }
+            val air = exp(-abs(dy) / 0.14f) * 0.32f * along
+            for (i in 0..2) col[i] += c[i] * light + haze[i] * air
+            // The forest against the sky.
+            val ground = 0.93f - 0.025f * sin(2.2f * u + 0.5f) - 0.012f * (noise.fbm(u * 8f, 41f + v, 3) - 0.5f)
+            var dark = v > ground
+            if (!dark && v > 0.6f) {
+                for (tree in trees) {
+                    val off = abs(u - tree.x)
+                    if (off > tree.half) continue
+                    val down = (v - tree.top) / tree.height
+                    if (down < 0f) continue
+                    val tier = (down * tree.tiers) % 1f
+                    if (off < tree.half * down.coerceAtMost(1f) * (0.72f + 0.28f * tier) || (down > 0.92f && off < 0.004f)) {
+                        dark = true
+                        break
+                    }
+                }
+            }
+            if (dark) wood.copyInto(col)
+            val red = (col[0].coerceIn(0f, 1f) * 255).toInt()
+            val gr = (col[1].coerceIn(0f, 1f) * 255).toInt()
+            val bl = (col[2].coerceIn(0f, 1f) * 255).toInt()
+            px[y * w + x] = (0xFF shl 24) or (red shl 16) or (gr shl 8) or bl
+        }
+        bmp.setPixels(px, 0, w, 0, 0, w, h)
+    }
+
+    private fun rgb(hex: Int) = floatArrayOf(((hex shr 16) and 0xFF) / 255f, ((hex shr 8) and 0xFF) / 255f, (hex and 0xFF) / 255f)
+
+    private fun mix(a: FloatArray, b: FloatArray, t: Float, out: FloatArray) {
+        for (i in 0..2) out[i] = a[i] + (b[i] - a[i]) * t
     }
 
     private fun smooth(e0: Float, e1: Float, x: Float): Float {

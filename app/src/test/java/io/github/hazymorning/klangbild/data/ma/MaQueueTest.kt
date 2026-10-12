@@ -103,5 +103,35 @@ class MaQueueTest {
         assertThat(episode.chapters).isEmpty()
         // Music plays at its own pace.
         assertThat(MaQueue.window(items, offset = 10, currentIndex = 11, baseUrl = base).speed).isEqualTo(1f)
+        // A book is no song: no words are asked for it.
+        assertThat(w.currentSong).isNull()
+    }
+
+    @Test
+    fun `the current song and the next come with their address and the words they bring`() {
+        val songs = Json.parseToJsonElement(
+            """
+            [
+              {"queue_id":"q1","queue_item_id":"a","name":"Lumen Drive - Neonlicht über der A40","duration":251,
+               "media_item":{"media_type":"track","name":"Neonlicht über der A40","uri":"library://track/12",
+                 "metadata":{"lyrics":null,"lrc_lyrics":"[00:05.00]Erste Zeile\n[00:09.00]Zweite Zeile"}}},
+              {"queue_id":"q1","queue_item_id":"b","name":"Waldhaus - Unter Moos","duration":213,
+               "media_item":{"media_type":"track","name":"Unter Moos","uri":"spotify://track/4x2","metadata":{}}},
+              {"queue_id":"q1","queue_item_id":"c","name":"Radio X","media_item":{"media_type":"radio","name":"Radio X","uri":"library://radio/3"}}
+            ]
+            """,
+        ).jsonArray
+        val w = MaQueue.window(songs, offset = 0, currentIndex = 0, baseUrl = base)
+        val current = w.currentSong!!
+        assertThat(current.uri).isEqualTo("library://track/12")
+        assertThat(current.lrcLyrics).startsWith("[00:05.00]")
+        assertThat(current.lyrics).isNull()
+        // The item as Music Assistant gave it, to ask for its words with.
+        assertThat(current.item["name"].toString()).isEqualTo("\"Neonlicht über der A40\"")
+        val next = w.nextSong!!
+        assertThat(next.uri).isEqualTo("spotify://track/4x2")
+        assertThat(next.lrcLyrics).isNull()
+        // A station is no song.
+        assertThat(MaQueue.window(songs, offset = 0, currentIndex = 1, baseUrl = base).nextSong).isNull()
     }
 }

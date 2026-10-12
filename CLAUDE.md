@@ -3,16 +3,24 @@
 Android TV "now playing" screen for Home Assistant and Music Assistant. Built for a 4K Android
 TV device with a weak GPU in front of an OLED TV. Sideload only.
 The UI speaks English (default) and German (`values-de`); code, comments, the README, the release
-notes, CI and every other document are English. The README stays under 400 characters of text,
-in plain, complete sentences that a reader understands at once: what Klangbild is, that it works
-with any Home Assistant media player but is built for Music Assistant, and a feature or two.
-Leave a feature out rather than squeeze a sentence. Below the text three screenshots from
-`docs/screenshots/` (rendered by `ReadmeShotsTest`, saved as JPEG when the look changes). Release
-notes are easy to scan and in everyday words: a small heading for each kind of change there is
-(`### New`, `### Better`, `### Bug fixes`), under it a few short points a user understands at
-once, nothing technical. As short as the release allows; up to 300 words only when a release
-needs them and every one is well spent. `docs/` holds only the notes of the releases on GitHub
-and the README's screenshots: effort goes into the app, not into documents.
+notes, CI and every other document are English. The README stays at about 500 words, in plain,
+complete sentences that a reader understands at once: what Klangbild is and what it works with, its
+views, leaving it on, setup, the remote and privacy. Leave a feature out rather than squeeze a
+sentence. Its pictures are mockups in `docs/screenshots/`: the app's own screens
+(`ReadmeShotsTest`, with the colors the lights behind the TV would show) set in a room by
+`tools/make_readme_pictures.py`, made again when the look changes, and the download button under
+the first paragraph. The mockups stay calm and real, as a photograph of a room would be: the
+lights' colors soft on a matte wall, no colorful backgrounds; the window view on a deep winter
+night (stars, a thin moon, the campfire) in a cozy room worked out in 3D, a lamp's light falling
+through its shade, candles, books and a record sleeve on a walnut sideboard.
+The logo is `tools/logo.svg` (four rounded squares, each turned a little further toward the middle,
+a ring and a light dot, blue on night blue), drawn from it by `tools/make_launcher_assets.py` for
+the banner, the icons, the mockups and the button, never scaled from a bitmap. Release notes are
+easy to scan and in everyday words: a small heading for each kind of change there is (`### New`,
+`### Better`, `### Bug fixes`), under it a few short points a user understands at once, nothing
+technical. As short as the release allows; up to 300 words only when a release needs them and every
+one is well spent. `docs/` holds only the notes of the releases on GitHub and the README's
+pictures: effort goes into the app, not into documents.
 
 ## Writing rules (texts in both languages, the setup page, comments, docs, commits, PRs)
 
@@ -36,7 +44,8 @@ and the README's screenshots: effort goes into the app, not into documents.
 ./gradlew :app:testDebugUnitTest --tests '*HaloStageTest*' -Proborazzi.test.record=true   # one class
 ./gradlew :app:lintRelease                                     # Android Lint: every warning fails
 ./gradlew :app:assembleRelease                                 # R8-minified APK, signed with the debug key
-python3 tools/make_launcher_assets.py                          # re-render banner + icons (Pillow)
+python3 tools/make_launcher_assets.py                          # re-render banner + icons from the logo (Pillow)
+python3 tools/make_readme_pictures.py                          # README mockups + download button (Pillow, numpy)
 ```
 
 - Local SDK: `local.properties` → `sdk.dir=/opt/android-sdk` (not committed). compileSdk 37,
@@ -107,11 +116,17 @@ data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client i
                 one's own followed (the buttons', their conditions', the values') with their
                 precision and Home Assistant's temperature unit, a button run (a script with its
                 variables and `player`), the lights' states and calls; a Music Assistant song
-                published once its queue has described it),
+                published once its queue has described it; the words of the song that plays,
+                found by the URI Home Assistant names as what plays),
                 StationPictures (a station's song: the best picture on offer wins and holds)
-data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token),
+data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token;
+                `metadata/get_track_lyrics` on a client of its own with a long timeout),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
-                speed; books' authors, episodes' shows, chapters; pictures via imageproxy)
+                speed, the current and next songs' URIs and the words they bring; books' authors,
+                episodes' shows, chapters; pictures via imageproxy), MaLyrics (the words of the song
+                that plays and the one up next: from the queue item, else asked, one song at a
+                time, the one that plays first; kept by URI; a call for a song no longer playing
+                or next canceled, its answer dropped; a version without the call: none)
 data/           NowPlayingSource/SourceState/LinkState, ArtworkLoader (size limits; the token only
                 to Home Assistant's host, through a client without redirects; a larger rendition
                 guessed from the address gets a short try and is not asked again for a while
@@ -128,7 +143,9 @@ domain/         TrackInfo (+ pictureKey and sceneKey: a station's song by its pi
                 FieldClock (the color field's own time, shared by screen and lights), SunClock (the
                 sun by the local clock, without `sun.sun`), VistaPolicy (when the window view takes
                 the screen), ValueText (a value of one's own in words: precision, unit, on and off,
-                a time of day)
+                a time of day), Lyrics (Lrc: LRC read tolerantly, tidied or raw, plain words none;
+                lines with breaks; LyricsCursor: the line in the middle a little early, a small step
+                back held)
 text/           Texts (the words of one language: resources, plurals, numbers, percent, dates, the
                 clock in 12 or 24 hours), AppLanguage + PlatformLanguageStore (LocaleManager from
                 API 33, the app's own preference on 31 and 32), Localizer (StateFlow<Texts>,
@@ -178,7 +195,8 @@ app/            NowPlayingController (single source of truth → StateFlow<UiSta
 config/         Settings (+ DisplayOptions, VolumeDisplay, LightLevel, AppearanceMode, BackgroundMode,
                 MotionLevel, RoomLights, RoomLightLevel) + SettingsStore (DataStore; tokens sealed by
                 SecretBox: AES-GCM with a key in the Android keystore), SettingsMenu (entries, values,
-                explanations, steps), QuickMenu (the quick settings' entries and values),
+                explanations, steps), QuickMenu (the quick settings' entries and values, Lyrics
+                On / Off / None),
                 QuickActions (the own buttons: a name, an entity, what its kind does, a script's
                 variables) + Condition (when a button shows: a state or attribute is, is not, is
                 above or below a value; a list counts its entries), OwnValues (the values in the
@@ -190,12 +208,17 @@ setup/          MiniHttp, SetupHandler (one-time code, the sign-in through Home 
                 bound to their address, the own buttons and values, every entity and the scripts'
                 fields), SetupPage (HTML in the language shown; entities chosen by searching),
                 SetupServer (+ QR, discovery; Host, Origin and content type checked, a few
-                connections at a time, slow ones closed, only while the setup screen shows; a
-                request that has arrived is still answered when it stops)
+                connections at a time, slow ones closed, only while the setup screen shows and
+                the TV has an address of its own, tried again until it has; a request that has
+                arrived is still answered when it stops, checked against the address it came to;
+                once a stop has returned, the port takes no connection: it waits for the thread
+                blocked in accept(), which holds the socket open until it lets go)
 ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; provides LocalTexts),
                 stage/ (Stage layers, Typesetting, StageTheatre transitions, ProgressBar (a range:
                 the chapter), StageModel + StageTexts, FieldLayer: the pools as gradient quads,
-                drawn small and scaled), Motion (+ StageTick: one frame tick for bar and field),
+                drawn small and scaled; Lyrics: the words in the column, set once per song off the
+                main thread, one canvas, LyricsViews keeping their places through a change),
+                Motion (+ StageTick: one frame tick for bar, field and words),
                 OffMain (bitmaps off the main thread, at once in stills),
                 flow/ (FlowStrip: cards as quads; FlowTheatre: keyed strip transitions),
                 theme/Type (Jost + DM Sans, `titleType()`/`textType()`, Figures, ink shift),
@@ -211,7 +234,7 @@ ui/             KlangbildRoot (screen switch, OLED drift, menu overlay, peek; pr
                 near bank, standing still while the camera moves)
 dream/          KlangbildDream (DreamService with ComposeView)
 test only       SyntheticCovers + Catalogue (generated test covers and tracks, test://cover/NAME, a
-                book and an episode), Fixtures, TestTexts, the static stages for stills
+                book and an episode, invented words, the README's aurora), Fixtures, TestTexts, the static stages for stills
 ```
 
 ## Design principles (do not regress)
@@ -286,7 +309,7 @@ UI words are given in English with the German in parentheses where it matters.
 - **Progress:** a classic bar: 4 dp, round ends, no knob, track 16%, fill at the artist's
   level, elapsed left, the track's length right (only one number ticks). Refreshed about 30
   times a second aligned to frames, on its own layer; jumps > 1.5 s glide in 350 ms; paused,
-  the fill dims. Hidden by setting, back on a key press.
+  the fill dims. Hidden by setting (beside the song's words always), back on a key press.
 - **Per frame only cheap work:** blur, palette, resampling and glow happen once per track in
   `SceneBuilder`; animations only change alpha, transform and color filters, read in draw
   lambdas.
@@ -299,9 +322,9 @@ UI words are given in English with the German in parentheses where it matters.
   up; old text leaves in 220 ms, new lines rise one after another from 260 ms (the dip through
   dark of 5.1 read as a glitch on every skip). Up to 4 s without music between two songs, the
   stage stays (`Timing.betweenSongsMs`) instead of flashing the rest screen. Same picture
-  (album): only text; same track, new scene (a better cover): quiet cross-fade. Pause (600 ms)
-  dims light, artwork and text; nothing moves, so the lines hung on the artwork's edges stay
-  aligned.
+  (album), or the song's words coming or going: only text; same track, new scene (a better
+  cover): quiet cross-fade. Pause (600 ms) dims light, artwork and text; nothing moves, so the
+  lines hung on the artwork's edges stay aligned.
   Mute is only a word; a lost link dims like a pause. Nothing slides, nothing bounces.
   Screens switch by fading through dark. **One change at a time:** what arrives during a
   change waits until it has landed, then the newest goes next (`snapshotFlow … conflate()`).
@@ -346,6 +369,29 @@ UI words are given in English with the German in parentheses where it matters.
   time as a time of day (`ValueText`); what Home Assistant cannot tell shows nothing, so a
   template helper can hide a value. The place always has its room: values that do not fit
   beside it are left out from the last, never cut. They tick like the clock, no cross-fade.
+- **The song's words** (`Lyrics`, `LyricsText`; the quick settings' Lyrics (Songtext),
+  remembered like the view; Music Assistant only, nothing to set up): a view of the text column,
+  not a screen. The line sung now stands centered on the artwork (first cap height to last
+  baseline, `CentringTest`) in the title's ink; the lines around it in the quiet ink, each
+  fading as a whole with the distance of its nearer edge (whole within 40 dp, like the settings
+  list), gone before its far edge comes within 8 dp of the status line, the song or the bar.
+  One size per song, no size or weight changes: Jost 30, 26 or 24 sp, the largest at which no
+  line takes more than two rows (three at 24; two voices count apart), balanced breaks, a short
+  word kept with the next, Japanese, Chinese and Korean at 0.88×. The list glides one step in
+  500 ms, starting 300 ms before the line is sung, the light going with it (a glide that comes
+  while one runs carries on from its pace); a break (an empty line, a lone note or
+  "[Instrumental]", at least 4 s) only dims the line; before the first line it waits unlit in
+  the middle; a jump lets the words go, then come at the new place; a step back of less than
+  1.5 s (a corrected position) never moves them. The picture never moves. The status line keeps
+  its place, title and artist stand where "Up next" stands, title block, album and bar give way
+  (a key brings the bar for a moment, above the song, the words making room). Switching them on
+  or off, and words that come late, use the stage's text change (`Change.WORDS`); not in the
+  window view. The words come from the queue item (`media_item.metadata`: `lrc_lyrics`, else
+  LRC in `lyrics`), else from `metadata/get_track_lyrics` (Music Assistant 2.8 and later; raw
+  LRC before 2.10) with a 75 s timeout of its own (Music Assistant asks its online source at
+  most once in 30 s), never holding up the queue reads; the song up next is asked ahead. Songs
+  only, synced only: plain words are none. Set once per song off the main thread; a frame only
+  moves one canvas.
 - **Remote:** OK plays and pauses, held it opens the settings; left and right change the song
   (spoken word: jump); down opens the quick settings and, pressed again, closes them; up
   brings the window view and, pressed again, leaves it (both also show hidden parts for a
@@ -354,17 +400,18 @@ UI words are given in English with the German in parentheses where it matters.
   Assistant only where the player's `supported_features` allow them.
 - **Quick settings** (`QuickMenu`, `QuickBar`; down on the remote): one row along the bottom
   edge, rising 22 dp as it fades in, where the key points: View (Single cover / Cover Flow /
-  Window view, taken 0.9 s after the last press so no view in between shows), Favorite (with
-  Music Assistant), Lights On / Off (off remembers the level), Shuffle On / Off (only where
-  the player can shuffle; the sleep timer lives in the menu), then the own buttons. Left and
-  right choose, OK changes, down, up or back close, 20 s alone close them. Each entry is its
-  name (15 sp, quiet) over its value (20 sp), on the stage grid from 88 dp; its place is as
-  wide as its widest value (only the last is as wide as what it says), so nothing moves when a
-  value changes; the chosen one lit from below like the menu's line. The built-in entries fit
-  the screen in both languages (`LanguageTest`); a row longer than the room (own buttons)
-  glides to show the chosen entry whole, entries beyond its ends faded out. An opaque veil
-  (black, paper) from 448 dp down, softened above: nothing behind shows through. They leave
-  the window view as it was.
+  Window view, taken 0.9 s after the last press so no view in between shows), Lyrics On / Off,
+  or None while this song has no synced words (only with Music Assistant connected and a song
+  on stage), Favorite (with Music Assistant), Lights On / Off (off remembers the level),
+  Shuffle On / Off (only where the player can shuffle; the sleep timer lives in the menu), then
+  the own buttons. Left and right choose, OK changes, down, up or back close, 20 s alone close
+  them. Each entry is its name (15 sp, quiet) over its value (20 sp), on the stage grid from
+  88 dp; its place is as wide as its widest value (only the last is as wide as what it says), so
+  nothing moves when a value changes; the chosen one lit from below like the menu's line. The
+  built-in entries fit the screen in both languages (`LanguageTest`); a row longer than the
+  room (own buttons) glides to show the chosen entry whole, entries beyond its ends faded out.
+  An opaque veil (black, paper) from 448 dp down, softened above: nothing behind shows through.
+  They leave the window view as it was.
 - **Own buttons** (`QuickActions`, the setup page's section 7, at most 6): a name of one's own
   (at most 32 characters; without one, the entity's own words) and a Home Assistant entity,
   whose kind says what OK does: a script runs (`script.turn_on` with its variables (the fields

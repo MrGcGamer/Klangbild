@@ -8,6 +8,9 @@ import io.github.hazymorning.klangbild.text.Texts
 /** What the screen shows: one of the two views of the music, or the window view. */
 enum class Picture { SINGLE, FLOW, VISTA }
 
+/** The song's words in the text column: on, off, or on while this song has no synced words. */
+enum class LyricsChoice { ON, OFF, NONE }
+
 /** How far the current song's way into the favorites has come. */
 enum class FavoriteState {
     /** Not asked yet (or not known to be one). */
@@ -29,6 +32,7 @@ enum class FavoriteState {
  */
 enum class QuickItem(@StringRes val label: Int?) {
     PICTURE(R.string.quick_view),
+    LYRICS(R.string.quick_lyrics),
     FAVORITE(R.string.quick_favorite),
     LIGHTS(R.string.quick_lights),
     SHUFFLE(R.string.quick_shuffle),
@@ -83,21 +87,25 @@ data class QuickContext(
      * condition does not hold, is not here.
      */
     val actions: Map<Int, ActionState> = emptyMap(),
+    /** The song's words as the entry says it; null without Music Assistant or without a song. */
+    val lyrics: LyricsChoice? = null,
 )
 
 /**
  * The quick settings: a row of a few entries that rises from the bottom edge when down is
  * pressed, for what is wanted now and then while watching and should not hide in the settings
  * (those stay on OK held). Left and right choose an entry, OK changes it (or does what it
- * says), up leaves the row. Entries that cannot do anything now are left out (no favorite
- * without music, no lights before they are set up, no shuffle on a player that cannot, no
- * button whose entity is unavailable or whose condition does not hold). The buttons set up on
- * the phone come last. The sleep timer lives in the settings.
+ * says), up leaves the row. Entries that cannot do anything now are left out (no lyrics without
+ * Music Assistant or without a song, no favorite without music, no lights before they are set
+ * up, no shuffle on a player that cannot, no button whose entity is unavailable or whose
+ * condition does not hold). The buttons set up on the phone come last. The sleep timer lives in
+ * the settings.
  */
 object QuickMenu {
     fun rows(s: Settings, ctx: QuickContext, t: Texts): List<QuickRow> = buildList {
         fun row(item: QuickItem, value: String) = add(QuickRow(QuickKey(item), t[item.label!!], value, values(item, t)))
         row(QuickItem.PICTURE, pictureValue(ctx.pending ?: picture(s, ctx), t))
+        if (ctx.lyrics != null) row(QuickItem.LYRICS, lyricsValue(ctx.lyrics, t))
         if (ctx.music && ctx.favorite != null) row(QuickItem.FAVORITE, favoriteValue(ctx.favorite, t))
         if (s.roomLights.isSet) row(QuickItem.LIGHTS, t[if (s.roomLightLevel == RoomLightLevel.OFF) R.string.off else R.string.on])
         if (ctx.music && ctx.shuffle != null) row(QuickItem.SHUFFLE, t[if (ctx.shuffle) R.string.on else R.string.off])
@@ -120,6 +128,14 @@ object QuickMenu {
             Picture.SINGLE -> R.string.view_single
             Picture.FLOW -> R.string.view_flow
             Picture.VISTA -> R.string.view_vista
+        },
+    ]
+
+    fun lyricsValue(l: LyricsChoice, t: Texts): String = t[
+        when (l) {
+            LyricsChoice.ON -> R.string.on
+            LyricsChoice.OFF -> R.string.off
+            LyricsChoice.NONE -> R.string.lyrics_none
         },
     ]
 
@@ -159,6 +175,7 @@ object QuickMenu {
      */
     fun values(item: QuickItem, t: Texts): List<String> = when (item) {
         QuickItem.PICTURE -> PICTURES.map { pictureValue(it, t) }
+        QuickItem.LYRICS -> LyricsChoice.entries.map { lyricsValue(it, t) }
         QuickItem.FAVORITE -> FavoriteState.entries.map { favoriteValue(it, t) }
         QuickItem.LIGHTS, QuickItem.SHUFFLE -> listOf(t[R.string.on], t[R.string.off])
         QuickItem.ACTION -> ActionKind.entries.flatMap { actionValues(it, t) }.distinct()

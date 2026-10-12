@@ -10,7 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -31,6 +33,8 @@ import io.github.hazymorning.klangbild.ui.RisingText
 import io.github.hazymorning.klangbild.ui.TextRise
 import io.github.hazymorning.klangbild.ui.playChange
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
+import io.github.hazymorning.klangbild.ui.stage.LocalLyricsViews
+import io.github.hazymorning.klangbild.ui.stage.LyricsViews
 import io.github.hazymorning.klangbild.ui.stage.StageModel
 import io.github.hazymorning.klangbild.ui.stage.StatusLayer
 import io.github.hazymorning.klangbild.ui.stage.TextLayer
@@ -60,6 +64,9 @@ private enum class FlowChange {
 
     /** Same track on the other wall (light ↔ dark): the same, slower. */
     WALL,
+
+    /** Same track and picture, other words in the column (its lyrics come or go): only the text changes. */
+    WORDS,
 }
 
 /**
@@ -81,7 +88,8 @@ private class Plan(val motions: List<CardMotion>, val timeline: Timeline)
  * Cover Flow with its transitions. When another picture comes to the middle, the strip turns
  * over in one unhurried, eased movement: the leaving cover swings away to the side as the next
  * one turns to face the room. The old text leaves first, the new lines rise as the new cover
- * arrives, and the light above the cards takes its color. New cards roll in opaque from beyond
+ * arrives (as they do when the song's words come or go, the cards standing still), and the
+ * light above the cards takes its color. New cards roll in opaque from beyond
  * the end of the strip. Cards that are no longer wanted dissolve first, before anything moves
  * behind them ([plan]), so two covers are never on top of each other. A pause dims the light,
  * the cards and the text; nothing moves.
@@ -137,7 +145,7 @@ fun FlowTheatre(
             val line = plan.timeline
             when (kind) {
                 FlowChange.MOVE -> text.begin(TextRise(line.clearMs + Motion.FLOW_TEXT_IN_MS, line.totalMs))
-                FlowChange.TEXT -> text.begin(TextRise(Motion.TEXT_IN_SAME_PICTURE_MS, line.totalMs))
+                FlowChange.TEXT, FlowChange.WORDS -> text.begin(TextRise(Motion.TEXT_IN_SAME_PICTURE_MS, line.totalMs))
                 else -> Unit
             }
             change = kind
@@ -184,8 +192,8 @@ fun FlowTheatre(
     fun p(startMs: Int, endMs: Int, easing: androidx.compose.animation.core.Easing = Motion.Dimmer) =
         Motion.phaseMs(t.value, startMs, endMs, total, easing)
 
-    val curStage = middle.stage
-    val prevStage = prev?.middle?.stage
+    val curStage = current.stage
+    val prevStage = prev?.stage
     val curModel = remember(curStage, modelFor) { modelFor(curStage) }
     val prevModel = remember(prevStage, modelFor) { prevStage?.let(modelFor) }
     val curPlan = rememberTextPlan(curModel)
@@ -195,7 +203,7 @@ fun FlowTheatre(
     val from = remember(prev, geometry) { prev?.let { balanceOf(it, geometry) } ?: rest }
     val balance: () -> Balance = { if (prev == null) rest else from.towards(rest, Motion.Turn.transform(line.settle.of(t.value))) }
     // Lines that leave and rise anew keep to their own places; lines that stay move along.
-    val textMoves = kind == FlowChange.MOVE || kind == FlowChange.TEXT
+    val textMoves = kind == FlowChange.MOVE || kind == FlowChange.TEXT || kind == FlowChange.WORDS
     val newColumn: () -> Float = { if (prev != null && textMoves) rest.column else balance().column }
     val oldColumn: () -> Float = { if (textMoves) from.column else balance().column }
     val wall = middle.scene.palette.wall.asColor()
@@ -219,6 +227,10 @@ fun FlowTheatre(
     val textRise: (TextLine) -> Float = { row -> if (text.rising) 10f * (1f - text.level(row)) else 0f }
     // The text so far leaves from where it stood; a new look of the same song cross-fades in place.
     val stood: (TextLine) -> Float = { row -> if (softText) text.level(row) else text.leaving(row) }
+
+    // The words of the song shown and of the one leaving keep their places through a change.
+    val lyricsViews = remember { LyricsViews() }
+    SideEffect { lyricsViews.keep(curStage.lyrics, prevStage?.lyrics) }
 
     Box(modifier.fillMaxSize()) {
         // As on the single stage: the old wall stays whole until the new one has come up over it.
@@ -245,17 +257,19 @@ fun FlowTheatre(
             edges = !middle.scene.coverField,
             shift = { balance().cards },
         )
-        if (prevModel != null && prevPlan != null && kind != FlowChange.SIDES) {
-            TextLayer(
-                prevModel,
-                plan = prevPlan,
-                alpha = { row -> stood(row) * (if (softText) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS)) },
-                rise = { row -> 10f * (1f - stood(row)) - (if (softText) 0f else 6f * p(0, Motion.TEXT_OUT_MS)) },
-                dim = { textDim },
-                shift = oldColumn,
-            )
+        CompositionLocalProvider(LocalLyricsViews provides lyricsViews) {
+            if (prevModel != null && prevPlan != null && kind != FlowChange.SIDES) {
+                TextLayer(
+                    prevModel,
+                    plan = prevPlan,
+                    alpha = { row -> stood(row) * (if (softText) 1f - p(0, total) else 1f - p(0, Motion.TEXT_OUT_MS)) },
+                    rise = { row -> 10f * (1f - stood(row)) - (if (softText) 0f else 6f * p(0, Motion.TEXT_OUT_MS)) },
+                    dim = { textDim },
+                    shift = oldColumn,
+                )
+            }
+            TextLayer(curModel, plan = curPlan, alpha = textIn, rise = textRise, dim = { textDim }, shift = newColumn)
         }
-        TextLayer(curModel, plan = curPlan, alpha = textIn, rise = textRise, dim = { textDim }, shift = newColumn)
         StatusLayer(curModel, shift = { balance().column })
     }
 }
@@ -268,6 +282,7 @@ private fun changeOf(old: FlowData, new: FlowData): FlowChange {
         a.track.key != b.track.key -> FlowChange.TEXT
         a.scene !== b.scene && a.scene.appearance != b.scene.appearance -> FlowChange.WALL
         a.scene !== b.scene -> FlowChange.SOFT
+        old.lyrics !== new.lyrics -> FlowChange.WORDS
         else -> FlowChange.SIDES
     }
 }
@@ -332,7 +347,7 @@ private fun plan(old: FlowData, new: FlowData, kind: FlowChange, geometry: FlowG
 
     val turnMs = when (kind) {
         FlowChange.MOVE -> Motion.FLOW_TURN_MS
-        FlowChange.TEXT -> Motion.TEXT_CHANGE_MS
+        FlowChange.TEXT, FlowChange.WORDS -> Motion.TEXT_CHANGE_MS
         FlowChange.SIDES -> Motion.FLOW_SIDES_MS
         FlowChange.SOFT -> Motion.SOFT_SWAP_MS
         FlowChange.WALL -> Motion.WALL_CHANGE_MS

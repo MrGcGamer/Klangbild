@@ -150,6 +150,8 @@ data class Settings(
     val volumeKeys: Boolean = false,
     val appearance: AppearanceMode = AppearanceMode.AUTO,
     val view: StageView = StageView.SINGLE,
+    /** A song's words take the text column where Music Assistant has them synced (the quick settings' Lyrics). */
+    val lyrics: Boolean = false,
     /** Music Assistant itself (optional): for the whole queue in Cover Flow. */
     val maUrl: String? = null,
     val maToken: String? = null,
@@ -268,6 +270,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
         val volumeKeys = booleanPreferencesKey("volume_keys")
         val appearance = stringPreferencesKey("appearance")
         val view = stringPreferencesKey("view")
+        val lyrics = booleanPreferencesKey("lyrics")
         val maUrl = stringPreferencesKey("ma_url")
         val maToken = stringPreferencesKey("ma_token")
         val background = stringPreferencesKey("background")
@@ -307,6 +310,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             volumeKeys = p[Keys.volumeKeys] ?: false,
             appearance = p[Keys.appearance]?.let { runCatching { AppearanceMode.valueOf(it) }.getOrNull() } ?: AppearanceMode.AUTO,
             view = p[Keys.view]?.let { runCatching { StageView.valueOf(it) }.getOrNull() } ?: StageView.SINGLE,
+            lyrics = p[Keys.lyrics] ?: false,
             maUrl = p[Keys.maUrl],
             maToken = p[Keys.maToken]?.let(secrets::open),
             background = p[Keys.background]?.let { runCatching { BackgroundMode.valueOf(it) }.getOrNull() } ?: BackgroundMode.WALL,
@@ -350,6 +354,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             p[Keys.volumeKeys] = s.volumeKeys
             p[Keys.appearance] = s.appearance.name
             p[Keys.view] = s.view.name
+            p[Keys.lyrics] = s.lyrics
             putOrRemove(Keys.maUrl, s.maUrl)
             putSecret(Keys.maToken, s.maToken)
             p[Keys.background] = s.background.name

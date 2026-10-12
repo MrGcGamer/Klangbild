@@ -2,6 +2,7 @@ package io.github.hazymorning.klangbild.setup
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import io.github.hazymorning.klangbild.config.Settings
 import io.github.hazymorning.klangbild.data.ha.HaTokens
 import io.github.hazymorning.klangbild.text.TestTexts
@@ -18,7 +19,10 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.URI
 
-/** The setup server on real sockets: what has arrived is answered, even when the answer ends the setup. */
+/**
+ * The setup server on real sockets: what has arrived is answered, even when the answer ends the
+ * setup; once a stop has returned, the port takes no connection and the page does not come back.
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class SetupServerTest {
@@ -70,6 +74,16 @@ class SetupServerTest {
         }
     }
 
+    /** Asks for [path] as a browser does; the whole answer. */
+    private fun get(at: URI, path: String): String = Socket(at.host, at.port).use { s ->
+        s.soTimeout = 10_000
+        s.getOutputStream().apply {
+            write("GET $path HTTP/1.1\r\nHost: ${at.host}:${at.port}\r\n\r\n".toByteArray())
+            flush()
+        }
+        String(s.getInputStream().readBytes())
+    }
+
     @Test
     fun `the save that ends the setup still gets its answer`() {
         val at = start()
@@ -101,5 +115,52 @@ class SetupServerTest {
             }
             assertThat(read).isEqualTo(-1)
         }
+    }
+
+    @Test
+    fun `once a stop has returned the port takes no connection, not even at once`() {
+        start()
+        // The system takes connections on a closed socket while a thread is blocked in its accept():
+        // a stop that did not wait for it let some in. Many rounds, so a stop that does not wait shows.
+        repeat(100) { round ->
+            if (round > 0) server.start()
+            val at = URI(server.origin!!)
+            // Serving: a page comes back, and the server waits for the next connection.
+            assertThat(get(at, "/favicon.ico")).startsWith("HTTP/1.1 204")
+            server.stop()
+            assertWithMessage("a connection got in after the stop in round $round")
+                .that(runCatching { Socket(at.host, at.port).close() }.isFailure).isTrue()
+        }
+    }
+
+    @Test
+    fun `a new code after the stop does not bring the page back`() {
+        start()
+        server.stop()
+        handler.rotateCode()
+        assertThat(server.info.value).isNull()
+        assertThat(server.origin).isNull()
+    }
+
+    @Test
+    fun `without an address of its own nothing listens, until there is one`() {
+        var address: InetAddress? = null
+        server = SetupServer(scope, handler, addressProvider = { address })
+        server.start()
+        val info = server.info.value!!
+        assertThat(info.url).isNull()
+        assertThat(info.code).isEqualTo(handler.code)
+        val loopback = InetAddress.getLoopbackAddress()
+        for (port in SetupServer.PORTS) {
+            assertWithMessage("port $port").that(runCatching { Socket(loopback, port).close() }.isFailure).isTrue()
+        }
+        // Asked again (the screen asks every second), it keeps its code.
+        server.start()
+        assertThat(server.info.value!!.code).isEqualTo(info.code)
+        // The network is there: the page is served.
+        address = loopback
+        server.start()
+        val at = URI(server.origin!!)
+        assertThat(get(at, "/favicon.ico")).startsWith("HTTP/1.1 204")
     }
 }

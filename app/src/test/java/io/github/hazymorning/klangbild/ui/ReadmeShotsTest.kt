@@ -14,8 +14,12 @@ import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.TrackInfo
+import io.github.hazymorning.klangbild.lights.CoverLightColors
+import io.github.hazymorning.klangbild.lights.LightColor
+import io.github.hazymorning.klangbild.lights.LightColors
+import io.github.hazymorning.klangbild.lights.LightSlot
+import io.github.hazymorning.klangbild.render.ArtworkScene
 import io.github.hazymorning.klangbild.text.TestTexts
-import io.github.hazymorning.klangbild.ui.flow.FlowStage
 import io.github.hazymorning.klangbild.ui.stage.Stage
 import io.github.hazymorning.klangbild.ui.vista.VistaScreen
 import io.github.hazymorning.klangbild.vista.VistaClock
@@ -24,11 +28,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
+import java.time.ZonedDateTime
 import java.util.TimeZone
 
 /**
- * The README's three pictures, in English. When the look changes they are rendered again
- * and saved as docs/screenshots/now-playing.jpg, cover-flow.jpg and window-view.jpg.
+ * The screens in the README's pictures, in English; beside each song the colors the lights
+ * behind the TV would show (a JSON file). `tools/make_readme_pictures.py` sets them in a room
+ * and saves the pictures to docs/screenshots/ when the look changes.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,57 +47,67 @@ class ReadmeShotsTest {
     }
 
     private val en = TestTexts.english()
-    private val clock = en.clock(Fixtures.at(21, 47), Fixtures.zone)
 
     private fun cover(c: SyntheticCover) = Catalogue.SCHEME + c.name
 
-    private val saltWater = TrackInfo(
-        "Salt Water (feat. Ida Holm) - Radio Edit", listOf("Northern Light Collective"), "Tides", 2023, 214_000,
-        artworkUrl = cover(SyntheticCover.SALT_WATER),
-    )
-    private val spiegel = TrackInfo("Spiegel im Spiegel", listOf("Arvo Pärt"))
+    private val polarNight = TrackInfo("Polar Night", listOf("Ida Holm"), "Northern Lights", 2025, 258_000, artworkUrl = cover(SyntheticCover.AURORA))
+    private val saltWater = TrackInfo("Salt Water", listOf("Northern Light Collective"), "Tides", 2023, 214_000, artworkUrl = cover(SyntheticCover.SALT_WATER))
+    private val desertSong = TrackInfo("Desert Song", listOf("Amal Haddad"), "Cairo Nights", 2016, 289_000, artworkUrl = cover(SyntheticCover.TERRACOTTA))
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) =
         captureRoboImage("build/screenshots/readme/$name.png") { Fixtures.Still(en, content) }
 
+    /** The lights' colors for a picture: left, middle (above the TV), right; linear sRGB and the light's own xy. */
+    private fun lights(name: String, colors: LightColors, warmth: Float) {
+        val rgb = FloatArray(3)
+        val json = LightSlot.entries.joinToString(",\n", "{\"lights\": [\n", "\n]}\n") { slot ->
+            colors.color(slot, 0.0, rgb)
+            val xy = LightColor.of(rgb, warmth)
+            "  {\"slot\": \"${slot.name}\", \"rgb\": [${rgb[0]}, ${rgb[1]}, ${rgb[2]}], \"xy\": [${xy.x}, ${xy.y}], \"dim\": ${LightColor.dimFor(rgb)}}"
+        }
+        File("build/screenshots/readme/$name.json").apply { parentFile?.mkdirs() }.writeText(json)
+    }
+
+    private fun coverLights(name: String, scene: ArtworkScene, warmth: Float) = lights(name, CoverLightColors(scene.field!!, moving = false), warmth)
+
+    /** The first picture: a song at night on the dark wall, the room lit in its colors. */
     @Test
     fun nowPlaying() {
-        val scene = Fixtures.scene(saltWater, coverField = true)
+        val scene = Fixtures.scene(polarNight)
         shot("now-playing") {
-            Stage(Fixtures.model(saltWater, next = spiegel, clock = clock, group = "Living room", scene = scene, t = en))
+            Stage(Fixtures.model(polarNight, next = saltWater, positionMs = 94_000L, clock = en.clock(Fixtures.at(21, 47), Fixtures.zone), group = "Living room", scene = scene, t = en))
         }
+        coverLights("now-playing", scene, warmth = 1f)
     }
 
-    @Test
-    fun coverFlow() {
-        val strip = listOf(
-            TrackInfo("Desert Song", listOf("Amal Haddad"), "Cairo Nights", 2016, 289_000, artworkUrl = cover(SyntheticCover.TERRACOTTA)),
-            TrackInfo("Neon over the Motorway", listOf("Lumen Drive"), "Night Drive", 2024, 251_000, artworkUrl = cover(SyntheticCover.NIGHT_DRIVE)),
-            TrackInfo("White Noise", listOf("Hanna Stein"), "Empty Space", 2017, 400_000, artworkUrl = cover(SyntheticCover.WHITE_SPACE)),
-            TrackInfo("Form and Color", listOf("Studio Weimar"), "Bauhaus", 2019, 198_000, artworkUrl = cover(SyntheticCover.BAUHAUS)),
-        )
-        val scenes = Fixtures.flowScenes(strip, Appearance.DARK)
-        shot("cover-flow") {
-            FlowStage(
-                Fixtures.model(strip[1], next = strip[2], clock = clock, group = "Living room + 5", scene = scenes[1], t = en),
-                Fixtures.restingCards(scenes, 1),
-            )
-        }
-    }
-
+    /** The window view on a deep winter night: a thin moon, a sky full of stars, the campfire on the snow; the mini player bottom left. */
     @Test
     fun windowView() {
-        val at = java.time.ZonedDateTime.of(2026, 10, 10, 18, 20, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
-        val track = TrackInfo("Under the Moss", listOf("Forest House"), durationMs = 213_000, artworkUrl = cover(SyntheticCover.MOSS))
+        val at = ZonedDateTime.of(2026, 1, 22, 19, 15, 0, 0, Fixtures.zone).toInstant().toEpochMilli()
         val ui = UiState(
-            screen = Screen.Stage(track, PlayerStatus.PAUSED, null),
-            stage = Fixtures.stage(track),
-            source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "partlycloudy"),
-            vista = VistaUi(track, PlayerStatus.PAUSED, MiniPlayer.LEFT),
+            screen = Screen.Stage(polarNight, PlayerStatus.PAUSED, null),
+            stage = Fixtures.stage(polarNight),
+            source = SourceState(LinkState.CONNECTED, place = 52.52 to 13.40, weather = "clear-night"),
+            vista = VistaUi(polarNight, PlayerStatus.PAUSED, MiniPlayer.LEFT),
         )
         val vistaClock = VistaClock(now = { at })
         shot("window-view") {
-            VistaScreen(ui, ui.vista!!, vistaClock, positionNow = { 213_000L / 3 }, now = { at + 60_000L }, modifier = Modifier.fillMaxSize())
+            VistaScreen(ui, ui.vista!!, vistaClock, positionNow = { 94_000L }, now = { at }, modifier = Modifier.fillMaxSize())
         }
+    }
+
+    /** One song twice: on the light wall by day and on the dark wall at night. */
+    @Test
+    fun dayAndNight() {
+        val day = Fixtures.scene(desertSong, appearance = Appearance.LIGHT)
+        shot("day") {
+            Stage(Fixtures.model(desertSong, next = polarNight, positionMs = 61_000L, clock = en.clock(Fixtures.at(14, 15), Fixtures.zone), group = "Living room", scene = day, t = en, appearance = Appearance.LIGHT))
+        }
+        val night = Fixtures.scene(desertSong)
+        shot("night") {
+            Stage(Fixtures.model(desertSong, next = polarNight, positionMs = 61_000L, clock = en.clock(Fixtures.at(22, 30), Fixtures.zone), group = "Living room", scene = night, t = en))
+        }
+        coverLights("day", day, warmth = 0f)
+        coverLights("night", night, warmth = 1f)
     }
 }

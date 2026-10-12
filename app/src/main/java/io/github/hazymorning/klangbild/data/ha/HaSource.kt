@@ -9,12 +9,14 @@ import io.github.hazymorning.klangbild.data.SourceState
 import io.github.hazymorning.klangbild.data.ma.MaAuthException
 import io.github.hazymorning.klangbild.data.ma.MaClient
 import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.data.ma.MaLyrics
 import io.github.hazymorning.klangbild.data.ma.MaQueue
 import io.github.hazymorning.klangbild.data.ma.QueueWindow
 import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
 import io.github.hazymorning.klangbild.domain.PlayerStatus
 import io.github.hazymorning.klangbild.domain.QueueInfo
+import io.github.hazymorning.klangbild.domain.SongWords
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.SpeakerLabel
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -39,10 +41,10 @@ import java.text.Normalizer
 /**
  * Home Assistant as the source: the configured media_player plus `sun.sun`, enriched with
  * Music Assistant's queue (next track, full-size artwork, individual artist names) and, when
- * Music Assistant itself is set up ([ma]), with the whole queue around the current track.
- * A Music Assistant song is published once that queue has described it, so it never comes
- * first with Home Assistant's small picture and without its year ([awaitsDetails]).
- * Remote commands go out only where the player supports them.
+ * Music Assistant itself is set up ([ma]), with the whole queue around the current track and
+ * the words of the song that plays ([MaLyrics]). A Music Assistant song is published once that
+ * queue has described it, so it never comes first with Home Assistant's small picture and
+ * without its year ([awaitsDetails]). Remote commands go out only where the player supports them.
  */
 class HaSource(
     http: OkHttpClient,
@@ -90,6 +92,12 @@ class HaSource(
 
     /** A station's pictures, ranked and steady while a song plays (only touched in [publish]). */
     private val stationPictures = StationPictures()
+
+    /** The words of the song that plays and of the one up next, from Music Assistant itself. */
+    private val lyrics: MaLyrics? = ma?.let { MaLyrics(it, scope, now) { publish(connection.status.value, connection.entities.value) } }
+
+    /** What was last known of the words of the song that plays (only touched in [publish]). */
+    private var lastWords: SongWords? = null
 
     /** Music Assistant's queue was last read at this time, for what it was then (id, place, next). */
     private var windowReadAt = 0L
@@ -186,6 +194,7 @@ class HaSource(
         queuePoller?.cancel()
         queueJob?.cancel()
         awaitEnd?.cancel()
+        lyrics?.stop()
         connection.stop()
     }
 
@@ -315,6 +324,7 @@ class HaSource(
             entities = ownIds.mapNotNull { id -> entities[id]?.let { id to it } }.toMap(),
             precision = connection.registry.value?.mapNotNull { e -> e.displayPrecision?.takeIf { e.entityId in ownIds }?.let { e.entityId to it } }?.toMap().orEmpty(),
             temperatureUnit = temperatureUnitOf(connection.config.value) ?: _state.value.temperatureUnit,
+            words = enriched?.track?.let { wordsOf(it, entity, currentWindow) },
         )
         // Until the new song is described, what was shown stays: the song before it, all of it.
         _state.value = if (player != null && key != null && awaitsDetails(player, key, t)) fresh.showing(_state.value) else fresh
@@ -354,7 +364,23 @@ class HaSource(
         coming = shown.coming,
         played = shown.played,
         favorites = shown.favorites,
+        words = shown.words,
     )
+
+    /**
+     * What Music Assistant knows of the words of [track], the song that plays: found by its URI,
+     * which Home Assistant names as what plays, else by the queue's current song when that is
+     * [track]. Null while nothing is known; without a URI (the link is down) what was known stays.
+     */
+    private fun wordsOf(track: TrackInfo, entity: EntityState?, w: QueueWindow?): SongWords? {
+        val loader = lyrics ?: return null
+        if (track.kind != MediaKind.MUSIC) return null
+        val uri = entity?.string("media_content_id")?.takeIf { it.contains("://") }
+            ?: w?.currentSong?.uri?.takeIf { w.current?.let { c -> sameTitle(c.title, track.title) } == true }
+        val words = if (uri == null) lastWords?.takeIf { it.key == track.key } else loader.known(uri)?.let { SongWords(track.key, it.lyrics) }
+        if (words != null) lastWords = words
+        return words
+    }
 
     /**
      * The song Music Assistant's queue announced as next, when [track] is it: described before
@@ -477,6 +503,8 @@ class HaSource(
         queue = parsed
         window = read
         queueForKey = key
+        // The words of the song that plays and of the one up next, as they come; never waited for.
+        read?.let { w -> lyrics?.want(listOfNotNull(w.currentSong, w.nextSong)) }
         publish(connection.status.value, connection.entities.value)
         // A book's or an episode's chapters may follow a moment after it starts (Music Assistant 2.11).
         val current = read?.current

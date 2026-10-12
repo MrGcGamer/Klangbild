@@ -4,6 +4,7 @@ import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.data.ha.EntityState
 import io.github.hazymorning.klangbild.data.ma.MaLink
 import io.github.hazymorning.klangbild.domain.PlayerSnapshot
+import io.github.hazymorning.klangbild.domain.SongWords
 import io.github.hazymorning.klangbild.domain.SpeakerGroup
 import io.github.hazymorning.klangbild.domain.TrackInfo
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,8 @@ data class SourceState(
     val precision: Map<String, Int> = emptyMap(),
     /** Home Assistant's unit for temperatures ("°C"), for a thermostat's attributes; null until known. */
     val temperatureUnit: String? = null,
+    /** What Music Assistant knows of the words of the song that plays; null while nothing is known (or without Music Assistant). */
+    val words: SongWords? = null,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }

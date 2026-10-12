@@ -135,7 +135,7 @@ class SetupHandler(
     private var failures = 0
 
     /** Called when the code changed (the TV redraws the QR code). */
-    var onCodeChanged: (String) -> Unit = {}
+    @Volatile var onCodeChanged: (String) -> Unit = {}
 
     /** A sign-in under way: Home Assistant's login page was opened for [url] with [state]. */
     private class Authorization(val state: String, val url: String, val clientId: String, val at: Long)

@@ -16,12 +16,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.serialization.json.Json
@@ -39,7 +37,7 @@ import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
-import java.net.SocketException
+import kotlin.concurrent.thread
 
 /** What the TV shows while setup is open. */
 data class SetupInfo(
@@ -56,8 +54,9 @@ data class SetupInfo(
  * each with [REQUEST_DEADLINE_MS] to arrive and be answered. Requests must name the page's own
  * address as their host (no other site can rebind its name to the TV), a call to the API from
  * another origin is refused, and so is one that is not JSON (a form on another page cannot send
- * it unasked). A request that has arrived is answered even when serving stops meanwhile: saving
- * ends the setup, and its answer must still reach the phone.
+ * it unasked). Without an address of its own (no home network) nothing is served. A request that
+ * has arrived is answered even when serving stops meanwhile: saving ends the setup, and its
+ * answer must still reach the phone. Once [stop] has returned, the port takes no connection.
  */
 class SetupServer(
     private val scope: CoroutineScope,
@@ -71,40 +70,49 @@ class SetupServer(
     val origin: String? get() = _info.value?.url
 
     private var socket: ServerSocket? = null
-    private var job: Job? = null
+
+    /** The thread taking the connections: the port is shut only once it has let go of it. */
+    private var acceptor: Thread? = null
 
     /** Connections whose request is still arriving: a stop closes them at once. */
     private val arriving = HashSet<Socket>()
 
+    /**
+     * Serves the page, with a new code. Without an address of its own there is no page to serve:
+     * the TV says there is no network, and the next call tries again.
+     */
     @Synchronized
     fun start() {
         if (socket != null) return
-        handler.rotateCode()
         val address = addressProvider()
-        val server = openSocket(address) ?: run {
+        val server = address?.let(::openSocket)
+        if (address == null || server == null) {
             _info.value = SetupInfo(null, handler.code, null)
             return
         }
+        val own = "http://${address.hostAddress}:${server.localPort}"
         socket = server
-        handler.onCodeChanged = { publish(address, server.localPort) }
-        publish(address, server.localPort)
+        handler.rotateCode()
+        handler.onCodeChanged = { publish(own) }
+        publish(own)
         val slots = Semaphore(MAX_CONNECTIONS)
-        job = scope.launch(Dispatchers.IO) {
-            while (isActive) {
+        acceptor = thread(name = "Klangbild setup", isDaemon = true) {
+            while (true) {
                 val client = try {
                     server.accept()
-                } catch (_: SocketException) {
+                } catch (_: IOException) {
                     break
                 }
-                // Too many at once: the newest waits for nothing.
-                if (!slots.tryAcquire()) {
+                // One that came in as serving stopped is not served; too many at once, the newest waits for nothing.
+                val taken = synchronized(arriving) { !server.isClosed && slots.tryAcquire() && arriving.add(client) }
+                if (!taken) {
                     runCatching { client.close() }
-                    continue
+                    if (server.isClosed) break else continue
                 }
-                // Not a child of this loop: an answer under way outlives a stop.
+                // Not tied to this loop: an answer under way outlives a stop.
                 scope.launch(Dispatchers.IO) {
                     try {
-                        serve(client)
+                        serve(client, own)
                     } finally {
                         slots.release()
                     }
@@ -116,15 +124,18 @@ class SetupServer(
     /**
      * Stops serving: the listening socket closes, and so does every connection whose request is
      * still arriving. A request that has arrived is still answered (within its deadline), and a
-     * sign-in never saved is revoked.
+     * sign-in never saved is revoked. A new code no longer reaches the screen.
      */
     @Synchronized
     fun stop() {
         val wasServing = socket != null
-        job?.cancel()
-        job = null
+        handler.onCodeChanged = {}
         runCatching { socket?.close() }
         socket = null
+        // The system still takes connections on a closed socket while a thread is blocked in its
+        // accept(): the port is shut only once that thread has let go of it, which it does at once.
+        acceptor?.join(STOP_WAIT_MS)
+        acceptor = null
         synchronized(arriving) {
             arriving.forEach { runCatching { it.close() } }
             arriving.clear()
@@ -133,28 +144,28 @@ class SetupServer(
         if (wasServing) scope.launch { handler.reset() }
     }
 
-    private fun publish(address: InetAddress?, port: Int) {
-        val url = address?.hostAddress?.let { "http://$it:$port" }
-        _info.value = SetupInfo(url, handler.code, url?.let { qrMatrix("$it/?code=${handler.code}") })
+    private fun publish(url: String) {
+        _info.value = SetupInfo(url, handler.code, qrMatrix("$url/?code=${handler.code}"))
     }
 
-    /** The listening socket, on the LAN address only (or every address when it is not known). */
-    private fun openSocket(address: InetAddress?): ServerSocket? {
+    /** The listening socket, on the LAN address only: the first of [PORTS] that is free, else any. */
+    private fun openSocket(address: InetAddress): ServerSocket? {
         for (port in PORTS) {
+            val candidate = ServerSocket()
             try {
-                return ServerSocket().apply {
-                    reuseAddress = true
-                    bind(InetSocketAddress(address, port), BACKLOG)
-                }
+                candidate.reuseAddress = true
+                candidate.bind(InetSocketAddress(address, port), BACKLOG)
+                return candidate
             } catch (_: IOException) {
                 // Port taken: try the next one.
+                runCatching { candidate.close() }
             }
         }
         return runCatching { ServerSocket(0, BACKLOG, address) }.getOrNull()
     }
 
-    private suspend fun serve(client: Socket) {
-        synchronized(arriving) { arriving += client }
+    /** Answers [client], which came to the page at [own] (also when serving stops meanwhile). */
+    private suspend fun serve(client: Socket, own: String) {
         // However slowly a request arrives and is answered, it has this long; then its socket closes under it.
         val deadline = scope.launch {
             delay(REQUEST_DEADLINE_MS)
@@ -162,13 +173,13 @@ class SetupServer(
         }
         try {
             client.use { s ->
-                s.soTimeout = READ_TIMEOUT_MS
                 val texts = handler.texts()
                 val response = try {
+                    s.soTimeout = READ_TIMEOUT_MS
                     val req = MiniHttp.read(s.getInputStream())
                     // It has arrived: from now on a stop lets it be answered (one cut off just now is not).
                     if (!synchronized(arriving) { arriving.remove(client) }) return
-                    refusal(req, texts) ?: handler.handle(req)
+                    refusal(req, own, texts) ?: handler.handle(req)
                 } catch (_: MiniHttp.BadRequest) {
                     MiniHttp.Response.text(400, texts[R.string.setup_error_request])
                 } catch (_: IOException) {
@@ -190,11 +201,10 @@ class SetupServer(
     }
 
     /**
-     * Why [req] is refused, or null: it must be for the page's own address; a call to the API
-     * must come from the page itself and be JSON.
+     * Why [req] is refused, or null: it must be for the page's own address [own]; a call to the
+     * API must come from the page itself and be JSON.
      */
-    private fun refusal(req: MiniHttp.Request, t: Texts): MiniHttp.Response? {
-        val own = origin ?: return null
+    private fun refusal(req: MiniHttp.Request, own: String, t: Texts): MiniHttp.Response? {
         val forbidden = MiniHttp.Response.text(403, t[R.string.setup_error_not_allowed])
         if (req.headers["host"] != own.removePrefix("http://")) return forbidden
         if (req.method == "POST") {
@@ -219,6 +229,9 @@ class SetupServer(
 
         /** The whole request may take this long. */
         const val REQUEST_DEADLINE_MS = 15_000L
+
+        /** How long a stop waits for the thread taking the connections to let go of the port. */
+        private const val STOP_WAIT_MS = 2_000L
 
         fun qrMatrix(text: String): Array<BooleanArray> {
             val hints = mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to 0)

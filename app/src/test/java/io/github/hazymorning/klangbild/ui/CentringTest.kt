@@ -86,6 +86,34 @@ class CentringTest {
     }
 
     @Test
+    fun theLineSungNowStandsOnTheArtworksMiddle() {
+        // The line sung now is set in the title's ink, the others in the quiet one: only it is this bright.
+        val words = Fixtures.words("[00:05.00]Die Stadt schläft unter Glas\n[00:09.00]Neonlicht über der A40\n[00:14.00]und ich fahre ohne Ziel")
+        val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
+        // Cover Flow with its whole strip, so that its column stands where the grid has it.
+        val strip = Fixtures.flowScenes(listOf(SyntheticCover.MOSS, SyntheticCover.MIST, SyntheticCover.NIGHT_DRIVE, SyntheticCover.SALT_WATER, SyntheticCover.CONFETTI).map(Fixtures::track))
+        for (t in listOf(Fixtures.texts, TestTexts.english())) for (view in io.github.hazymorning.klangbild.domain.StageView.entries) {
+            val flow = view == io.github.hazymorning.klangbild.domain.StageView.FLOW
+            val scene = if (flow) strip[2] else Fixtures.scene(track)
+            val model = Fixtures.lyricsModel(track, words, position = { 10_000L }, scene = scene, t = t)
+            val ink = render {
+                Fixtures.Still(t) {
+                    if (flow) io.github.hazymorning.klangbild.ui.flow.FlowStage(model, Fixtures.restingCards(strip, 2)) else Stage(model)
+                }
+            }
+            val layout = scene.layout
+            val left = (layout.columnLeft * 2).toInt() - 4
+            val sung = ink.lines(left, 1920, threshold = LIT).single()
+            val case = "$view in ${t.locale}"
+            // Its cap height and its baseline are as far from the artwork's middle (540) on either side.
+            val cap = 30f * io.github.hazymorning.klangbild.ui.theme.Fonts.CAP_HEIGHT * 2f
+            assertWithMessage("$case: the sung line's baseline").that(abs(sung.baseline - (540f + cap / 2f))).isAtMost(1.5f)
+            // It starts on the column's left edge (pulled left by large type's extra side bearing, a pixel or two).
+            assertWithMessage("$case: the sung line's left edge").that(abs(sung.left - layout.columnLeft * 2f)).isAtMost(4f)
+        }
+    }
+
+    @Test
     fun theMenuHasAsMuchRoomOnEachSide() {
         val settings = Settings(haUrl = "http://192.168.1.10:8123", haToken = "t", entityId = "media_player.wohnzimmer")
         val rows = SettingsMenu.rows(settings, MenuContext(LinkState.CONNECTED), Fixtures.texts)
@@ -129,14 +157,12 @@ class CentringTest {
         private val w = bmp.width
         private val h = bmp.height
         private val value = IntArray(w * h)
-        private val lit = BooleanArray(w * h)
 
         init {
             val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
             for (i in px.indices) {
                 val p = px[i]
                 value[i] = maxOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF)
-                lit[i] = value[i] > THRESHOLD
             }
         }
 
@@ -151,9 +177,10 @@ class CentringTest {
             return Box(l, t, r, b)
         }
 
-        /** Rows of ink separated by empty rows, top to bottom. */
-        fun lines(): List<Line> {
-            val rows = (0 until h).map { y -> (0 until w).any { lit[y * w + it] } }
+        /** Rows of ink between [x0] and [x1], brighter than [threshold], separated by empty rows, top to bottom. */
+        fun lines(x0: Int = 0, x1: Int = w, threshold: Int = THRESHOLD): List<Line> {
+            fun lit(i: Int) = value[i] > threshold
+            val rows = (0 until h).map { y -> (x0 until x1).any { lit(y * w + it) } }
             val out = ArrayList<Line>()
             var y = 0
             while (y < h) {
@@ -164,7 +191,7 @@ class CentringTest {
                 val top = y
                 while (y < h && rows[y]) y++
                 val bottom = y - 1
-                val box = box(0, top, w, bottom + 1)
+                val box = box(x0, top, x1, bottom + 1, threshold)
                 // Where most columns start and end: the top of the figures and the baseline
                 // (descenders and round overshoots are few).
                 val starts = IntArray(h)
@@ -172,7 +199,7 @@ class CentringTest {
                 for (x in box.left..box.right) {
                     var first = -1
                     var last = -1
-                    for (yy in top..bottom) if (lit[yy * w + x]) {
+                    for (yy in top..bottom) if (lit(yy * w + x)) {
                         if (first < 0) first = yy
                         last = yy
                     }
@@ -187,5 +214,8 @@ class CentringTest {
 
     private companion object {
         const val THRESHOLD = 90
+
+        /** Brighter than the quiet ink and the status line: only the title's ink (the line sung now). */
+        const val LIT = 200
     }
 }

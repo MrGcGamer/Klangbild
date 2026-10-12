@@ -148,7 +148,7 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
                 is Content.StageContent -> StageContentView(ui, c.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
                     StageTheatre(stage = c.stage, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown)
                 }
-                is Content.FlowContent -> StageContentView(ui, c.flow.middle.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
+                is Content.FlowContent -> StageContentView(ui, c.flow.stage, hooks, wall) { status, modelFor, lightFactor, linkDown ->
                     FlowTheatre(flow = c.flow, status = status, modelFor = modelFor, lightFactor = lightFactor, dimmed = linkDown)
                 }
                 is Content.RestContent -> RestScreen(
@@ -284,6 +284,8 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
             // the chapter, the next chapter after it.
             val ch = chapter?.takeIf { s.track.key == stage.track.key }
             val nextChapter = ch?.next?.takeIf { display.next }
+            // The song's words: the song itself where "Up next" stands, the bar only for a moment.
+            val lyrics = s.lyrics
             StageModel(
                 scene = s.scene,
                 text = if (display.album) text else text.copy(album = null),
@@ -291,13 +293,18 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
                 durationMs = ch?.let { it.endMs - it.startMs } ?: s.track.durationMs,
                 positionMs = { if (s.track.key == stage.track.key) hooks.positionNow() else null },
                 year = s.track.year.takeIf { display.album },
-                progress = display.timeLine || peek,
+                progress = if (lyrics != null) peek else display.timeLine || peek,
                 line = StageTexts.line(linkDown, s.track, t),
-                next = nextChapter ?: StageTexts.next(nextTrack, t),
-                nextTitle = if (nextChapter != null) null else StageTexts.nextTitle(nextTrack, t),
+                next = if (lyrics != null) StageTexts.next(s.track, t) else nextChapter ?: StageTexts.next(nextTrack, t),
+                nextTitle = when {
+                    lyrics != null -> StageTexts.nextTitle(s.track, t)
+                    nextChapter != null -> null
+                    else -> StageTexts.nextTitle(nextTrack, t)
+                },
                 statusLine = statusLine,
                 chapter = ch?.label,
                 rangeStartMs = ch?.startMs ?: 0L,
+                lyrics = lyrics,
             )
         }
     }
@@ -310,13 +317,15 @@ private fun StageContentView(ui: UiState, stage: StageData, hooks: RootHooks, wa
     // The cover's colors move only while music plays (a pause holds them, like everything else).
     val moving = display.motion != MotionLevel.OFF && status == PlayerStatus.PLAYING && !linkDown
     val fieldTime = remember(moving, hooks) { FieldTime(hooks.fieldTime, moving) }
-    // The bar shows when its length is known and nothing stands in its place, by setting or for a moment.
-    val barShown = (display.timeLine || peek) && !linkDown && (chapter != null || stage.track.durationMs != null)
-    // One tick for the bar and the colors, so they are redrawn in the same frames. With nothing
-    // to redraw, or with the settings covering the stage, it stops.
+    // The bar shows when its length is known and nothing stands in its place, by setting or for a
+    // moment (beside the song's words only for a moment).
+    val words = stage.lyrics != null
+    val barShown = (if (words) peek else display.timeLine || peek) && !linkDown && (chapter != null || stage.track.durationMs != null)
+    // One tick for the bar, the colors and the words, so they are redrawn in the same frames. With
+    // nothing to redraw, or with the settings covering the stage, it stops.
     val tick = rememberStageTick(
         fast = moving || status == PlayerStatus.PLAYING || status == PlayerStatus.BUFFERING,
-        running = (moving || barShown) && ui.menu == null,
+        running = (moving || barShown || words) && ui.menu == null,
     )
     CompositionLocalProvider(LocalFieldTime provides fieldTime, LocalStageTick provides tick) {
         theatre(status, modelFor, { lightFactor }, linkDown)

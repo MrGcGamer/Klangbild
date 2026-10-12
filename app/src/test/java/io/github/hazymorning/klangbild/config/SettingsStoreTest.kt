@@ -50,6 +50,14 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun `the song's words are remembered like the view`(): Unit = runBlocking {
+        val store = SettingsStore(context, FakeBox())
+        assertThat(store.settings.first().lyrics).isFalse()
+        store.update({ it.copy(lyrics = true) }, Settings())
+        assertThat(store.settings.first().lyrics).isTrue()
+    }
+
+    @Test
     fun `tokens stored by an earlier version are sealed on the next start`(): Unit = runBlocking {
         // An earlier version wrote the token as it is.
         SettingsStore(context, FakeBox(sealing = false))

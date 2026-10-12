@@ -163,9 +163,11 @@
     <string name="about_language">Die Sprache der Anzeigen und der Einrichtungsseite. Die Systemsprache ist die des Fernsehers.</string>
 
     <string name="quick_view">Ansicht</string>
+    <string name="quick_lyrics">Songtext</string>
     <string name="quick_favorite">Favorit</string>
     <string name="quick_lights">Licht</string>
     <string name="quick_shuffle">Zufallswiedergabe</string>
+    <string name="lyrics_none">Keiner</string>
     <string name="favorite_add">Hinzufügen</string>
     <string name="favorite_adding">Hinzufügen …</string>
     <string name="favorite_added">Hinzugefügt</string>

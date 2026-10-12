@@ -3,6 +3,7 @@ package io.github.hazymorning.klangbild.app
 import io.github.hazymorning.klangbild.config.ActionKind
 import io.github.hazymorning.klangbild.config.ActionState
 import io.github.hazymorning.klangbild.config.FavoriteState
+import io.github.hazymorning.klangbild.config.LyricsChoice
 import io.github.hazymorning.klangbild.config.Picture
 import io.github.hazymorning.klangbild.config.QuickAction
 import io.github.hazymorning.klangbild.config.QuickContext
@@ -11,6 +12,8 @@ import io.github.hazymorning.klangbild.config.QuickKey
 import io.github.hazymorning.klangbild.config.QuickMenu
 import io.github.hazymorning.klangbild.config.QuickRow
 import io.github.hazymorning.klangbild.config.RoomLightLevel
+import io.github.hazymorning.klangbild.data.ma.MaLink
+import io.github.hazymorning.klangbild.domain.MediaKind
 import io.github.hazymorning.klangbild.domain.Screen
 import io.github.hazymorning.klangbild.domain.StageView
 import io.github.hazymorning.klangbild.domain.TrackInfo
@@ -111,6 +114,8 @@ internal class QuickControl(private val host: ControllerHost) {
                 }
                 host.recompute()
             }
+            // On and off, at once: the stage changes its text as it does for a new song.
+            QuickItem.LYRICS -> host.settings.let { s -> host.applySettings(s.copy(lyrics = !s.lyrics)) }
             QuickItem.FAVORITE -> addFavorite()
             QuickItem.LIGHTS -> {
                 // On and off: off remembers the level, on brings it back.
@@ -291,6 +296,17 @@ internal class QuickControl(private val host: ControllerHost) {
         return out
     }
 
+    /**
+     * The lyrics entry for [track]: only for a song, while Music Assistant (where the words come
+     * from) is connected. None while it is on and Music Assistant has no synced words for the song.
+     */
+    private fun lyricsChoice(track: TrackInfo): LyricsChoice? {
+        if (track.kind != MediaKind.MUSIC || host.ui.source.ma != MaLink.CONNECTED) return null
+        if (!host.settings.lyrics) return LyricsChoice.OFF
+        val words = host.ui.source.words?.takeIf { it.key == track.key }
+        return if ((words != null && words.lyrics == null) || track.durationMs == null) LyricsChoice.NONE else LyricsChoice.ON
+    }
+
     /** How far [track]'s way into the favorites has come: asked here, or known from Music Assistant. */
     private fun favoriteState(track: TrackInfo): FavoriteState =
         favorite?.takeIf { it.first == track.key }?.second ?: if (track.favorite) FavoriteState.DONE else FavoriteState.NONE
@@ -308,6 +324,7 @@ internal class QuickControl(private val host: ControllerHost) {
             favorite = track?.takeIf { host.ui.source.favorites }?.let { favoriteState(it) },
             shuffle = shuffleShown(),
             actions = actionStates(),
+            lyrics = track?.let { lyricsChoice(it) },
         )
     }
 
