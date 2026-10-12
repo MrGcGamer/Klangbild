@@ -36,6 +36,7 @@
     <string name="entry_group">Speaker group</string>
     <string name="entry_volume">Volume</string>
     <string name="entry_values">Values</string>
+    <string name="entry_party">Party code</string>
     <string name="entry_background">Background</string>
     <string name="entry_intensity">Intensity</string>
     <string name="entry_motion">Motion</string>
@@ -70,6 +71,8 @@
     <string name="motion_fast">Fast</string>
     <string name="mini_player_left">Bottom left</string>
     <string name="mini_player_right">Bottom right</string>
+    <string name="party_corner">Top right</string>
+    <string name="party_menu">In menu</string>
     <string name="up_down_vista">Window view, menu</string>
     <string name="up_down_volume">Volume</string>
     <string name="spoken_jump">Jump</string>
@@ -117,6 +120,9 @@
     <string name="about_values_set_up">Values from Home Assistant next to the time, like the outside temperature. OK shows the QR code; choose them on your phone.</string>
     <string name="about_values_on">Your values from Home Assistant stand next to the time. You change them on your phone, through Home Assistant below.</string>
     <string name="about_values_off">Your values from Home Assistant stay hidden. Right shows them next to the time.</string>
+    <string name="about_party_set_up">When a party runs in Music Assistant, guests add songs through its QR code. OK shows the QR code for setup.</string>
+    <string name="about_party_corner">While a party runs in Music Assistant, its QR code stands small in the top right corner. Guests scan it to add songs.</string>
+    <string name="about_party_menu">While a party runs in Music Assistant, its QR code shows only here. Guests scan it to add songs.</string>
     <string name="about_background_cover">The cover’s colors fill the whole screen in soft gradients. The progress bar takes their hue.</string>
     <string name="about_background_plain">A calm background: dark with the cover’s light, or light with its shadow.</string>
     <string name="about_intensity_cover">How strongly the cover’s colors tint the background.</string>

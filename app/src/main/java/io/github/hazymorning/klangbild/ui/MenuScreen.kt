@@ -57,6 +57,7 @@ import io.github.hazymorning.klangbild.color.Appearance
 import io.github.hazymorning.klangbild.color.CoverPalette
 import io.github.hazymorning.klangbild.color.Lch
 import io.github.hazymorning.klangbild.color.Lamp
+import io.github.hazymorning.klangbild.config.MenuEntry
 import io.github.hazymorning.klangbild.config.MenuRow
 import io.github.hazymorning.klangbild.config.MenuSection
 import io.github.hazymorning.klangbild.domain.TimeLine
@@ -274,10 +275,21 @@ fun MenuScreen(menu: MenuState, modifier: Modifier = Modifier, appearance: Appea
             BaselineAt(x = layout.margin, baseline = focusY + LABEL_BASELINE_FROM_CENTRE, width = layout.art - 24f) {
                 BasicText(
                     text,
-                    style = textType(18f, 420, colors.description, lineHeight = 26f).merge(
+                    style = textType(DESCRIPTION_SP, 420, colors.description, lineHeight = 26f).merge(
                         TextStyle(lineBreak = LineBreak(LineBreak.Strategy.Balanced, LineBreak.Strictness.Normal, LineBreak.WordBreak.Default)),
                     ),
                 )
+            }
+        }
+        // A party's QR code over the party line's explanation, between it and the heading.
+        Crossfade(
+            targetState = menu.party?.takeIf { row.entry == MenuEntry.PARTY },
+            animationSpec = tween(320, easing = Motion.Dimmer),
+            label = "menu-party",
+        ) { url ->
+            if (url != null) {
+                val bottom = focusY + LABEL_BASELINE_FROM_CENTRE - DESCRIPTION_SP * Fonts.CAP_HEIGHT - PARTY_GAP
+                PartyCard(url, PARTY_DP.dp, appearance, Modifier.offset(layout.margin.dp, (bottom - PARTY_DP).dp))
             }
         }
         BaselineAt(x = layout.margin, baseline = layout.artTop + layout.art, width = layout.art) {
@@ -370,6 +382,12 @@ private const val SLIDER_LIFT = 4f
 
 /** From a line's center to its label's baseline (21 sp in a 40 dp line). */
 private const val LABEL_BASELINE_FROM_CENTRE = 7f
+
+private const val DESCRIPTION_SP = 18f
+
+/** A party's QR code in the menu (dp), and the room between it and the explanation's cap height. */
+private const val PARTY_DP = 96f
+private const val PARTY_GAP = 24f
 
 private const val GLOW_MAP_W = 480
 private const val GLOW_MAP_H = 270

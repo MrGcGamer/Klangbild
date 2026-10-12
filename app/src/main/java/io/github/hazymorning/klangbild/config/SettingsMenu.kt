@@ -34,6 +34,7 @@ enum class MenuEntry(val section: MenuSection, @StringRes val label: Int) {
     GROUP(MenuSection.INFO, R.string.entry_group),
     VOLUME(MenuSection.INFO, R.string.entry_volume),
     VALUES(MenuSection.INFO, R.string.entry_values),
+    PARTY(MenuSection.INFO, R.string.entry_party),
     BACKGROUND(MenuSection.EFFECTS, R.string.entry_background),
     LIGHT(MenuSection.EFFECTS, R.string.entry_intensity),
     MOTION(MenuSection.EFFECTS, R.string.entry_motion),
@@ -115,6 +116,13 @@ object SettingsMenu {
             },
         ]
         MenuEntry.VALUES -> if (s.ownValues.isEmpty()) t[R.string.set_up] else onOff(s.showValues, t)
+        MenuEntry.PARTY -> t[
+            when {
+                !s.hasMusicAssistant -> R.string.set_up
+                s.partyCode == PartyCode.CORNER -> R.string.party_corner
+                else -> R.string.party_menu
+            },
+        ]
         MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.background_cover else R.string.background_plain]
         MenuEntry.MOTION -> t[
             when (s.motion) {
@@ -207,6 +215,13 @@ object SettingsMenu {
                 else -> R.string.about_values_off
             },
         ]
+        MenuEntry.PARTY -> t[
+            when {
+                !s.hasMusicAssistant -> R.string.about_party_set_up
+                s.partyCode == PartyCode.CORNER -> R.string.about_party_corner
+                else -> R.string.about_party_menu
+            },
+        ]
         MenuEntry.BACKGROUND -> t[if (s.background == BackgroundMode.COVER) R.string.about_background_cover else R.string.about_background_plain]
         MenuEntry.LIGHT -> intensity(s, ctx, t)
         MenuEntry.MOTION -> {
@@ -289,7 +304,7 @@ object SettingsMenu {
      * The settings after one step of [e]: [direction] -1 (left) or +1 (right, OK). Left and
      * right stop at the ends of a scale, OK ([wrap]) goes round. Switches simply flip. Null for
      * the lines that are no setting (the connections, the sleep timer, the language) and for the
-     * lights and the values while none are set up (OK sets them up).
+     * lights, the values and the party code while none are set up (OK sets them up).
      */
     fun step(e: MenuEntry, s: Settings, direction: Int, wrap: Boolean = false): Settings? = when (e) {
         MenuEntry.VIEW -> s.copy(view = if (s.view == StageView.FLOW) StageView.SINGLE else StageView.FLOW)
@@ -300,6 +315,7 @@ object SettingsMenu {
         MenuEntry.GROUP -> s.copy(showGroup = !s.showGroup)
         MenuEntry.VOLUME -> s.copy(volumeDisplay = move(VOLUME_ORDER, s.volumeDisplay, direction, wrap))
         MenuEntry.VALUES -> if (s.ownValues.isEmpty()) null else s.copy(showValues = !s.showValues)
+        MenuEntry.PARTY -> if (!s.hasMusicAssistant) null else s.copy(partyCode = if (s.partyCode == PartyCode.CORNER) PartyCode.MENU else PartyCode.CORNER)
         MenuEntry.BACKGROUND -> s.copy(background = if (s.background == BackgroundMode.COVER) BackgroundMode.WALL else BackgroundMode.COVER)
         MenuEntry.MOTION -> s.copy(motion = move(MOTION_ORDER, s.motion, direction, wrap))
         MenuEntry.LIGHTS -> if (s.roomLights.isSet) s.copy(roomLightLevel = move(LIGHTS_ORDER, s.roomLightLevel, direction, wrap)) else null

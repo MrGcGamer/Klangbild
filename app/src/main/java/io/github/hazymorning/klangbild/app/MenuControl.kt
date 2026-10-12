@@ -52,9 +52,9 @@ internal class MenuControl(private val host: ControllerHost, private val sleep: 
         val entry = SettingsMenu.entries[c]
         val s = host.settings
         when {
-            // The connections, and the lights and values while none are set up, are set up on the phone.
+            // The connections, and the lights, values and party code while none are set up, are set up on the phone.
             entry == MenuEntry.CONNECTION || entry == MenuEntry.MUSIC_ASSISTANT || (entry == MenuEntry.LIGHTS && !s.roomLights.isSet) ||
-                (entry == MenuEntry.VALUES && s.ownValues.isEmpty()) -> {
+                (entry == MenuEntry.VALUES && s.ownValues.isEmpty()) || (entry == MenuEntry.PARTY && !s.hasMusicAssistant) -> {
                 cursor = null
                 host.requestSetup(true)
             }
@@ -83,7 +83,7 @@ internal class MenuControl(private val host: ControllerHost, private val sleep: 
             kind = track?.kind,
             language = host.language,
         )
-        return MenuState(SettingsMenu.rows(s, ctx, host.texts), c)
+        return MenuState(SettingsMenu.rows(s, ctx, host.texts), c, host.ui.source.party)
     }
 
     companion object {

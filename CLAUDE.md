@@ -118,9 +118,10 @@ data/ha/        HaAuth (long-lived token, or a sign-in: refresh token + client i
                 variables and `player`), the lights' states and calls; a Music Assistant song
                 published once its queue has described it; the words of the song that plays,
                 found by the URI Home Assistant names as what plays),
-                StationPictures (a station's song: the best picture on offer wins and holds)
+                StationPictures (a station's song: the best picture on offer wins and holds);
+                the Party plugin's join link asked once a minute, the last one kept without an answer
 data/ma/        MaClient (Music Assistant's own API, optional: POST /api with a long-lived token;
-                `metadata/get_track_lyrics` on a client of its own with a long timeout),
+                `metadata/get_track_lyrics` on a client of its own with a long timeout; `party/url`),
                 MaQueue (queue items around the current one → QueueWindow with the current item's
                 speed, the current and next songs' URIs and the words they bring; books' authors,
                 episodes' shows, chapters; pictures via imageproxy), MaLyrics (the words of the song
@@ -392,6 +393,11 @@ UI words are given in English with the German in parentheses where it matters.
   most once in 30 s), never holding up the queue reads; the song up next is asked ahead. Songs
   only, synced only: plain words are none. Set once per song off the main thread; a frame only
   moves one canvas.
+- **Party code** (Music Assistant's Party plugin; setting "Party code", Party-Code): while its
+  guest access is on, the join link (`party/url`) as a printed QR card like the setup's, 56 dp in
+  the top right corner just inside the dark band, over every screen but setup, or only in the
+  menu (96 dp above the party line's explanation, where it shows in both cases). Any party on
+  the server, whatever player it uses.
 - **Remote:** OK plays and pauses, held it opens the settings; left and right change the song
   (spoken word: jump); down opens the quick settings and, pressed again, closes them; up
   brings the window view and, pressed again, leaves it (both also show hidden parts for a
@@ -435,7 +441,7 @@ UI words are given in English with the German in parentheses where it matters.
   wall and the language, and dim the light; no fonts, colors or layout variants. Labels are
   the common words people know from TVs and phones, values plain words: sections Picture
   (View: Single cover / Cover Flow, Appearance), Information (Clock, Progress bar, Next track,
-  Album and year, Speaker group, Volume, Values), Effects (Background: Plain / Cover colors,
+  Album and year, Speaker group, Volume, Values, Party code: Top right / In menu), Effects (Background: Plain / Cover colors,
   Intensity, Motion: Off / Slow / Medium / Fast, Lights: Off / 10 to 100% with a slider),
   Window view (When paused, While playing, Mini player: Bottom left / Bottom right / Off),
   Remote (Control music, Up and down: Window view, menu / Volume, Audiobooks, podcasts: Jump /

@@ -1,6 +1,7 @@
 package io.github.hazymorning.klangbild.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -10,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -20,15 +22,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import io.github.hazymorning.klangbild.app.FlowData
 import io.github.hazymorning.klangbild.app.StageData
 import io.github.hazymorning.klangbild.app.UiState
 import io.github.hazymorning.klangbild.app.VistaUi
 import io.github.hazymorning.klangbild.color.Appearance
+import io.github.hazymorning.klangbild.render.WallGlow
 import io.github.hazymorning.klangbild.config.MotionLevel
 import io.github.hazymorning.klangbild.config.VolumeDisplay
 import io.github.hazymorning.klangbild.domain.MediaKind
@@ -168,12 +173,32 @@ private fun Root(ui: UiState, screen: ScreenSpec, hooks: RootHooks, wall: State<
                 Content.Dark -> Box(Modifier.fillMaxSize())
             }
         }
+        val darkGround = content is Content.VistaContent
+        PartyCorner(
+            ui.source.party.takeIf { ui.display.partyCorner && content !is Content.SetupContent && content != Content.Dark },
+            if (darkGround) Appearance.DARK else ui.appearance,
+        )
         // The quick settings rise from the bottom edge over whatever shows (over the landscape on
         // its dark ground); the settings menu lies over everything. Both come and go on their own.
-        QuickBarOverlay(ui.quick, if (content is Content.VistaContent) Appearance.DARK else ui.appearance)
+        QuickBarOverlay(ui.quick, if (darkGround) Appearance.DARK else ui.appearance)
         MenuOverlay(ui.menu, ui.appearance)
     }
 }
+
+/** A party's QR code, small in the top right corner just inside the dark band along the edges. */
+@Composable
+private fun PartyCorner(url: String?, appearance: Appearance) {
+    Crossfade(url, animationSpec = tween(900, easing = Motion.Dimmer), label = "party") { u ->
+        if (u != null) {
+            Box(Modifier.fillMaxSize().padding(WallGlow.EDGE_BLACK_DP.dp), contentAlignment = Alignment.TopEnd) {
+                PartyCard(u, PARTY_CORNER_DP.dp, appearance)
+            }
+        }
+    }
+}
+
+/** Small enough to leave the status line below it alone, large enough for a phone a step away. */
+private const val PARTY_CORNER_DP = 56f
 
 private sealed interface Content {
     val key: String

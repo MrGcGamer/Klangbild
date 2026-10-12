@@ -30,6 +30,11 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-land-xhdpi")
 class OptionsTest {
+    private companion object {
+        /** A join link as long as one through Music Assistant's remote access. */
+        const val PARTY = "https://app.music-assistant.io/?remote_id=8F3K2Q7XWM4N9P6R&join=Zq4xT8bLw2Ny"
+    }
+
     @get:org.junit.Rule
     val compose = composeRule()
 
@@ -125,6 +130,37 @@ class OptionsTest {
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
         state = menu(MenuEntry.APPEARANCE)
         repeat(6) { compose.mainClock.advanceTimeBy(70); grab() }
+    }
+
+    private val withMa = configured.copy(maUrl = "http://192.168.1.5:8095", maToken = "t")
+
+    @Test fun menuParty() = shot("menu_party") {
+        MenuScreen(menu(MenuEntry.PARTY, withMa).copy(party = PARTY))
+    }
+
+    @Test fun menuPartyPaper() = shot("menu_party_paper") {
+        MenuScreen(menu(MenuEntry.PARTY, withMa).copy(party = PARTY), appearance = io.github.hazymorning.klangbild.color.Appearance.LIGHT)
+    }
+
+    /** A party's code in the top right corner, above the status line, on the dark wall and on paper. */
+    @Test fun stageParty() {
+        val screen = io.github.hazymorning.klangbild.render.ScreenSpec.TV_1080
+        val track = Fixtures.track(SyntheticCover.NIGHT_DRIVE)
+        fun ui(appearance: io.github.hazymorning.klangbild.color.Appearance) = io.github.hazymorning.klangbild.app.UiState(
+            screen = io.github.hazymorning.klangbild.domain.Screen.Stage(track, PlayerStatus.PAUSED, null),
+            stage = Fixtures.stage(track, screen, appearance = appearance),
+            appearance = appearance,
+            source = io.github.hazymorning.klangbild.data.SourceState(LinkState.CONNECTED, party = PARTY),
+            texts = Fixtures.texts,
+        )
+        var state by androidx.compose.runtime.mutableStateOf(ui(io.github.hazymorning.klangbild.color.Appearance.DARK))
+        compose.mainClock.autoAdvance = false
+        compose.setContent { KlangbildRoot(state, screen, RootHooks(positionNow = { 60_000L }, now = { Fixtures.at(21, 47) })) }
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.onRoot().captureRoboImage("build/screenshots/options/stage_party_dark.png")
+        state = ui(io.github.hazymorning.klangbild.color.Appearance.LIGHT)
+        compose.mainClock.advanceTimeBy(4_000)
+        compose.onRoot().captureRoboImage("build/screenshots/options/stage_party_light.png")
     }
 
     @Test fun menuConnection() = shot("menu_connection") {

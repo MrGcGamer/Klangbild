@@ -26,6 +26,7 @@
     <string name="entry_group">Lautsprechergruppe</string>
     <string name="entry_volume">Lautstärke</string>
     <string name="entry_values">Werte</string>
+    <string name="entry_party">Party-Code</string>
     <string name="entry_background">Hintergrund</string>
     <string name="entry_intensity">Intensität</string>
     <string name="entry_motion">Bewegung</string>
@@ -59,6 +60,8 @@
     <string name="motion_fast">Schnell</string>
     <string name="mini_player_left">Unten links</string>
     <string name="mini_player_right">Unten rechts</string>
+    <string name="party_corner">Oben rechts</string>
+    <string name="party_menu">Im Menü</string>
     <string name="up_down_vista">Fensterblick, Menü</string>
     <string name="up_down_volume">Lautstärke</string>
     <string name="spoken_jump">Spulen</string>
@@ -103,6 +106,9 @@
     <string name="about_values_set_up">Werte aus Home Assistant stehen neben der Uhrzeit, etwa die Temperatur draußen. OK zeigt den QR-Code; am Handy wählst du sie aus.</string>
     <string name="about_values_on">Deine Werte aus Home Assistant stehen neben der Uhrzeit. Ändern kannst du sie am Handy, über Home Assistant weiter unten.</string>
     <string name="about_values_off">Deine Werte aus Home Assistant bleiben verborgen. Rechts zeigt sie neben der Uhrzeit.</string>
+    <string name="about_party_set_up">Läuft in Music Assistant eine Party, wünschen sich Gäste über ihren QR-Code Musik. OK zeigt den QR-Code zum Einrichten.</string>
+    <string name="about_party_corner">Läuft in Music Assistant eine Party, steht ihr QR-Code klein oben rechts in der Ecke. Gäste scannen ihn und wünschen sich Musik.</string>
+    <string name="about_party_menu">Läuft in Music Assistant eine Party, steht ihr QR-Code nur hier. Gäste scannen ihn und wünschen sich Musik.</string>
     <string name="about_background_cover">Die Farben des Covers füllen den ganzen Bildschirm, weich verlaufend. Der Fortschrittsbalken nimmt ihren Ton an.</string>
     <string name="about_background_plain">Ein ruhiger Hintergrund: dunkel mit dem Licht des Covers, hell mit seinem Schatten.</string>
     <string name="about_intensity_cover">Wie kräftig die Farben des Covers den Hintergrund färben.</string>

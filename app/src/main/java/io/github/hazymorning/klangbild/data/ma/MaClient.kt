@@ -66,6 +66,17 @@ class MaClient(private val http: OkHttpClient, val baseUrl: String, private val 
         command("players/add_currently_playing_to_favorites", buildJsonObject { put("player_id", playerId) })
     }
 
+    /**
+     * The link guests open to join the party of Music Assistant's Party plugin (`party/url`);
+     * null while its guest access is off or the plugin is not loaded. Music Assistant hands out
+     * the same link until it expires, then a new one.
+     */
+    suspend fun partyUrl(): String? = try {
+        (command("party/url", JsonObject(emptyMap())) as? JsonPrimitive)?.takeIf { it.isString }?.content
+    } catch (_: MaUnknownCommandException) {
+        null
+    }
+
     /** Whether address and token work, as the menu and the setup page say it. */
     suspend fun check(): MaLink = try {
         if (command("player_queues/all", JsonObject(emptyMap())) is JsonArray) MaLink.CONNECTED else MaLink.UNREACHABLE

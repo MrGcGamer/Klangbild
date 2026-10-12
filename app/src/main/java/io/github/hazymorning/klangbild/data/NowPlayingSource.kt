@@ -64,6 +64,8 @@ data class SourceState(
     val temperatureUnit: String? = null,
     /** What Music Assistant knows of the words of the song that plays; null while nothing is known (or without Music Assistant). */
     val words: SongWords? = null,
+    /** The link guests open to join a party in Music Assistant, while one runs. */
+    val party: String? = null,
 )
 
 enum class RemoteCommand { PLAY_PAUSE, PLAY, PAUSE, NEXT, PREVIOUS, VOLUME_UP, VOLUME_DOWN }

@@ -95,7 +95,12 @@ data class FlowData(val cards: List<FlowEntry>, val current: Int, val lyrics: Ly
 }
 
 /** The settings menu while it is open: its lines and the one the cursor is on. */
-data class MenuState(val rows: List<MenuRow>, val cursor: Int)
+data class MenuState(
+    val rows: List<MenuRow>,
+    val cursor: Int,
+    /** The link guests open to join a party in Music Assistant, while one runs: its QR code shows beside the party line. */
+    val party: String? = null,
+)
 
 /** The quick menu while it is open: its lines and the one the cursor is on. */
 data class QuickState(val rows: List<QuickRow>, val cursor: Int)

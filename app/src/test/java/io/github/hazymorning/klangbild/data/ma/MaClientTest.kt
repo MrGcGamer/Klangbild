@@ -53,6 +53,17 @@ class MaClientTest {
     }
 
     @Test
+    fun `a party's link while guest access is on, none without it or without the plugin`() = runBlocking {
+        server.enqueue(MockResponse.Builder().body("\"http://192.168.1.5:8095/?join=abc123\"").build())
+        assertThat(client.partyUrl()).isEqualTo("http://192.168.1.5:8095/?join=abc123")
+        assertThat(Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["command"]!!.jsonPrimitive.content).isEqualTo("party/url")
+        server.enqueue(MockResponse.Builder().body("null").build())
+        assertThat(client.partyUrl()).isNull()
+        server.enqueue(MockResponse.Builder().code(400).body("Invalid Command: party/url").build())
+        assertThat(client.partyUrl()).isNull()
+    }
+
+    @Test
     fun `the address is read from a picture link`() {
         assertThat(MaClient.addressIn("http://192.168.1.5:8095/imageproxy/3f2a?size=512")).isEqualTo("http://192.168.1.5:8095")
         assertThat(MaClient.addressIn("http://mass.local:8095/imageproxy?path=x&size=0")).isEqualTo("http://mass.local:8095")

@@ -75,11 +75,12 @@ class SettingsMenuTest {
         )
         for (s in listOf(Settings(), configured, configured.copy(light = LightLevel.OFF, volumeKeys = true), withMa, withLights, withValues)) {
             // The lines that are no stored setting: the connections, the sleep timer, the language
-            // (the system keeps it), and the lights and the values until they are set up.
+            // (the system keeps it), and the lights, the values and the party code until they are set up.
             val actions = setOfNotNull(
                 MenuEntry.CONNECTION, MenuEntry.MUSIC_ASSISTANT, MenuEntry.SLEEP_TIMER, MenuEntry.LANGUAGE,
                 MenuEntry.LIGHTS.takeIf { !s.roomLights.isSet },
                 MenuEntry.VALUES.takeIf { s.ownValues.isEmpty() },
+                MenuEntry.PARTY.takeIf { !s.hasMusicAssistant },
             )
             for (ctx in contexts) {
                 for (row in SettingsMenu.rows(s, ctx, de)) {
@@ -119,6 +120,19 @@ class SettingsMenuTest {
         assertThat(SettingsMenu.step(MenuEntry.MINI_PLAYER, s, +1)!!.miniPlayer).isEqualTo(MiniPlayer.RIGHT)
         assertThat(SettingsMenu.step(MenuEntry.MINI_PLAYER, s, -1)!!.miniPlayer).isEqualTo(MiniPlayer.OFF)
         assertThat(SettingsMenu.value(MenuEntry.MINI_PLAYER, s, MenuContext(), de)).isEqualTo("Unten links")
+    }
+
+    @Test
+    fun `the party code is set up with Music Assistant, then stands in the corner or in the menu`() {
+        assertThat(SettingsMenu.value(MenuEntry.PARTY, configured, MenuContext(), de)).isEqualTo("Einrichten")
+        assertThat(SettingsMenu.step(MenuEntry.PARTY, configured, +1)).isNull()
+        val ma = configured.copy(maUrl = "http://192.168.1.5:8095", maToken = "t")
+        assertThat(SettingsMenu.value(MenuEntry.PARTY, ma, MenuContext(), de)).isEqualTo("Oben rechts")
+        assertThat(ma.display.partyCorner).isTrue()
+        val menu = SettingsMenu.step(MenuEntry.PARTY, ma, -1)!!
+        assertThat(menu.partyCode).isEqualTo(PartyCode.MENU)
+        assertThat(menu.display.partyCorner).isFalse()
+        assertThat(SettingsMenu.step(MenuEntry.PARTY, menu, +1)!!.partyCode).isEqualTo(PartyCode.CORNER)
     }
 
     @Test

@@ -95,6 +95,9 @@ enum class RoomLightLevel(val brightness: Float) {
 /** Where the music's label sits in the window view. */
 enum class MiniPlayer { LEFT, RIGHT, OFF }
 
+/** Where the QR code of a party in Music Assistant shows: small in the screen's top right corner, or only in the menu. */
+enum class PartyCode { CORNER, MENU }
+
 /** The color lights behind the TV (Home Assistant light entities), from the left; any may be missing. */
 data class RoomLights(val left: String? = null, val center: String? = null, val right: String? = null) {
     /** Each light once, from the left. */
@@ -119,6 +122,8 @@ data class DisplayOptions(
     val light: LightLevel = LightLevel.NORMAL,
     val background: BackgroundMode = BackgroundMode.WALL,
     val motion: MotionLevel = MotionLevel.OFF,
+    /** A party's QR code in the top right corner. */
+    val partyCorner: Boolean = true,
 )
 
 /**
@@ -168,6 +173,7 @@ data class Settings(
     val vistaPlayingSeconds: Int = 0,
     /** Where the music's label sits in the window view. */
     val miniPlayer: MiniPlayer = MiniPlayer.LEFT,
+    val partyCode: PartyCode = PartyCode.CORNER,
     /** The weather entity whose clouds set the window view's sky; null finds Home Assistant's own, [NO_WEATHER] none. */
     val weatherEntity: String? = null,
     /** Buttons of one's own in the quick settings, set up on the phone. */
@@ -233,6 +239,7 @@ data class Settings(
             light = light,
             background = background,
             motion = motion,
+            partyCorner = partyCode == PartyCode.CORNER,
         )
 }
 
@@ -283,6 +290,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
         val vistaPause = intPreferencesKey("vista_pause_s")
         val vistaPlaying = intPreferencesKey("vista_playing_s")
         val miniPlayer = stringPreferencesKey("mini_player")
+        val partyCode = stringPreferencesKey("party_code")
         val weather = stringPreferencesKey("weather_entity")
         val quickActions = stringPreferencesKey("quick_actions")
         val ownValues = stringPreferencesKey("own_values")
@@ -321,6 +329,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             vistaPauseSeconds = p[Keys.vistaPause] ?: 180,
             vistaPlayingSeconds = p[Keys.vistaPlaying] ?: 0,
             miniPlayer = p[Keys.miniPlayer]?.let { runCatching { MiniPlayer.valueOf(it) }.getOrNull() } ?: MiniPlayer.LEFT,
+            partyCode = p[Keys.partyCode]?.let { runCatching { PartyCode.valueOf(it) }.getOrNull() } ?: PartyCode.CORNER,
             weatherEntity = p[Keys.weather],
             quickActions = QuickActions.decode(p[Keys.quickActions]),
             ownValues = OwnValues.decode(p[Keys.ownValues]),
@@ -367,6 +376,7 @@ class SettingsStore(private val context: Context, private val secrets: SecretBox
             p[Keys.vistaPause] = s.vistaPauseSeconds
             p[Keys.vistaPlaying] = s.vistaPlayingSeconds
             p[Keys.miniPlayer] = s.miniPlayer.name
+            p[Keys.partyCode] = s.partyCode.name
             putOrRemove(Keys.weather, s.weatherEntity)
             putOrRemove(Keys.quickActions, s.quickActions.takeIf { it.isNotEmpty() }?.let(QuickActions::encode))
             putOrRemove(Keys.ownValues, s.ownValues.takeIf { it.isNotEmpty() }?.let(OwnValues::encode))

@@ -3,17 +3,21 @@ package io.github.hazymorning.klangbild.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -26,6 +30,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.em
 import androidx.core.graphics.createBitmap
 import kotlin.math.roundToInt
@@ -39,6 +44,7 @@ import io.github.hazymorning.klangbild.render.HaloLayout
 import io.github.hazymorning.klangbild.render.SceneBuilder
 import io.github.hazymorning.klangbild.render.ScreenSpec
 import io.github.hazymorning.klangbild.setup.SetupInfo
+import io.github.hazymorning.klangbild.setup.SetupServer
 import io.github.hazymorning.klangbild.text.texts
 import io.github.hazymorning.klangbild.ui.stage.ArtworkLayer
 import io.github.hazymorning.klangbild.ui.stage.BaseWall
@@ -86,6 +92,16 @@ object SetupArt {
 
     /** "http://192.168.1.23:8765" → "192.168.1.23:8765" (what people actually type). */
     fun shortUrl(url: String): String = url.removePrefix("http://").removePrefix("https://").trimEnd('/')
+}
+
+/** A party's join link as a printed QR card, [size] square; nothing for a link no QR code can hold. */
+@Composable
+fun PartyCard(url: String, size: Dp, appearance: Appearance, modifier: Modifier = Modifier) {
+    val px = with(LocalDensity.current) { size.roundToPx() }
+    val card = remember(url, px, appearance) {
+        runCatching { SetupServer.qrMatrix(url) }.getOrNull()?.let { SetupArt.card(it, px, appearance).asImageBitmap() }
+    } ?: return
+    Image(card, contentDescription = null, modifier = modifier.size(size), filterQuality = FilterQuality.None)
 }
 
 /**

@@ -70,6 +70,7 @@ class HaSource(
 
     private var collector: Job? = null
     private var queuePoller: Job? = null
+    private var partyPoller: Job? = null
 
     /** The one queue read under way: a newer track cancels it (quick skips leave nothing running). */
     private var queueJob: Job? = null
@@ -77,6 +78,7 @@ class HaSource(
     @Volatile private var window: QueueWindow? = null
     @Volatile private var queueForKey: String? = null
     @Volatile private var maLink: MaLink? = null
+    @Volatile private var party: String? = null
     @Volatile private var lastPlayerKey: String? = null
 
     /**
@@ -174,6 +176,7 @@ class HaSource(
             combine(connection.status, connection.entities, connection.registry, connection.config, connection.missing) { st, ents, _, _, _ -> st to ents }
                 .collect { (st, ents) -> publish(st, ents) }
         }
+        ma?.let(::followParty)
         queuePoller = scope.launch {
             ma?.let {
                 maLink = it.check()
@@ -189,9 +192,31 @@ class HaSource(
         }
     }
 
+    /** Music Assistant's party link, asked again now and then: guest access may go off, the link expire. */
+    private fun followParty(client: MaClient) {
+        partyPoller = scope.launch {
+            while (isActive) {
+                // Without an answer the last link stays: it may well still work.
+                val url = try {
+                    client.partyUrl()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    party
+                }
+                if (url != party) {
+                    party = url
+                    publish(connection.status.value, connection.entities.value)
+                }
+                delay(PARTY_REFRESH_MS)
+            }
+        }
+    }
+
     override fun stop() {
         collector?.cancel()
         queuePoller?.cancel()
+        partyPoller?.cancel()
         queueJob?.cancel()
         awaitEnd?.cancel()
         lyrics?.stop()
@@ -315,6 +340,7 @@ class HaSource(
             coming = currentWindow?.coming.orEmpty(),
             played = currentWindow?.played.orEmpty(),
             ma = if (ma == null) null else maLink,
+            party = party,
             favorites = player?.isMusicAssistant == true && (favoriteButton() != null || (ma != null && player.activeQueue != null)),
             place = placeOf(connection.config.value) ?: _state.value.place,
             weather = weather?.state?.takeIf { it != "unavailable" && it != "unknown" } ?: _state.value.weather.takeIf { weather == null },
@@ -573,6 +599,8 @@ class HaSource(
 
         /** Music Assistant's queue is read again after this long even when nothing seems to have moved. */
         const val WINDOW_MAX_AGE_MS = 5 * 60_000L
+
+        const val PARTY_REFRESH_MS = 60_000L
 
         /** A book without chapters is asked once more after this long. */
         const val CHAPTERS_AGAIN_MS = 10_000L
